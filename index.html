@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#d9730d" id="metaTheme">
+<meta name="mobile-web-app-capable" content="yes">
+<title>KCO — Centro Operativo</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icono-192.png">
+<link rel="apple-touch-icon" href="./icono-192.png">
+<style>
+:root{
+  --bg:#12100e;
+  --panel:#1c1917;
+  --panel2:#262220;
+  --linea:#3a3330;
+  --txt:#f2ede9;
+  --txt2:#a39a94;
+  --acc:#d9730d;
+  --acc-suave:#3a2a16;
+  --ok:#3f9e5a;
+  --mal:#b5453f;
+}
+body.ctx-hogar{
+  --acc:#2f7de1;
+  --acc-suave:#16273a;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{
+  background:var(--bg);
+  color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  font-size:16px;
+  line-height:1.4;
+  display:flex;
+  flex-direction:column;
+  min-height:100%;
+}
+button{font-family:inherit}
+header{
+  background:var(--panel);
+  border-bottom:1px solid var(--linea);
+  padding:calc(env(safe-area-inset-top) + 10px) 12px 10px 12px;
+}
+.fila{display:flex;align-items:center;gap:8px}
+.marca{font-weight:700;font-size:17px;letter-spacing:.5px;color:var(--acc)}
+.marca span{color:var(--txt2);font-weight:400;font-size:13px;letter-spacing:0}
+.crece{flex:1}
+.iconobtn{
+  background:none;border:1px solid var(--linea);color:var(--txt2);
+  border-radius:8px;font-size:17px;line-height:1;padding:7px 10px;cursor:pointer;
+}
+.ctxsel{display:flex;gap:8px;margin-top:10px}
+.ctxbtn{
+  flex:1;padding:11px 8px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--linea);background:var(--panel2);color:var(--txt2);
+  font-size:15px;font-weight:600;
+}
+.ctxbtn.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.captura{padding:12px;background:var(--panel);border-bottom:1px solid var(--linea)}
+#txtCaptura{
+  width:100%;padding:14px 12px;border-radius:10px;
+  border:1px solid var(--linea);background:var(--panel2);color:var(--txt);
+  font-size:16px;outline:none;
+}
+#txtCaptura:focus{border-color:var(--acc)}
+.pista{color:var(--txt2);font-size:12px;margin-top:6px}
+.tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--linea)}
+.tab{
+  flex:1;padding:11px 4px;background:none;border:0;border-bottom:2px solid transparent;
+  color:var(--txt2);font-size:14px;font-weight:600;cursor:pointer;
+}
+.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
+main{flex:1;padding:12px 12px 30px 12px;overflow-y:auto}
+.prog{background:var(--panel);border:1px solid var(--linea);border-radius:10px;padding:11px 12px;margin-bottom:12px}
+.prog .cab{display:flex;justify-content:space-between;font-size:13px;color:var(--txt2);margin-bottom:8px}
+.prog .cab b{color:var(--txt);font-size:15px}
+.barra{height:9px;background:var(--panel2);border-radius:6px;overflow:hidden}
+.barra i{display:block;height:100%;background:var(--acc);width:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:4px;-webkit-overflow-scrolling:touch}
+.chip{
+  flex:0 0 auto;padding:7px 11px;border-radius:18px;cursor:pointer;
+  border:1px solid var(--linea);background:var(--panel);color:var(--txt2);font-size:13px;
+}
+.chip.on{border-color:var(--acc);color:var(--acc);background:var(--acc-suave)}
+ul{list-style:none;margin:0;padding:0}
+li.item{
+  background:var(--panel);border:1px solid var(--linea);border-left:3px solid var(--acc);
+  border-radius:10px;padding:11px 12px;margin-bottom:8px;cursor:pointer;
+}
+li.item.st-completado{border-left-color:var(--ok);opacity:.62}
+li.item.st-cancelado{border-left-color:var(--mal);opacity:.5}
+li.item.st-completado .txt{text-decoration:line-through}
+li.item.st-cancelado .txt{text-decoration:line-through}
+.txt{white-space:pre-wrap;word-break:break-word}
+.meta{color:var(--txt2);font-size:12px;margin-top:5px}
+.espera{color:#e0b040;font-size:12px;margin-top:4px}
+.vacio{color:var(--txt2);font-size:14px;padding:22px 4px;text-align:center}
+.dia{color:var(--acc);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin:14px 0 8px 0}
+.ev{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--linea);font-size:14px}
+.ev .h{color:var(--txt2);font-size:12px;flex:0 0 42px;padding-top:2px}
+.ev .d{flex:1;word-break:break-word}
+.ev .d b{font-weight:600}
+.ev small{display:block;color:var(--txt2);font-size:12px}
+.tapa{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:flex-end;z-index:30}
+.tapa.on{display:flex}
+.hoja{
+  width:100%;max-height:88%;overflow-y:auto;background:var(--panel);
+  border-top:1px solid var(--linea);border-radius:14px 14px 0 0;
+  padding:16px 16px calc(env(safe-area-inset-bottom) + 20px) 16px;
+}
+.hoja h2{margin:0 0 12px 0;font-size:16px}
+.hoja .sub{color:var(--txt2);font-size:13px;margin:-6px 0 12px 0}
+.dato{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--linea);font-size:14px}
+.dato span:last-child{color:var(--txt2);text-align:right;word-break:break-all}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px 0}
+.gbtn{
+  padding:12px 8px;border-radius:10px;cursor:pointer;text-align:left;
+  border:1px solid var(--linea);background:var(--panel2);color:var(--txt);font-size:14px;
+}
+.gbtn.on{border-color:var(--acc);background:var(--acc-suave);color:var(--acc);font-weight:600}
+.bloque{width:100%;padding:12px;border-radius:10px;cursor:pointer;margin-top:8px;
+  background:var(--panel2);border:1px solid var(--linea);color:var(--txt);font-size:15px}
+.bloque.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.bloque.peli{color:#ffb4b0;border-color:#5c2b28}
+textarea{
+  width:100%;min-height:130px;padding:11px;border-radius:10px;background:var(--panel2);
+  border:1px solid var(--linea);color:var(--txt);font-size:14px;font-family:inherit;resize:vertical;
+}
+#txtBusca{
+  width:100%;padding:13px 12px;border-radius:10px;border:1px solid var(--linea);
+  background:var(--panel2);color:var(--txt);font-size:16px;outline:none;margin-bottom:10px;
+}
+.etq{display:inline-block;font-size:11px;color:var(--txt2);border:1px solid var(--linea);
+  border-radius:5px;padding:1px 6px;margin-right:5px}
+.aviso{
+  background:#4a1d1d;border:1px solid #7a2e2e;color:#ffd9d9;
+  border-radius:10px;padding:10px 12px;margin:12px 12px 0 12px;font-size:14px;display:none;
+}
+.aviso.on{display:block}
+.ok{color:var(--ok)}
+</style>
+</head>
+<body class="ctx-trabajo">
+
+<header>
+  <div class="fila">
+    <div class="marca">KCO <span>Centro Operativo</span></div>
+    <div class="crece"></div>
+    <button class="iconobtn" id="btnBuscar" type="button" aria-label="Buscar">&#128269;</button>
+    <button class="iconobtn" id="btnAjustes" type="button" aria-label="Ajustes">&#9881;</button>
+  </div>
+  <div class="ctxsel">
+    <button class="ctxbtn on" id="btnTrabajo" type="button">&#127981; Trabajo</button>
+    <button class="ctxbtn" id="btnHogar" type="button">&#127968; Hogar</button>
+  </div>
+</header>
+
+<div class="aviso" id="aviso"></div>
+
+<div class="captura">
+  <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
+         autocorrect="off" spellcheck="false" enterkeyhint="done"
+         placeholder="Escribi y toca Enter...">
+  <div class="pista">Se guarda en Entrada del contexto activo.</div>
+</div>
+
+<div class="tabs">
+  <button class="tab on" id="tabTablero" type="button">Tablero</button>
+  <button class="tab" id="tabRegistro" type="button">Registro</button>
+</div>
+
+<main>
+  <div id="vistaTablero">
+    <div class="prog">
+      <div class="cab"><span>Progreso del contexto</span><b id="progTxt">0% &middot; 0/0</b></div>
+      <div class="barra"><i id="progBarra"></i></div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <ul id="lista"></ul>
+    <div class="vacio" id="vacioTablero">Nada por aca todavia.</div>
+  </div>
+
+  <div id="vistaRegistro" style="display:none">
+    <div class="chips" id="chipsRango"></div>
+    <button class="bloque" id="btnResumen" type="button">&#128203; Resumen para compartir</button>
+    <div id="timeline"></div>
+    <div class="vacio" id="vacioRegistro">Sin movimientos en este periodo.</div>
+  </div>
+</main>
+
+<div class="tapa" id="tapaItem">
+  <div class="hoja">
+    <h2 id="itemTitulo">Item</h2>
+    <div class="sub" id="itemSub"></div>
+    <div class="grid" id="gridEstados"></div>
+    <div id="cajaEspera" style="display:none">
+      <div class="pista" style="margin-bottom:6px">Esperando a quien o a que (opcional)</div>
+      <input id="txtEspera" type="text" autocomplete="off"
+             style="width:100%;padding:11px;border-radius:10px;border:1px solid var(--linea);background:var(--panel2);color:var(--txt);font-size:15px;outline:none"
+             placeholder="Ej: compras, proveedor, repuesto">
+      <button class="bloque" id="btnGuardarEspera" type="button">Guardar espera</button>
+    </div>
+    <button class="bloque" id="btnEditar" type="button">&#9998; Editar texto</button>
+    <button class="bloque" id="btnCompartirItem" type="button">&#128228; Compartir</button>
+    <button class="bloque peli" id="btnBorrar" type="button">&#128465; Borrar</button>
+    <button class="bloque pri" id="btnCerrarItem" type="button">Cerrar</button>
+  </div>
+</div>
+
+<div class="tapa" id="tapaEditar">
+  <div class="hoja">
+    <h2>Editar texto</h2>
+    <textarea id="txtEditar"></textarea>
+    <button class="bloque pri" id="btnGuardarEdicion" type="button">Guardar</button>
+    <button class="bloque" id="btnCancelarEdicion" type="button">Cancelar</button>
+  </div>
+</div>
+
+<div class="tapa" id="tapaBuscar">
+  <div class="hoja">
+    <h2>Busqueda universal</h2>
+    <input id="txtBusca" type="text" autocomplete="off" placeholder="Buscar en Trabajo y Hogar...">
+    <ul id="resultados"></ul>
+    <div class="vacio" id="vacioBusca">Escribi para buscar.</div>
+    <button class="bloque pri" id="btnCerrarBusca" type="button">Cerrar</button>
+  </div>
+</div>
+
+<div class="tapa" id="tapaTexto">
+  <div class="hoja">
+    <h2 id="textoTitulo">Texto</h2>
+    <textarea id="txtSalida" readonly></textarea>
+    <button class="bloque pri" id="btnCompartirTexto" type="button">Compartir</button>
+    <button class="bloque" id="btnCopiarTexto" type="button">Copiar</button>
+    <button class="bloque" id="btnCerrarTexto" type="button">Cerrar</button>
+  </div>
+</div>
+
+<div class="tapa" id="tapaConfirmar">
+  <div class="hoja">
+    <h2 id="confTitulo">Confirmar</h2>
+    <div class="sub" id="confDetalle"></div>
+    <button class="bloque peli" id="btnConfSi" type="button">Si, hacelo</button>
+    <button class="bloque pri" id="btnConfNo" type="button">No, cancelar</button>
+  </div>
+</div>
+
+<div class="tapa" id="tapaAjustes">
+  <div class="hoja">
+    <h2>Ajustes</h2>
+    <div class="dato"><span>Version app</span><span id="vApp">-</span></div>
+    <div class="dato"><span>Version service worker</span><span id="vSw">-</span></div>
+    <div class="dato"><span>Esquema de datos</span><span id="vEsquema">-</span></div>
+    <div class="dato"><span>Items guardados</span><span id="vTotal">-</span></div>
+    <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
+    <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
+    <button class="bloque" id="btnExportar" type="button">&#128190; Descargar backup (.json)</button>
+    <button class="bloque" id="btnBackupTexto" type="button">&#128228; Compartir backup como texto</button>
+    <button class="bloque" id="btnImportar" type="button">&#128229; Restaurar backup</button>
+    <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
+    <button class="bloque pri" id="btnCerrarAjustes" type="button">Cerrar</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var VERSION_APP = '0.5';
+  var ESQUEMA = 2;
+
+  var K_CTX = 'kibco.contexto';
+  var K_ITEMS = 'kibco.items';
+  var K_EVENTOS = 'kibco.eventos';
+  var K_ESQUEMA = 'kibco.esquema';
+  var K_FILTRO = 'kibco.filtro';
+  var K_VISTA = 'kibco.vista';
+
+  var ESTADOS = [
+    { id: 'entrada', ico: '\uD83D\uDCE5', nom: 'Entrada' },
+    { id: 'pendiente', ico: '\uD83D\uDD35', nom: 'Pendiente' },
+    { id: 'proceso', ico: '\uD83D\uDFE1', nom: 'En proceso' },
+    { id: 'esperando', ico: '\u23F8', nom: 'Esperando' },
+    { id: 'completado', ico: '\uD83D\uDFE2', nom: 'Completado' },
+    { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
+  ];
+
+  var RANGOS = [
+    { id: 'hoy', nom: 'Hoy', dias: 1 },
+    { id: 'd7', nom: '7 dias', dias: 7 },
+    { id: 'd30', nom: '30 dias', dias: 30 },
+    { id: 'todo', nom: 'Todo', dias: 0 }
+  ];
+
+  var items = [];
+  var eventos = [];
+  var contexto = 'trabajo';
+  var filtro = 'activos';
+  var vista = 'tablero';
+  var rango = 'hoy';
+  var soloLectura = false;
+  var itemAbierto = null;
+  var confAccion = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  function avisar(texto) {
+    $('aviso').textContent = texto;
+    $('aviso').className = 'aviso on';
+  }
+
+  function leer(clave) {
+    try { return window.localStorage.getItem(clave); } catch (e) { return null; }
+  }
+
+  function escribir(clave, valor) {
+    try {
+      window.localStorage.setItem(clave, valor);
+      return true;
+    } catch (e) {
+      avisar('No se pudo guardar. Puede estar lleno el almacenamiento del navegador.');
+      return false;
+    }
+  }
+
+  function dosDig(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function fechaObj(iso) {
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function claveDia(d) {
+    return d.getFullYear() + '-' + dosDig(d.getMonth() + 1) + '-' + dosDig(d.getDate());
+  }
+
+  function hhmm(d) { return dosDig(d.getHours()) + ':' + dosDig(d.getMinutes()); }
+
+  function etiquetaDia(clave) {
+    var partes = clave.split('-');
+    var d = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
+    var hoy = new Date();
+    var ayer = new Date();
+    ayer.setDate(ayer.getDate() - 1);
+    if (claveDia(hoy) === clave) { return 'Hoy'; }
+    if (claveDia(ayer) === clave) { return 'Ayer'; }
+    var dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    return dias[d.getDay()] + ' ' + dosDig(d.getDate()) + '/' + dosDig(d.getMonth() + 1);
+  }
+
+  function horaCorta(iso) {
+    var d = fechaObj(iso);
+    if (!d) { return ''; }
+    var hoy = new Date();
+    if (claveDia(d) === claveDia(hoy)) { return 'Hoy ' + hhmm(d); }
+    return dosDig(d.getDate()) + '/' + dosDig(d.getMonth() + 1) + ' ' + hhmm(d);
+  }
+
+  function nuevoId(p) {
+    return (p || 'i') + Date.now() + '-' + Math.floor(Math.random() * 100000);
+  }
+
+  function estadoInfo(id) {
+    var i;
+    for (i = 0; i < ESTADOS.length; i++) {
+      if (ESTADOS[i].id === id) { return ESTADOS[i]; }
+    }
+    return ESTADOS[0];
+  }
+
+  function esActivo(estado) {
+    return estado !== 'completado' && estado !== 'cancelado';
+  }
+
+  /* ---------- datos ---------- */
+
+  function normalizarItem(it) {
+    if (!it || typeof it !== 'object') { return null; }
+    var creado = it.creado ? '' + it.creado : new Date().toISOString();
+    var est = it.estado ? '' + it.estado : 'entrada';
+    if (estadoInfo(est).id !== est) { est = 'entrada'; }
+    return {
+      id: it.id ? '' + it.id : nuevoId(),
+      texto: it.texto ? '' + it.texto : '',
+      contexto: it.contexto === 'hogar' ? 'hogar' : 'trabajo',
+      estado: est,
+      espera: it.espera ? '' + it.espera : '',
+      creado: creado,
+      actualizado: it.actualizado ? '' + it.actualizado : creado
+    };
+  }
+
+  function normalizarEvento(ev) {
+    if (!ev || typeof ev !== 'object') { return null; }
+    return {
+      id: ev.id ? '' + ev.id : nuevoId('e'),
+      ts: ev.ts ? '' + ev.ts : new Date().toISOString(),
+      tipo: ev.tipo ? '' + ev.tipo : 'nota',
+      itemId: ev.itemId ? '' + ev.itemId : '',
+      texto: ev.texto ? '' + ev.texto : '',
+      contexto: ev.contexto === 'hogar' ? 'hogar' : 'trabajo',
+      desde: ev.desde ? '' + ev.desde : '',
+      hasta: ev.hasta ? '' + ev.hasta : ''
+    };
+  }
+
+  function esArray(x) {
+    return Object.prototype.toString.call(x) === '[object Array]';
+  }
+
+  function cargarLista(clave, normalizador) {
+    var crudo = leer(clave);
+    if (crudo === null || crudo === '') { return []; }
+    var datos = null;
+    try { datos = JSON.parse(crudo); } catch (e) { datos = null; }
+    if (!esArray(datos)) {
+      escribir(clave + '.roto.' + Date.now(), crudo);
+      soloLectura = true;
+      avisar('Datos ilegibles en ' + clave + '. Guarde una copia intacta y no escribo encima. Restaura un backup desde Ajustes.');
+      return [];
+    }
+    var salida = [];
+    var i;
+    for (i = 0; i < datos.length; i++) {
+      var n = normalizador(datos[i]);
+      if (n) { salida.push(n); }
+    }
+    return salida;
+  }
+
+  function migrar() {
+    var v = leer(K_ESQUEMA);
+    if (v === null) {
+      escribir(K_ESQUEMA, '' + ESQUEMA);
+      return;
+    }
+    var n = parseInt(v, 10);
+    if (isNaN(n)) {
+      soloLectura = true;
+      avisar('El esquema de datos guardado no se entiende. No escribo nada.');
+      return;
+    }
+    if (n > ESQUEMA) {
+      soloLectura = true;
+      avisar('Estos datos son de una version mas nueva de KCO (esquema ' + n + '). No escribo nada para no romperlos.');
+      return;
+    }
+    if (n < ESQUEMA) {
+      /* 1 -> 2: aparecen kibco.eventos y el campo espera. Nada se borra ni se renombra. */
+      if (leer(K_EVENTOS) === null) { escribir(K_EVENTOS, '[]'); }
+      escribir(K_ESQUEMA, '' + ESQUEMA);
+    }
+  }
+
+  function guardarItems() {
+    if (soloLectura) { return false; }
+    return escribir(K_ITEMS, JSON.stringify(items));
+  }
+
+  function guardarEventos() {
+    if (soloLectura) { return false; }
+    return escribir(K_EVENTOS, JSON.stringify(eventos));
+  }
+
+  function registrar(tipo, item, desde, hasta) {
+    if (soloLectura) { return; }
+    eventos.push({
+      id: nuevoId('e'),
+      ts: new Date().toISOString(),
+      tipo: tipo,
+      itemId: item.id,
+      texto: item.texto,
+      contexto: item.contexto,
+      desde: desde || '',
+      hasta: hasta || ''
+    });
+    guardarEventos();
+  }
+
+  function buscarItem(id) {
+    var i;
+    for (i = 0; i < items.length; i++) {
+      if (items[i].id === id) { return items[i]; }
+    }
+    return null;
+  }
+
+  /* ---------- captura ---------- */
+
+  function capturar() {
+    var texto = $('txtCaptura').value.replace(/^\s+|\s+$/g, '');
+    if (texto === '' || soloLectura) { return; }
+    var ahora = new Date().toISOString();
+    var it = {
+      id: nuevoId(),
+      texto: texto,
+      contexto: contexto,
+      estado: 'entrada',
+      espera: '',
+      creado: ahora,
+      actualizado: ahora
+    };
+    items.push(it);
+    if (guardarItems()) {
+      registrar('captura', it, '', 'entrada');
+      $('txtCaptura').value = '';
+      pintar();
+      $('txtCaptura').focus();
+    } else {
+      items.pop();
+    }
+  }
+
+  function cambiarEstado(id, nuevo) {
+    var it = buscarItem(id);
+    if (!it || soloLectura || it.estado === nuevo) { return; }
+    var previo = it.estado;
+    it.estado = nuevo;
+    it.actualizado = new Date().toISOString();
+    if (nuevo !== 'esperando') { it.espera = ''; }
+    if (guardarItems()) {
+      registrar('estado', it, previo, nuevo);
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    } else {
+      it.estado = previo;
+    }
+  }
+
+  /* ---------- pintado ---------- */
+
+  function contarPorEstado(est) {
+    var i, n = 0;
+    for (i = 0; i < items.length; i++) {
+      if (items[i].contexto === contexto && items[i].estado === est) { n++; }
+    }
+    return n;
+  }
+
+  function pintarChips() {
+    var cont = $('chips');
+    while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+    var defs = [{ id: 'activos', ico: '', nom: 'Activos' }];
+    var i;
+    for (i = 0; i < ESTADOS.length; i++) { defs.push(ESTADOS[i]); }
+    for (i = 0; i < defs.length; i++) {
+      (function (def) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = filtro === def.id ? 'chip on' : 'chip';
+        var n = def.id === 'activos' ? contarActivos() : contarPorEstado(def.id);
+        b.textContent = (def.ico ? def.ico + ' ' : '') + def.nom + ' ' + n;
+        b.setAttribute('data-filtro', def.id);
+        b.onclick = function () {
+          filtro = def.id;
+          escribir(K_FILTRO, filtro);
+          pintar();
+        };
+        cont.appendChild(b);
+      })(defs[i]);
+    }
+  }
+
+  function contarActivos() {
+    var i, n = 0;
+    for (i = 0; i < items.length; i++) {
+      if (items[i].contexto === contexto && esActivo(items[i].estado)) { n++; }
+    }
+    return n;
+  }
+
+  function pintarProgreso() {
+    var i, total = 0, hechos = 0;
+    for (i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.contexto !== contexto || it.estado === 'cancelado') { continue; }
+      total++;
+      if (it.estado === 'completado') { hechos++; }
+    }
+    var pct = total === 0 ? 0 : Math.round((hechos * 100) / total);
+    $('progTxt').textContent = pct + '% \u00B7 ' + hechos + '/' + total;
+    $('progBarra').style.width = pct + '%';
+  }
+
+  function nodoItem(it) {
+    var li = document.createElement('li');
+    li.className = 'item st-' + it.estado;
+    li.setAttribute('data-id', it.id);
+    var d1 = document.createElement('div');
+    d1.className = 'txt';
+    d1.textContent = it.texto;
+    li.appendChild(d1);
+    if (it.estado === 'esperando' && it.espera !== '') {
+      var de = document.createElement('div');
+      de.className = 'espera';
+      de.textContent = '\u23F8 Esperando: ' + it.espera;
+      li.appendChild(de);
+    }
+    var d2 = document.createElement('div');
+    d2.className = 'meta';
+    var inf = estadoInfo(it.estado);
+    d2.textContent = inf.ico + ' ' + inf.nom + ' \u00B7 ' + horaCorta(it.creado);
+    li.appendChild(d2);
+    li.onclick = function () { abrirItem(it.id); };
+    return li;
+  }
+
+  function pintarTablero() {
+    pintarProgreso();
+    pintarChips();
+    var lista = $('lista');
+    while (lista.firstChild) { lista.removeChild(lista.firstChild); }
+    var i, visibles = 0;
+    for (i = items.length - 1; i >= 0; i--) {
+      var it = items[i];
+      if (it.contexto !== contexto) { continue; }
+      if (filtro === 'activos') {
+        if (!esActivo(it.estado)) { continue; }
+      } else if (it.estado !== filtro) { continue; }
+      visibles++;
+      lista.appendChild(nodoItem(it));
+    }
+    $('vacioTablero').style.display = visibles === 0 ? 'block' : 'none';
+    $('vacioTablero').textContent = filtro === 'activos'
+      ? 'Nada activo en este contexto. Escribi arriba y toca Enter.'
+      : 'No hay items en este filtro.';
+  }
+
+  function desdeRango() {
+    var i;
+    var def = RANGOS[0];
+    for (i = 0; i < RANGOS.length; i++) {
+      if (RANGOS[i].id === rango) { def = RANGOS[i]; }
+    }
+    if (def.dias === 0) { return null; }
+    var d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (def.dias - 1));
+    return d;
+  }
+
+  function eventosFiltrados() {
+    var corte = desdeRango();
+    var salida = [];
+    var i;
+    for (i = 0; i < eventos.length; i++) {
+      var ev = eventos[i];
+      if (ev.contexto !== contexto) { continue; }
+      var d = fechaObj(ev.ts);
+      if (!d) { continue; }
+      if (corte && d.getTime() < corte.getTime()) { continue; }
+      salida.push(ev);
+    }
+    return salida;
+  }
+
+  function frase(ev) {
+    if (ev.tipo === 'captura') { return 'Capturaste'; }
+    if (ev.tipo === 'edicion') { return 'Editaste'; }
+    if (ev.tipo === 'borrado') { return 'Borraste'; }
+    if (ev.tipo === 'espera') { return 'Anotaste espera'; }
+    if (ev.tipo === 'restauracion') { return 'Restauraste un backup'; }
+    if (ev.tipo === 'estado') {
+      return estadoInfo(ev.desde).nom + ' \u2192 ' + estadoInfo(ev.hasta).nom;
+    }
+    return 'Movimiento';
+  }
+
+  function pintarChipsRango() {
+    var cont = $('chipsRango');
+    while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+    var i;
+    for (i = 0; i < RANGOS.length; i++) {
+      (function (def) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = rango === def.id ? 'chip on' : 'chip';
+        b.textContent = def.nom;
+        b.onclick = function () { rango = def.id; pintar(); };
+        cont.appendChild(b);
+      })(RANGOS[i]);
+    }
+  }
+
+  function pintarRegistro() {
+    pintarChipsRango();
+    var cont = $('timeline');
+    while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+    var lista = eventosFiltrados();
+    if (lista.length === 0) {
+      $('vacioRegistro').style.display = 'block';
+      return;
+    }
+    $('vacioRegistro').style.display = 'none';
+    var diaActual = '';
+    var i;
+    for (i = lista.length - 1; i >= 0; i--) {
+      var ev = lista[i];
+      var d = fechaObj(ev.ts);
+      var cl = claveDia(d);
+      if (cl !== diaActual) {
+        diaActual = cl;
+        var h = document.createElement('div');
+        h.className = 'dia';
+        h.textContent = etiquetaDia(cl);
+        cont.appendChild(h);
+      }
+      var fila = document.createElement('div');
+      fila.className = 'ev';
+      var ch = document.createElement('div');
+      ch.className = 'h';
+      ch.textContent = hhmm(d);
+      var cd = document.createElement('div');
+      cd.className = 'd';
+      var b = document.createElement('b');
+      b.textContent = frase(ev);
+      cd.appendChild(b);
+      var s = document.createElement('small');
+      s.textContent = ev.texto;
+      cd.appendChild(s);
+      fila.appendChild(ch);
+      fila.appendChild(cd);
+      cont.appendChild(fila);
+    }
+  }
+
+  function pintar() {
+    if (vista === 'tablero') {
+      $('vistaTablero').style.display = 'block';
+      $('vistaRegistro').style.display = 'none';
+      $('tabTablero').className = 'tab on';
+      $('tabRegistro').className = 'tab';
+      pintarTablero();
+    } else {
+      $('vistaTablero').style.display = 'none';
+      $('vistaRegistro').style.display = 'block';
+      $('tabTablero').className = 'tab';
+      $('tabRegistro').className = 'tab on';
+      pintarRegistro();
+    }
+  }
+
+  /* ---------- hojas ---------- */
+
+  function abrirHoja(id) { $(id).className = 'tapa on'; }
+  function cerrarHoja(id) { $(id).className = 'tapa'; }
+
+  function pedirConfirmacion(titulo, detalle, accion) {
+    $('confTitulo').textContent = titulo;
+    $('confDetalle').textContent = detalle;
+    confAccion = accion;
+    abrirHoja('tapaConfirmar');
+  }
+
+  function pintarHojaItem() {
+    var it = buscarItem(itemAbierto);
+    if (!it) { cerrarHoja('tapaItem'); return; }
+    $('itemTitulo').textContent = it.texto;
+    var inf = estadoInfo(it.estado);
+    $('itemSub').textContent = inf.ico + ' ' + inf.nom + ' \u00B7 creado ' + horaCorta(it.creado) +
+      (it.actualizado !== it.creado ? ' \u00B7 movido ' + horaCorta(it.actualizado) : '');
+    var grid = $('gridEstados');
+    while (grid.firstChild) { grid.removeChild(grid.firstChild); }
+    var i;
+    for (i = 0; i < ESTADOS.length; i++) {
+      (function (est) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = it.estado === est.id ? 'gbtn on' : 'gbtn';
+        b.textContent = est.ico + ' ' + est.nom;
+        b.setAttribute('data-estado', est.id);
+        b.onclick = function () { cambiarEstado(it.id, est.id); };
+        grid.appendChild(b);
+      })(ESTADOS[i]);
+    }
+    if (it.estado === 'esperando') {
+      $('cajaEspera').style.display = 'block';
+      $('txtEspera').value = it.espera;
+    } else {
+      $('cajaEspera').style.display = 'none';
+    }
+  }
+
+  function abrirItem(id) {
+    itemAbierto = id;
+    pintarHojaItem();
+    abrirHoja('tapaItem');
+  }
+
+  function mostrarTexto(titulo, texto) {
+    $('textoTitulo').textContent = titulo;
+    $('txtSalida').value = texto;
+    abrirHoja('tapaTexto');
+  }
+
+  /* ---------- busqueda ---------- */
+
+  function pintarBusqueda() {
+    var q = $('txtBusca').value.replace(/^\s+|\s+$/g, '').toLowerCase();
+    var cont = $('resultados');
+    while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+    if (q === '') {
+      $('vacioBusca').style.display = 'block';
+      $('vacioBusca').textContent = 'Escribi para buscar.';
+      return;
+    }
+    var i, n = 0;
+    for (i = items.length - 1; i >= 0; i--) {
+      var it = items[i];
+      if (it.texto.toLowerCase().indexOf(q) === -1) { continue; }
+      n++;
+      (function (item) {
+        var li = document.createElement('li');
+        li.className = 'item st-' + item.estado;
+        var e = document.createElement('span');
+        e.className = 'etq';
+        e.textContent = item.contexto === 'hogar' ? '\uD83C\uDFE0 Hogar' : '\uD83C\uDFED Trabajo';
+        var t = document.createElement('div');
+        t.className = 'txt';
+        t.textContent = item.texto;
+        var m = document.createElement('div');
+        m.className = 'meta';
+        m.textContent = estadoInfo(item.estado).ico + ' ' + estadoInfo(item.estado).nom + ' \u00B7 ' + horaCorta(item.creado);
+        li.appendChild(e);
+        li.appendChild(t);
+        li.appendChild(m);
+        li.onclick = function () {
+          cerrarHoja('tapaBuscar');
+          if (item.contexto !== contexto) { aplicarContexto(item.contexto, true); }
+          abrirItem(item.id);
+        };
+        cont.appendChild(li);
+      })(it);
+    }
+    $('vacioBusca').style.display = n === 0 ? 'block' : 'none';
+    $('vacioBusca').textContent = 'Sin resultados para esa busqueda.';
+  }
+
+  /* ---------- resumen ---------- */
+
+  function textoResumen() {
+    var def = RANGOS[0];
+    var i;
+    for (i = 0; i < RANGOS.length; i++) { if (RANGOS[i].id === rango) { def = RANGOS[i]; } }
+    var hoy = new Date();
+    var cab = 'KCO \u00B7 ' + (contexto === 'hogar' ? 'Hogar' : 'Trabajo') + ' \u00B7 ' + def.nom +
+      ' (' + dosDig(hoy.getDate()) + '/' + dosDig(hoy.getMonth() + 1) + '/' + hoy.getFullYear() + ')';
+    var lineas = [cab, ''];
+    var evs = eventosFiltrados();
+    var hechos = [], movidos = [], nuevos = [];
+    var vistos = {};
+    for (i = 0; i < evs.length; i++) {
+      var ev = evs[i];
+      if (ev.tipo === 'captura') { nuevos.push(ev.texto); }
+      if (ev.tipo === 'estado' && ev.hasta === 'completado') { hechos.push(ev.texto); }
+      if (ev.tipo === 'estado' && ev.hasta !== 'completado') { movidos.push(ev.texto + ' \u2192 ' + estadoInfo(ev.hasta).nom); }
+    }
+    function bloque(titulo, arr) {
+      if (arr.length === 0) { return; }
+      lineas.push(titulo);
+      var j;
+      vistos = {};
+      for (j = 0; j < arr.length; j++) {
+        if (vistos[arr[j]]) { continue; }
+        vistos[arr[j]] = true;
+        lineas.push('- ' + arr[j]);
+      }
+      lineas.push('');
+    }
+    bloque('COMPLETADO:', hechos);
+    bloque('EN MOVIMIENTO:', movidos);
+    bloque('CAPTURADO:', nuevos);
+
+    var pend = [], esp = [];
+    for (i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.contexto !== contexto) { continue; }
+      if (it.estado === 'esperando') { esp.push(it.texto + (it.espera ? ' (' + it.espera + ')' : '')); }
+      else if (esActivo(it.estado)) { pend.push(it.texto); }
+    }
+    bloque('ESPERANDO:', esp);
+    bloque('QUEDA ABIERTO:', pend);
+
+    if (lineas.length === 2) { lineas.push('Sin movimientos en este periodo.'); }
+    return lineas.join('\n');
+  }
+
+  function compartir(titulo, texto) {
+    if (navigator.share) {
+      try {
+        navigator.share({ title: titulo, text: texto });
+        return true;
+      } catch (e) { /* sigue al fallback */ }
+    }
+    return copiar(texto);
+  }
+
+  function copiar(texto) {
+    var sal = $('txtSalida');
+    sal.value = texto;
+    try {
+      sal.removeAttribute('readonly');
+      sal.select();
+      var ok = document.execCommand ? document.execCommand('copy') : false;
+      sal.setAttribute('readonly', 'readonly');
+      return ok;
+    } catch (e) {
+      sal.setAttribute('readonly', 'readonly');
+      return false;
+    }
+  }
+
+  /* ---------- backup ---------- */
+
+  function armarBackup() {
+    return JSON.stringify({
+      app: 'kco',
+      schema: ESQUEMA,
+      version: VERSION_APP,
+      exportado: new Date().toISOString(),
+      contexto: contexto,
+      items: items,
+      eventos: eventos
+    });
+  }
+
+  function nombreBackup() {
+    var d = new Date();
+    return 'kco-backup-' + d.getFullYear() + dosDig(d.getMonth() + 1) + dosDig(d.getDate()) +
+      '-' + dosDig(d.getHours()) + dosDig(d.getMinutes()) + '.json';
+  }
+
+  function descargarBackup() {
+    var texto = armarBackup();
+    try {
+      var blob = new Blob([texto], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = nombreBackup();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      return true;
+    } catch (e) {
+      mostrarTexto('Backup (copialo a mano)', texto);
+      return false;
+    }
+  }
+
+  function aplicarBackup(datos) {
+    var nuevosItems = [];
+    var nuevosEventos = [];
+    var i;
+    for (i = 0; i < datos.items.length; i++) {
+      var n = normalizarItem(datos.items[i]);
+      if (n) { nuevosItems.push(n); }
+    }
+    if (esArray(datos.eventos)) {
+      for (i = 0; i < datos.eventos.length; i++) {
+        var e = normalizarEvento(datos.eventos[i]);
+        if (e) { nuevosEventos.push(e); }
+      }
+    }
+    items = nuevosItems;
+    eventos = nuevosEventos;
+    soloLectura = false;
+    guardarItems();
+    guardarEventos();
+    escribir(K_ESQUEMA, '' + ESQUEMA);
+    eventos.push({
+      id: nuevoId('e'),
+      ts: new Date().toISOString(),
+      tipo: 'restauracion',
+      itemId: '',
+      texto: nuevosItems.length + ' items restaurados',
+      contexto: contexto,
+      desde: '',
+      hasta: ''
+    });
+    guardarEventos();
+    $('aviso').className = 'aviso';
+    pintar();
+  }
+
+  function procesarImportacion(texto) {
+    var datos = null;
+    try { datos = JSON.parse(texto); } catch (e) { datos = null; }
+    if (!datos || typeof datos !== 'object' || esArray(datos)) {
+      avisar('Ese archivo no es un backup valido.');
+      return;
+    }
+    if (datos.app !== 'kco') {
+      avisar('Ese backup es de otra app (' + (datos.app ? datos.app : 'sin identificar') + '). KCO solo restaura backups de KCO.');
+      return;
+    }
+    var sch = parseInt(datos.schema, 10);
+    if (isNaN(sch) || sch > ESQUEMA) {
+      avisar('Ese backup usa un esquema mas nuevo (' + datos.schema + ') que esta version de KCO. Actualiza la app antes de restaurar.');
+      return;
+    }
+    if (!esArray(datos.items)) {
+      avisar('El backup no trae la lista de items.');
+      return;
+    }
+    var cuantos = datos.items.length;
+    var cuantosEv = esArray(datos.eventos) ? datos.eventos.length : 0;
+    pedirConfirmacion(
+      'Restaurar backup',
+      'Trae ' + cuantos + ' items y ' + cuantosEv + ' movimientos, exportado el ' +
+        (datos.exportado ? horaCorta(datos.exportado) : 'sin fecha') +
+        '. Esto REEMPLAZA los ' + items.length + ' items que tenes ahora. No se puede deshacer.',
+      function () { aplicarBackup(datos); }
+    );
+  }
+
+  /* ---------- contexto y arranque ---------- */
+
+  function aplicarContexto(nuevo, guardar) {
+    contexto = nuevo === 'hogar' ? 'hogar' : 'trabajo';
+    document.body.className = 'ctx-' + contexto;
+    $('btnTrabajo').className = contexto === 'trabajo' ? 'ctxbtn on' : 'ctxbtn';
+    $('btnHogar').className = contexto === 'hogar' ? 'ctxbtn on' : 'ctxbtn';
+    var mt = $('metaTheme');
+    if (mt) { mt.setAttribute('content', contexto === 'hogar' ? '#2f7de1' : '#d9730d'); }
+    if (guardar) { escribir(K_CTX, contexto); }
+    pintar();
+  }
+
+  /* ---------- eventos de interfaz ---------- */
+
+  $('btnTrabajo').onclick = function () { aplicarContexto('trabajo', true); };
+  $('btnHogar').onclick = function () { aplicarContexto('hogar', true); };
+
+  $('txtCaptura').onkeydown = function (ev) {
+    var k = ev.key || ev.keyCode;
+    if (k === 'Enter' || k === 13) {
+      ev.preventDefault();
+      capturar();
+    }
+  };
+
+  $('tabTablero').onclick = function () { vista = 'tablero'; escribir(K_VISTA, vista); pintar(); };
+  $('tabRegistro').onclick = function () { vista = 'registro'; escribir(K_VISTA, vista); pintar(); };
+
+  $('btnCerrarItem').onclick = function () { itemAbierto = null; cerrarHoja('tapaItem'); };
+
+  $('btnGuardarEspera').onclick = function () {
+    var it = buscarItem(itemAbierto);
+    if (!it || soloLectura) { return; }
+    it.espera = $('txtEspera').value.replace(/^\s+|\s+$/g, '');
+    it.actualizado = new Date().toISOString();
+    if (guardarItems()) {
+      registrar('espera', it, '', it.espera);
+      pintar();
+      pintarHojaItem();
+    }
+  };
+
+  $('btnEditar').onclick = function () {
+    var it = buscarItem(itemAbierto);
+    if (!it) { return; }
+    $('txtEditar').value = it.texto;
+    abrirHoja('tapaEditar');
+  };
+
+  $('btnGuardarEdicion').onclick = function () {
+    var it = buscarItem(itemAbierto);
+    if (!it || soloLectura) { return; }
+    var nuevo = $('txtEditar').value.replace(/^\s+|\s+$/g, '');
+    if (nuevo === '' || nuevo === it.texto) { cerrarHoja('tapaEditar'); return; }
+    var previo = it.texto;
+    it.texto = nuevo;
+    it.actualizado = new Date().toISOString();
+    if (guardarItems()) {
+      registrar('edicion', it, previo, nuevo);
+      cerrarHoja('tapaEditar');
+      pintar();
+      pintarHojaItem();
+    } else {
+      it.texto = previo;
+    }
+  };
+
+  $('btnCancelarEdicion').onclick = function () { cerrarHoja('tapaEditar'); };
+
+  $('btnCompartirItem').onclick = function () {
+    var it = buscarItem(itemAbierto);
+    if (!it) { return; }
+    var t = it.texto + '\n(' + estadoInfo(it.estado).nom + ' \u00B7 ' +
+      (it.contexto === 'hogar' ? 'Hogar' : 'Trabajo') + ' \u00B7 KCO)';
+    if (!navigator.share) { mostrarTexto('Compartir item', t); return; }
+    compartir('KCO', t);
+  };
+
+  $('btnBorrar').onclick = function () {
+    var it = buscarItem(itemAbierto);
+    if (!it || soloLectura) { return; }
+    pedirConfirmacion('Borrar item', 'Se borra "' + it.texto + '". El movimiento queda en el registro, el item no se recupera.', function () {
+      var i;
+      for (i = 0; i < items.length; i++) {
+        if (items[i].id === it.id) { items.splice(i, 1); break; }
+      }
+      if (guardarItems()) { registrar('borrado', it, it.estado, ''); }
+      itemAbierto = null;
+      cerrarHoja('tapaItem');
+      pintar();
+    });
+  };
+
+  $('btnConfSi').onclick = function () {
+    var accion = confAccion;
+    confAccion = null;
+    cerrarHoja('tapaConfirmar');
+    if (accion) { accion(); }
+  };
+  $('btnConfNo').onclick = function () {
+    confAccion = null;
+    cerrarHoja('tapaConfirmar');
+  };
+
+  $('btnBuscar').onclick = function () {
+    $('txtBusca').value = '';
+    pintarBusqueda();
+    abrirHoja('tapaBuscar');
+  };
+  $('txtBusca').oninput = function () { pintarBusqueda(); };
+  $('txtBusca').onkeyup = function () { pintarBusqueda(); };
+  $('btnCerrarBusca').onclick = function () { cerrarHoja('tapaBuscar'); };
+
+  $('btnResumen').onclick = function () { mostrarTexto('Resumen', textoResumen()); };
+  $('btnCompartirTexto').onclick = function () {
+    var t = $('txtSalida').value;
+    if (navigator.share) { compartir('KCO', t); } else { copiar(t); }
+  };
+  $('btnCopiarTexto').onclick = function () { copiar($('txtSalida').value); };
+  $('btnCerrarTexto').onclick = function () { cerrarHoja('tapaTexto'); };
+
+  $('btnAjustes').onclick = function () {
+    $('vApp').textContent = VERSION_APP;
+    $('vEsquema').textContent = '' + ESQUEMA;
+    $('vTotal').textContent = '' + items.length;
+    $('vEventos').textContent = '' + eventos.length;
+    abrirHoja('tapaAjustes');
+  };
+  $('btnCerrarAjustes').onclick = function () { cerrarHoja('tapaAjustes'); };
+  $('btnExportar').onclick = function () { descargarBackup(); };
+  $('btnBackupTexto').onclick = function () { mostrarTexto('Backup KCO', armarBackup()); };
+  $('btnImportar').onclick = function () { $('archivoImport').click(); };
+  $('archivoImport').onchange = function (ev) {
+    var f = ev.target.files && ev.target.files[0];
+    if (!f) { return; }
+    var lector = new FileReader();
+    lector.onload = function () {
+      cerrarHoja('tapaAjustes');
+      procesarImportacion('' + lector.result);
+      ev.target.value = '';
+    };
+    lector.onerror = function () { avisar('No se pudo leer el archivo.'); };
+    lector.readAsText(f);
+  };
+
+  /* ---------- arranque ---------- */
+
+  migrar();
+  items = cargarLista(K_ITEMS, normalizarItem);
+  eventos = cargarLista(K_EVENTOS, normalizarEvento);
+  filtro = leer(K_FILTRO) || 'activos';
+  vista = leer(K_VISTA) === 'registro' ? 'registro' : 'tablero';
+  aplicarContexto(leer(K_CTX) || 'trabajo', false);
+
+  if (navigator.serviceWorker && typeof navigator.serviceWorker.register === 'function') {
+    navigator.serviceWorker.register('./sw.js').then(function () {
+      if (navigator.serviceWorker.controller) {
+        var canal = new MessageChannel();
+        canal.port1.onmessage = function (ev) {
+          if (ev.data && ev.data.version) { $('vSw').textContent = ev.data.version; }
+        };
+        navigator.serviceWorker.controller.postMessage({ tipo: 'version' }, [canal.port2]);
+      } else {
+        $('vSw').textContent = 'activo tras recargar';
+      }
+    }, function () { $('vSw').textContent = 'no registrado'; });
+  } else {
+    $('vSw').textContent = 'no disponible';
+  }
+})();
+</script>
+</body>
+</html>
