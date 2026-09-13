@@ -1,8 +1,8 @@
 /* KCO — Centro Operativo Personal — service worker */
 'use strict';
 
-var VERSION = '0.5';
-var CACHE = 'kibco-v2';
+var VERSION = '0.6';
+var CACHE = 'kibco-v3';
 
 var ARCHIVOS = [
   './',
