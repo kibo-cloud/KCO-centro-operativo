@@ -13,8 +13,8 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v4` |
-| Esquema de datos | `4` |
+| Nombre de cache | `kibco-v6` |
+| Esquema de datos | `4` (sin cambios desde v0.7) |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
 | Acento Hogar | cyan `#00E5FF` |
@@ -115,6 +115,31 @@ Android no los dispara: una PWA no tiene notificaciones locales programadas, y e
 worker se duerme sin un servidor push. Al abrir KCO, los vencidos aparecen en una franja
 arriba y con el reloj en rojo en la tarjeta. Limite aceptado, no se mete backend ni Capacitor.
 
+## Navegacion, gestos y animaciones
+
+**Boton atras de Android.** Cada hoja flotante que se abre empuja una entrada en el
+historial (`history.pushState`). El `popstate` cierra la capa de arriba en vez de cerrar
+la PWA. Si no queda ninguna capa abierta y estas en Compras o Registro, el atras vuelve al
+Tablero. Recien el siguiente atras sale de la app, que es lo que espera cualquiera.
+Si el navegador no tiene History API, la app funciona igual: las hojas cierran directo.
+
+*Limitacion conocida:* cerrar una hoja con su boton dispara un retroceso de historial que
+llega en el tick siguiente. Si en esos pocos milisegundos se toca atras, ese toque se
+consume sin efecto visible. No es alcanzable a mano.
+
+**Gestos.** Swipe horizontal sobre el cuerpo de la app cambia de pestaña
+(Tablero - Compras - Registro). Swipe horizontal sobre el encabezado alterna el contexto
+(Trabajo - Hogar). Un gesto cuenta solo si recorre mas de 60 px, si el movimiento
+horizontal es al menos el doble del vertical (para no robarle el gesto al scroll) y si
+dura menos de 700 ms. Con una hoja abierta los gestos se ignoran.
+
+**Animaciones.** Todo con `transform` y `opacity`, que son las dos propiedades que el
+telefono puede animar sin repintar. Las hojas suben desde el borde inferior con
+`cubic-bezier(0.16, 1, 0.3, 1)`; el cambio de pestaña entra con un desplazamiento lateral
+corto; los items entran con fade y 6 px de deslizamiento, y solo la primera vez que
+aparecen, no en cada repintado. Si el telefono tiene activado "reducir movimiento", no se
+anima nada.
+
 ## Backups
 
 Todo export arranca con `{"app":"kco","schema":4,...}`. Al restaurar, si `app` no es `kco`
@@ -128,11 +153,45 @@ confirmacion explicita.
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v4` -> `kibco-v5`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v6` -> `kibco-v7`).
+
+Un cambio de una sola linea en `index.html` tambien cuenta: si el nombre de cache no sube,
+el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
 
 ---
 
 # CHANGELOG
+
+## 0.8.1 — firma de autoria
+
+Cache `kibco-v6`. Esquema de datos sigue en 4.
+
+- Credito discreto en monoespaciada al pie del panel principal:
+  `KCO v0.8.1 - esquema 4 - Desarrollado por Kevin Vasquez`.
+- El mismo credito al pie de la hoja de Ajustes, con version y esquema.
+- El texto se arma desde `VERSION_APP`, `ESQUEMA` y la constante `AUTOR`, asi no queda
+  desincronizado al subir de version.
+- El pie queda fuera de la animacion de cambio de pestaña para que no parpadee.
+- Sube el nombre de cache aunque el cambio sea minimo: sin eso el telefono sigue sirviendo
+  el `index.html` viejo desde `kibco-v5` y el credito no aparece nunca.
+
+## 0.8 — navegacion nativa, gestos y animaciones
+
+Cache `kibco-v5`. Esquema de datos **sigue en 4**.
+
+**Por que el esquema no sube.** La v0.8 no cambia la forma de los datos: es navegacion,
+gestos y CSS. Subir el numero romperia la compatibilidad de backups hacia atras sin ninguna
+ganancia: un backup de 0.8 seria rechazado por cualquier KCO con esquema 4, y un rollback a
+0.7 dejaria la app en solo lectura diciendo que los datos son de una version mas nueva.
+El esquema describe la forma de los datos; la version de la app es `VERSION_APP`.
+
+- Boton y gesto atras de Android: cierran la hoja abierta en vez de cerrar la PWA, capa por
+  capa. Sin nada abierto, vuelven del Compras/Registro al Tablero.
+- Swipe horizontal para cambiar de pestaña y, sobre el encabezado, para alternar contexto.
+- Hojas flotantes que suben desde abajo con curva nativa, cambio de pestaña con
+  desplazamiento lateral, y entrada de items con fade + 6 px solo la primera vez.
+- Todas las animaciones en `transform` y `opacity`, con `will-change`, y desactivadas si el
+  sistema pide reducir movimiento.
 
 ## 0.7 — contextos diferenciados y conversion en un toque
 

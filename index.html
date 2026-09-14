@@ -95,9 +95,35 @@ li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-throug
 .ev .d{flex:1;word-break:break-word}
 .ev .d b{font-weight:600;font-size:13.5px}
 .ev small{display:block;color:var(--txt2);font-size:12.5px}
-.tapa{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:flex-end;z-index:30}
-.tapa.on{display:flex}
-.hoja{width:100%;max-height:90%;overflow-y:auto;background:var(--card);border-top:1px solid var(--linea2);border-radius:16px 16px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom) + 20px) 16px}
+.tapa{
+  position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;z-index:30;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .22s ease,visibility 0s linear .22s;
+}
+.tapa.on{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .22s ease,visibility 0s linear 0s}
+.hoja{
+  width:100%;max-height:90%;overflow-y:auto;background:var(--card);
+  border-top:1px solid var(--linea2);border-radius:16px 16px 0 0;
+  padding:18px 16px calc(env(safe-area-inset-bottom) + 20px) 16px;
+  transform:translate3d(0,100%,0);will-change:transform;
+  transition:transform .34s cubic-bezier(0.16,1,0.3,1);
+}
+.tapa.on .hoja{transform:translate3d(0,0,0)}
+@keyframes kcoEntra{from{opacity:0;transform:translate3d(0,-6px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes kcoVistaDer{from{opacity:0;transform:translate3d(22px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes kcoVistaIzq{from{opacity:0;transform:translate3d(-22px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+li.item.nuevo{animation:kcoEntra .19s ease-out both}
+main.hacia-der > div{animation:kcoVistaDer .24s cubic-bezier(0.16,1,0.3,1) both}
+main.hacia-izq > div{animation:kcoVistaIzq .24s cubic-bezier(0.16,1,0.3,1) both}
+.pie{
+  text-align:center;color:var(--txt2);font-size:10.5px;letter-spacing:.4px;
+  opacity:.55;padding:22px 4px 4px 4px;
+}
+main.hacia-der > .pie,main.hacia-izq > .pie{animation:none}
+@media (prefers-reduced-motion: reduce){
+  .hoja,.tapa{transition:none}
+  li.item.nuevo,main.hacia-der > div,main.hacia-izq > div{animation:none}
+}
 .hoja h2{margin:0 0 10px 0;font-size:16px;font-weight:600}
 .hoja .sub{color:var(--txt2);font-size:12px;margin:-4px 0 14px 0;font-family:var(--mono)}
 .rot{font-family:var(--mono);font-size:11px;color:var(--txt2);letter-spacing:1px;text-transform:uppercase;margin:14px 0 7px 0}
@@ -181,6 +207,8 @@ input[type=time]{font-family:var(--mono)}
     <div id="timeline"></div>
     <div class="vacio" id="vacioRegistro">Sin movimientos en este periodo.</div>
   </div>
+
+  <div class="pie mono" id="pie"></div>
 </main>
 
 <div class="tapa" id="tapaItem">
@@ -285,6 +313,7 @@ input[type=time]{font-family:var(--mono)}
     <button class="bloque" id="btnImportar" type="button">&#128229; Restaurar backup</button>
     <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
     <button class="bloque pri" id="btnCerrarAjustes" type="button">Cerrar</button>
+    <div class="pie mono">KCO v<span id="pieVersion">-</span> &middot; esquema <span id="pieEsquema">-</span><br>Desarrollado por Kevin V&aacute;squez</div>
   </div>
 </div>
 
@@ -292,7 +321,9 @@ input[type=time]{font-family:var(--mono)}
 (function () {
   'use strict';
 
-  var VERSION_APP = '0.7';
+  var VERSION_APP = '0.8.1';
+  /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
+     Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
   var ESQUEMA = 4;
   var HORAS_ALERTA_ENTREGA = 48;
 
@@ -831,9 +862,13 @@ input[type=time]{font-family:var(--mono)}
     return s;
   }
 
+  var itemsVistos = {};
+
   function nodoItem(it) {
     var li = document.createElement('li');
-    li.className = 'item st-' + it.estado + (it.prioridad ? ' prio' : '');
+    li.className = 'item st-' + it.estado + (it.prioridad ? ' prio' : '') +
+      (itemsVistos[it.id] ? '' : ' nuevo');
+    itemsVistos[it.id] = 1;
     li.setAttribute('data-id', it.id);
     var d1 = document.createElement('div');
     d1.className = 'txt';
@@ -1030,6 +1065,41 @@ input[type=time]{font-family:var(--mono)}
     }
   }
 
+  var ORDEN_VISTAS = ['tablero', 'compras', 'registro'];
+
+  function posVista(v) {
+    var i;
+    for (i = 0; i < ORDEN_VISTAS.length; i++) { if (ORDEN_VISTAS[i] === v) { return i; } }
+    return 0;
+  }
+
+  function animarMain(dir) {
+    var m = document.getElementsByTagName('main')[0];
+    if (!m) { return; }
+    m.className = '';
+    /* Lectura forzada para reiniciar la animacion CSS. */
+    if (typeof m.offsetWidth === 'number') { var x = m.offsetWidth; }
+    m.className = dir === 'izq' ? 'hacia-izq' : 'hacia-der';
+  }
+
+  function irAVista(v, sinHistorial) {
+    if (v === vista) { return; }
+    var dir = posVista(v) > posVista(vista) ? 'der' : 'izq';
+    vista = v;
+    escribir(K_VISTA, vista);
+    animarMain(dir);
+    pintar();
+    if (sinHistorial) { return; }
+    if (v !== 'tablero') {
+      if (!anclaPuesta && pilaCapas.length === 0) {
+        anclaPuesta = empujarHistorial({ kcoAncla: true });
+      }
+    } else if (anclaPuesta && pilaCapas.length === 0) {
+      anclaPuesta = false;
+      retrocederHistorial(1);
+    }
+  }
+
   function pintar() {
     $('vistaTablero').style.display = vista === 'tablero' ? 'block' : 'none';
     $('vistaCompras').style.display = vista === 'compras' ? 'block' : 'none';
@@ -1044,8 +1114,143 @@ input[type=time]{font-family:var(--mono)}
 
   /* ---------- hojas ---------- */
 
-  function abrirHoja(id) { $(id).className = 'tapa on'; }
-  function cerrarHoja(id) { $(id).className = 'tapa'; }
+  /* ---------- capas e historial ----------
+     Cada hoja flotante que se abre empuja una entrada en el historial.
+     Asi el boton/gesto "atras" de Android cierra la capa de arriba en vez
+     de cerrar la PWA. Si no queda ninguna capa abierta y estamos en una
+     pestaña que no es el tablero, "atras" vuelve al tablero. Recien ahi
+     el siguiente "atras" hace lo de siempre. */
+
+  var pilaCapas = [];
+  var ignorarPop = 0;
+  var anclaPuesta = false;
+
+  function empujarHistorial(dato) {
+    try {
+      if (window.history && typeof window.history.pushState === 'function') {
+        window.history.pushState(dato, '');
+        return true;
+      }
+    } catch (e) { /* sin history: la app sigue andando igual */ }
+    return false;
+  }
+
+  function retrocederHistorial(n) {
+    try {
+      if (window.history && typeof window.history.go === 'function') {
+        ignorarPop = ignorarPop + n;
+        window.history.go(-n);
+        return;
+      }
+    } catch (e) { ignorarPop = 0; }
+  }
+
+  function cerrarDom(id) {
+    var el = $(id);
+    if (el) { el.className = 'tapa'; }
+    if (id === 'tapaItem') { itemAbierto = null; }
+    if (id === 'tapaConfirmar') { confAccion = null; }
+  }
+
+  function abrirHoja(id) {
+    var i;
+    for (i = 0; i < pilaCapas.length; i++) {
+      if (pilaCapas[i] === id) { $(id).className = 'tapa on'; return; }
+    }
+    $(id).className = 'tapa on';
+    pilaCapas.push(id);
+    empujarHistorial({ kcoCapa: id });
+  }
+
+  function cerrarHoja(id) {
+    var pos = -1, i;
+    for (i = 0; i < pilaCapas.length; i++) { if (pilaCapas[i] === id) { pos = i; } }
+    if (pos === -1) { cerrarDom(id); return; }
+    /* Se cierran tambien las capas que quedaron por encima de esta. */
+    var cuantas = pilaCapas.length - pos;
+    for (i = pilaCapas.length - 1; i >= pos; i--) {
+      cerrarDom(pilaCapas[i]);
+      pilaCapas.pop();
+    }
+    retrocederHistorial(cuantas);
+  }
+
+  function cerrarTodasLasCapas() {
+    var cuantas = pilaCapas.length;
+    if (cuantas === 0) { return; }
+    var i;
+    for (i = pilaCapas.length - 1; i >= 0; i--) { cerrarDom(pilaCapas[i]); }
+    pilaCapas = [];
+    retrocederHistorial(cuantas);
+  }
+
+  function alVolverAtras() {
+    if (ignorarPop > 0) { ignorarPop = ignorarPop - 1; return; }
+    if (pilaCapas.length > 0) {
+      cerrarDom(pilaCapas[pilaCapas.length - 1]);
+      pilaCapas.pop();
+      return;
+    }
+    if (vista !== 'tablero') {
+      irAVista('tablero', true);
+      anclaPuesta = false;
+      return;
+    }
+    anclaPuesta = false;
+    /* Nada abierto y ya estamos en el tablero: se deja salir. */
+  }
+
+  /* ---------- gestos ----------
+     Se compara el desplazamiento horizontal contra el vertical para no
+     robarle el gesto al scroll. Un swipe solo cuenta si es claramente
+     horizontal, supera el umbral y no tardo una eternidad. */
+
+  var UMBRAL_X = 60;
+  var PROPORCION = 2;
+  var MS_MAX = 700;
+
+  function puntoDe(ev, cual) {
+    var lista = cual === 'fin' ? ev.changedTouches : ev.touches;
+    if (!lista || !lista.length) { return null; }
+    return { x: lista[0].clientX, y: lista[0].clientY };
+  }
+
+  function conectarSwipe(el, alDeslizar) {
+    if (!el || !el.addEventListener) { return; }
+    var ini = null;
+    var t0 = 0;
+    el.addEventListener('touchstart', function (ev) {
+      ini = puntoDe(ev, 'ini');
+      t0 = Date.now();
+    }, false);
+    el.addEventListener('touchend', function (ev) {
+      if (!ini) { return; }
+      var fin = puntoDe(ev, 'fin');
+      var desde = ini;
+      ini = null;
+      if (!fin) { return; }
+      if (Date.now() - t0 > MS_MAX) { return; }
+      if (pilaCapas.length > 0) { return; }
+      var dx = fin.x - desde.x;
+      var dy = fin.y - desde.y;
+      var ady = dy < 0 ? -dy : dy;
+      var adx = dx < 0 ? -dx : dx;
+      if (adx < UMBRAL_X) { return; }
+      if (adx < ady * PROPORCION) { return; }
+      alDeslizar(dx < 0 ? 'izq' : 'der');
+    }, false);
+  }
+
+  function swipeVistas(sentido) {
+    var i = posVista(vista);
+    var destino = sentido === 'izq' ? i + 1 : i - 1;
+    if (destino < 0 || destino >= ORDEN_VISTAS.length) { return; }
+    irAVista(ORDEN_VISTAS[destino]);
+  }
+
+  function swipeContexto() {
+    aplicarContexto(contexto === 'hogar' ? 'trabajo' : 'hogar', true);
+  }
 
   function pedirConfirmacion(titulo, detalle, accion) {
     $('confTitulo').textContent = titulo;
@@ -1126,8 +1331,7 @@ input[type=time]{font-family:var(--mono)}
     it.estadoDesde = ahora;
     if (guardarItems()) {
       registrar('compra', it, 'tarea', it.estado);
-      vista = 'compras';
-      escribir(K_VISTA, vista);
+      irAVista('compras');
       pintar();
       if (itemAbierto === id) { pintarHojaItem(); }
     } else {
@@ -1145,8 +1349,7 @@ input[type=time]{font-family:var(--mono)}
     it.estadoDesde = ahora;
     if (guardarItems()) {
       registrar('vuelta', it, 'compra', 'pendiente');
-      vista = 'tablero';
-      escribir(K_VISTA, vista);
+      irAVista('tablero');
       pintar();
       if (itemAbierto === id) { pintarHojaItem(); }
     } else {
@@ -1225,7 +1428,7 @@ input[type=time]{font-family:var(--mono)}
         li.onclick = function () {
           cerrarHoja('tapaBuscar');
           if (item.contexto !== contexto) { aplicarContexto(item.contexto, true); }
-          if (item.tipo === 'compra' && vista !== 'compras') { vista = 'compras'; escribir(K_VISTA, vista); pintar(); }
+          if (item.tipo === 'compra') { irAVista('compras'); }
           abrirItem(item.id);
         };
         cont.appendChild(li);
@@ -1420,9 +1623,9 @@ input[type=time]{font-family:var(--mono)}
     if (k === 'Enter' || k === 13) { ev.preventDefault(); capturar(); }
   };
 
-  $('tabTablero').onclick = function () { vista = 'tablero'; escribir(K_VISTA, vista); pintar(); };
-  $('tabCompras').onclick = function () { vista = 'compras'; escribir(K_VISTA, vista); pintar(); };
-  $('tabRegistro').onclick = function () { vista = 'registro'; escribir(K_VISTA, vista); pintar(); };
+  $('tabTablero').onclick = function () { irAVista('tablero'); };
+  $('tabCompras').onclick = function () { irAVista('compras'); };
+  $('tabRegistro').onclick = function () { irAVista('registro'); };
 
   $('btnCerrarItem').onclick = function () { itemAbierto = null; cerrarHoja('tapaItem'); };
 
@@ -1614,6 +1817,16 @@ input[type=time]{font-family:var(--mono)}
 
   /* ---------- arranque ---------- */
 
+  var AUTOR = 'Desarrollado por Kevin V\u00E1squez';
+
+  function pintarFirma() {
+    var txt = 'KCO v' + VERSION_APP + ' \u00B7 esquema ' + ESQUEMA + ' \u00B7 ' + AUTOR;
+    var p = $('pie');
+    if (p) { p.textContent = txt; }
+    if ($('pieVersion')) { $('pieVersion').textContent = VERSION_APP; }
+    if ($('pieEsquema')) { $('pieEsquema').textContent = '' + ESQUEMA; }
+  }
+
   migrar();
   items = cargarLista(K_ITEMS, normalizarItem);
   eventos = cargarLista(K_EVENTOS, normalizarEvento);
@@ -1623,10 +1836,18 @@ input[type=time]{font-family:var(--mono)}
   var vg = leer(K_VISTA);
   vista = (vg === 'registro' || vg === 'compras') ? vg : 'tablero';
   aplicarContexto(leer(K_CTX) || 'trabajo', false);
+  pintarFirma();
 
   if (typeof window.setInterval === 'function') {
     window.setInterval(chequearRecordatorios, 30000);
   }
+
+  window.onpopstate = function () { alVolverAtras(); };
+
+  conectarSwipe(document.getElementsByTagName('main')[0], swipeVistas);
+  conectarSwipe(document.getElementsByTagName('header')[0], function () { swipeContexto(); });
+
+  if (vista !== 'tablero') { anclaPuesta = empujarHistorial({ kcoAncla: true }); }
 
   if (navigator.serviceWorker && typeof navigator.serviceWorker.register === 'function') {
     navigator.serviceWorker.register('./sw.js').then(function () {
