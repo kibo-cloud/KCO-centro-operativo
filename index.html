@@ -83,6 +83,10 @@ li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-throug
 .badge.rec.vencido{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
 .badge.tag{color:var(--txt)}
 .alerta48{margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--rojo);background:var(--rojosuave);border:1px solid var(--rojo);border-radius:7px;padding:5px 8px}
+.accs{display:flex;gap:7px;margin-top:10px}
+.abtn{flex:1;padding:9px 8px;border-radius:8px;cursor:pointer;border:1px solid var(--linea2);background:var(--card2);color:var(--txt2);font-size:12.5px;font-family:var(--mono)}
+.abtn:active{border-color:var(--acc);color:var(--acc)}
+.abtn.on{border-color:var(--ok);color:var(--ok)}
 .espera{color:var(--amar);font-size:12px;margin-top:6px;font-family:var(--mono)}
 .vacio{color:var(--txt2);font-size:13.5px;padding:26px 4px;text-align:center;font-family:var(--mono)}
 .dia{color:var(--acc);font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;margin:16px 0 8px 0;font-family:var(--mono)}
@@ -163,7 +167,7 @@ input[type=time]{font-family:var(--mono)}
 
   <div id="vistaCompras" style="display:none">
     <div class="prog">
-      <div class="cab"><span>Compras recibidas</span><b class="mono" id="progCompraTxt">0% &middot; 0/0</b></div>
+      <div class="cab"><span id="rotCompras">Compras recibidas</span><b class="mono" id="progCompraTxt">0% &middot; 0/0</b></div>
       <div class="barra"><i id="progCompraBarra"></i></div>
     </div>
     <div class="chips" id="chipsCompra"></div>
@@ -215,7 +219,8 @@ input[type=time]{font-family:var(--mono)}
     <button class="bloque" id="btnSacarRec" type="button" style="display:none">Sacar recordatorio</button>
 
     <div class="rot">Acciones</div>
-    <button class="bloque" id="btnAcompra" type="button">&#128722; Convertir en compra</button>
+    <button class="bloque" id="btnAcompra" type="button">&#128722; Mover a Compras</button>
+    <button class="bloque" id="btnVolverTarea" type="button">&#8617; Volver a tarea</button>
     <button class="bloque" id="btnEditar" type="button">&#9998; Editar texto</button>
     <button class="bloque" id="btnCompartirItem" type="button">&#128228; Compartir</button>
     <button class="bloque peli" id="btnBorrar" type="button">&#128465; Borrar</button>
@@ -287,8 +292,8 @@ input[type=time]{font-family:var(--mono)}
 (function () {
   'use strict';
 
-  var VERSION_APP = '0.6';
-  var ESQUEMA = 3;
+  var VERSION_APP = '0.7';
+  var ESQUEMA = 4;
   var HORAS_ALERTA_ENTREGA = 48;
 
   var K_CTX = 'kibco.contexto';
@@ -308,6 +313,7 @@ input[type=time]{font-family:var(--mono)}
     { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
   ];
 
+  /* Compras de fabrica: flujo completo con OC y OT. Solo en Trabajo. */
   var ESTADOS_COMPRA = [
     { id: 'cotizando', ico: '\uD83D\uDCE5', nom: 'Cotizando' },
     { id: 'esperando_oc', ico: '\uD83D\uDCDD', nom: 'Esperando OC' },
@@ -318,14 +324,30 @@ input[type=time]{font-family:var(--mono)}
     { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
   ];
 
+  /* Compras del hogar: lista simple, sin OC, sin OT, sin proveedores. */
+  var ESTADOS_COMPRA_HOGAR = [
+    { id: 'por_comprar', ico: '\uD83D\uDED2', nom: 'Por comprar' },
+    { id: 'comprado', ico: '\u2705', nom: 'Comprado' },
+    { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
+  ];
+
+  /* Catalogo completo de tags. tagInfo busca aca, asi un tag viejo
+     sigue mostrandose aunque ya no se ofrezca en ese contexto. */
   var TAGS = [
     { id: 'relevamiento', ico: '\uD83D\uDCCF', nom: 'Relevamiento' },
     { id: 'limpieza', ico: '\uD83E\uDDF9', nom: 'Limpieza' },
     { id: 'adm', ico: '\uD83D\uDCC4', nom: 'Adm / Legajos' },
     { id: 'proveedor', ico: '\uD83C\uDFE2', nom: 'Alta Proveedor' },
-    { id: 'panol', ico: '\uD83E\uDDF0', nom: 'Pañol' },
-    { id: 'gestion', ico: '\uD83D\uDCCB', nom: 'Gestion' }
+    { id: 'panol', ico: '\uD83E\uDDF0', nom: 'Pa\u00F1ol' },
+    { id: 'gestion', ico: '\uD83D\uDCCB', nom: 'Gestion' },
+    { id: 'comida', ico: '\uD83C\uDF7D', nom: 'Comida' },
+    { id: 'higiene', ico: '\uD83E\uDDFC', nom: 'Higiene' },
+    { id: 'mantenimiento', ico: '\uD83D\uDD27', nom: 'Mantenimiento' },
+    { id: 'hogar', ico: '\uD83C\uDFE0', nom: 'Hogar' }
   ];
+
+  var TAGS_TRABAJO = ['relevamiento', 'limpieza', 'adm', 'proveedor', 'panol', 'gestion'];
+  var TAGS_HOGAR = ['comida', 'limpieza', 'higiene', 'mantenimiento', 'hogar'];
 
   var RANGOS = [
     { id: 'hoy', nom: 'Hoy', dias: 1 },
@@ -334,7 +356,7 @@ input[type=time]{font-family:var(--mono)}
     { id: 'todo', nom: 'Todo', dias: 0 }
   ];
 
-  var CERRADOS = { completado: 1, cancelado: 1, recibido: 1 };
+  var CERRADOS = { completado: 1, cancelado: 1, recibido: 1, comprado: 1 };
 
   var items = [];
   var eventos = [];
@@ -344,6 +366,7 @@ input[type=time]{font-family:var(--mono)}
   var vista = 'tablero';
   var rango = 'hoy';
   var soloLectura = false;
+  var migrarComprasHogar = false;
   var itemAbierto = null;
   var confAccion = null;
 
@@ -394,19 +417,48 @@ input[type=time]{font-family:var(--mono)}
 
   function nuevoId(p) { return (p || 'i') + Date.now() + '-' + Math.floor(Math.random() * 100000); }
 
-  function listaEstados(tipo) { return tipo === 'compra' ? ESTADOS_COMPRA : ESTADOS_TAREA; }
+  function listaEstados(tipo, ctx) {
+    if (tipo !== 'compra') { return ESTADOS_TAREA; }
+    return ctx === 'hogar' ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
+  }
+
+  function listaTags(ctx) {
+    var ids = ctx === 'hogar' ? TAGS_HOGAR : TAGS_TRABAJO;
+    var r = [], i;
+    for (i = 0; i < ids.length; i++) {
+      var t = tagInfo(ids[i]);
+      if (t) { r.push(t); }
+    }
+    return r;
+  }
 
   function estadoInfo(id) {
     var i;
     for (i = 0; i < ESTADOS_TAREA.length; i++) { if (ESTADOS_TAREA[i].id === id) { return ESTADOS_TAREA[i]; } }
     for (i = 0; i < ESTADOS_COMPRA.length; i++) { if (ESTADOS_COMPRA[i].id === id) { return ESTADOS_COMPRA[i]; } }
+    for (i = 0; i < ESTADOS_COMPRA_HOGAR.length; i++) { if (ESTADOS_COMPRA_HOGAR[i].id === id) { return ESTADOS_COMPRA_HOGAR[i]; } }
     return ESTADOS_TAREA[0];
   }
 
-  function estadoValido(tipo, id) {
-    var l = listaEstados(tipo), i;
+  function estadoValido(tipo, ctx, id) {
+    var l = listaEstados(tipo, ctx), i;
     for (i = 0; i < l.length; i++) { if (l[i].id === id) { return true; } }
     return false;
+  }
+
+  /* Un estado de compra de fabrica no existe en Hogar y viceversa.
+     Este mapeo evita que un item quede con un estado huerfano. */
+  function estadoEquivalente(tipo, ctx, id) {
+    if (estadoValido(tipo, ctx, id)) { return id; }
+    if (tipo !== 'compra') { return 'entrada'; }
+    if (ctx === 'hogar') {
+      if (id === 'recibido') { return 'comprado'; }
+      if (id === 'cancelado') { return 'cancelado'; }
+      return 'por_comprar';
+    }
+    if (id === 'comprado') { return 'recibido'; }
+    if (id === 'cancelado') { return 'cancelado'; }
+    return 'cotizando';
   }
 
   function tagInfo(id) {
@@ -422,16 +474,17 @@ input[type=time]{font-family:var(--mono)}
   function normalizarItem(it) {
     if (!it || typeof it !== 'object') { return null; }
     var creado = it.creado ? '' + it.creado : new Date().toISOString();
+    var ctx = it.contexto === 'hogar' ? 'hogar' : 'trabajo';
     var tipo = it.tipo === 'compra' ? 'compra' : 'tarea';
-    var est = it.estado ? '' + it.estado : (tipo === 'compra' ? 'cotizando' : 'entrada');
-    if (!estadoValido(tipo, est)) { est = tipo === 'compra' ? 'cotizando' : 'entrada'; }
+    var est = it.estado ? '' + it.estado : (tipo === 'compra' ? (ctx === 'hogar' ? 'por_comprar' : 'cotizando') : 'entrada');
+    est = estadoEquivalente(tipo, ctx, est);
     var act = it.actualizado ? '' + it.actualizado : creado;
     var tag = it.tag ? '' + it.tag : '';
     if (tag !== '' && !tagInfo(tag)) { tag = ''; }
     return {
       id: it.id ? '' + it.id : nuevoId(),
       texto: it.texto ? '' + it.texto : '',
-      contexto: it.contexto === 'hogar' ? 'hogar' : 'trabajo',
+      contexto: ctx,
       tipo: tipo,
       estado: est,
       espera: it.espera ? '' + it.espera : '',
@@ -498,9 +551,38 @@ input[type=time]{font-family:var(--mono)}
       /* 1 -> 2: aparece kibco.eventos y el campo espera. */
       if (leer(K_EVENTOS) === null) { escribir(K_EVENTOS, '[]'); }
       /* 2 -> 3: aparecen tipo, prioridad, tag, recordatorio, recAvisado y estadoDesde.
-         Todos con default en la lectura. No se renombra ni se borra nada. */
+         Todos con default en la lectura. */
+      /* 3 -> 4: Hogar deja de usar el flujo de compras de fabrica. Las compras de hogar
+         que quedaron con estados de OC/OT se pasan a la lista simple. Se persiste aca
+         porque el estado viejo ya no existe en ese contexto. Nada mas se toca. */
       escribir(K_ESQUEMA, '' + ESQUEMA);
+      migrarComprasHogar = n < 4;
     }
+  }
+
+  function aplicarMigracion4() {
+    if (!migrarComprasHogar || soloLectura) { return; }
+    var crudo = leer(K_ITEMS);
+    if (crudo === null || crudo === '') { return; }
+    var previos = null;
+    try { previos = JSON.parse(crudo); } catch (e) { return; }
+    if (!esArray(previos)) { return; }
+    var cambiados = 0, i;
+    for (i = 0; i < previos.length; i++) {
+      var v = previos[i];
+      if (!v || typeof v !== 'object') { continue; }
+      if (v.contexto !== 'hogar' || v.tipo !== 'compra') { continue; }
+      if (estadoValido('compra', 'hogar', v.estado)) { continue; }
+      cambiados++;
+    }
+    if (cambiados === 0) { return; }
+    guardarItems();
+    eventos.push({
+      id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'migracion', itemId: '',
+      texto: cambiados + ' compras de Hogar pasadas a la lista simple',
+      contexto: 'hogar', desde: 'esquema 3', hasta: 'esquema 4'
+    });
+    guardarEventos();
   }
 
   function guardarItems() { return soloLectura ? false : escribir(K_ITEMS, JSON.stringify(items)); }
@@ -659,7 +741,7 @@ input[type=time]{font-family:var(--mono)}
   function cambiarEstado(id, nuevo) {
     var it = buscarItem(id);
     if (!it || soloLectura || it.estado === nuevo) { return; }
-    if (!estadoValido(it.tipo, nuevo)) { return; }
+    if (!estadoValido(it.tipo, it.contexto, nuevo)) { return; }
     var previo = it.estado;
     var ahora = new Date().toISOString();
     it.estado = nuevo;
@@ -792,6 +874,37 @@ input[type=time]{font-family:var(--mono)}
       li.appendChild(a);
     }
 
+    /* Acciones de un toque, sin abrir la ficha. */
+    var accs = null;
+    if (it.tipo === 'tarea' && (it.estado === 'entrada' || it.estado === 'pendiente')) {
+      accs = document.createElement('div');
+      accs.className = 'accs';
+      var bc = document.createElement('button');
+      bc.type = 'button';
+      bc.className = 'abtn';
+      bc.setAttribute('data-acc', 'acompras');
+      bc.textContent = '\uD83D\uDED2 Mover a Compras';
+      bc.onclick = function (ev) {
+        if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+        moverACompras(it.id);
+      };
+      accs.appendChild(bc);
+    } else if (it.tipo === 'compra' && it.contexto === 'hogar' && it.estado !== 'cancelado') {
+      accs = document.createElement('div');
+      accs.className = 'accs';
+      var bk = document.createElement('button');
+      bk.type = 'button';
+      bk.className = it.estado === 'comprado' ? 'abtn on' : 'abtn';
+      bk.setAttribute('data-acc', 'comprado');
+      bk.textContent = it.estado === 'comprado' ? '\u2705 Comprado' : '\u2B1C Marcar comprado';
+      bk.onclick = function (ev) {
+        if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+        alternarComprado(it.id);
+      };
+      accs.appendChild(bk);
+    }
+    if (accs) { li.appendChild(accs); }
+
     li.onclick = function () { abrirItem(it.id); };
     return li;
   }
@@ -826,12 +939,18 @@ input[type=time]{font-family:var(--mono)}
   }
 
   function pintarCompras() {
-    progreso('compra', 'recibido', 'progCompraTxt', 'progCompraBarra');
-    var defs = [{ id: 'activos', ico: '', nom: 'Abiertas' }].concat(ESTADOS_COMPRA);
+    var esHogar = contexto === 'hogar';
+    progreso('compra', esHogar ? 'comprado' : 'recibido', 'progCompraTxt', 'progCompraBarra');
+    $('rotCompras').textContent = esHogar ? 'Lista de compras' : 'Compras recibidas';
+    var base = esHogar ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
+    var defs = [{ id: 'activos', ico: '', nom: esHogar ? 'Por comprar' : 'Abiertas' }].concat(base);
     pintarChipsGen('chipsCompra', defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
       filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
     });
     pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras');
+    $('vacioCompras').textContent = esHogar
+      ? 'Lista vacia. Escribi arriba y toca Mover a Compras.'
+      : 'Sin compras. Toca Mover a Compras en cualquier tarea.';
   }
 
   function desdeRango() {
@@ -866,7 +985,9 @@ input[type=time]{font-family:var(--mono)}
     if (ev.tipo === 'prioridad') { return ev.hasta === 'alta' ? 'Marcaste prioridad alta' : 'Sacaste la prioridad'; }
     if (ev.tipo === 'tag') { return ev.hasta === '' ? 'Sacaste la clasificacion' : 'Clasificaste como ' + ev.hasta; }
     if (ev.tipo === 'recordatorio') { return ev.hasta === '' ? 'Sacaste el recordatorio' : 'Recordatorio ' + ev.hasta; }
-    if (ev.tipo === 'compra') { return 'Convertiste en compra'; }
+    if (ev.tipo === 'compra') { return 'Moviste a Compras'; }
+    if (ev.tipo === 'vuelta') { return 'Volviste a tarea'; }
+    if (ev.tipo === 'migracion') { return 'Migracion de datos'; }
     if (ev.tipo === 'estado') { return estadoInfo(ev.desde).nom + ' \u2192 ' + estadoInfo(ev.hasta).nom; }
     return 'Movimiento';
   }
@@ -944,7 +1065,7 @@ input[type=time]{font-family:var(--mono)}
 
     var grid = $('gridEstados');
     while (grid.firstChild) { grid.removeChild(grid.firstChild); }
-    var l = listaEstados(it.tipo), i;
+    var l = listaEstados(it.tipo, it.contexto), i;
     for (i = 0; i < l.length; i++) {
       (function (est) {
         var b = document.createElement('button');
@@ -964,16 +1085,24 @@ input[type=time]{font-family:var(--mono)}
 
     var gt = $('gridTags');
     while (gt.firstChild) { gt.removeChild(gt.firstChild); }
-    for (i = 0; i < TAGS.length; i++) {
-      (function (tg) {
+    var tg = listaTags(it.contexto);
+    /* Si el item arrastra un tag que ya no se ofrece en este contexto, se agrega
+       al final para poder verlo y sacarlo, en vez de perderlo en silencio. */
+    if (it.tag !== '' && tagInfo(it.tag)) {
+      var presente = false;
+      for (i = 0; i < tg.length; i++) { if (tg[i].id === it.tag) { presente = true; } }
+      if (!presente) { tg = tg.concat([tagInfo(it.tag)]); }
+    }
+    for (i = 0; i < tg.length; i++) {
+      (function (t) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.className = it.tag === tg.id ? 'gbtn on' : 'gbtn';
-        b.textContent = tg.ico + ' ' + tg.nom;
-        b.setAttribute('data-tag', tg.id);
-        b.onclick = function () { alternarTag(it.id, tg.id); };
+        b.className = it.tag === t.id ? 'gbtn on' : 'gbtn';
+        b.textContent = t.ico + ' ' + t.nom;
+        b.setAttribute('data-tag', t.id);
+        b.onclick = function () { alternarTag(it.id, t.id); };
         gt.appendChild(b);
-      })(TAGS[i]);
+      })(tg[i]);
     }
 
     $('btnSacarRec').style.display = it.recordatorio === '' ? 'none' : 'block';
@@ -981,6 +1110,54 @@ input[type=time]{font-family:var(--mono)}
       ? 'Sacar recordatorio'
       : 'Sacar recordatorio (' + horaCorta(it.recordatorio) + ')';
     $('btnAcompra').style.display = it.tipo === 'compra' ? 'none' : 'block';
+    $('btnVolverTarea').style.display = it.tipo === 'compra' ? 'block' : 'none';
+  }
+
+  /* Un toque, sin confirmacion: no se borra nada y se puede volver atras
+     desde la ficha con "Volver a tarea". */
+  function moverACompras(id) {
+    var it = buscarItem(id);
+    if (!it || soloLectura || it.tipo === 'compra') { return; }
+    var ahora = new Date().toISOString();
+    it.tipo = 'compra';
+    it.estado = it.contexto === 'hogar' ? 'por_comprar' : 'cotizando';
+    it.espera = '';
+    it.actualizado = ahora;
+    it.estadoDesde = ahora;
+    if (guardarItems()) {
+      registrar('compra', it, 'tarea', it.estado);
+      vista = 'compras';
+      escribir(K_VISTA, vista);
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    } else {
+      it.tipo = 'tarea';
+    }
+  }
+
+  function volverATarea(id) {
+    var it = buscarItem(id);
+    if (!it || soloLectura || it.tipo !== 'compra') { return; }
+    var ahora = new Date().toISOString();
+    it.tipo = 'tarea';
+    it.estado = 'pendiente';
+    it.actualizado = ahora;
+    it.estadoDesde = ahora;
+    if (guardarItems()) {
+      registrar('vuelta', it, 'compra', 'pendiente');
+      vista = 'tablero';
+      escribir(K_VISTA, vista);
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    } else {
+      it.tipo = 'compra';
+    }
+  }
+
+  function alternarComprado(id) {
+    var it = buscarItem(id);
+    if (!it || soloLectura) { return; }
+    cambiarEstado(id, it.estado === 'comprado' ? 'por_comprar' : 'comprado');
   }
 
   function alternarTag(id, tag) {
@@ -1071,8 +1248,8 @@ input[type=time]{font-family:var(--mono)}
     for (i = 0; i < evs.length; i++) {
       var ev = evs[i];
       if (ev.tipo === 'captura') { nuevos.push(ev.texto); }
-      if (ev.tipo === 'estado' && (ev.hasta === 'completado' || ev.hasta === 'recibido')) { hechos.push(ev.texto); }
-      if (ev.tipo === 'estado' && ev.hasta !== 'completado' && ev.hasta !== 'recibido') {
+      if (ev.tipo === 'estado' && CERRADOS[ev.hasta] && ev.hasta !== 'cancelado') { hechos.push(ev.texto); }
+      if (ev.tipo === 'estado' && !CERRADOS[ev.hasta]) {
         movidos.push(ev.texto + ' \u2192 ' + estadoInfo(ev.hasta).nom);
       }
     }
@@ -1097,7 +1274,7 @@ input[type=time]{font-family:var(--mono)}
       if (it.contexto !== contexto || !esActivo(it.estado)) { continue; }
       if (it.prioridad) { urgentes.push(it.texto); continue; }
       if (it.tipo === 'compra') {
-        compras.push(it.texto + ' (' + estadoInfo(it.estado).nom + ')' +
+        compras.push(it.texto + (contexto === 'hogar' ? '' : ' (' + estadoInfo(it.estado).nom + ')') +
           (alertaEntrega(it) > 0 ? ' [+48hs]' : ''));
         continue;
       }
@@ -1105,7 +1282,7 @@ input[type=time]{font-family:var(--mono)}
       else { pend.push(it.texto); }
     }
     bloque('PRIORIDAD ALTA:', urgentes);
-    bloque('COMPRAS ABIERTAS:', compras);
+    bloque(contexto === 'hogar' ? 'LISTA DE COMPRAS:' : 'COMPRAS ABIERTAS:', compras);
     bloque('ESPERANDO:', esp);
     bloque('QUEDA ABIERTO:', pend);
 
@@ -1322,25 +1499,11 @@ input[type=time]{font-family:var(--mono)}
   };
 
   $('btnAcompra').onclick = function () {
-    var it = buscarItem(itemAbierto);
-    if (!it || soloLectura || it.tipo === 'compra') { return; }
-    pedirConfirmacion('Convertir en compra',
-      '"' + it.texto + '" pasa al flujo de compras y arranca en Cotizando. Sale del tablero de tareas.',
-      function () {
-        var ahora = new Date().toISOString();
-        it.tipo = 'compra';
-        it.estado = 'cotizando';
-        it.espera = '';
-        it.actualizado = ahora;
-        it.estadoDesde = ahora;
-        if (guardarItems()) {
-          registrar('compra', it, 'tarea', 'cotizando');
-          vista = 'compras';
-          escribir(K_VISTA, vista);
-          pintar();
-          pintarHojaItem();
-        }
-      });
+    if (itemAbierto) { moverACompras(itemAbierto); }
+  };
+
+  $('btnVolverTarea').onclick = function () {
+    if (itemAbierto) { volverATarea(itemAbierto); }
   };
 
   $('btnEditar').onclick = function () {
@@ -1454,6 +1617,7 @@ input[type=time]{font-family:var(--mono)}
   migrar();
   items = cargarLista(K_ITEMS, normalizarItem);
   eventos = cargarLista(K_EVENTOS, normalizarEvento);
+  aplicarMigracion4();
   filtro = leer(K_FILTRO) || 'activos';
   filtroCompra = leer(K_FILTROC) || 'activos';
   var vg = leer(K_VISTA);

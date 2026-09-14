@@ -13,8 +13,8 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v3` |
-| Esquema de datos | `3` |
+| Nombre de cache | `kibco-v4` |
+| Esquema de datos | `4` |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
 | Acento Hogar | cyan `#00E5FF` |
@@ -25,6 +25,19 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 
 KCO **no lee ni escribe** datos de kibFinanzas (`kibo.`) ni de kibFinanzas Lab (`kibolab.`).
 El service worker solo borra caches que empiezan con `kibco-`.
+
+## Los dos contextos no son simetricos
+
+Esta es la decision central de la v0.7.
+
+**Trabajo** carga con toda la complejidad operativa de la fabrica: flujo de compras con
+cotizacion, orden de compra, aprobacion y carga a OT; alerta de +48 hs en Esperando Entrega;
+y categorias industriales.
+
+**Hogar** es deliberadamente simple. No tiene OC, ni OT, ni proveedores, ni alerta de 48 hs.
+Solo lista de compras domesticas accionable de un toque, tareas de casa, y sus propios chips.
+Si alguna vez aparece la tentacion de meter en Hogar algo del flujo de fabrica, la respuesta
+por defecto es no: para eso ya esta Trabajo.
 
 ## Archivos
 
@@ -37,7 +50,7 @@ El service worker solo borra caches que empiezan con `kibco-`.
 
 | Clave | Contenido |
 |---|---|
-| `kibco.esquema` | numero de esquema (hoy `3`) |
+| `kibco.esquema` | numero de esquema (hoy `4`) |
 | `kibco.contexto` | ultimo contexto: `trabajo` u `hogar` |
 | `kibco.items` | array JSON de items (tareas y compras) |
 | `kibco.eventos` | array JSON del registro automatico |
@@ -58,22 +71,28 @@ Item:
       "tag": "",
       "recordatorio": "",
       "recAvisado": false,
-      "creado": "2026-09-12T18:00:00.000Z",
-      "actualizado": "2026-09-12T18:00:00.000Z",
-      "estadoDesde": "2026-09-12T18:00:00.000Z"
+      "creado": "2026-09-13T18:00:00.000Z",
+      "actualizado": "2026-09-13T18:00:00.000Z",
+      "estadoDesde": "2026-09-13T18:00:00.000Z"
     }
 
-`tipo` es `tarea` o `compra`, y define que lista de estados aplica.
-`estadoDesde` marca cuando entro al estado actual; es lo que dispara la alerta de +48 hs.
+`tipo` es `tarea` o `compra`. La lista de estados que aplica depende de **tipo + contexto**:
 
-Estados de tarea: `entrada`, `pendiente`, `proceso`, `esperando`, `completado`, `cancelado`.
-Estados de compra: `cotizando`, `esperando_oc`, `esperando_aprob`, `oc_enviada`,
-`esperando_entrega`, `recibido`, `cancelado`.
+- Tarea, cualquier contexto: `entrada`, `pendiente`, `proceso`, `esperando`, `completado`, `cancelado`.
+- Compra en Trabajo: `cotizando`, `esperando_oc`, `esperando_aprob`, `oc_enviada`,
+  `esperando_entrega`, `recibido`, `cancelado`.
+- Compra en Hogar: `por_comprar`, `comprado`, `cancelado`.
 
-Tags: `relevamiento`, `limpieza`, `adm`, `proveedor`, `panol`, `gestion`.
+`estadoDesde` marca cuando entro al estado actual; dispara la alerta de +48 hs (solo Trabajo).
+
+**Tags por contexto.** Trabajo: `relevamiento`, `limpieza`, `adm`, `proveedor`, `panol`,
+`gestion`. Hogar: `comida`, `limpieza`, `higiene`, `mantenimiento`, `hogar`. `limpieza` es
+el mismo id en los dos, asi un item conserva sentido si cambia de contexto. Si un item
+arrastra un tag que ya no se ofrece en su contexto, se muestra igual al final de la lista
+para poder verlo y sacarlo: no se borra en silencio.
 
 Tipos de evento: `captura`, `estado`, `edicion`, `espera`, `prioridad`, `tag`,
-`recordatorio`, `compra`, `borrado`, `restauracion`.
+`recordatorio`, `compra`, `vuelta`, `borrado`, `restauracion`, `migracion`.
 
 Reglas de datos: campo nuevo entra con valor por defecto y se lee con fallback.
 No se renombra ni se borra una clave sin migracion escrita y probada contra una copia vieja.
@@ -82,127 +101,115 @@ pasa a solo lectura y avisa en pantalla.
 
 ## Deteccion de hora al tipear
 
-Al capturar, KCO busca una hora en el texto y la convierte en recordatorio:
-
 - `@H:MM` o `@HH:MM` en cualquier lugar del texto. Siempre se toma como hora.
-- `HH:MM` con dos digitos en la hora, **solo** si esta al final del texto o si el texto
-  ademas dice `hoy` o `mañana`.
+- `HH:MM` con dos digitos en la hora, **solo** si esta al final o si el texto dice
+  `hoy` o `mañana`.
 - El punto **no** es separador: `presion 3.50` no es una hora.
 - Una hora de un solo digito sin `@` no se toma: `escala 1:50` queda como texto.
 - Si la hora ya paso, se agenda para mañana. `mañana` fuerza el dia siguiente.
-- La hora y las palabras `hoy` / `mañana` se sacan del texto guardado.
 
 ## Recordatorios: alcance real
 
-Los recordatorios suenan como notificacion nativa **solo con KCO abierta o recien usada**.
-Con la app cerrada Android no los dispara: una PWA no tiene notificaciones locales
-programadas, y el service worker se duerme sin un servidor push que lo despierte.
-Al abrir KCO, los vencidos aparecen en una franja arriba de la pantalla.
-
-Si el recordatorio que suena con la app cerrada pasa a ser innegociable, hay que
-empaquetar con Capacitor y publicar un APK. Eso deja de ser esta arquitectura.
+Suenan como notificacion nativa **solo con KCO abierta o recien usada**. Con la app cerrada
+Android no los dispara: una PWA no tiene notificaciones locales programadas, y el service
+worker se duerme sin un servidor push. Al abrir KCO, los vencidos aparecen en una franja
+arriba y con el reloj en rojo en la tarjeta. Limite aceptado, no se mete backend ni Capacitor.
 
 ## Backups
 
-Todo export arranca con `{"app":"kco","schema":3,...}`. Al restaurar, si `app` no es `kco`
-o el `schema` es mas nuevo que el instalado, se rechaza con mensaje claro y no se toca nada.
-Un backup de esquema anterior (1 o 2) se acepta y se completa con los valores por defecto.
-Restaurar reemplaza todo y pide confirmacion explicita.
+Todo export arranca con `{"app":"kco","schema":4,...}`. Al restaurar, si `app` no es `kco`
+o el `schema` es mas nuevo que el instalado, se rechaza y no se toca nada. Un backup de
+esquema anterior (1, 2 o 3) se acepta y se completa con los valores por defecto; las compras
+de Hogar con estados de fabrica se mapean a la lista simple. Restaurar reemplaza todo y pide
+confirmacion explicita.
 
 ## Al publicar una version nueva
 
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v3` -> `kibco-v4`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v4` -> `kibco-v5`).
 
 ---
 
 # CHANGELOG
 
-## 0.6 — prioridades, compras, recordatorios y rediseño
+## 0.7 — contextos diferenciados y conversion en un toque
 
-Cache `kibco-v3`. Esquema de datos `3`.
+Cache `kibco-v4`. Esquema de datos `4`.
 
-**Prioridades y clasificacion**
-- Prioridad alta opcional por item. La tarjeta se marca en rojo y sube al tope de su lista,
-  por encima del orden por fecha.
-- Seis chips de clasificacion opcional: Relevamiento, Limpieza, Adm / Legajos,
-  Alta Proveedor, Pañol, Gestion. Uno por item; tocar el mismo lo saca.
-- La busqueda universal ahora tambien encuentra por nombre de clasificacion.
+**Diferenciacion real de contextos**
 
-**Compras y seguimiento de fabrica**
-- Pestaña Compras propia, con su barra de progreso (recibidas sobre el total).
-- Flujo de seis estados: Cotizando, Esperando OC, Esperando aprobacion, OC enviada,
-  Esperando entrega, Recibido (a OT). Mas Cancelado.
-- Convertir una tarea en compra desde su ficha, con confirmacion. Arranca en Cotizando
-  y sale del tablero de tareas.
-- Alerta roja en la tarjeta si una compra lleva mas de 48 hs en Esperando entrega,
-  con las horas acumuladas. El resumen las marca con `[+48hs]`.
+- Hogar pierde el flujo de compras de fabrica. Su lista de compras tiene tres estados:
+  Por comprar, Comprado, Cancelado. Sin OC, sin OT, sin proveedores, sin alerta de 48 hs.
+- Chips propios de Hogar: Comida, Limpieza, Higiene, Mantenimiento, Hogar.
+- Trabajo mantiene los seis estados de compra, la alerta de +48 hs y los chips industriales.
+- La pestaña Compras cambia de nombre y de textos segun el contexto.
+- El resumen para compartir dice LISTA DE COMPRAS en Hogar y COMPRAS ABIERTAS en Trabajo.
 
-**Recordatorios**
-- Deteccion de hora al tipear (ver seccion arriba).
-- Botones rapidos en la ficha: Hoy 18:00, Mañana 09:00, y elegir hora con selector.
-- Notificacion nativa a la hora indicada, con la app abierta o recien usada.
-  Permiso a pedido desde Ajustes, nunca al arrancar.
-- Franja de vencidos arriba de la pantalla al abrir la app, y badge rojo en la tarjeta.
-- Chequeo cada 30 segundos mientras la app esta abierta.
+**Conversion tarea -> compra en un toque**
 
-**Diseño Tech Minimalist oscuro**
-- Fondo carbon `#0D0F12`, tarjetas `#161920`, bordes `rgba(255,255,255,.07)`.
-- Naranja industrial `#FF6B2B` para Trabajo, cyan `#00E5FF` para Hogar.
-- Monoespaciada en estados, horas, contadores, tags y pestañas.
-- Microinteracciones en CSS puro: `:active` con `scale(.97)` y transiciones de 90-300 ms.
+- Boton `Mover a Compras` directo en la tarjeta, visible en tareas en Entrada y Pendiente.
+  No abre la ficha ni pide confirmacion.
+- En Trabajo la tarea arranca en Cotizando. En Hogar entra directo a la lista como Por comprar.
+- `Volver a tarea` en la ficha deshace el movimiento y la deja en Pendiente. Por eso la
+  conversion no necesita confirmacion: no borra nada y se puede revertir.
+- En las compras de Hogar, boton de un toque en la tarjeta para marcar y desmarcar comprado,
+  sin abrir la ficha.
 
 **Datos**
-- Migracion de esquema 2 a 3: aparecen `tipo`, `prioridad`, `tag`, `recordatorio`,
-  `recAvisado` y `estadoDesde`, todos con valor por defecto al leer. No se renombra ni se
-  borra nada. Los items existentes no se reescriben hasta que algo cambie.
-- El backup sube a `schema: 3` y sigue aceptando backups de 1 y 2.
+
+- Migracion de esquema 3 a 4: las compras de Hogar que tenian estados de fabrica se pasan a
+  la lista simple (`recibido` -> `comprado`, el resto -> `por_comprar`). Es la primera
+  migracion que reescribe datos, asi que se persiste una sola vez y deja un evento
+  `migracion` en el registro con cuantas movio.
+- Los tags que quedan fuera del contexto no se borran: se siguen mostrando para poder sacarlos.
+- Backup sube a `schema: 4` y sigue aceptando backups de 1, 2 y 3.
+
+## 0.6 — prioridades, compras, recordatorios y rediseño
+
+Cache `kibco-v3`. Esquema `3`.
+
+- Prioridad alta en rojo con reordenamiento al tope.
+- Seis chips de clasificacion.
+- Pestaña Compras con flujo de fabrica de seis estados y alerta de +48 hs en Esperando Entrega.
+- Deteccion de hora al tipear, botones rapidos y notificacion nativa con la app abierta.
+- Rediseño Tech Minimalist oscuro con acento por contexto y microinteracciones en CSS puro.
+- Migracion de esquema 2 a 3 con campos nuevos por defecto.
 
 ## 0.5 — backup e importacion
 
 Cache `kibco-v2`. Esquema `2`.
 
-- Export de backup `.json` descargable y export alternativo como texto para compartir.
-- Backup autoidentificado `{"app":"kco","schema":2,...}` con items y eventos.
+- Export `.json` autoidentificado y export como texto.
 - Restauracion con rechazo de backups ajenos o de esquema mas nuevo, y confirmacion previa.
-- La restauracion queda registrada en el registro diario.
 
 ## 0.4 — consulta
 
-- Busqueda universal en Trabajo y Hogar a la vez, con salto al contexto correcto.
-- Historial por rangos: Hoy / 7 dias / 30 dias / Todo.
-- Resumen para compartir armado desde el registro del rango elegido.
+- Busqueda universal, historial por rangos y resumen para compartir.
 
 ## 0.3 — dashboard y registro diario
 
-- Barra de progreso real por contexto (`80% · 12/15`), sin contar cancelados.
-- Pestañas Tablero / Registro, con memoria de la ultima usada.
-- Registro automatico sin fichaje manual, agrupado por dia.
+- Barra de progreso real, pestañas y registro automatico agrupado por dia.
 
 ## 0.2 — workflow de estados
 
-- Seis estados de tarea, filtros con contador y filtro Activos por defecto.
-- Esperando con anotacion opcional de a quien se espera.
-- Editar, borrar con confirmacion y compartir un item.
-- Migracion de esquema 1 a 2.
+- Seis estados de tarea, filtros con contador, editar, borrar y compartir.
 
 ## 0.1 — arranque
 
 Cache `kibco-v1`. Esquema `1`.
 
-- Contextos Trabajo / Hogar aislados y persistentes.
-- Captura rapida con Enter, bandeja de Entrada, funcionamiento offline.
+- Contextos aislados y persistentes, captura rapida con Enter, offline.
 
 ---
 
 ## Backlog
 
 - **Pañol / inventario.** Sin resolver: el inventario real de la fabrica ya se gestiona en el
-  sistema interno de la empresa, y un catalogo paralelo significa cargar todo dos veces.
-  Decidir si hace falta catalogo de repuestos y proveedores, o alcanza con lo que ya hay.
+  sistema interno de la empresa. Un catalogo paralelo implica cargar todo dos veces.
+  Definir si hace falta catalogo de repuestos y proveedores, o alcanza con lo que ya hay.
 - **Recordatorios con la app cerrada.** Requiere Capacitor y APK, o un servidor push.
-- **Fotos adjuntas.** Requiere pasar de localStorage a IndexedDB, con migracion escrita y probada.
-- **Poda del registro.** Los eventos se acumulan sin limite. Cuando el registro pese, definir
-  si se archiva por año o se resume.
+- **Fotos adjuntas.** Requiere pasar de localStorage a IndexedDB, con migracion probada.
+- **Poda del registro.** Los eventos se acumulan sin limite. Definir si se archiva por año
+  o se resume cuando pese.
