@@ -13,7 +13,7 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v7` |
+| Nombre de cache | `kibco-v8` |
 | Esquema de datos | `4` (sin cambios desde v0.7) |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
@@ -82,7 +82,7 @@ Item:
 
 - Tarea, cualquier contexto: `entrada`, `pendiente`, `proceso`, `esperando`, `completado`, `cancelado`.
 - Compra en Trabajo: `cotizando`, `esperando_oc`, `esperando_aprob`, `oc_enviada`,
-  `esperando_entrega`, `recibido`, `cancelado`.
+  `esperando_entrega`, `recibido` (se muestra como **Material Recibido**), `cancelado`.
 - Compra en Hogar: `por_comprar`, `comprado`, `cancelado`.
 
 `estadoDesde` marca cuando entro al estado actual; dispara la alerta de +48 hs (solo Trabajo).
@@ -150,7 +150,7 @@ sin abrir la ficha:
 - Tarea activa: **Listo** la completa. Si ademas esta en Entrada o Pendiente, aparece
   **Compras** para mandarla al flujo de compras.
 - Compra de fabrica: **el boton dice cual es el proximo casillero** (Esperando OC,
-  Esperando aprob., OC enviada, Esperando entrega, Recibido) y avanza uno por toque.
+  Esperando aprob., OC enviada, Esperando entrega, Material Recibido) y avanza uno por toque.
   Nunca ofrece Cancelado como paso siguiente: eso se elige a mano desde la ficha.
 - Compra de hogar: marcar y desmarcar comprado.
 
@@ -190,7 +190,7 @@ confirmacion explicita.
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v7` -> `kibco-v8`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v8` -> `kibco-v9`).
 
 Un cambio de una sola linea en `index.html` tambien cuenta: si el nombre de cache no sube,
 el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
@@ -198,6 +198,20 @@ el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
 ---
 
 # CHANGELOG
+
+## 0.9.1 — gestos que no pelean y cierre de compra con nombre propio
+
+Cache `kibco-v8`. Esquema de datos sigue en **4**.
+
+- **Conflicto de swipe resuelto.** Un gesto que arranca sobre una barra de chips ahora
+  mueve la barra y no cambia de pestaña. Se detecta subiendo por el arbol hasta encontrar
+  un contenedor con clase `chips` o `scroll-x`; no se usa `closest()` porque no existe en
+  WebViews viejas de Android. El swipe sobre el cuerpo y sobre el encabezado sigue igual.
+- **Estado final de compra renombrado a "Material Recibido".** El id interno sigue siendo
+  `recibido`, asi que los backups de 0.6 en adelante siguen siendo compatibles y el esquema
+  no se mueve. Lo demas ya funcionaba desde 0.6 y quedo verificado: es el ultimo paso del
+  flujo, el boton de un toque lleva de Esperando Entrega directo ahi, cuenta como cerrado,
+  limpia la alerta de +48 hs y actualiza la barra de progreso.
 
 ## 0.9 — uso intensivo: menos toques, red de seguridad y legibilidad
 

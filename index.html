@@ -219,8 +219,8 @@ input[type=time]{font-family:var(--mono)}
       <div class="cab"><span>Progreso</span><b class="mono" id="progTxt">0% &middot; 0/0</b></div>
       <div class="barra"><i id="progBarra"></i></div>
     </div>
-    <div class="chips" id="chips"></div>
-    <div class="chips chipsTag" id="chipsTag"></div>
+    <div class="chips scroll-x" id="chips"></div>
+    <div class="chips chipsTag scroll-x" id="chipsTag"></div>
     <ul id="lista"></ul>
     <div class="vacio" id="vacioTablero">Nada por aca todavia.</div>
   </div>
@@ -230,13 +230,13 @@ input[type=time]{font-family:var(--mono)}
       <div class="cab"><span id="rotCompras">Compras recibidas</span><b class="mono" id="progCompraTxt">0% &middot; 0/0</b></div>
       <div class="barra"><i id="progCompraBarra"></i></div>
     </div>
-    <div class="chips" id="chipsCompra"></div>
+    <div class="chips scroll-x" id="chipsCompra"></div>
     <ul id="listaCompras"></ul>
     <div class="vacio" id="vacioCompras">Sin compras. Convertí una tarea en compra desde su ficha.</div>
   </div>
 
   <div id="vistaRegistro" style="display:none">
-    <div class="chips" id="chipsRango"></div>
+    <div class="chips scroll-x" id="chipsRango"></div>
     <button class="bloque" id="btnResumen" type="button">&#128203; Resumen para compartir</button>
     <div id="timeline"></div>
     <div class="vacio" id="vacioRegistro">Sin movimientos en este periodo.</div>
@@ -363,7 +363,7 @@ input[type=time]{font-family:var(--mono)}
 (function () {
   'use strict';
 
-  var VERSION_APP = '0.9';
+  var VERSION_APP = '0.9.1';
   /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
      Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
   var ESQUEMA = 4;
@@ -395,7 +395,9 @@ input[type=time]{font-family:var(--mono)}
     { id: 'esperando_aprob', ico: '\u23F3', nom: 'Esperando aprob.' },
     { id: 'oc_enviada', ico: '\uD83D\uDCE4', nom: 'OC enviada' },
     { id: 'esperando_entrega', ico: '\uD83D\uDE9A', nom: 'Esperando entrega' },
-    { id: 'recibido', ico: '\uD83D\uDCE6', nom: 'Recibido (a OT)' },
+    /* El id queda 'recibido' para no romper datos ni backups de 0.6 en adelante.
+       Solo cambia la etiqueta visible. */
+    { id: 'recibido', ico: '\uD83D\uDCE6', nom: 'Material Recibido' },
     { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
   ];
 
@@ -1108,7 +1110,7 @@ input[type=time]{font-family:var(--mono)}
   function pintarCompras() {
     var esHogar = contexto === 'hogar';
     progreso('compra', esHogar ? 'comprado' : 'recibido', 'progCompraTxt', 'progCompraBarra');
-    $('rotCompras').textContent = esHogar ? 'Lista de compras' : 'Compras recibidas';
+    $('rotCompras').textContent = esHogar ? 'Lista de compras' : 'Material recibido';
     var base = esHogar ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
     var defs = [{ id: 'activos', ico: '', nom: esHogar ? 'Por comprar' : 'Abiertas' }].concat(base);
     pintarChipsGen('chipsCompra', defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
@@ -1347,11 +1349,27 @@ input[type=time]{font-family:var(--mono)}
     return { x: lista[0].clientX, y: lista[0].clientY };
   }
 
+  /* Un gesto que arranca sobre una barra de chips es para mover la barra, no
+     para cambiar de pestaña. Se sube por el arbol a mano porque closest() no
+     existe en WebViews viejas de Android. */
+  function enScrollHorizontal(nodo, tope) {
+    var n = nodo;
+    while (n && n !== tope && n.nodeType === 1) {
+      if (typeof n.className === 'string' && n.className !== '') {
+        var c = ' ' + n.className + ' ';
+        if (c.indexOf(' chips ') > -1 || c.indexOf(' scroll-x ') > -1) { return true; }
+      }
+      n = n.parentNode;
+    }
+    return false;
+  }
+
   function conectarSwipe(el, alDeslizar) {
     if (!el || !el.addEventListener) { return; }
     var ini = null;
     var t0 = 0;
     el.addEventListener('touchstart', function (ev) {
+      if (enScrollHorizontal(ev.target, el)) { ini = null; return; }
       ini = puntoDe(ev, 'ini');
       t0 = Date.now();
     }, false);
