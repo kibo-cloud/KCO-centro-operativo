@@ -65,7 +65,7 @@ main{flex:1;padding:12px 12px 32px 12px;overflow-y:auto}
 .barra{height:6px;background:var(--card2);border-radius:4px;overflow:hidden}
 .barra i{display:block;height:100%;background:var(--acc);width:0;transition:width .3s ease}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch}
-.chip{flex:0 0 auto;padding:7px 11px;border-radius:8px;cursor:pointer;border:1px solid var(--linea);background:var(--card);color:var(--txt2);font-size:12px;font-family:var(--mono);white-space:nowrap}
+.chip{flex:0 0 auto;padding:11px 13px;min-height:44px;border-radius:8px;cursor:pointer;border:1px solid var(--linea);background:var(--card);color:var(--txt2);font-size:12px;font-family:var(--mono);white-space:nowrap}
 .chip.on{border-color:var(--acc);color:var(--acc);background:var(--accsuave)}
 ul{list-style:none;margin:0;padding:0}
 li.item{background:var(--card);border:1px solid var(--linea);border-radius:11px;padding:12px;margin-bottom:8px;cursor:pointer;transition:transform .09s ease,border-color .15s ease}
@@ -84,7 +84,7 @@ li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-throug
 .badge.tag{color:var(--txt)}
 .alerta48{margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--rojo);background:var(--rojosuave);border:1px solid var(--rojo);border-radius:7px;padding:5px 8px}
 .accs{display:flex;gap:7px;margin-top:10px}
-.abtn{flex:1;padding:9px 8px;border-radius:8px;cursor:pointer;border:1px solid var(--linea2);background:var(--card2);color:var(--txt2);font-size:12.5px;font-family:var(--mono)}
+.abtn{flex:1;padding:12px 8px;min-height:46px;border-radius:8px;cursor:pointer;border:1px solid var(--linea2);background:var(--card2);color:var(--txt2);font-size:12.5px;font-family:var(--mono)}
 .abtn:active{border-color:var(--acc);color:var(--acc)}
 .abtn.on{border-color:var(--ok);color:var(--ok)}
 .espera{color:var(--amar);font-size:12px;margin-top:6px;font-family:var(--mono)}
@@ -120,6 +120,39 @@ main.hacia-izq > div{animation:kcoVistaIzq .24s cubic-bezier(0.16,1,0.3,1) both}
   opacity:.55;padding:22px 4px 4px 4px;
 }
 main.hacia-der > .pie,main.hacia-izq > .pie{animation:none}
+/* Modo "luz de planta": sube el contraste de lo secundario y agranda lo que
+   hay que leer de reojo. No cambia la paleta de marca, solo su legibilidad. */
+body.luz{
+  --txt2:#C2CAD6;
+  --linea:rgba(255,255,255,.16);
+  --linea2:rgba(255,255,255,.28);
+  --card:#1B1F27;
+  --card2:#252A34;
+}
+body.luz .txt{font-size:16.5px}
+body.luz .badge{font-size:12.5px;padding:3px 8px}
+body.luz .chip{font-size:13.5px}
+body.luz .abtn{font-size:13.5px}
+body.luz .meta,body.luz .pista,body.luz .espera{font-size:13px}
+body.luz .pie{opacity:.8;font-size:11.5px}
+body.luz li.item{border-width:1px}
+
+/* Barra de deshacer: aparece abajo, no tapa la captura y se va sola. */
+.deshacer{
+  position:fixed;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 12px);
+  background:var(--card2);border:1px solid var(--linea2);border-radius:11px;
+  padding:11px 12px;display:none;align-items:center;gap:10px;z-index:25;
+  box-shadow:0 6px 20px rgba(0,0,0,.45);
+}
+.deshacer.on{display:flex;animation:kcoSube .2s cubic-bezier(0.16,1,0.3,1) both}
+@keyframes kcoSube{from{opacity:0;transform:translate3d(0,14px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+.deshacer .qpaso{flex:1;font-size:13px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.deshacer button{
+  flex:0 0 auto;background:none;border:1px solid var(--acc);color:var(--acc);
+  border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;font-family:var(--mono);cursor:pointer;
+  min-height:40px;
+}
+.chipsTag{margin-top:-4px}
 @media (prefers-reduced-motion: reduce){
   .hoja,.tapa{transition:none}
   li.item.nuevo,main.hacia-der > div,main.hacia-izq > div{animation:none}
@@ -131,7 +164,7 @@ main.hacia-der > .pie,main.hacia-izq > .pie{animation:none}
 .dato span:last-child{color:var(--txt2);text-align:right;word-break:break-all;font-family:var(--mono);font-size:12.5px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
-.gbtn{padding:11px 8px;border-radius:9px;cursor:pointer;text-align:left;border:1px solid var(--linea);background:var(--card2);color:var(--txt);font-size:13px}
+.gbtn{padding:13px 9px;min-height:48px;border-radius:9px;cursor:pointer;text-align:left;border:1px solid var(--linea);background:var(--card2);color:var(--txt);font-size:13px}
 .gbtn.on{border-color:var(--acc);background:var(--accsuave);color:var(--acc);font-weight:600}
 .gbtn.rojo.on{border-color:var(--rojo);background:var(--rojosuave);color:var(--rojo)}
 .bloque{width:100%;padding:13px;border-radius:9px;cursor:pointer;margin-top:8px;background:var(--card2);border:1px solid var(--linea);color:var(--txt);font-size:14.5px}
@@ -187,6 +220,7 @@ input[type=time]{font-family:var(--mono)}
       <div class="barra"><i id="progBarra"></i></div>
     </div>
     <div class="chips" id="chips"></div>
+    <div class="chips chipsTag" id="chipsTag"></div>
     <ul id="lista"></ul>
     <div class="vacio" id="vacioTablero">Nada por aca todavia.</div>
   </div>
@@ -210,6 +244,11 @@ input[type=time]{font-family:var(--mono)}
 
   <div class="pie mono" id="pie"></div>
 </main>
+
+<div class="deshacer" id="barraDeshacer">
+  <div class="qpaso" id="qpaso"></div>
+  <button type="button" id="btnDeshacer">DESHACER</button>
+</div>
 
 <div class="tapa" id="tapaItem">
   <div class="hoja">
@@ -304,6 +343,9 @@ input[type=time]{font-family:var(--mono)}
     <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
     <div class="dato"><span>Notificaciones</span><span id="vNotif">-</span></div>
     <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
+    <div class="rot">Pantalla</div>
+    <button class="bloque" id="btnLuz" type="button">&#9728; Modo luz de planta</button>
+    <div class="pista" style="margin-top:8px">Sube el contraste y agranda los textos chicos para leer bajo el sol o los tubos de la planta.</div>
     <div class="rot">Recordatorios</div>
     <button class="bloque" id="btnPermiso" type="button">&#128276; Activar notificaciones</button>
     <div class="pista" style="margin-top:8px">Suenan con KCO abierta o recien usada. Con la app cerrada Android no las dispara: al abrir KCO vas a ver los vencidos arriba.</div>
@@ -321,7 +363,7 @@ input[type=time]{font-family:var(--mono)}
 (function () {
   'use strict';
 
-  var VERSION_APP = '0.8.1';
+  var VERSION_APP = '0.9';
   /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
      Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
   var ESQUEMA = 4;
@@ -333,6 +375,8 @@ input[type=time]{font-family:var(--mono)}
   var K_ESQUEMA = 'kibco.esquema';
   var K_FILTRO = 'kibco.filtro';
   var K_FILTROC = 'kibco.filtroCompra';
+  var K_FILTROTAG = 'kibco.filtroTag';
+  var K_LUZ = 'kibco.luz';
   var K_VISTA = 'kibco.vista';
 
   var ESTADOS_TAREA = [
@@ -394,6 +438,8 @@ input[type=time]{font-family:var(--mono)}
   var contexto = 'trabajo';
   var filtro = 'activos';
   var filtroCompra = 'activos';
+  var filtroTag = '';
+  var modoLuz = false;
   var vista = 'tablero';
   var rango = 'hoy';
   var soloLectura = false;
@@ -774,6 +820,7 @@ input[type=time]{font-family:var(--mono)}
     if (!it || soloLectura || it.estado === nuevo) { return; }
     if (!estadoValido(it.tipo, it.contexto, nuevo)) { return; }
     var previo = it.estado;
+    var foto = fotoDe(it);
     var ahora = new Date().toISOString();
     it.estado = nuevo;
     it.actualizado = ahora;
@@ -783,6 +830,9 @@ input[type=time]{font-family:var(--mono)}
       registrar('estado', it, previo, nuevo);
       pintar();
       if (itemAbierto === id) { pintarHojaItem(); }
+      (function (idGuardado, f, txt) {
+        ofrecerDeshacer(txt, function () { restaurarFoto(idGuardado, f, 'estado'); });
+      })(id, foto, estadoInfo(nuevo).nom + ': ' + it.texto);
     } else {
       it.estado = previo;
     }
@@ -855,6 +905,19 @@ input[type=time]{font-family:var(--mono)}
     $(elBarra).style.width = pct + '%';
   }
 
+  /* Siguiente casillero del flujo de compras de fabrica, salteando Cancelado. */
+  function estadoSiguiente(it) {
+    if (it.tipo !== 'compra' || it.contexto === 'hogar') { return null; }
+    var i;
+    for (i = 0; i < ESTADOS_COMPRA.length; i++) {
+      if (ESTADOS_COMPRA[i].id !== it.estado) { continue; }
+      var sig = ESTADOS_COMPRA[i + 1];
+      if (!sig || sig.id === 'cancelado') { return null; }
+      return sig;
+    }
+    return null;
+  }
+
   function badge(clase, texto) {
     var s = document.createElement('span');
     s.className = 'badge ' + clase;
@@ -909,39 +972,101 @@ input[type=time]{font-family:var(--mono)}
       li.appendChild(a);
     }
 
-    /* Acciones de un toque, sin abrir la ficha. */
+    /* Acciones de un toque, sin abrir la ficha. Lo que mas se hace en el dia
+       tiene que costar un dedo, no tres. */
     var accs = null;
-    if (it.tipo === 'tarea' && (it.estado === 'entrada' || it.estado === 'pendiente')) {
-      accs = document.createElement('div');
-      accs.className = 'accs';
-      var bc = document.createElement('button');
-      bc.type = 'button';
-      bc.className = 'abtn';
-      bc.setAttribute('data-acc', 'acompras');
-      bc.textContent = '\uD83D\uDED2 Mover a Compras';
-      bc.onclick = function (ev) {
+    function sumarAccion(cont, clase, texto, marca, fn) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = clase;
+      b.setAttribute('data-acc', marca);
+      b.textContent = texto;
+      b.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
-        moverACompras(it.id);
+        fn();
       };
-      accs.appendChild(bc);
-    } else if (it.tipo === 'compra' && it.contexto === 'hogar' && it.estado !== 'cancelado') {
-      accs = document.createElement('div');
-      accs.className = 'accs';
-      var bk = document.createElement('button');
-      bk.type = 'button';
-      bk.className = it.estado === 'comprado' ? 'abtn on' : 'abtn';
-      bk.setAttribute('data-acc', 'comprado');
-      bk.textContent = it.estado === 'comprado' ? '\u2705 Comprado' : '\u2B1C Marcar comprado';
-      bk.onclick = function (ev) {
-        if (ev && ev.stopPropagation) { ev.stopPropagation(); }
-        alternarComprado(it.id);
-      };
-      accs.appendChild(bk);
+      cont.appendChild(b);
+      return b;
     }
-    if (accs) { li.appendChild(accs); }
+
+    if (esActivo(it.estado)) {
+      accs = document.createElement('div');
+      accs.className = 'accs';
+      if (it.tipo === 'tarea') {
+        sumarAccion(accs, 'abtn', '\u2705 Listo', 'listo', function () {
+          cambiarEstado(it.id, 'completado');
+        });
+        if (it.estado === 'entrada' || it.estado === 'pendiente') {
+          sumarAccion(accs, 'abtn', '\uD83D\uDED2 Compras', 'acompras', function () {
+            moverACompras(it.id);
+          });
+        }
+      } else if (it.contexto === 'hogar') {
+        sumarAccion(accs, 'abtn', '\u2B1C Marcar comprado', 'comprado', function () {
+          alternarComprado(it.id);
+        });
+      } else {
+        var sig = estadoSiguiente(it);
+        if (sig) {
+          sumarAccion(accs, 'abtn', '\u25B6 ' + sig.nom, 'siguiente', function () {
+            cambiarEstado(it.id, sig.id);
+          });
+        }
+      }
+    } else if (it.tipo === 'compra' && it.contexto === 'hogar' && it.estado === 'comprado') {
+      accs = document.createElement('div');
+      accs.className = 'accs';
+      sumarAccion(accs, 'abtn on', '\u2705 Comprado', 'comprado', function () {
+        alternarComprado(it.id);
+      });
+    }
+    if (accs && accs.firstChild) { li.appendChild(accs); }
 
     li.onclick = function () { abrirItem(it.id); };
     return li;
+  }
+
+  /* Filtro por clasificacion: encontrar sin abrir el teclado.
+     Solo se muestran los tags que tienen algo cargado en este contexto. */
+  function contarTag(tagId) {
+    var arr = delContexto('tarea'), i, n = 0;
+    for (i = 0; i < arr.length; i++) {
+      if (!esActivo(arr[i].estado) && filtro === 'activos') { continue; }
+      if (filtro !== 'activos' && arr[i].estado !== filtro) { continue; }
+      if (tagId === '' ? true : arr[i].tag === tagId) { n++; }
+    }
+    return n;
+  }
+
+  function pintarChipsTag() {
+    var cont = $('chipsTag');
+    while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+    var posibles = listaTags(contexto);
+    var conUso = [], i;
+    for (i = 0; i < posibles.length; i++) {
+      if (contarTag(posibles[i].id) > 0) { conUso.push(posibles[i]); }
+    }
+    if (conUso.length === 0) {
+      if (filtroTag !== '') { filtroTag = ''; escribir(K_FILTROTAG, ''); }
+      return;
+    }
+    var defs = [{ id: '', ico: '', nom: 'Todo' }].concat(conUso);
+    for (i = 0; i < defs.length; i++) {
+      (function (def) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = filtroTag === def.id ? 'chip on' : 'chip';
+        b.setAttribute('data-tag-filtro', def.id === '' ? 'todo' : def.id);
+        b.textContent = (def.ico ? def.ico + ' ' : '') + def.nom +
+          (def.id === '' ? '' : ' ' + contarTag(def.id));
+        b.onclick = function () {
+          filtroTag = filtroTag === def.id ? '' : def.id;
+          escribir(K_FILTROTAG, filtroTag);
+          pintar();
+        };
+        cont.appendChild(b);
+      })(defs[i]);
+    }
   }
 
   function pintarLista(tipo, filtroActual, listaId, vacioId) {
@@ -954,6 +1079,7 @@ input[type=time]{font-family:var(--mono)}
       if (filtroActual === 'activos') {
         if (!esActivo(it.estado)) { continue; }
       } else if (it.estado !== filtroActual) { continue; }
+      if (tipo === 'tarea' && filtroTag !== '' && it.tag !== filtroTag) { continue; }
       visibles++;
       lista.appendChild(nodoItem(it));
     }
@@ -967,10 +1093,16 @@ input[type=time]{font-family:var(--mono)}
     pintarChipsGen('chips', defs, filtro, function (id) { return contar('tarea', id); }, function (id) {
       filtro = id; escribir(K_FILTRO, filtro); pintar();
     });
+    pintarChipsTag();
     pintarLista('tarea', filtro, 'lista', 'vacioTablero');
-    $('vacioTablero').textContent = filtro === 'activos'
-      ? 'Nada activo aca. Escribi arriba y toca Enter.'
-      : 'No hay items en este filtro.';
+    if (filtroTag !== '') {
+      var t = tagInfo(filtroTag);
+      $('vacioTablero').textContent = 'Nada en ' + (t ? t.nom : 'esa clasificacion') + ' con este filtro.';
+    } else {
+      $('vacioTablero').textContent = filtro === 'activos'
+        ? 'Nada activo aca. Escribi arriba y toca Enter.'
+        : 'No hay items en este filtro.';
+    }
   }
 
   function pintarCompras() {
@@ -1323,6 +1455,7 @@ input[type=time]{font-family:var(--mono)}
   function moverACompras(id) {
     var it = buscarItem(id);
     if (!it || soloLectura || it.tipo === 'compra') { return; }
+    var foto = fotoDe(it);
     var ahora = new Date().toISOString();
     it.tipo = 'compra';
     it.estado = it.contexto === 'hogar' ? 'por_comprar' : 'cotizando';
@@ -1334,6 +1467,12 @@ input[type=time]{font-family:var(--mono)}
       irAVista('compras');
       pintar();
       if (itemAbierto === id) { pintarHojaItem(); }
+      (function (idGuardado, f, txt) {
+        ofrecerDeshacer(txt, function () {
+          restaurarFoto(idGuardado, f, 'compra');
+          irAVista('tablero');
+        });
+      })(id, foto, 'Movida a Compras: ' + it.texto);
     } else {
       it.tipo = 'tarea';
     }
@@ -1361,6 +1500,60 @@ input[type=time]{font-family:var(--mono)}
     var it = buscarItem(id);
     if (!it || soloLectura) { return; }
     cambiarEstado(id, it.estado === 'comprado' ? 'por_comprar' : 'comprado');
+  }
+
+  /* ---------- deshacer ----------
+     Guarda como revertir la ultima accion. Vive solo en memoria: si la app se
+     cierra, se pierde, y esta bien. No toca el formato de los datos guardados. */
+
+  var revertir = null;
+  var relojDeshacer = null;
+  var SEG_DESHACER = 9000;
+
+  function ofrecerDeshacer(texto, fn) {
+    revertir = fn;
+    $('qpaso').textContent = texto;
+    $('barraDeshacer').className = 'deshacer on';
+    if (relojDeshacer) { window.clearTimeout(relojDeshacer); }
+    if (typeof window.setTimeout === 'function') {
+      relojDeshacer = window.setTimeout(ocultarDeshacer, SEG_DESHACER);
+    }
+  }
+
+  function ocultarDeshacer() {
+    revertir = null;
+    if (relojDeshacer) { window.clearTimeout(relojDeshacer); relojDeshacer = null; }
+    var b = $('barraDeshacer');
+    if (b) { b.className = 'deshacer'; }
+  }
+
+  function hacerDeshacer() {
+    var fn = revertir;
+    ocultarDeshacer();
+    if (fn) { fn(); }
+  }
+
+  function fotoDe(it) {
+    return {
+      estado: it.estado, tipo: it.tipo, espera: it.espera,
+      actualizado: it.actualizado, estadoDesde: it.estadoDesde, prioridad: it.prioridad
+    };
+  }
+
+  function restaurarFoto(id, foto, textoEvento) {
+    var it = buscarItem(id);
+    if (!it || soloLectura) { return; }
+    it.estado = foto.estado;
+    it.tipo = foto.tipo;
+    it.espera = foto.espera;
+    it.prioridad = foto.prioridad;
+    it.actualizado = foto.actualizado;
+    it.estadoDesde = foto.estadoDesde;
+    if (guardarItems()) {
+      registrar('deshacer', it, textoEvento || '', foto.estado);
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    }
   }
 
   function alternarTag(id, tag) {
@@ -1603,9 +1796,20 @@ input[type=time]{font-family:var(--mono)}
 
   /* ---------- contexto ---------- */
 
+  function aplicarLuz(guardar) {
+    var base = 'ctx-' + contexto;
+    document.body.className = modoLuz ? base + ' luz' : base;
+    var b = $('btnLuz');
+    if (b) {
+      b.textContent = modoLuz ? '\u2600 Modo luz de planta: ACTIVADO' : '\u2600 Modo luz de planta';
+      b.className = modoLuz ? 'bloque pri' : 'bloque';
+    }
+    if (guardar) { escribir(K_LUZ, modoLuz ? '1' : '0'); }
+  }
+
   function aplicarContexto(nuevo, guardar) {
     contexto = nuevo === 'hogar' ? 'hogar' : 'trabajo';
-    document.body.className = 'ctx-' + contexto;
+    aplicarLuz(false);
     $('btnTrabajo').className = contexto === 'trabajo' ? 'ctxbtn on' : 'ctxbtn';
     $('btnHogar').className = contexto === 'hogar' ? 'ctxbtn on' : 'ctxbtn';
     if (guardar) { escribir(K_CTX, contexto); }
@@ -1746,16 +1950,29 @@ input[type=time]{font-family:var(--mono)}
   $('btnBorrar').onclick = function () {
     var it = buscarItem(itemAbierto);
     if (!it || soloLectura) { return; }
-    pedirConfirmacion('Borrar item', 'Se borra "' + it.texto + '". El movimiento queda en el registro, el item no se recupera.', function () {
-      var i;
+    pedirConfirmacion('Borrar item', 'Se borra "' + it.texto + '". Vas a tener unos segundos para deshacerlo.', function () {
+      var i, pos = -1;
       for (i = 0; i < items.length; i++) {
-        if (items[i].id === it.id) { items.splice(i, 1); break; }
+        if (items[i].id === it.id) { pos = i; break; }
       }
+      if (pos === -1) { return; }
+      var copia = items[pos];
+      items.splice(pos, 1);
       if (guardarItems()) { registrar('borrado', it, it.estado, ''); }
       itemAbierto = null;
       cerrarHoja('tapaItem');
       pintar();
       chequearRecordatorios();
+      (function (guardado, donde) {
+        ofrecerDeshacer('Borrado: ' + guardado.texto, function () {
+          if (soloLectura) { return; }
+          items.splice(donde > items.length ? items.length : donde, 0, guardado);
+          if (guardarItems()) {
+            registrar('deshacer', guardado, 'borrado', guardado.estado);
+            pintar();
+          }
+        });
+      })(copia, pos);
     });
   };
 
@@ -1799,6 +2016,13 @@ input[type=time]{font-family:var(--mono)}
     } catch (e) { avisar('No se pudo pedir el permiso de notificaciones.'); }
   };
 
+  $('btnDeshacer').onclick = function () { hacerDeshacer(); };
+
+  $('btnLuz').onclick = function () {
+    modoLuz = !modoLuz;
+    aplicarLuz(true);
+  };
+
   $('btnExportar').onclick = function () { descargarBackup(); };
   $('btnBackupTexto').onclick = function () { mostrarTexto('Backup KCO', armarBackup()); };
   $('btnImportar').onclick = function () { $('archivoImport').click(); };
@@ -1833,6 +2057,8 @@ input[type=time]{font-family:var(--mono)}
   aplicarMigracion4();
   filtro = leer(K_FILTRO) || 'activos';
   filtroCompra = leer(K_FILTROC) || 'activos';
+  filtroTag = leer(K_FILTROTAG) || '';
+  modoLuz = leer(K_LUZ) === '1';
   var vg = leer(K_VISTA);
   vista = (vg === 'registro' || vg === 'compras') ? vg : 'tablero';
   aplicarContexto(leer(K_CTX) || 'trabajo', false);

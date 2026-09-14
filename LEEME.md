@@ -13,7 +13,7 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v6` |
+| Nombre de cache | `kibco-v7` |
 | Esquema de datos | `4` (sin cambios desde v0.7) |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
@@ -57,6 +57,8 @@ por defecto es no: para eso ya esta Trabajo.
 | `kibco.filtro` | ultimo filtro del tablero de tareas |
 | `kibco.filtroCompra` | ultimo filtro del tablero de compras |
 | `kibco.vista` | ultima pestaña: `tablero`, `compras` o `registro` |
+| `kibco.filtroTag` | ultima clasificacion filtrada en el tablero |
+| `kibco.luz` | modo luz de planta: `1` o `0` |
 
 Item:
 
@@ -140,6 +142,41 @@ corto; los items entran con fade y 6 px de deslizamiento, y solo la primera vez 
 aparecen, no en cada repintado. Si el telefono tiene activado "reducir movimiento", no se
 anima nada.
 
+## Acciones de un toque
+
+Lo que se hace muchas veces por dia no puede costar tres toques. En la tarjeta misma,
+sin abrir la ficha:
+
+- Tarea activa: **Listo** la completa. Si ademas esta en Entrada o Pendiente, aparece
+  **Compras** para mandarla al flujo de compras.
+- Compra de fabrica: **el boton dice cual es el proximo casillero** (Esperando OC,
+  Esperando aprob., OC enviada, Esperando entrega, Recibido) y avanza uno por toque.
+  Nunca ofrece Cancelado como paso siguiente: eso se elige a mano desde la ficha.
+- Compra de hogar: marcar y desmarcar comprado.
+
+## Deshacer
+
+Cambiar un estado, mover a compras o borrar deja una barra abajo con **DESHACER** durante
+unos nueve segundos. Deshacer restaura el item como estaba y queda anotado en el registro.
+El borrado tambien se puede deshacer: el item vuelve entero, con su estado y su posicion.
+
+Vive solo en memoria: si cerras la app, se pierde. No toca el formato de los datos guardados.
+
+## Filtro por clasificacion
+
+Debajo de los filtros de estado hay una fila de chips con las clasificaciones que
+**realmente tenes cargadas** en ese contexto, con su cuenta. Sirve para encontrar sin abrir
+el teclado. Tocar el chip activo lo saca. Los chips de un contexto no aparecen en el otro.
+
+## Modo luz de planta
+
+Interruptor en Ajustes. Sube el contraste de los textos secundarios, agranda badges, chips
+y textos chicos, y aclara el fondo de las tarjetas. Pensado para leer bajo sol directo o
+los tubos de la planta. Queda guardado y sobrevive a cerrar la app.
+
+Aparte del modo, todos los botones tactiles tienen 44 px o mas de alto, que es lo minimo
+para un dedo apurado o con guantes.
+
 ## Backups
 
 Todo export arranca con `{"app":"kco","schema":4,...}`. Al restaurar, si `app` no es `kco`
@@ -153,7 +190,7 @@ confirmacion explicita.
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v6` -> `kibco-v7`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v7` -> `kibco-v8`).
 
 Un cambio de una sola linea en `index.html` tambien cuenta: si el nombre de cache no sube,
 el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
@@ -161,6 +198,22 @@ el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
 ---
 
 # CHANGELOG
+
+## 0.9 — uso intensivo: menos toques, red de seguridad y legibilidad
+
+Cache `kibco-v7`. Esquema de datos sigue en **4**: no cambia la forma de los items, solo se
+agregan dos preferencias de pantalla (`kibco.filtroTag` y `kibco.luz`). Los backups siguen
+siendo compatibles con 0.7, 0.8 y 0.8.1.
+
+Salio de auditar el uso real en planta y en casa. Los cuatro problemas mas caros eran:
+completar una tarea costaba tres toques, no habia forma de deshacer un toque equivocado,
+para encontrar algo habia que escribir, y los grises no se leen con luz fuerte.
+
+- **Acciones de un toque en la tarjeta.** Listo para tareas, avance de casillero para
+  compras de fabrica, comprado para compras de hogar. Ver la seccion de arriba.
+- **Deshacer** para cambio de estado, mover a compras y borrado, con barra de nueve segundos.
+- **Filtro por clasificacion** con chips, sin teclado, mostrando solo lo que tiene items.
+- **Modo luz de planta** y targets tactiles de 44 px o mas en toda la app.
 
 ## 0.8.1 — firma de autoria
 
