@@ -46,7 +46,9 @@ header{background:var(--card);border-bottom:1px solid var(--linea);padding:calc(
 .marca{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:1.5px;color:var(--acc)}
 .marca span{color:var(--txt2);font-weight:400;font-size:11px;letter-spacing:.5px}
 .crece{flex:1}
-.iconobtn{background:none;border:1px solid var(--linea);color:var(--txt2);border-radius:9px;font-size:16px;line-height:1;padding:11px 11px;cursor:pointer}
+.iconobtn{position:relative;background:none;border:1px solid var(--linea);color:var(--txt2);border-radius:9px;font-size:16px;line-height:1;padding:11px 11px;cursor:pointer}
+/* Punto rojo sobre el engranaje cuando hace mucho que no se saca backup. */
+.iconobtn.avisa:after{content:'';position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--rojo);border:1.5px solid var(--card)}
 .iconobtn:active{border-color:var(--acc);color:var(--acc)}
 .ctxsel{display:flex;gap:6px;margin-top:0;flex:1;min-width:0}
 .ctxbtn{flex:1;min-width:0;padding:9px 6px;min-height:42px;border-radius:9px;cursor:pointer;border:1px solid var(--linea);background:var(--card2);color:var(--txt2);font-size:13px;font-weight:600;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -101,6 +103,8 @@ li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-throug
 .badge.rec.vencido{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
 .badge.pausa{color:var(--amar);border-color:var(--amar);background:rgba(240,180,41,.10)}
 .badge.nota{color:var(--txt2)}
+.badge.pin{color:var(--acc);border-color:var(--acc);background:var(--accsuave)}
+.badge.pasos{color:var(--txt2)}
 .badge.tag{color:var(--txt)}
 .alerta48{margin-top:6px;font-family:var(--mono);font-size:11.5px;color:var(--rojo);background:var(--rojosuave);border:1px solid var(--rojo);border-radius:7px;padding:5px 8px}
 .accs{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
@@ -115,6 +119,12 @@ li.item.pausado{border-color:var(--amar)}
 .nota .h{flex:0 0 80px;color:var(--txt2);font-family:var(--mono);font-size:11px;padding-top:3px}
 .nota .d{flex:1;word-break:break-word;white-space:pre-wrap}
 .sinnotas{color:var(--txt2);font-size:12.5px;font-family:var(--mono);padding:7px 0}
+/* Checklist del item: pasos verificables para tareas compuestas. */
+.paso{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--linea)}
+.paso .tic{flex:0 0 auto;background:none;border:0;color:var(--txt);font-size:17px;line-height:1.1;padding:4px 2px;cursor:pointer}
+.paso .d{flex:1;min-width:0;font-size:13.5px;word-break:break-word;padding-top:4px}
+.paso.hecho .d{text-decoration:line-through;color:var(--txt2)}
+.paso .equis{flex:0 0 auto;background:none;border:0;color:var(--txt2);font-size:15px;line-height:1.1;padding:4px 3px;cursor:pointer}
 .vacio{color:var(--txt2);font-size:13.5px;padding:26px 4px;text-align:center;font-family:var(--mono)}
 .dia{color:var(--acc);font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;margin:16px 0 8px 0;font-family:var(--mono)}
 .ev{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--linea);font-size:14px}
@@ -257,6 +267,7 @@ input[type=time]{font-family:var(--mono)}
 
   <div id="vistaRegistro" style="display:none">
     <div class="chips scroll-x" id="chipsRango"></div>
+    <button class="bloque pri" id="btnRelevo" type="button">&#128260; Copiar Reporte de Turno</button>
     <button class="bloque" id="btnResumen" type="button">&#128203; Resumen para compartir</button>
     <div id="timeline"></div>
     <div class="vacio" id="vacioRegistro">Sin movimientos en este periodo.</div>
@@ -294,6 +305,13 @@ input[type=time]{font-family:var(--mono)}
 
     <div class="rot">Prioridad</div>
     <button class="gbtn rojo" id="btnPrioridad" type="button" style="width:100%">&#128308; Prioridad alta</button>
+    <button class="gbtn" id="btnAnclar" type="button" style="width:100%;margin-top:7px">&#128204; Anclar arriba de todo</button>
+
+    <div class="rot">Checklist</div>
+    <div id="listaPasos"></div>
+    <input id="txtPaso" type="text" autocomplete="off" autocapitalize="sentences"
+           enterkeyhint="done" placeholder="Ej: desmontar tapa">
+    <button class="bloque" id="btnAgregarPaso" type="button">Agregar paso</button>
 
     <div class="rot">Comentarios / bitacora</div>
     <div id="listaNotas"></div>
@@ -376,6 +394,7 @@ input[type=time]{font-family:var(--mono)}
     <div class="dato"><span>Items guardados</span><span id="vTotal">-</span></div>
     <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
     <div class="dato"><span>Notificaciones</span><span id="vNotif">-</span></div>
+    <div class="dato"><span>Ultimo backup</span><span id="vBackup">-</span></div>
     <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
     <div class="rot">Pantalla</div>
     <button class="bloque" id="btnLuz" type="button">&#9728; Modo luz de planta</button>
@@ -397,11 +416,12 @@ input[type=time]{font-family:var(--mono)}
 (function () {
   'use strict';
 
-  var VERSION_APP = '0.9.3';
+  var VERSION_APP = '1.0.0';
   /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
      Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
   var ESQUEMA = 4;
   var HORAS_ALERTA_ENTREGA = 48;
+  var DIAS_AVISO_BACKUP = 14;
 
   var K_CTX = 'kibco.contexto';
   var K_ITEMS = 'kibco.items';
@@ -412,6 +432,7 @@ input[type=time]{font-family:var(--mono)}
   var K_FILTROTAG = 'kibco.filtroTag';
   var K_LUZ = 'kibco.luz';
   var K_VISTA = 'kibco.vista';
+  var K_BACKUP = 'kibco.ultimoBackup';
 
   var ESTADOS_TAREA = [
     { id: 'entrada', ico: '\uD83D\uDCE5', nom: 'Entrada' },
@@ -604,6 +625,28 @@ input[type=time]{font-family:var(--mono)}
 
   function notasDe(it) { return esArray(it.comentarios) ? it.comentarios : []; }
 
+  /* Checklist del item, agregado en 1.0.0. Mismo criterio que los comentarios:
+     fuera del esquema y con fallback en lectura. */
+  function normalizarPasos(x) {
+    if (!esArray(x)) { return []; }
+    var r = [], i, c;
+    for (i = 0; i < x.length; i++) {
+      c = x[i];
+      if (!c || typeof c !== 'object') { continue; }
+      if (!c.texto) { continue; }
+      r.push({ texto: '' + c.texto, hecho: c.hecho === true });
+    }
+    return r;
+  }
+
+  function pasosDe(it) { return esArray(it.pasos) ? it.pasos : []; }
+
+  function pasosHechos(arr) {
+    var i, n = 0;
+    for (i = 0; i < arr.length; i++) { if (arr[i].hecho === true) { n++; } }
+    return n;
+  }
+
   function normalizarItem(it) {
     if (!it || typeof it !== 'object') { return null; }
     var creado = it.creado ? '' + it.creado : new Date().toISOString();
@@ -630,7 +673,9 @@ input[type=time]{font-family:var(--mono)}
       estadoDesde: it.estadoDesde ? '' + it.estadoDesde : act,
       comentarios: normalizarNotas(it.comentarios),
       pausado: it.pausado === true,
-      pausadoDesde: it.pausadoDesde ? '' + it.pausadoDesde : ''
+      pausadoDesde: it.pausadoDesde ? '' + it.pausadoDesde : '',
+      pasos: normalizarPasos(it.pasos),
+      anclado: it.anclado === true
     };
   }
 
@@ -925,8 +970,13 @@ input[type=time]{font-family:var(--mono)}
     return r;
   }
 
+  /* Lo anclado va primero, por encima incluso de la prioridad alta. El filtro
+     de estado y el de clasificacion se siguen aplicando: anclar cambia el orden
+     de la lista, no la convierte en otra lista. */
   function ordenar(arr) {
     return arr.sort(function (a, b) {
+      var aa = a.anclado === true, ab = b.anclado === true;
+      if (aa !== ab) { return aa ? -1 : 1; }
       if (a.prioridad !== b.prioridad) { return a.prioridad ? -1 : 1; }
       if (a.creado === b.creado) { return 0; }
       return a.creado > b.creado ? -1 : 1;
@@ -1013,6 +1063,7 @@ input[type=time]{font-family:var(--mono)}
 
     var l2 = document.createElement('div');
     l2.className = 'linea2';
+    if (it.anclado === true) { l2.appendChild(badge('pin', '\uD83D\uDCCC')); }
     if (it.prioridad) { l2.appendChild(badge('prio', '\uD83D\uDD34 ALTA')); }
     var inf = estadoInfo(it.estado);
     l2.appendChild(badge('est', inf.ico + ' ' + inf.nom.toUpperCase()));
@@ -1027,6 +1078,10 @@ input[type=time]{font-family:var(--mono)}
         var vencido = d.getTime() <= Date.now() && esActivo(it.estado);
         l2.appendChild(badge('rec' + (vencido ? ' vencido' : ''), '\u23F0 ' + horaCorta(it.recordatorio)));
       }
+    }
+    var pasos = pasosDe(it);
+    if (pasos.length > 0) {
+      l2.appendChild(badge('pasos', '\u2611 ' + pasosHechos(pasos) + '/' + pasos.length));
     }
     var notas = notasDe(it);
     if (notas.length > 0) { l2.appendChild(badge('nota', '\uD83D\uDCAC ' + notas.length)); }
@@ -1230,6 +1285,7 @@ input[type=time]{font-family:var(--mono)}
     if (ev.tipo === 'vuelta') { return 'Volviste a tarea'; }
     if (ev.tipo === 'pausa') { return ev.hasta === 'reanudada' ? 'Reanudaste la compra' : 'Pusiste la compra en espera'; }
     if (ev.tipo === 'comentario') { return 'Comentaste'; }
+    if (ev.tipo === 'anclado') { return ev.hasta === 'anclado' ? 'Anclaste arriba' : 'Sacaste el ancla'; }
     if (ev.tipo === 'migracion') { return 'Migracion de datos'; }
     if (ev.tipo === 'estado') { return estadoInfo(ev.desde).nom + ' \u2192 ' + estadoInfo(ev.hasta).nom; }
     return 'Movimiento';
@@ -1318,6 +1374,7 @@ input[type=time]{font-family:var(--mono)}
     if (vista === 'tablero') { pintarTablero(); }
     else if (vista === 'compras') { pintarCompras(); }
     else { pintarRegistro(); }
+    actualizarAvisoBackup();
   }
 
   /* ---------- hojas ---------- */
@@ -1576,6 +1633,49 @@ input[type=time]{font-family:var(--mono)}
     }
     $('txtNota').value = '';
 
+    $('btnAnclar').textContent = it.anclado === true
+      ? '\uD83D\uDCCC Anclado arriba de todo'
+      : '\uD83D\uDCCC Anclar arriba de todo';
+    $('btnAnclar').className = it.anclado === true ? 'gbtn on' : 'gbtn';
+
+    var lp = $('listaPasos');
+    while (lp.firstChild) { lp.removeChild(lp.firstChild); }
+    var pasos = pasosDe(it);
+    if (pasos.length === 0) {
+      var vp = document.createElement('div');
+      vp.className = 'sinnotas';
+      vp.textContent = 'Sin pasos. Sirve para tareas de varios movimientos.';
+      lp.appendChild(vp);
+    } else {
+      var j;
+      for (j = 0; j < pasos.length; j++) {
+        (function (paso, pos) {
+          var fila = document.createElement('div');
+          fila.className = paso.hecho === true ? 'paso hecho' : 'paso';
+          var bt = document.createElement('button');
+          bt.type = 'button';
+          bt.className = 'tic';
+          bt.setAttribute('data-paso', '' + pos);
+          bt.textContent = paso.hecho === true ? '\u2611' : '\u2610';
+          bt.onclick = function () { alternarPaso(it.id, pos); };
+          var dd = document.createElement('div');
+          dd.className = 'd';
+          dd.textContent = paso.texto;
+          var bx = document.createElement('button');
+          bx.type = 'button';
+          bx.className = 'equis';
+          bx.setAttribute('data-sacar', '' + pos);
+          bx.textContent = '\u2715';
+          bx.onclick = function () { sacarPaso(it.id, pos); };
+          fila.appendChild(bt);
+          fila.appendChild(dd);
+          fila.appendChild(bx);
+          lp.appendChild(fila);
+        })(pasos[j], j);
+      }
+    }
+    $('txtPaso').value = '';
+
     $('btnAcompra').style.display = it.tipo === 'compra' ? 'none' : 'block';
     $('btnVolverTarea').style.display = it.tipo === 'compra' ? 'block' : 'none';
   }
@@ -1674,6 +1774,73 @@ input[type=time]{font-family:var(--mono)}
     pintar();
     if (itemAbierto === id) { pintarHojaItem(); }
     return true;
+  }
+
+  function alternarAnclado(id) {
+    var it = buscarItem(id);
+    if (!it || soloLectura) { return; }
+    it.anclado = it.anclado === true ? false : true;
+    it.actualizado = new Date().toISOString();
+    if (guardarItems()) {
+      registrar('anclado', it, '', it.anclado ? 'anclado' : 'suelto');
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    } else { it.anclado = it.anclado === true ? false : true; }
+  }
+
+  /* ---------- checklist ---------- */
+
+  function agregarPaso(id, texto) {
+    var it = buscarItem(id);
+    var t = ('' + texto).replace(/^\s+|\s+$/g, '');
+    if (!it || soloLectura || t === '') { return false; }
+    if (!esArray(it.pasos)) { it.pasos = []; }
+    it.pasos.push({ texto: t, hecho: false });
+    it.actualizado = new Date().toISOString();
+    if (!guardarItems()) { it.pasos.pop(); return false; }
+    pintar();
+    if (itemAbierto === id) { pintarHojaItem(); }
+    return true;
+  }
+
+  function alternarPaso(id, pos) {
+    var it = buscarItem(id);
+    if (!it || soloLectura) { return; }
+    var arr = pasosDe(it);
+    if (pos < 0 || pos >= arr.length) { return; }
+    arr[pos].hecho = arr[pos].hecho === true ? false : true;
+    it.actualizado = new Date().toISOString();
+    if (guardarItems()) {
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    } else { arr[pos].hecho = arr[pos].hecho === true ? false : true; }
+  }
+
+  /* Sacar un paso se puede deshacer 9 segundos, igual que borrar un item.
+     Preferible a una confirmacion: un paso mal escrito se saca de un toque. */
+  function sacarPaso(id, pos) {
+    var it = buscarItem(id);
+    if (!it || soloLectura) { return; }
+    var arr = pasosDe(it);
+    if (pos < 0 || pos >= arr.length) { return; }
+    var copia = { texto: arr[pos].texto, hecho: arr[pos].hecho === true };
+    arr.splice(pos, 1);
+    it.actualizado = new Date().toISOString();
+    if (!guardarItems()) { arr.splice(pos, 0, copia); return; }
+    pintar();
+    if (itemAbierto === id) { pintarHojaItem(); }
+    (function (idG, donde, guardado) {
+      ofrecerDeshacer('Paso sacado: ' + guardado.texto, function () {
+        var v = buscarItem(idG);
+        if (!v || soloLectura) { return; }
+        if (!esArray(v.pasos)) { v.pasos = []; }
+        v.pasos.splice(donde > v.pasos.length ? v.pasos.length : donde, 0, guardado);
+        if (guardarItems()) {
+          pintar();
+          if (itemAbierto === idG) { pintarHojaItem(); }
+        }
+      });
+    })(id, pos, copia);
   }
 
   function fechaNota(iso) {
@@ -1883,6 +2050,103 @@ input[type=time]{font-family:var(--mono)}
 
     if (lineas.length === 2) { lineas.push('Sin movimientos en este periodo.'); }
     return lineas.join('\n');
+  }
+
+  /* Reporte de relevo: lo del turno de hoy, en texto plano para pegar en
+     WhatsApp. Siempre el dia de hoy y el contexto actual, sin importar que
+     rango este elegido en el Registro: un relevo es de un turno, no de 30 dias. */
+  function textoRelevo() {
+    var ahora = new Date();
+    var hoy = claveDia(ahora);
+    var lineas = [];
+    lineas.push((contexto === 'hogar' ? '\uD83C\uDFE0' : '\uD83D\uDD27') + ' RELEVO DE TURNO \u00B7 ' +
+      (contexto === 'hogar' ? 'Hogar' : 'Trabajo'));
+    lineas.push('\uD83D\uDCC5 ' + dosDig(ahora.getDate()) + '/' + dosDig(ahora.getMonth() + 1) + '/' +
+      ahora.getFullYear() + ' \u00B7 ' + hhmm(ahora));
+
+    var hechas = [], notas = [], i, ev, d;
+    for (i = 0; i < eventos.length; i++) {
+      ev = eventos[i];
+      if (ev.contexto !== contexto) { continue; }
+      d = fechaObj(ev.ts);
+      if (!d || claveDia(d) !== hoy) { continue; }
+      if (ev.tipo === 'estado' && CERRADOS[ev.hasta] && ev.hasta !== 'cancelado') {
+        hechas.push(ev.texto);
+      }
+      if (ev.tipo === 'comentario') { notas.push(hhmm(d) + ' ' + ev.texto + ' \u2014 ' + ev.hasta); }
+    }
+
+    var ancladas = [], compras = [], it, det;
+    for (i = 0; i < items.length; i++) {
+      it = items[i];
+      if (it.contexto !== contexto || !esActivo(it.estado)) { continue; }
+      if (it.anclado === true || it.prioridad) {
+        ancladas.push((it.anclado === true ? '\uD83D\uDCCC ' : '\uD83D\uDD34 ') + it.texto);
+      }
+      if (it.tipo === 'compra') {
+        det = it.texto;
+        if (contexto !== 'hogar') { det = det + ' \u2014 ' + estadoInfo(it.estado).nom; }
+        if (it.pausado === true) { det = det + ' \u23F8 en espera'; }
+        if (alertaEntrega(it) > 0) { det = det + ' \u26A0 +48hs'; }
+        compras.push(det);
+      }
+    }
+
+    function bloque(titulo, arr) {
+      if (arr.length === 0) { return; }
+      var vistos = {}, j, limpio = [];
+      for (j = 0; j < arr.length; j++) {
+        if (vistos[arr[j]]) { continue; }
+        vistos[arr[j]] = true;
+        limpio.push(arr[j]);
+      }
+      lineas.push('');
+      lineas.push(titulo + ' (' + limpio.length + ')');
+      for (j = 0; j < limpio.length; j++) { lineas.push('\u2022 ' + limpio[j]); }
+    }
+
+    bloque('\u2705 COMPLETADAS', hechas);
+    bloque(contexto === 'hogar' ? '\uD83D\uDED2 LISTA DE COMPRAS' : '\uD83D\uDED2 COMPRAS PENDIENTES', compras);
+    bloque('\uD83D\uDCAC NOTAS DEL DIA', notas);
+    bloque('\uD83D\uDCCC ANCLADO Y PRIORIDAD', ancladas);
+
+    if (lineas.length === 2) { lineas.push(''); lineas.push('Sin novedades en el turno.'); }
+    return lineas.join('\n');
+  }
+
+  /* ---------- aviso de backup ---------- */
+
+  function marcarBackup() {
+    escribir(K_BACKUP, new Date().toISOString());
+    actualizarAvisoBackup();
+  }
+
+  function diasSinBackup() {
+    var v = leer(K_BACKUP);
+    var base = v ? fechaObj(v) : null;
+    if (!base) {
+      /* Nunca exporto: se cuenta desde el item mas viejo, asi una instalacion
+         recien hecha no molesta desde el primer dia. */
+      var i, min = null;
+      for (i = 0; i < items.length; i++) {
+        var d = fechaObj(items[i].creado);
+        if (d && (!min || d.getTime() < min.getTime())) { min = d; }
+      }
+      base = min;
+    }
+    if (!base) { return 0; }
+    return Math.floor((Date.now() - base.getTime()) / 86400000);
+  }
+
+  function actualizarAvisoBackup() {
+    var dias = diasSinBackup();
+    var b = $('btnAjustes');
+    if (b) { b.className = dias > DIAS_AVISO_BACKUP ? 'iconobtn avisa' : 'iconobtn'; }
+    var v = $('vBackup');
+    if (v) {
+      var u = leer(K_BACKUP);
+      v.textContent = u ? horaCorta(u) + ' \u00B7 hace ' + dias + ' d' : 'nunca (hace ' + dias + ' d)';
+    }
   }
 
   function compartir(titulo, texto) {
@@ -2188,6 +2452,7 @@ input[type=time]{font-family:var(--mono)}
   $('txtBusca').onkeyup = function () { pintarBusqueda(); };
   $('btnCerrarBusca').onclick = function () { cerrarHoja('tapaBuscar'); };
 
+  $('btnRelevo').onclick = function () { mostrarTexto('Reporte de Turno', textoRelevo()); };
   $('btnResumen').onclick = function () { mostrarTexto('Resumen', textoResumen()); };
   $('btnCompartirTexto').onclick = function () {
     var t = $('txtSalida').value;
@@ -2197,6 +2462,7 @@ input[type=time]{font-family:var(--mono)}
   $('btnCerrarTexto').onclick = function () { cerrarHoja('tapaTexto'); };
 
   $('btnAjustes').onclick = function () {
+    actualizarAvisoBackup();
     $('vApp').textContent = VERSION_APP;
     $('vEsquema').textContent = '' + ESQUEMA;
     $('vTotal').textContent = '' + items.length;
@@ -2225,6 +2491,22 @@ input[type=time]{font-family:var(--mono)}
     if (itemAbierto) { agregarNota(itemAbierto, $('txtNota').value); }
   };
 
+  $('btnAnclar').onclick = function () {
+    if (itemAbierto) { alternarAnclado(itemAbierto); }
+  };
+
+  $('btnAgregarPaso').onclick = function () {
+    if (itemAbierto) { agregarPaso(itemAbierto, $('txtPaso').value); }
+  };
+
+  $('txtPaso').onkeydown = function (ev) {
+    var k = ev.key || ev.keyCode;
+    if (k === 'Enter' || k === 13) {
+      ev.preventDefault();
+      if (itemAbierto) { agregarPaso(itemAbierto, $('txtPaso').value); }
+    }
+  };
+
   $('txtNota').onkeydown = function (ev) {
     var k = ev.key || ev.keyCode;
     if (k === 'Enter' || k === 13) {
@@ -2238,8 +2520,8 @@ input[type=time]{font-family:var(--mono)}
     aplicarLuz(true);
   };
 
-  $('btnExportar').onclick = function () { descargarBackup(); };
-  $('btnBackupTexto').onclick = function () { mostrarTexto('Backup KCO', armarBackup()); };
+  $('btnExportar').onclick = function () { descargarBackup(); marcarBackup(); };
+  $('btnBackupTexto').onclick = function () { mostrarTexto('Backup KCO', armarBackup()); marcarBackup(); };
   $('btnImportar').onclick = function () { $('archivoImport').click(); };
   $('archivoImport').onchange = function (ev) {
     var f = ev.target.files && ev.target.files[0];

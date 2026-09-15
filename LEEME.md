@@ -13,7 +13,7 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v10` |
+| Nombre de cache | `kibco-v11` |
 | Esquema de datos | `4` (sin cambios desde v0.7) |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
@@ -71,11 +71,20 @@ no rompe nada en el camino de vuelta.
 | `comentarios` | `[]` si falta o no es array | bitacora del item: `{cuando, texto}` |
 | `pausado` | `false` salvo que sea exactamente `true` | compra de fabrica congelada |
 | `pausadoDesde` | `''` | momento en que se congelo, para descontarlo despues |
+| `pasos` | `[]` si falta o no es array | checklist del item: `{texto, hecho}` |
+| `anclado` | `false` salvo que sea exactamente `true` | item fijado al tope de la lista |
 
-*Limite conocido:* un backup de 0.9.3 restaurado en 0.9.2 **pierde los comentarios y la
-pausa**, porque `normalizarItem` de esa version arma el item con una lista fija de campos
-y descarta lo que no conoce. No se corrompe nada: el item vuelve a verse entero y la
-compra queda sin pausar. El camino de ida (0.9.2 -> 0.9.3) no pierde nada.
+*Limite conocido:* restaurar un backup en una version **anterior** a la que lo genero
+pierde los campos que esa version no conoce, porque su `normalizarItem` arma el item con
+una lista fija y descarta el resto. Un backup de 1.0.0 restaurado en 0.9.2 pierde
+comentarios, pausa, checklist y anclas. No se corrompe nada: el item vuelve entero y sin
+esos agregados. Hacia adelante no se pierde nada.
+
+### Claves de almacenamiento agregadas
+
+| Clave | Contenido |
+|---|---|
+| `kibco.ultimoBackup` | fecha ISO del ultimo backup descargado o compartido |
 
 Item:
 
@@ -207,7 +216,7 @@ confirmacion explicita.
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v10` -> `kibco-v11`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v11` -> `kibco-v12`).
 
 Un cambio de una sola linea en `index.html` tambien cuenta: si el nombre de cache no sube,
 el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
@@ -215,6 +224,32 @@ el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
 ---
 
 # CHANGELOG
+
+## 1.0.0 — anclas, checklist, relevo de turno y aviso de backup
+
+Cache `kibco-v11`. Esquema de datos sigue en **4**. Primera version estable.
+
+- **Items anclados.** Un item se puede fijar al tope de su lista desde la ficha. Lleva el
+  badge `📌` y queda arriba de todo, por encima incluso de la prioridad alta. El ancla
+  **ordena, no filtra**: si el item esta completado y estas mirando el filtro Activos, no
+  aparece, igual que cualquier otro. Se decidio asi para que la lista nunca muestre algo
+  que el filtro dice que no deberia estar.
+- **Checklist por item.** Cada tarea o compra puede tener pasos verificables, para las que
+  son de varios movimientos. La tarjeta muestra el avance compacto, `☑ 2/3`. Sacar un paso
+  se puede deshacer nueve segundos, igual que borrar un item.
+- **Reporte de relevo de turno.** Boton nuevo arriba del Registro. Arma un texto plano con
+  emoticonos, listo para pegar en WhatsApp: completadas del dia, compras pendientes con su
+  casillero (marcando las pausadas y las de +48 hs), notas del dia y lo anclado o
+  prioritario. Toma siempre **el dia de hoy y el contexto actual**, sin importar que rango
+  este elegido en el Registro: un relevo es de un turno, no de treinta dias.
+- **Aviso de backup.** Cada backup descargado o compartido sella la fecha en
+  `kibco.ultimoBackup`. Si pasan mas de 14 dias, aparece un punto rojo sobre el engranaje
+  de Ajustes, y adentro se ve cuando fue el ultimo. Si nunca se exporto, la cuenta arranca
+  desde el item mas viejo, asi una instalacion recien hecha no molesta desde el primer dia.
+
+*Pendientes conocidos:* los comentarios siguen sin poder borrarse ni editarse. El boton de
+pausar sigue viviendo solo en la ficha. Las tarjetas cerradas siguen reservando el hueco
+derecho de la accion.
 
 ## 0.9.3 — compras en espera, bitacora por item y triaje inverso
 
