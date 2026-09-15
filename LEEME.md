@@ -13,7 +13,7 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v12` |
+| Nombre de cache | `kibco-v13` |
 | Esquema de datos | `4` (sin cambios desde v0.7) |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
@@ -216,7 +216,7 @@ confirmacion explicita.
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v12` -> `kibco-v13`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v13` -> `kibco-v14`).
 
 Un cambio de una sola linea en `index.html` tambien cuenta: si el nombre de cache no sube,
 el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
@@ -224,6 +224,31 @@ el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
 ---
 
 # CHANGELOG
+
+## 1.0.2 — los rotulos dejan de cortarse a mitad de palabra
+
+Cache `kibco-v13`. Esquema 4. Continuacion de 1.0.1, sin funciones nuevas.
+
+**El problema.** En 1.0.1 los dos botones de una tarea quedaron uno al lado del otro en una
+columna de 116 px, o sea 55 px cada uno. La palabra "Compras" no entra en ese ancho, y como
+la regla de estilo traia `word-break:break-word`, en vez de bajar entera se partia al medio:
+`Compr` / `as`.
+
+**La solucion.** Dos cambios que van juntos:
+
+1. Se saco `word-break` de los botones. Sin esa regla una palabra nunca se corta por la
+   mitad: si no entra, baja entera al renglon siguiente. Es la regla general y aplica a
+   todos los rotulos, incluidos los que vengan despues.
+2. Cuando hay **dos** botones al lado, van solo con el icono: ✅ y 🛒. Son siempre los mismos
+   dos, estan en todas las tarjetas de tarea, y el rotulo completo sigue en la ficha. Cada
+   uno lleva `aria-label` y `title`, asi el lector de pantalla y el mantener-pulsado dicen
+   "Listo" y "Mover a Compras".
+
+Cuando hay **un** solo boton ocupa toda la columna y conserva su texto completo: `✅ Listo`,
+`▶ Esperando OC`, `⬜ Marcar comprado`, `▶ Seguir`. Esos se parten por palabra, nunca por letra.
+
+**Efecto de lado:** la columna bajo de 116 a 94 px, asi que el texto de las tarjetas recupero
+los ~22 px que habia perdido en 1.0.1.
 
 ## 1.0.1 — la tarjeta deja de partirse al medio
 

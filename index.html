@@ -113,8 +113,12 @@ li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-throug
 .badge.tag{color:var(--txt)}
 .alerta48{margin-top:6px;font-family:var(--mono);font-size:11.5px;color:var(--rojo);background:var(--rojosuave);border:1px solid var(--rojo);border-radius:7px;padding:5px 8px}
 .accs{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
-#lista .accs,#listaCompras .accs{flex:0 0 116px;width:116px;margin-top:0;flex-wrap:nowrap}
-.abtn{flex:1 1 0;min-width:0;padding:7px 3px;min-height:44px;border-radius:8px;cursor:pointer;border:1px solid var(--linea2);background:var(--card2);color:var(--txt2);font-size:10px;line-height:1.15;font-family:var(--mono);word-break:break-word}
+#lista .accs,#listaCompras .accs{flex:0 0 94px;width:94px;margin-top:0;flex-wrap:nowrap}
+/* Sin word-break: una palabra nunca se parte al medio. Si no entra, baja
+   entera al renglon siguiente. Los rotulos de un solo boton entran en dos
+   renglones; cuando hay dos botones van solo con el icono, que no se corta. */
+.abtn{flex:1 1 0;min-width:0;padding:7px 3px;min-height:44px;border-radius:8px;cursor:pointer;border:1px solid var(--linea2);background:var(--card2);color:var(--txt2);font-size:10px;line-height:1.2;font-family:var(--mono)}
+.abtn.ico{font-size:19px;line-height:1;padding:6px 2px}
 .abtn:active{border-color:var(--acc);color:var(--acc)}
 .abtn.on{border-color:var(--ok);color:var(--ok)}
 .espera{color:var(--amar);font-size:12px;margin-top:6px;font-family:var(--mono)}
@@ -421,7 +425,7 @@ input[type=time]{font-family:var(--mono)}
 (function () {
   'use strict';
 
-  var VERSION_APP = '1.0.1';
+  var VERSION_APP = '1.0.2';
   /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
      Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
   var ESQUEMA = 4;
@@ -1109,11 +1113,13 @@ input[type=time]{font-family:var(--mono)}
     /* Acciones de un toque, sin abrir la ficha. Lo que mas se hace en el dia
        tiene que costar un dedo, no tres. */
     var accs = null;
-    function sumarAccion(cont, clase, texto, marca, fn) {
+    function sumarAccion(cont, clase, texto, marca, fn, rotulo) {
       var b = document.createElement('button');
       b.type = 'button';
       b.className = clase;
       b.setAttribute('data-acc', marca);
+      b.setAttribute('aria-label', rotulo ? rotulo : texto);
+      b.setAttribute('title', rotulo ? rotulo : texto);
       b.textContent = texto;
       b.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
@@ -1127,13 +1133,18 @@ input[type=time]{font-family:var(--mono)}
       accs = document.createElement('div');
       accs.className = 'accs';
       if (it.tipo === 'tarea') {
-        sumarAccion(accs, 'abtn', '\u2705 Listo', 'listo', function () {
-          cambiarEstado(it.id, 'completado');
-        });
-        if (it.estado === 'entrada' || it.estado === 'pendiente') {
-          sumarAccion(accs, 'abtn', '\uD83D\uDED2 Compras', 'acompras', function () {
+        /* Las tareas son el unico caso con dos botones al lado. Ahi no entra
+           texto sin partirse, asi que van con el icono solo: son siempre los
+           mismos dos y el rotulo completo esta en la ficha. */
+        var dosAcciones = it.estado === 'entrada' || it.estado === 'pendiente';
+        sumarAccion(accs, dosAcciones ? 'abtn ico' : 'abtn',
+          dosAcciones ? '\u2705' : '\u2705 Listo', 'listo', function () {
+            cambiarEstado(it.id, 'completado');
+          }, 'Listo');
+        if (dosAcciones) {
+          sumarAccion(accs, 'abtn ico', '\uD83D\uDED2', 'acompras', function () {
             moverACompras(it.id);
-          });
+          }, 'Mover a Compras');
         }
       } else if (it.contexto === 'hogar') {
         sumarAccion(accs, 'abtn', '\u2B1C Marcar comprado', 'comprado', function () {
