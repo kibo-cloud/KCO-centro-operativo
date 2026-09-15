@@ -41,53 +41,80 @@ body{
 button{font-family:inherit;transition:transform .09s ease,background .15s ease,border-color .15s ease,color .15s ease}
 button:active{transform:scale(.97)}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-header{background:var(--card);border-bottom:1px solid var(--linea);padding:calc(env(safe-area-inset-top) + 10px) 12px 10px 12px}
+header{background:var(--card);border-bottom:1px solid var(--linea);padding:calc(env(safe-area-inset-top) + 8px) 10px 8px 10px}
 .fila{display:flex;align-items:center;gap:8px}
 .marca{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:1.5px;color:var(--acc)}
 .marca span{color:var(--txt2);font-weight:400;font-size:11px;letter-spacing:.5px}
 .crece{flex:1}
-.iconobtn{background:none;border:1px solid var(--linea);color:var(--txt2);border-radius:9px;font-size:16px;line-height:1;padding:8px 11px;cursor:pointer}
+.iconobtn{background:none;border:1px solid var(--linea);color:var(--txt2);border-radius:9px;font-size:16px;line-height:1;padding:11px 11px;cursor:pointer}
 .iconobtn:active{border-color:var(--acc);color:var(--acc)}
-.ctxsel{display:flex;gap:8px;margin-top:11px}
-.ctxbtn{flex:1;padding:11px 8px;border-radius:9px;cursor:pointer;border:1px solid var(--linea);background:var(--card2);color:var(--txt2);font-size:14px;font-weight:600;letter-spacing:.3px}
+.ctxsel{display:flex;gap:6px;margin-top:0;flex:1;min-width:0}
+.ctxbtn{flex:1;min-width:0;padding:9px 6px;min-height:42px;border-radius:9px;cursor:pointer;border:1px solid var(--linea);background:var(--card2);color:var(--txt2);font-size:13px;font-weight:600;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ctxbtn.on{background:var(--acc);border-color:var(--acc);color:var(--sobreacc)}
-.captura{padding:12px;background:var(--card);border-bottom:1px solid var(--linea)}
-#txtCaptura{width:100%;padding:14px 12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:16px;outline:none;transition:border-color .15s ease}
+/* Captura fija en el borde inferior: zona del pulgar, siempre visible,
+   un solo toque para escribir y Enter para guardar. */
+.captura{
+  position:fixed;left:0;right:0;bottom:0;z-index:22;
+  padding:8px 10px calc(env(safe-area-inset-bottom) + 8px) 10px;
+  background:var(--card);border-top:1px solid var(--linea2);
+  box-shadow:0 -4px 16px rgba(0,0,0,.38);
+}
+#txtCaptura{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:16px;outline:none;transition:border-color .15s ease}
 #txtCaptura:focus{border-color:var(--acc)}
 .pista{color:var(--txt2);font-size:11.5px;margin-top:7px;font-family:var(--mono)}
 .tabs{display:flex;background:var(--card);border-bottom:1px solid var(--linea)}
-.tab{flex:1;padding:11px 4px;background:none;border:0;border-bottom:2px solid transparent;color:var(--txt2);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.5px}
+.tab{flex:1;padding:9px 4px;background:none;border:0;border-bottom:2px solid transparent;color:var(--txt2);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.5px}
 .tab.on{color:var(--acc);border-bottom-color:var(--acc)}
-main{flex:1;padding:12px 12px 32px 12px;overflow-y:auto}
-.prog{background:var(--card);border:1px solid var(--linea);border-radius:11px;padding:12px;margin-bottom:12px}
-.prog .cab{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--txt2);margin-bottom:9px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase}
-.prog .cab b{color:var(--txt);font-size:15px;letter-spacing:0}
-.barra{height:6px;background:var(--card2);border-radius:4px;overflow:hidden}
+main{flex:1;padding:8px 12px 84px 12px;overflow-y:auto}
+.prog{background:none;border:0;border-radius:0;padding:0;margin-bottom:9px}
+.prog .cab{display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;color:var(--txt2);margin-bottom:4px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase}
+.prog .cab b{color:var(--txt);font-size:13px;letter-spacing:0}
+.barra{height:4px;background:var(--card2);border-radius:3px;overflow:hidden}
 .barra i{display:block;height:100%;background:var(--acc);width:0;transition:width .3s ease}
-.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch}
-.chip{flex:0 0 auto;padding:11px 13px;min-height:44px;border-radius:8px;cursor:pointer;border:1px solid var(--linea);background:var(--card);color:var(--txt2);font-size:12px;font-family:var(--mono);white-space:nowrap}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;-webkit-overflow-scrolling:touch}
+/* Estado y clasificacion comparten una sola fila desplazable. */
+.chipsfila{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;-webkit-overflow-scrolling:touch}
+.chipsfila .chips{overflow-x:visible;padding-bottom:0;flex:0 0 auto}
+.chipsfila .chips:empty{display:none}
+.chip{flex:0 0 auto;padding:9px 11px;min-height:42px;border-radius:8px;cursor:pointer;border:1px solid var(--linea);background:var(--card);color:var(--txt2);font-size:11.5px;font-family:var(--mono);white-space:nowrap}
 .chip.on{border-color:var(--acc);color:var(--acc);background:var(--accsuave)}
 ul{list-style:none;margin:0;padding:0}
-li.item{background:var(--card);border:1px solid var(--linea);border-radius:11px;padding:12px;margin-bottom:8px;cursor:pointer;transition:transform .09s ease,border-color .15s ease}
+li.item{background:var(--card);border:1px solid var(--linea);border-radius:11px;padding:9px 10px;margin-bottom:7px;cursor:pointer;transition:transform .09s ease,border-color .15s ease}
+/* La accion rapida sale de su fila propia y pasa a la columna derecha.
+   Solo en las listas del tablero y de compras: los resultados de busqueda
+   no tienen acciones y no necesitan reservar el hueco. */
+#lista li.item,#listaCompras li.item{position:relative;padding-right:112px;min-height:62px}
+/* La hora de creacion es el ultimo badge de la fila y es la menos util:
+   se oculta por CSS y el dato sigue intacto en el item y en la ficha. */
+li.item .linea2 .badge:last-child{display:none}
 li.item:active{transform:scale(.985)}
 li.item.prio{border-color:var(--rojo);background:linear-gradient(90deg,var(--rojosuave),var(--card) 55%)}
 li.item.st-completado,li.item.st-recibido{opacity:.5}
 li.item.st-cancelado{opacity:.4}
 li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-through}
-.txt{white-space:pre-wrap;word-break:break-word;font-size:15px}
-.linea2{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
-.badge{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:6px;border:1px solid var(--linea2);color:var(--txt2);white-space:nowrap}
+.txt{white-space:pre-wrap;word-break:break-word;font-size:14.5px}
+.linea2{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:6px}
+.badge{font-family:var(--mono);font-size:10.5px;padding:2px 6px;border-radius:6px;border:1px solid var(--linea2);color:var(--txt2);white-space:nowrap}
 .badge.est{color:var(--acc);border-color:var(--acc)}
 .badge.prio{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
 .badge.rec{color:var(--amar);border-color:var(--amar)}
 .badge.rec.vencido{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
+.badge.pausa{color:var(--amar);border-color:var(--amar);background:rgba(240,180,41,.10)}
+.badge.nota{color:var(--txt2)}
 .badge.tag{color:var(--txt)}
-.alerta48{margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--rojo);background:var(--rojosuave);border:1px solid var(--rojo);border-radius:7px;padding:5px 8px}
-.accs{display:flex;gap:7px;margin-top:10px}
-.abtn{flex:1;padding:12px 8px;min-height:46px;border-radius:8px;cursor:pointer;border:1px solid var(--linea2);background:var(--card2);color:var(--txt2);font-size:12.5px;font-family:var(--mono)}
+.alerta48{margin-top:6px;font-family:var(--mono);font-size:11.5px;color:var(--rojo);background:var(--rojosuave);border:1px solid var(--rojo);border-radius:7px;padding:5px 8px}
+.accs{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+#lista .accs,#listaCompras .accs{position:absolute;top:8px;right:8px;width:96px;margin-top:0}
+.abtn{flex:1 1 42px;padding:7px 4px;min-height:44px;border-radius:8px;cursor:pointer;border:1px solid var(--linea2);background:var(--card2);color:var(--txt2);font-size:10.5px;line-height:1.15;font-family:var(--mono)}
 .abtn:active{border-color:var(--acc);color:var(--acc)}
 .abtn.on{border-color:var(--ok);color:var(--ok)}
 .espera{color:var(--amar);font-size:12px;margin-top:6px;font-family:var(--mono)}
+li.item.pausado{border-color:var(--amar)}
+/* Bitacora: notas cortas con fecha, sin tocar el titulo del item. */
+.nota{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--linea);font-size:13.5px}
+.nota .h{flex:0 0 80px;color:var(--txt2);font-family:var(--mono);font-size:11px;padding-top:3px}
+.nota .d{flex:1;word-break:break-word;white-space:pre-wrap}
+.sinnotas{color:var(--txt2);font-size:12.5px;font-family:var(--mono);padding:7px 0}
 .vacio{color:var(--txt2);font-size:13.5px;padding:26px 4px;text-align:center;font-family:var(--mono)}
 .dia{color:var(--acc);font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;margin:16px 0 8px 0;font-family:var(--mono)}
 .ev{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--linea);font-size:14px}
@@ -139,7 +166,7 @@ body.luz li.item{border-width:1px}
 
 /* Barra de deshacer: aparece abajo, no tapa la captura y se va sola. */
 .deshacer{
-  position:fixed;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 12px);
+  position:fixed;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 76px);
   background:var(--card2);border:1px solid var(--linea2);border-radius:11px;
   padding:11px 12px;display:none;align-items:center;gap:10px;z-index:25;
   box-shadow:0 6px 20px rgba(0,0,0,.45);
@@ -185,25 +212,16 @@ input[type=time]{font-family:var(--mono)}
 
 <header>
   <div class="fila">
-    <div class="marca">KCO <span>CENTRO OPERATIVO</span></div>
-    <div class="crece"></div>
+    <div class="ctxsel">
+      <button class="ctxbtn on" id="btnTrabajo" type="button">&#127981; TRABAJO</button>
+      <button class="ctxbtn" id="btnHogar" type="button">&#127968; HOGAR</button>
+    </div>
     <button class="iconobtn" id="btnBuscar" type="button" aria-label="Buscar">&#128269;</button>
     <button class="iconobtn" id="btnAjustes" type="button" aria-label="Ajustes">&#9881;</button>
-  </div>
-  <div class="ctxsel">
-    <button class="ctxbtn on" id="btnTrabajo" type="button">&#127981; TRABAJO</button>
-    <button class="ctxbtn" id="btnHogar" type="button">&#127968; HOGAR</button>
   </div>
 </header>
 
 <div class="aviso" id="aviso"></div>
-
-<div class="captura">
-  <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
-         autocorrect="off" spellcheck="false" enterkeyhint="done"
-         placeholder="Escribi y toca Enter...">
-  <div class="pista">Enter guarda en Entrada &middot; escribi 18:00 o @9:30 y toma la hora</div>
-</div>
 
 <div class="tabs">
   <button class="tab on" id="tabTablero" type="button">TABLERO</button>
@@ -219,8 +237,10 @@ input[type=time]{font-family:var(--mono)}
       <div class="cab"><span>Progreso</span><b class="mono" id="progTxt">0% &middot; 0/0</b></div>
       <div class="barra"><i id="progBarra"></i></div>
     </div>
-    <div class="chips scroll-x" id="chips"></div>
-    <div class="chips chipsTag scroll-x" id="chipsTag"></div>
+    <div class="chipsfila scroll-x">
+      <div class="chips" id="chips"></div>
+      <div class="chips chipsTag" id="chipsTag"></div>
+    </div>
     <ul id="lista"></ul>
     <div class="vacio" id="vacioTablero">Nada por aca todavia.</div>
   </div>
@@ -245,6 +265,12 @@ input[type=time]{font-family:var(--mono)}
   <div class="pie mono" id="pie"></div>
 </main>
 
+<div class="captura">
+  <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
+         autocorrect="off" spellcheck="false" enterkeyhint="done"
+         placeholder="Escribi y Enter &middot; 18:00 o @9:30 toma la hora">
+</div>
+
 <div class="deshacer" id="barraDeshacer">
   <div class="qpaso" id="qpaso"></div>
   <button type="button" id="btnDeshacer">DESHACER</button>
@@ -264,8 +290,16 @@ input[type=time]{font-family:var(--mono)}
       <button class="bloque" id="btnGuardarEspera" type="button">Guardar espera</button>
     </div>
 
+    <button class="gbtn" id="btnPausa" type="button" style="width:100%;display:none;margin-top:7px">&#9208; Pausar / En espera</button>
+
     <div class="rot">Prioridad</div>
     <button class="gbtn rojo" id="btnPrioridad" type="button" style="width:100%">&#128308; Prioridad alta</button>
+
+    <div class="rot">Comentarios / bitacora</div>
+    <div id="listaNotas"></div>
+    <input id="txtNota" type="text" autocomplete="off" autocapitalize="sentences"
+           enterkeyhint="done" placeholder="Ej: proveedor confirmo stock para el viernes">
+    <button class="bloque" id="btnAgregarNota" type="button">Agregar comentario</button>
 
     <div class="rot">Clasificacion (opcional)</div>
     <div class="grid" id="gridTags"></div>
@@ -363,7 +397,7 @@ input[type=time]{font-family:var(--mono)}
 (function () {
   'use strict';
 
-  var VERSION_APP = '0.9.1';
+  var VERSION_APP = '0.9.3';
   /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
      Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
   var ESQUEMA = 4;
@@ -550,6 +584,26 @@ input[type=time]{font-family:var(--mono)}
 
   /* ---------- datos ---------- */
 
+  /* Campos agregados en 0.9.3. Viven fuera del esquema: se leen siempre con
+     fallback, asi un backup viejo (sin ellos) entra sin migracion y el numero
+     de esquema se queda en 4. */
+  function normalizarNotas(x) {
+    if (!esArray(x)) { return []; }
+    var r = [], i, c;
+    for (i = 0; i < x.length; i++) {
+      c = x[i];
+      if (!c || typeof c !== 'object') { continue; }
+      if (!c.texto) { continue; }
+      r.push({
+        cuando: c.cuando ? '' + c.cuando : new Date().toISOString(),
+        texto: '' + c.texto
+      });
+    }
+    return r;
+  }
+
+  function notasDe(it) { return esArray(it.comentarios) ? it.comentarios : []; }
+
   function normalizarItem(it) {
     if (!it || typeof it !== 'object') { return null; }
     var creado = it.creado ? '' + it.creado : new Date().toISOString();
@@ -573,7 +627,10 @@ input[type=time]{font-family:var(--mono)}
       recAvisado: it.recAvisado === true,
       creado: creado,
       actualizado: act,
-      estadoDesde: it.estadoDesde ? '' + it.estadoDesde : act
+      estadoDesde: it.estadoDesde ? '' + it.estadoDesde : act,
+      comentarios: normalizarNotas(it.comentarios),
+      pausado: it.pausado === true,
+      pausadoDesde: it.pausadoDesde ? '' + it.pausadoDesde : ''
     };
   }
 
@@ -827,6 +884,9 @@ input[type=time]{font-family:var(--mono)}
     it.estado = nuevo;
     it.actualizado = ahora;
     it.estadoDesde = ahora;
+    /* Avanzar de casillero implica que la compra volvio a moverse. */
+    it.pausado = false;
+    it.pausadoDesde = '';
     if (nuevo !== 'esperando') { it.espera = ''; }
     if (guardarItems()) {
       registrar('estado', it, previo, nuevo);
@@ -848,6 +908,9 @@ input[type=time]{font-family:var(--mono)}
 
   function alertaEntrega(it) {
     if (it.tipo !== 'compra' || it.estado !== 'esperando_entrega') { return 0; }
+    /* En pausa el reloj no corre: no tiene sentido reclamar una entrega que
+       vos mismo frenaste. */
+    if (it.pausado === true) { return 0; }
     var h = horasEn(it.estadoDesde);
     return h > HORAS_ALERTA_ENTREGA ? h : 0;
   }
@@ -932,6 +995,7 @@ input[type=time]{font-family:var(--mono)}
   function nodoItem(it) {
     var li = document.createElement('li');
     li.className = 'item st-' + it.estado + (it.prioridad ? ' prio' : '') +
+      (it.pausado === true ? ' pausado' : '') +
       (itemsVistos[it.id] ? '' : ' nuevo');
     itemsVistos[it.id] = 1;
     li.setAttribute('data-id', it.id);
@@ -952,6 +1016,7 @@ input[type=time]{font-family:var(--mono)}
     if (it.prioridad) { l2.appendChild(badge('prio', '\uD83D\uDD34 ALTA')); }
     var inf = estadoInfo(it.estado);
     l2.appendChild(badge('est', inf.ico + ' ' + inf.nom.toUpperCase()));
+    if (it.pausado === true) { l2.appendChild(badge('pausa', '\u23F8 EN ESPERA')); }
     if (it.tag !== '') {
       var t = tagInfo(it.tag);
       if (t) { l2.appendChild(badge('tag', t.ico + ' ' + t.nom)); }
@@ -963,6 +1028,8 @@ input[type=time]{font-family:var(--mono)}
         l2.appendChild(badge('rec' + (vencido ? ' vencido' : ''), '\u23F0 ' + horaCorta(it.recordatorio)));
       }
     }
+    var notas = notasDe(it);
+    if (notas.length > 0) { l2.appendChild(badge('nota', '\uD83D\uDCAC ' + notas.length)); }
     l2.appendChild(badge('', horaCorta(it.creado)));
     li.appendChild(l2);
 
@@ -1006,6 +1073,11 @@ input[type=time]{font-family:var(--mono)}
       } else if (it.contexto === 'hogar') {
         sumarAccion(accs, 'abtn', '\u2B1C Marcar comprado', 'comprado', function () {
           alternarComprado(it.id);
+        });
+      } else if (it.pausado === true) {
+        /* En pausa la tarjeta ofrece reanudar, no avanzar: primero se descongela. */
+        sumarAccion(accs, 'abtn on', '\u25B6 Seguir', 'reanudar', function () {
+          alternarPausa(it.id);
         });
       } else {
         var sig = estadoSiguiente(it);
@@ -1156,6 +1228,8 @@ input[type=time]{font-family:var(--mono)}
     if (ev.tipo === 'recordatorio') { return ev.hasta === '' ? 'Sacaste el recordatorio' : 'Recordatorio ' + ev.hasta; }
     if (ev.tipo === 'compra') { return 'Moviste a Compras'; }
     if (ev.tipo === 'vuelta') { return 'Volviste a tarea'; }
+    if (ev.tipo === 'pausa') { return ev.hasta === 'reanudada' ? 'Reanudaste la compra' : 'Pusiste la compra en espera'; }
+    if (ev.tipo === 'comentario') { return 'Comentaste'; }
     if (ev.tipo === 'migracion') { return 'Migracion de datos'; }
     if (ev.tipo === 'estado') { return estadoInfo(ev.desde).nom + ' \u2192 ' + estadoInfo(ev.hasta).nom; }
     return 'Movimiento';
@@ -1464,6 +1538,44 @@ input[type=time]{font-family:var(--mono)}
     $('btnSacarRec').textContent = it.recordatorio === ''
       ? 'Sacar recordatorio'
       : 'Sacar recordatorio (' + horaCorta(it.recordatorio) + ')';
+    var bp = $('btnPausa');
+    if (puedePausar(it)) {
+      bp.style.display = 'block';
+      bp.textContent = it.pausado === true ? '\u25B6 Reanudar la compra' : '\u23F8 Pausar / En espera';
+      bp.className = it.pausado === true ? 'gbtn on' : 'gbtn';
+    } else {
+      bp.style.display = 'none';
+    }
+    if (it.pausado === true) {
+      $('itemSub').textContent = $('itemSub').textContent + ' \u00B7 \u23F8 en espera';
+    }
+
+    var ln = $('listaNotas');
+    while (ln.firstChild) { ln.removeChild(ln.firstChild); }
+    var notas = notasDe(it);
+    if (notas.length === 0) {
+      var vacio = document.createElement('div');
+      vacio.className = 'sinnotas';
+      vacio.textContent = 'Sin comentarios todavia.';
+      ln.appendChild(vacio);
+    } else {
+      var k;
+      for (k = notas.length - 1; k >= 0; k--) {
+        var fila = document.createElement('div');
+        fila.className = 'nota';
+        var fh = document.createElement('div');
+        fh.className = 'h';
+        fh.textContent = fechaNota(notas[k].cuando);
+        var fd = document.createElement('div');
+        fd.className = 'd';
+        fd.textContent = notas[k].texto;
+        fila.appendChild(fh);
+        fila.appendChild(fd);
+        ln.appendChild(fila);
+      }
+    }
+    $('txtNota').value = '';
+
     $('btnAcompra').style.display = it.tipo === 'compra' ? 'none' : 'block';
     $('btnVolverTarea').style.display = it.tipo === 'compra' ? 'block' : 'none';
   }
@@ -1482,13 +1594,13 @@ input[type=time]{font-family:var(--mono)}
     it.estadoDesde = ahora;
     if (guardarItems()) {
       registrar('compra', it, 'tarea', it.estado);
-      irAVista('compras');
+      /* No se salta a la pestaña Compras: el item ya quedo movido y quedarse
+         en la vista actual permite mover varios seguidos sin volver atras. */
       pintar();
       if (itemAbierto === id) { pintarHojaItem(); }
       (function (idGuardado, f, txt) {
         ofrecerDeshacer(txt, function () {
           restaurarFoto(idGuardado, f, 'compra');
-          irAVista('tablero');
         });
       })(id, foto, 'Movida a Compras: ' + it.texto);
     } else {
@@ -1506,12 +1618,68 @@ input[type=time]{font-family:var(--mono)}
     it.estadoDesde = ahora;
     if (guardarItems()) {
       registrar('vuelta', it, 'compra', 'pendiente');
-      irAVista('tablero');
+      /* Igual que al mover a Compras: la vista no se mueve, asi se pueden
+         revertir varias seguidas sin volver a la pestaña anterior. */
       pintar();
       if (itemAbierto === id) { pintarHojaItem(); }
     } else {
       it.tipo = 'compra';
     }
+  }
+
+  /* Pausa: no cambia el casillero ni el estado guardado, solo lo congela.
+     Al reanudar se corre estadoDesde hacia adelante el tiempo que estuvo en
+     pausa, asi el contador de +48 hs sigue desde donde quedo en vez de
+     arrancar de cero. */
+  function puedePausar(it) {
+    return it.tipo === 'compra' && it.contexto !== 'hogar' && esActivo(it.estado);
+  }
+
+  function alternarPausa(id) {
+    var it = buscarItem(id);
+    if (!it || soloLectura || !puedePausar(it)) { return; }
+    var ahora = new Date();
+    if (it.pausado === true) {
+      var desde = fechaObj(it.pausadoDesde);
+      var base = fechaObj(it.estadoDesde);
+      if (desde && base) {
+        var quieto = ahora.getTime() - desde.getTime();
+        if (quieto > 0) { it.estadoDesde = new Date(base.getTime() + quieto).toISOString(); }
+      }
+      it.pausado = false;
+      it.pausadoDesde = '';
+    } else {
+      it.pausado = true;
+      it.pausadoDesde = ahora.toISOString();
+    }
+    it.actualizado = ahora.toISOString();
+    if (guardarItems()) {
+      registrar('pausa', it, '', it.pausado ? 'en espera' : 'reanudada');
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    }
+  }
+
+  /* ---------- bitacora ---------- */
+
+  function agregarNota(id, texto) {
+    var it = buscarItem(id);
+    var t = ('' + texto).replace(/^\s+|\s+$/g, '');
+    if (!it || soloLectura || t === '') { return false; }
+    if (!esArray(it.comentarios)) { it.comentarios = []; }
+    it.comentarios.push({ cuando: new Date().toISOString(), texto: t });
+    it.actualizado = new Date().toISOString();
+    if (!guardarItems()) { it.comentarios.pop(); return false; }
+    registrar('comentario', it, '', t);
+    pintar();
+    if (itemAbierto === id) { pintarHojaItem(); }
+    return true;
+  }
+
+  function fechaNota(iso) {
+    var d = fechaObj(iso);
+    if (!d) { return ''; }
+    return dosDig(d.getDate()) + '/' + dosDig(d.getMonth() + 1) + ' ' + hhmm(d);
   }
 
   function alternarComprado(id) {
@@ -1528,8 +1696,17 @@ input[type=time]{font-family:var(--mono)}
   var relojDeshacer = null;
   var SEG_DESHACER = 9000;
 
+  /* La barra de deshacer flota sobre la lista. Mientras esta a la vista se le
+     suma hueco al final de main para que no tape la ultima tarjeta. */
+  function huecoDeshacer(activo) {
+    var m = document.getElementsByTagName('main')[0];
+    if (!m || !m.style) { return; }
+    m.style.paddingBottom = activo ? '152px' : '';
+  }
+
   function ofrecerDeshacer(texto, fn) {
     revertir = fn;
+    huecoDeshacer(true);
     $('qpaso').textContent = texto;
     $('barraDeshacer').className = 'deshacer on';
     if (relojDeshacer) { window.clearTimeout(relojDeshacer); }
@@ -1540,6 +1717,7 @@ input[type=time]{font-family:var(--mono)}
 
   function ocultarDeshacer() {
     revertir = null;
+    huecoDeshacer(false);
     if (relojDeshacer) { window.clearTimeout(relojDeshacer); relojDeshacer = null; }
     var b = $('barraDeshacer');
     if (b) { b.className = 'deshacer'; }
@@ -1554,7 +1732,8 @@ input[type=time]{font-family:var(--mono)}
   function fotoDe(it) {
     return {
       estado: it.estado, tipo: it.tipo, espera: it.espera,
-      actualizado: it.actualizado, estadoDesde: it.estadoDesde, prioridad: it.prioridad
+      actualizado: it.actualizado, estadoDesde: it.estadoDesde, prioridad: it.prioridad,
+      pausado: it.pausado === true, pausadoDesde: it.pausadoDesde ? it.pausadoDesde : ''
     };
   }
 
@@ -1567,6 +1746,8 @@ input[type=time]{font-family:var(--mono)}
     it.prioridad = foto.prioridad;
     it.actualizado = foto.actualizado;
     it.estadoDesde = foto.estadoDesde;
+    it.pausado = foto.pausado === true;
+    it.pausadoDesde = foto.pausadoDesde ? foto.pausadoDesde : '';
     if (guardarItems()) {
       registrar('deshacer', it, textoEvento || '', foto.estado);
       pintar();
@@ -2035,6 +2216,22 @@ input[type=time]{font-family:var(--mono)}
   };
 
   $('btnDeshacer').onclick = function () { hacerDeshacer(); };
+
+  $('btnPausa').onclick = function () {
+    if (itemAbierto) { alternarPausa(itemAbierto); }
+  };
+
+  $('btnAgregarNota').onclick = function () {
+    if (itemAbierto) { agregarNota(itemAbierto, $('txtNota').value); }
+  };
+
+  $('txtNota').onkeydown = function (ev) {
+    var k = ev.key || ev.keyCode;
+    if (k === 'Enter' || k === 13) {
+      ev.preventDefault();
+      if (itemAbierto) { agregarNota(itemAbierto, $('txtNota').value); }
+    }
+  };
 
   $('btnLuz').onclick = function () {
     modoLuz = !modoLuz;

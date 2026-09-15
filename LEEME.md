@@ -13,7 +13,7 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v8` |
+| Nombre de cache | `kibco-v10` |
 | Esquema de datos | `4` (sin cambios desde v0.7) |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
@@ -58,7 +58,24 @@ por defecto es no: para eso ya esta Trabajo.
 | `kibco.filtroCompra` | ultimo filtro del tablero de compras |
 | `kibco.vista` | ultima pestaña: `tablero`, `compras` o `registro` |
 | `kibco.filtroTag` | ultima clasificacion filtrada en el tablero |
-| `kibco.luz` | modo luz de planta: `1` o `0` |
+| `kibco.luz` | modo luz de planta: `1` o `0` (sin cambios en 0.9.2) |
+
+### Campos por item fuera del esquema
+
+Desde 0.9.3 cada item puede llevar tres campos mas. **No suben el numero de esquema**:
+se leen siempre con fallback, asi que un backup viejo entra sin migracion y uno nuevo
+no rompe nada en el camino de vuelta.
+
+| Campo | Fallback al leer | Para que |
+|---|---|---|
+| `comentarios` | `[]` si falta o no es array | bitacora del item: `{cuando, texto}` |
+| `pausado` | `false` salvo que sea exactamente `true` | compra de fabrica congelada |
+| `pausadoDesde` | `''` | momento en que se congelo, para descontarlo despues |
+
+*Limite conocido:* un backup de 0.9.3 restaurado en 0.9.2 **pierde los comentarios y la
+pausa**, porque `normalizarItem` de esa version arma el item con una lista fija de campos
+y descarta lo que no conoce. No se corrompe nada: el item vuelve a verse entero y la
+compra queda sin pausar. El camino de ida (0.9.2 -> 0.9.3) no pierde nada.
 
 Item:
 
@@ -190,7 +207,7 @@ confirmacion explicita.
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v8` -> `kibco-v9`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v10` -> `kibco-v11`).
 
 Un cambio de una sola linea en `index.html` tambien cuenta: si el nombre de cache no sube,
 el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
@@ -198,6 +215,56 @@ el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
 ---
 
 # CHANGELOG
+
+## 0.9.3 — compras en espera, bitacora por item y triaje inverso
+
+Cache `kibco-v10`. Esquema de datos sigue en **4**.
+
+- **Compras en espera.** Una compra de fabrica se puede congelar en cualquier casillero
+  del flujo desde su ficha. Mientras esta en pausa lleva el badge `⏸ EN ESPERA`, el borde
+  de la tarjeta se pone ambar y **el contador de +48 hs deja de correr**. La tarjeta pasa
+  a ofrecer un unico boton, `▶ Seguir`, que la reanuda en el mismo casillero de un toque.
+  Al reanudar, el tiempo que estuvo quieta se descuenta: el contador sigue desde donde
+  quedo en vez de arrancar de cero. Avanzar de casillero a mano tambien saca la pausa,
+  porque implica que la compra volvio a moverse. Hogar no tiene pausa: su flujo de tres
+  estados no la necesita.
+- **Comentarios / bitacora.** Cualquier item, tarea o compra, tiene en su ficha una
+  seccion para anotar avances con fecha y hora sin tocar el titulo de la tarjeta. Enter
+  o el boton agregan; el mas nuevo queda arriba. La tarjeta muestra `💬 N` cuando hay
+  comentarios, y cada nota queda ademas en el Registro del dia.
+- **Volver a tarea ya no salta de pestaña.** Mismo criterio que Mover a Compras en 0.9.2:
+  se puede revertir varias seguidas sin volver atras cada vez.
+
+*Pendiente conocido:* los comentarios no se pueden borrar ni editar desde la app. Si
+anotas algo mal, queda. Se resuelve mas adelante o a mano desde un backup.
+
+## 0.9.2 — la captura baja al pulgar y el triaje se hace en lote
+
+Cache `kibco-v9`. Esquema de datos sigue en **4**: ningun backup cambia de forma y los
+de 0.9.1 restauran sin tocar nada.
+
+- **Captura fija en el borde inferior.** El input salio del encabezado y vive anclado
+  abajo, en la zona del pulgar, siempre visible. Sigue siendo un solo toque: se escribe
+  y Enter guarda. No abre modales ni capas, y despues de guardar mantiene el foco para
+  encadenar capturas sin volver a tocar nada.
+- **Mover a Compras ya no salta de pestaña.** Antes cada movimiento arrastraba la vista
+  a Compras y habia que volver al Tablero para seguir. Ahora el item se mueve, aparece
+  la barra de deshacer y la app se queda donde estaba, asi se pueden mover varios
+  seguidos. El deshacer tampoco cambia de vista.
+- **Encabezado compacto.** Contextos, buscar y ajustes en una sola fila; la marca grande
+  salio de arriba y quedo en el pie y en Ajustes. La barra de progreso perdio la caja y
+  quedo en una linea de 4 px. Los chips de estado y los de clasificacion comparten una
+  unica fila desplazable.
+- **Tarjetas mas bajas.** La accion rapida salio de su fila propia y pasa a una columna
+  a la derecha de la tarjeta. La hora de creacion se oculta por CSS: el dato sigue
+  guardado en el item y visible en la ficha, solo deja de ocupar lugar en la lista.
+- **La barra de deshacer ya no tapa la ultima tarjeta.** Mientras esta a la vista se le
+  suma hueco al final del contenedor principal, y se saca cuando desaparece. Ademas
+  quedo por encima de la barra de captura, no encima de ella.
+
+*Nota de maquetacion:* las tarjetas del tablero y de compras reservan el hueco derecho de
+la accion aunque el item este cerrado y no tenga boton. Es el precio de resolverlo con CSS
+sin tocar el JS que arma las tarjetas.
 
 ## 0.9.1 — gestos que no pelean y cierre de compra con nombre propio
 
