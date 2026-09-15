@@ -13,7 +13,7 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v11` |
+| Nombre de cache | `kibco-v12` |
 | Esquema de datos | `4` (sin cambios desde v0.7) |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
@@ -216,7 +216,7 @@ confirmacion explicita.
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v11` -> `kibco-v12`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v12` -> `kibco-v13`).
 
 Un cambio de una sola linea en `index.html` tambien cuenta: si el nombre de cache no sube,
 el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
@@ -224,6 +224,25 @@ el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
 ---
 
 # CHANGELOG
+
+## 1.0.1 — la tarjeta deja de partirse al medio
+
+Cache `kibco-v12`. Esquema 4. Correccion de maquetacion, sin funciones nuevas.
+
+**El problema.** En 0.9.2 la columna de acciones se resolvio con `position:absolute` para
+no tocar el JS que arma las tarjetas. Lo absoluto no empuja el alto del contenedor: en una
+tarjeta con pocos badges el alto lo daba solo el texto, y los dos botones apilados (`Listo`
+y `Compras`) median mas que eso. El segundo boton se salia por abajo del borde y la tarjeta
+siguiente lo tapaba por la mitad. Pasaba igual en Trabajo y en Hogar, y solo en las
+tarjetas cortas, por eso no se veia siempre.
+
+**La solucion.** La tarjeta pasa a ser de dos columnas de verdad: el contenido se agrupa en
+un `.cuerpo` y la lista usa `display:flex`. El alto lo manda el lado mas alto de los dos,
+asi que el desborde no puede volver a pasar por muchos badges o pocos que haya. Los dos
+botones ahora van uno al lado del otro en una columna de 116 px en vez de apilados.
+
+**De regalo:** las tarjetas cerradas dejaron de reservar el hueco derecho de la accion,
+que era la deuda anotada en 0.9.2. Ahora el texto de un item completado usa todo el ancho.
 
 ## 1.0.0 — anclas, checklist, relevo de turno y aviso de backup
 
@@ -248,8 +267,7 @@ Cache `kibco-v11`. Esquema de datos sigue en **4**. Primera version estable.
   desde el item mas viejo, asi una instalacion recien hecha no molesta desde el primer dia.
 
 *Pendientes conocidos:* los comentarios siguen sin poder borrarse ni editarse. El boton de
-pausar sigue viviendo solo en la ficha. Las tarjetas cerradas siguen reservando el hueco
-derecho de la accion.
+pausar sigue viviendo solo en la ficha.
 
 ## 0.9.3 — compras en espera, bitacora por item y triaje inverso
 
