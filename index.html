@@ -64,6 +64,14 @@ header{background:var(--card);border-bottom:1px solid var(--linea);padding:calc(
 #txtCaptura{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:16px;outline:none;transition:border-color .15s ease}
 #txtCaptura:focus{border-color:var(--acc)}
 .pista{color:var(--txt2);font-size:11.5px;margin-top:7px;font-family:var(--mono)}
+/* Solicitante y destino en la tarjeta de compra de Trabajo. */
+.pedido{color:var(--txt2);font-size:11.5px;margin-top:5px;font-family:var(--mono);word-break:break-word}
+/* Catalogos en Ajustes: lo que la app fue aprendiendo sola. */
+.catalogo{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.catalogo .vacio{color:var(--txt2);font-size:12px;font-family:var(--mono)}
+.cat{display:flex;align-items:center;gap:7px;border:1px solid var(--linea2);border-radius:8px;padding:7px 9px;font-size:12px;font-family:var(--mono);color:var(--txt2);max-width:100%}
+.cat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat button{flex:0 0 auto;background:none;border:0;color:var(--txt2);font-size:14px;line-height:1;padding:2px 3px;cursor:pointer}
 .tabs{display:flex;background:var(--card);border-bottom:1px solid var(--linea)}
 .tab{flex:1;padding:9px 4px;background:none;border:0;border-bottom:2px solid transparent;color:var(--txt2);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.5px}
 .tab.on{color:var(--acc);border-bottom-color:var(--acc)}
@@ -217,7 +225,8 @@ body.luz li.item{border-width:1px}
 .bloque.pri{background:var(--acc);border-color:var(--acc);color:var(--sobreacc);font-weight:600}
 .bloque.peli{color:#FF9A94;border-color:rgba(255,59,48,.35)}
 textarea{width:100%;min-height:130px;padding:12px;border-radius:9px;background:var(--bg);border:1px solid var(--linea);color:var(--txt);font-size:13.5px;font-family:var(--mono);resize:vertical}
-input[type=text],input[type=time]{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:15px;outline:none}
+input[type=text],input[type=time],textarea{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:15px;outline:none;font-family:inherit}
+textarea{resize:vertical;min-height:76px;line-height:1.4}
 input[type=time]{font-family:var(--mono)}
 #txtBusca{margin-bottom:10px}
 .etq{display:inline-block;font-size:10.5px;color:var(--txt2);border:1px solid var(--linea2);border-radius:5px;padding:1px 6px;margin-bottom:5px;font-family:var(--mono)}
@@ -303,6 +312,18 @@ input[type=time]{font-family:var(--mono)}
 
     <div class="rot" id="rotEstados">Estado</div>
     <div class="grid" id="gridEstados"></div>
+
+    <div id="cajaPedido" style="display:none">
+      <div class="rot">Solicitante</div>
+      <input id="txtSolicitante" type="text" autocomplete="off" autocapitalize="words"
+             enterkeyhint="done" list="listaSolicitantes" placeholder="Quien lo pidio">
+      <datalist id="listaSolicitantes"></datalist>
+      <div class="rot">Destino / uso</div>
+      <input id="txtDestino" type="text" autocomplete="off" autocapitalize="sentences"
+             enterkeyhint="done" list="listaDestinos" placeholder="Para que maquina, area o sector">
+      <datalist id="listaDestinos"></datalist>
+      <div class="pista">Se guarda solo al salir del campo. Lo que escribas queda en la lista para la proxima.</div>
+    </div>
 
     <div id="cajaEspera" style="display:none">
       <div class="rot">Esperando a quien o a que (opcional)</div>
@@ -411,6 +432,19 @@ input[type=time]{font-family:var(--mono)}
     <div class="rot">Recordatorios</div>
     <button class="bloque" id="btnPermiso" type="button">&#128276; Activar notificaciones</button>
     <div class="pista" style="margin-top:8px">Suenan con KCO abierta o recien usada. Con la app cerrada Android no las dispara: al abrir KCO vas a ver los vencidos arriba.</div>
+    <div class="rot">Catalogos de compras</div>
+    <div class="pista" style="margin-top:0;margin-bottom:9px">Solicitantes y destinos que KCO fue aprendiendo sola. Borrar uno de aca no toca ninguna compra ya cargada.</div>
+    <div class="dato"><span>Solicitantes</span><span id="vSolic">-</span></div>
+    <div id="chipsSolic" class="catalogo"></div>
+    <textarea id="txtNuevoSolic" rows="3" autocomplete="off" autocapitalize="words"
+              placeholder="Uno por renglon. Se puede pegar una lista entera."></textarea>
+    <button class="bloque" id="btnSumarSolic" type="button">&#10133; Sumar solicitantes</button>
+    <div class="dato" style="margin-top:12px"><span>Destinos / usos</span><span id="vDest">-</span></div>
+    <div id="chipsDest" class="catalogo"></div>
+    <textarea id="txtNuevoDest" rows="3" autocomplete="off" autocapitalize="sentences"
+              placeholder="Uno por renglon. Se puede pegar una lista entera."></textarea>
+    <button class="bloque" id="btnSumarDest" type="button">&#10133; Sumar destinos</button>
+
     <div class="rot">Backup</div>
     <button class="bloque" id="btnExportar" type="button">&#128190; Descargar backup (.json)</button>
     <button class="bloque" id="btnBackupTexto" type="button">&#128228; Compartir backup como texto</button>
@@ -425,12 +459,14 @@ input[type=time]{font-family:var(--mono)}
 (function () {
   'use strict';
 
-  var VERSION_APP = '1.0.2';
+  var VERSION_APP = '1.1.1';
   /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
      Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
   var ESQUEMA = 4;
   var HORAS_ALERTA_ENTREGA = 48;
   var DIAS_AVISO_BACKUP = 14;
+  var LARGO_CAMPO = 60;
+  var TOPE_CATALOGO = 200;
 
   var K_CTX = 'kibco.contexto';
   var K_ITEMS = 'kibco.items';
@@ -442,6 +478,8 @@ input[type=time]{font-family:var(--mono)}
   var K_LUZ = 'kibco.luz';
   var K_VISTA = 'kibco.vista';
   var K_BACKUP = 'kibco.ultimoBackup';
+  var K_SOLIC = 'kibco.solicitantes';
+  var K_DEST = 'kibco.destinos';
 
   var ESTADOS_TAREA = [
     { id: 'entrada', ico: '\uD83D\uDCE5', nom: 'Entrada' },
@@ -634,6 +672,119 @@ input[type=time]{font-family:var(--mono)}
 
   function notasDe(it) { return esArray(it.comentarios) ? it.comentarios : []; }
 
+  /* ---------- catalogos auto-aprendices ---------- */
+
+  var solicitantes = [];
+  var destinos = [];
+
+  /* Un solo lugar donde se limpia lo que escribe el usuario: espacios de mas
+     adentro y afuera, y tope de largo para que un pegado accidental de medio
+     texto no reviente la tarjeta ni el catalogo. */
+  function limpiarTexto(x, tope) {
+    if (x === null || typeof x === 'undefined') { return ''; }
+    var t = ('' + x).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    if (t.length > tope) { t = t.substring(0, tope).replace(/\s+$/, ''); }
+    return t;
+  }
+
+  /* La clave del mapa de vistos lleva un '#' adelante a proposito: sin eso,
+     un valor como "constructor" o "toString" da verdadero contra el prototipo
+     de Object y el elemento se descartaria como si ya estuviera. */
+  function normalizarCatalogo(x) {
+    if (!esArray(x)) { return []; }
+    var r = [], vistos = {}, i, t, k;
+    for (i = 0; i < x.length; i++) {
+      if (typeof x[i] !== 'string' && typeof x[i] !== 'number') { continue; }
+      t = limpiarTexto(x[i], LARGO_CAMPO);
+      if (t === '') { continue; }
+      k = '#' + t.toLowerCase();
+      if (vistos[k] === true) { continue; }
+      vistos[k] = true;
+      r.push(t);
+      if (r.length >= TOPE_CATALOGO) { break; }
+    }
+    return ordenarCatalogo(r);
+  }
+
+  function ordenarCatalogo(a) {
+    return a.sort(function (x, y) {
+      var xa = x.toLowerCase(), ya = y.toLowerCase();
+      if (xa < ya) { return -1; }
+      if (xa > ya) { return 1; }
+      return 0;
+    });
+  }
+
+  function cargarCatalogos() {
+    solicitantes = leerCatalogo(K_SOLIC);
+    destinos = leerCatalogo(K_DEST);
+  }
+
+  function leerCatalogo(clave) {
+    var crudo = leer(clave);
+    if (!crudo) { return []; }
+    try { return normalizarCatalogo(JSON.parse(crudo)); } catch (e) { return []; }
+  }
+
+  function enCatalogo(lista, texto) {
+    var t = texto.toLowerCase(), i;
+    for (i = 0; i < lista.length; i++) {
+      if (lista[i].toLowerCase() === t) { return i; }
+    }
+    return -1;
+  }
+
+  /* Aprende sola: si lo tipeado no esta, entra. La comparacion ignora
+     mayusculas, asi "Cinta 3" y "cinta 3" no quedan como dos entradas. */
+  function aprender(lista, clave, texto) {
+    var t = limpiarTexto(texto, LARGO_CAMPO);
+    if (t === '') { return false; }
+    if (enCatalogo(lista, t) > -1) { return false; }
+    if (lista.length >= TOPE_CATALOGO) { return false; }
+    lista.push(t);
+    ordenarCatalogo(lista);
+    escribir(clave, JSON.stringify(lista));
+    return true;
+  }
+
+  function olvidar(lista, clave, texto) {
+    var i = enCatalogo(lista, texto);
+    if (i < 0) { return false; }
+    lista.splice(i, 1);
+    escribir(clave, JSON.stringify(lista));
+    return true;
+  }
+
+  function pintarDatalist(idLista, valores) {
+    var dl = $(idLista);
+    if (!dl) { return; }
+    while (dl.firstChild) { dl.removeChild(dl.firstChild); }
+    var i, o;
+    for (i = 0; i < valores.length; i++) {
+      o = document.createElement('option');
+      o.value = valores[i];
+      dl.appendChild(o);
+    }
+  }
+
+  function pintarDatalists() {
+    pintarDatalist('listaSolicitantes', solicitantes);
+    pintarDatalist('listaDestinos', destinos);
+  }
+
+  /* Con el teclado abierto Android achica el alto visible y el campo puede
+     quedar tapado. Se lo acerca al borde de abajo una vez que el teclado
+     termino de subir. */
+  function acercarAlTeclado(inp) {
+    if (!inp) { return; }
+    inp.onfocus = function () {
+      if (typeof window.setTimeout !== 'function') { return; }
+      window.setTimeout(function () {
+        try { inp.scrollIntoView(false); } catch (e) {}
+      }, 280);
+    };
+  }
+
   /* Checklist del item, agregado en 1.0.0. Mismo criterio que los comentarios:
      fuera del esquema y con fallback en lectura. */
   function normalizarPasos(x) {
@@ -684,7 +835,9 @@ input[type=time]{font-family:var(--mono)}
       pausado: it.pausado === true,
       pausadoDesde: it.pausadoDesde ? '' + it.pausadoDesde : '',
       pasos: normalizarPasos(it.pasos),
-      anclado: it.anclado === true
+      anclado: it.anclado === true,
+      solicitante: limpiarTexto(it.solicitante, LARGO_CAMPO),
+      destino: limpiarTexto(it.destino, LARGO_CAMPO)
     };
   }
 
@@ -914,7 +1067,8 @@ input[type=time]{font-family:var(--mono)}
       id: nuevoId(), texto: texto, contexto: contexto, tipo: 'tarea',
       estado: 'entrada', espera: '', prioridad: false, tag: '',
       recordatorio: rec, recAvisado: false,
-      creado: ahora, actualizado: ahora, estadoDesde: ahora
+      creado: ahora, actualizado: ahora, estadoDesde: ahora,
+      solicitante: '', destino: ''
     };
     items.push(it);
     if (guardarItems()) {
@@ -1072,6 +1226,13 @@ input[type=time]{font-family:var(--mono)}
       de.className = 'espera';
       de.textContent = '\u23F8 ' + it.espera;
       cu.appendChild(de);
+    }
+
+    if (esPedido(it) && lineaPedido(it) !== '') {
+      var pe = document.createElement('div');
+      pe.className = 'pedido';
+      pe.textContent = lineaPedido(it);
+      cu.appendChild(pe);
     }
 
     var l2 = document.createElement('div');
@@ -1616,6 +1777,15 @@ input[type=time]{font-family:var(--mono)}
     $('btnSacarRec').textContent = it.recordatorio === ''
       ? 'Sacar recordatorio'
       : 'Sacar recordatorio (' + horaCorta(it.recordatorio) + ')';
+    if (esPedido(it)) {
+      $('cajaPedido').style.display = 'block';
+      $('txtSolicitante').value = campoPedido(it, 'solicitante');
+      $('txtDestino').value = campoPedido(it, 'destino');
+      pintarDatalists();
+    } else {
+      $('cajaPedido').style.display = 'none';
+    }
+
     var bp = $('btnPausa');
     if (puedePausar(it)) {
       bp.style.display = 'block';
@@ -1795,6 +1965,134 @@ input[type=time]{font-family:var(--mono)}
     pintar();
     if (itemAbierto === id) { pintarHojaItem(); }
     return true;
+  }
+
+  /* Solicitante y destino solo tienen sentido en las compras de fabrica:
+     en Hogar no hay quien pida ni a que maquina va. */
+  function esPedido(it) {
+    return it.tipo === 'compra' && it.contexto !== 'hogar';
+  }
+
+  function campoPedido(it, cual) {
+    var v = cual === 'destino' ? it.destino : it.solicitante;
+    return limpiarTexto(v, LARGO_CAMPO);
+  }
+
+  function lineaPedido(it) {
+    var p = [];
+    var sol = campoPedido(it, 'solicitante');
+    var des = campoPedido(it, 'destino');
+    if (sol !== '') { p.push('\uD83D\uDC64 ' + sol); }
+    if (des !== '') { p.push('\uD83D\uDCCD ' + des); }
+    return p.join('  |  ');
+  }
+
+  /* Se dispara al salir del campo. No repinta la ficha para no pisar lo que
+     el usuario pueda estar tipeando en el otro input. */
+  function guardarPedido() {
+    if (!itemAbierto || soloLectura) { return false; }
+    var it = buscarItem(itemAbierto);
+    if (!it || !esPedido(it)) { return false; }
+    var sol = limpiarTexto($('txtSolicitante').value, LARGO_CAMPO);
+    var des = limpiarTexto($('txtDestino').value, LARGO_CAMPO);
+    if (sol === campoPedido(it, 'solicitante') && des === campoPedido(it, 'destino')) { return false; }
+    var antesS = it.solicitante, antesD = it.destino;
+    it.solicitante = sol;
+    it.destino = des;
+    it.actualizado = new Date().toISOString();
+    if (!guardarItems()) {
+      it.solicitante = antesS;
+      it.destino = antesD;
+      return false;
+    }
+    aprender(solicitantes, K_SOLIC, sol);
+    aprender(destinos, K_DEST, des);
+    pintarDatalists();
+    pintarCatalogos();
+    pintar();
+    return true;
+  }
+
+  /* ---------- catalogos en Ajustes ---------- */
+
+  function pintarCatalogos() {
+    pintarCatalogo('chipsSolic', 'vSolic', solicitantes, K_SOLIC, 'solicitante');
+    pintarCatalogo('chipsDest', 'vDest', destinos, K_DEST, 'destino');
+  }
+
+  function pintarCatalogo(idCaja, idDato, lista, clave, rotulo) {
+    var caja = $(idCaja);
+    if (!caja) { return; }
+    while (caja.firstChild) { caja.removeChild(caja.firstChild); }
+    if ($(idDato)) { $(idDato).textContent = '' + lista.length; }
+    if (lista.length === 0) {
+      var v = document.createElement('div');
+      v.className = 'vacio';
+      v.textContent = 'Todavia no aprendio ninguno.';
+      caja.appendChild(v);
+      return;
+    }
+    var i;
+    for (i = 0; i < lista.length; i++) {
+      (function (valor) {
+        var c = document.createElement('div');
+        c.className = 'cat';
+        var t = document.createElement('span');
+        t.textContent = valor;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-borrar', valor);
+        b.setAttribute('aria-label', 'Borrar ' + valor);
+        b.setAttribute('title', 'Borrar ' + valor);
+        b.textContent = '\u2715';
+        b.onclick = function () {
+          pedirConfirmacion('Borrar ' + rotulo, 'Se saca "' + valor + '" de la lista. Las compras que ya lo tienen cargado no se tocan.', function () {
+            if (olvidar(lista, clave, valor)) {
+              pintarCatalogos();
+              pintarDatalists();
+            }
+          });
+        };
+        c.appendChild(t);
+        c.appendChild(b);
+        caja.appendChild(c);
+      })(lista[i]);
+    }
+  }
+
+  /* Alta en lote: uno por renglon, o separados por punto y coma. No se corta
+     por coma a proposito, porque un destino como "Cinta 3, sector B" es un solo
+     valor y no dos. */
+  function sumarAMano(idInput, lista, clave) {
+    var crudo = $(idInput).value;
+    if (limpiarTexto(crudo, LARGO_CAMPO) === '' && crudo.replace(/[\s;]/g, '') === '') { return; }
+    var partes = crudo.split(/[\r\n;]+/);
+    var nuevos = 0, repetidos = 0, lleno = false, i, t;
+    for (i = 0; i < partes.length; i++) {
+      t = limpiarTexto(partes[i], LARGO_CAMPO);
+      if (t === '') { continue; }
+      if (enCatalogo(lista, t) > -1) { repetidos++; continue; }
+      if (aprender(lista, clave, t)) { nuevos++; } else { lleno = true; break; }
+    }
+    if (nuevos > 0) {
+      $(idInput).value = '';
+      pintarCatalogos();
+      pintarDatalists();
+    }
+    avisar(resumenAlta(nuevos, repetidos, lleno));
+  }
+
+  function resumenAlta(nuevos, repetidos, lleno) {
+    if (lleno) {
+      return 'Se sumaron ' + nuevos + '. La lista llego al tope de ' + TOPE_CATALOGO + '.';
+    }
+    if (nuevos === 0 && repetidos > 0) {
+      return repetidos === 1 ? 'Ya estaba en la lista.' : 'Los ' + repetidos + ' ya estaban en la lista.';
+    }
+    if (nuevos === 0) { return 'No habia nada para sumar.'; }
+    var txt = nuevos === 1 ? 'Se sumo 1.' : 'Se sumaron ' + nuevos + '.';
+    if (repetidos > 0) { txt = txt + ' ' + (repetidos === 1 ? '1 ya estaba.' : repetidos + ' ya estaban.'); }
+    return txt;
   }
 
   function alternarAnclado(id) {
@@ -2484,6 +2782,7 @@ input[type=time]{font-family:var(--mono)}
 
   $('btnAjustes').onclick = function () {
     actualizarAvisoBackup();
+    pintarCatalogos();
     $('vApp').textContent = VERSION_APP;
     $('vEsquema').textContent = '' + ESQUEMA;
     $('vTotal').textContent = '' + items.length;
@@ -2515,6 +2814,34 @@ input[type=time]{font-family:var(--mono)}
   $('btnAnclar').onclick = function () {
     if (itemAbierto) { alternarAnclado(itemAbierto); }
   };
+
+  $('txtSolicitante').onchange = function () { guardarPedido(); };
+  $('txtDestino').onchange = function () { guardarPedido(); };
+
+  function enterCierraCampo(inp) {
+    inp.onkeydown = function (ev) {
+      var k = ev.key || ev.keyCode;
+      if (k === 'Enter' || k === 13) {
+        ev.preventDefault();
+        guardarPedido();
+        try { inp.blur(); } catch (e) {}
+      }
+    };
+  }
+  enterCierraCampo($('txtSolicitante'));
+  enterCierraCampo($('txtDestino'));
+
+  acercarAlTeclado($('txtSolicitante'));
+  acercarAlTeclado($('txtDestino'));
+  acercarAlTeclado($('txtNota'));
+  acercarAlTeclado($('txtPaso'));
+
+  $('btnSumarSolic').onclick = function () { sumarAMano('txtNuevoSolic', solicitantes, K_SOLIC); };
+  $('btnSumarDest').onclick = function () { sumarAMano('txtNuevoDest', destinos, K_DEST); };
+  /* En estos dos campos Enter hace renglon nuevo: son de pegar listas.
+     El alta la hace el boton. */
+  acercarAlTeclado($('txtNuevoSolic'));
+  acercarAlTeclado($('txtNuevoDest'));
 
   $('btnAgregarPaso').onclick = function () {
     if (itemAbierto) { agregarPaso(itemAbierto, $('txtPaso').value); }
@@ -2572,6 +2899,7 @@ input[type=time]{font-family:var(--mono)}
   migrar();
   items = cargarLista(K_ITEMS, normalizarItem);
   eventos = cargarLista(K_EVENTOS, normalizarEvento);
+  cargarCatalogos();
   aplicarMigracion4();
   filtro = leer(K_FILTRO) || 'activos';
   filtroCompra = leer(K_FILTROC) || 'activos';

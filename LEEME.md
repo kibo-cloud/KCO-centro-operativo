@@ -13,7 +13,7 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v13` |
+| Nombre de cache | `kibco-v15` |
 | Esquema de datos | `4` (sin cambios desde v0.7) |
 | Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
 | Acento Trabajo | naranja industrial `#FF6B2B` |
@@ -73,6 +73,8 @@ no rompe nada en el camino de vuelta.
 | `pausadoDesde` | `''` | momento en que se congelo, para descontarlo despues |
 | `pasos` | `[]` si falta o no es array | checklist del item: `{texto, hecho}` |
 | `anclado` | `false` salvo que sea exactamente `true` | item fijado al tope de la lista |
+| `solicitante` | `''` | quien pidio la compra (solo Trabajo) |
+| `destino` | `''` | para que maquina, area o sector (solo Trabajo) |
 
 *Limite conocido:* restaurar un backup en una version **anterior** a la que lo genero
 pierde los campos que esa version no conoce, porque su `normalizarItem` arma el item con
@@ -85,6 +87,12 @@ esos agregados. Hacia adelante no se pierde nada.
 | Clave | Contenido |
 |---|---|
 | `kibco.ultimoBackup` | fecha ISO del ultimo backup descargado o compartido |
+| `kibco.solicitantes` | catalogo auto-aprendiz de solicitantes (array de textos) |
+| `kibco.destinos` | catalogo auto-aprendiz de destinos / usos (array de textos) |
+
+Los dos catalogos **no viajan en el backup**: se reconstruyen solos a medida que se cargan
+compras. Si se restaura en un telefono limpio, las compras traen su solicitante y su destino
+igual, y el catalogo se vuelve a llenar con el uso.
 
 Item:
 
@@ -216,7 +224,7 @@ confirmacion explicita.
 1. `VERSION` en `sw.js`.
 2. `VERSION_APP` en `index.html`.
 3. Linea nueva en el CHANGELOG.
-4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v13` -> `kibco-v14`).
+4. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v15` -> `kibco-v16`).
 
 Un cambio de una sola linea en `index.html` tambien cuenta: si el nombre de cache no sube,
 el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
@@ -224,6 +232,49 @@ el telefono sigue sirviendo el archivo viejo y el cambio no aparece nunca.
 ---
 
 # CHANGELOG
+
+## 1.1.1 — alta en lote en los catalogos
+
+Cache `kibco-v15`. Esquema 4. Sin cambios de datos.
+
+Los campos de alta de Ajustes pasaron de una linea a un cuadro de texto: se puede **pegar
+una lista entera**, uno por renglon, y entran todos de una. Sirve para cargar el padron de
+gente o la lista de maquinas de un saque, en vez de tipear de a uno.
+
+- Separa por **renglon** y por **punto y coma**. **No** separa por coma, porque un destino
+  como "Cinta 3, sector B" es un valor solo y no dos.
+- Saltea los renglones vacios, recorta espacios y no duplica ignorando mayusculas.
+- Avisa cuantos sumo y cuantos ya estaban.
+- En estos dos campos Enter hace renglon nuevo. El alta la hace el boton.
+
+**Los nombres de personas no van en el codigo.** El repositorio es publico: cualquier lista
+de companeros de trabajo cargada aca se pega desde el telefono y queda solo en ese telefono,
+nunca en `index.html`.
+
+## 1.1.0 — solicitante y destino con catalogo que aprende solo
+
+Cache `kibco-v14`. Esquema de datos sigue en **4**.
+
+- **Solicitante y Destino / uso en las compras de Trabajo.** Dos campos nuevos en la ficha
+  de la compra: quien lo pidio y para que maquina, area o sector va. Hogar no los tiene,
+  porque su flujo no los necesita.
+- **Catalogo que aprende solo.** Los dos campos estan atados a un `<datalist>`: al tocarlos
+  aparece lo que ya usaste antes. Lo que escribas por primera vez entra solo al catalogo al
+  salir del campo. No hay que dar de alta nada por adelantado.
+- **Sin boton de guardar.** El campo se guarda al salir o con Enter. Si el valor no cambio,
+  no se toca el item ni se escribe nada.
+- **Linea compacta en la tarjeta.** La compra de Trabajo muestra `👤 Kevin | 📍 Cinta 3`
+  debajo del texto. Si solo hay uno de los dos, se muestra ese, sin separador colgando.
+- **Catalogos en Ajustes.** Se ven los dos, se pueden precargar a mano y borrar de a uno
+  con confirmacion. Borrar del catalogo **no toca las compras ya cargadas**: el item guarda
+  su propio texto.
+
+**Reglas de limpieza que aplica al guardar:** recorta espacios de los bordes, colapsa los
+espacios de adentro, corta a 60 caracteres y no duplica ignorando mayusculas ("Cinta 3" y
+"cinta 3" son el mismo). Tope de 200 entradas por catalogo.
+
+*Pendiente conocido:* el campo se completa desde la ficha. No hay formulario de alta al
+mover algo a Compras, y se decidio no agregarlo para no romper el triaje en lote de 0.9.2.
 
 ## 1.0.2 — los rotulos dejan de cortarse a mitad de palabra
 
