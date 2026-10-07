@@ -307,6 +307,14 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
 .misprog > b{font-size:28px;color:var(--acc);min-width:64px}
 .mis-proxbox{border:1px solid var(--acc);background:var(--accsuave);border-radius:10px;padding:10px 11px}
 .mis-proxbox .mis-prox{margin-top:0;font-size:15px;font-weight:600}
+.diario-dia{display:flex;justify-content:space-between;gap:8px;align-items:baseline;border-bottom:1px solid var(--linea2);padding-bottom:5px}
+.diario-cuenta{color:var(--txt2);font-weight:400;letter-spacing:0;font-size:11px;white-space:nowrap}
+.diario-ev{align-items:flex-start}
+.diario-ev .ico{flex:0 0 24px;font-size:15px;line-height:1.3;text-align:center}
+.diario-ev .h{flex:0 0 auto;order:3}
+.diario-ev.toca{cursor:pointer}
+.diario-ev.hito b,.diario-ev.mision b{color:var(--acc)}
+.diario-ev.logro b{color:#FFD166}
 .deshacer.celebra{border-color:var(--acc);background:linear-gradient(90deg,var(--accsuave),var(--card2))}
 </style>
 </head>
@@ -374,10 +382,21 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
   </div>
 
   <div id="vistaRegistro" style="display:none">
-    <div class="chips scroll-x" id="chipsRango"></div>
-    <button class="bloque pri" id="btnRelevo" type="button">&#128260; Copiar Reporte de Turno</button>
-    <button class="bloque" id="btnResumen" type="button">&#128203; Resumen para compartir</button>
-    <div id="timeline"></div>
+    <div class="seg" role="group" aria-label="Lectura del historial">
+      <button class="segbtn on" id="btnModoDiario" type="button">&#128214; Diario</button>
+      <button class="segbtn" id="btnModoCampana" type="button">&#127942; Campa&ntilde;a</button>
+      <button class="segbtn" id="btnModoRegistro" type="button">&#128220; Registro</button>
+    </div>
+    <div id="cajaRango">
+      <div class="chips scroll-x" id="chipsRango"></div>
+      <div class="grid">
+        <button class="bloque" id="btnRelevo" type="button" style="margin-top:0">&#128260; Reporte de turno</button>
+        <button class="bloque" id="btnResumen" type="button" style="margin-top:0">&#128203; Resumen</button>
+      </div>
+    </div>
+    <div id="diarioCuerpo"></div>
+    <div id="campanaCuerpo" style="display:none"></div>
+    <div id="timeline" style="display:none"></div>
     <div class="vacio" id="vacioRegistro">Sin movimientos en este periodo.</div>
   </div>
 

@@ -529,6 +529,34 @@ export const tests = [
     }
   },
   {
+    name: 'journal: records real progress automatically and hides undone completions',
+    storage: misionSeed(true),
+    async fn(page) {
+      await capture(page, 'Entrenamiento');
+      await capture(page, 'tarea que deshago');
+      await toTasks(page);
+      await page.clickText('#lista li.item', 'Entrenamiento');
+      await page.click('#gridEstados [data-estado="completado"]');
+      await page.click('#btnCerrarItem');
+      await toTasks(page);
+      await page.eval(`(function(){var l=document.querySelectorAll('#lista li.item');for(var i=0;i<l.length;i++){if(l[i].textContent.indexOf('deshago')>-1){l[i].querySelector('[data-acc="listo"]').click();}}})()`);
+      await page.click('#btnDeshacer');
+      await page.click('#tabMisiones');
+      await page.click('[data-mision="pkco"]');
+      await page.click('#misHitos [data-hito="h2"]');
+      await page.click('#btnCerrarMision');
+      await page.click('#tabRegistro');
+      const txt = await page.text('#diarioCuerpo');
+      assert.match(txt, /Entrenamiento/);
+      assert.match(txt, /Hito: Release/);
+      assert.match(txt, /KCO · 100%/);
+      assert.doesNotMatch(txt, /deshago/);
+      await page.screenshot(path.join(OUT, 'diario.png'));
+      await page.click('#btnModoRegistro');
+      assert.match(await page.text('#timeline'), /deshago/, 'raw log still has everything');
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');

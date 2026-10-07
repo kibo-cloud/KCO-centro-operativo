@@ -98,7 +98,9 @@
   var filtroTag = '';
   var modoLuz = false;
   var vista = 'ahora';
-  var rango = 'hoy';
+  var rango = 'd7';
+  /* DIARIO tiene tres lecturas del mismo historial: curada, cruda y campaña. */
+  var modoDiario = 'diario';
   var soloLectura = false;
   var migrarComprasHogar = false;
   var itemAbierto = null;
@@ -1199,8 +1201,71 @@
     return 'Movimiento';
   }
 
+  var MESES_LARGO = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
+  function cabeceraDiaDiario(clave) {
+    var d = K.deClave(clave);
+    var rel = etiquetaDia(clave);
+    var largo = d.getDate() + ' ' + MESES_LARGO[d.getMonth()] + ' ' + d.getFullYear();
+    return rel === 'Hoy' || rel === 'Ayer' ? rel.toUpperCase() + ' \u00B7 ' + largo : largo + ' \u00B7 ' + DIAS_SEMANA[d.getDay()];
+  }
+
+  function resumenDia(c) {
+    var p = [];
+    if (c.hechas) { p.push('\u2714 ' + c.hechas); }
+    if (c.rutinas) { p.push('\uD83D\uDD04 ' + c.rutinas); }
+    if (c.hitos) { p.push('\uD83C\uDFAF ' + c.hitos); }
+    if (c.misiones) { p.push('\uD83C\uDFC1 ' + c.misiones); }
+    if (c.logros) { p.push('\uD83C\uDFC6 ' + c.logros); }
+    return p.join('  ');
+  }
+
+  function pintarDiario() {
+    var cont = $('diarioCuerpo');
+    vaciar(cont);
+    var corte = desdeRango();
+    var dias = K.diario(eventos, items, { desde: corte ? corte.toISOString() : '', contexto: contexto });
+    $('vacioRegistro').style.display = dias.length === 0 ? 'block' : 'none';
+    $('vacioRegistro').textContent = 'Sin actividad significativa en este periodo. Lo que completes, los hitos y las misiones quedan aca solos.';
+    var i, j;
+    for (i = 0; i < dias.length; i++) {
+      var g = dias[i];
+      var cab = nodo('div', 'dia diario-dia');
+      cab.appendChild(nodo('span', '', cabeceraDiaDiario(g.dia)));
+      cab.appendChild(nodo('span', 'mono diario-cuenta', resumenDia(g.cuenta)));
+      cont.appendChild(cab);
+      for (j = 0; j < g.entradas.length; j++) {
+        (function (e) {
+          var f = nodo('div', 'ev diario-ev ' + e.clase);
+          f.appendChild(nodo('div', 'ico', e.ico));
+          var d = nodo('div', 'd');
+          d.appendChild(nodo('b', '', e.texto));
+          if (e.sub) { d.appendChild(nodo('small', '', e.sub)); }
+          f.appendChild(d);
+          var h = fechaObj(e.ts);
+          f.appendChild(nodo('div', 'h mono', h ? hhmm(h) : ''));
+          if (e.itemId && buscarItem(e.itemId)) {
+            f.className = f.className + ' toca';
+            f.onclick = function () { abrirItem(e.itemId); };
+          }
+          cont.appendChild(f);
+        })(g.entradas[j]);
+      }
+    }
+  }
+
   function pintarRegistro() {
+    $('btnModoDiario').className = modoDiario === 'diario' ? 'segbtn on' : 'segbtn';
+    $('btnModoRegistro').className = modoDiario === 'registro' ? 'segbtn on' : 'segbtn';
+    $('btnModoCampana').className = modoDiario === 'campana' ? 'segbtn on' : 'segbtn';
+    $('cajaRango').style.display = modoDiario === 'campana' ? 'none' : 'block';
+    $('diarioCuerpo').style.display = modoDiario === 'diario' ? 'block' : 'none';
+    $('timeline').style.display = modoDiario === 'registro' ? 'block' : 'none';
+    $('campanaCuerpo').style.display = modoDiario === 'campana' ? 'block' : 'none';
+    if (modoDiario === 'campana') { $('vacioRegistro').style.display = 'none'; pintarCampana(); return; }
     pintarChipsGen('chipsRango', RANGOS, rango, function () { return ''; }, function (id) { rango = id; pintar(); });
+    if (modoDiario === 'diario') { pintarDiario(); return; }
+    $('vacioRegistro').textContent = 'Sin movimientos en este periodo.';
     var cont = $('timeline');
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
     var lista = eventosFiltrados();
@@ -2772,6 +2837,9 @@
   $('segBtnCompras').onclick = function () { irAVista('compras'); };
   $('tabRegistro').onclick = function () { irAVista('registro'); };
   $('tabMisiones').onclick = function () { irAVista('misiones'); };
+  $('btnModoDiario').onclick = function () { modoDiario = 'diario'; pintar(); };
+  $('btnModoRegistro').onclick = function () { modoDiario = 'registro'; pintar(); };
+  $('btnModoCampana').onclick = function () { modoDiario = 'campana'; pintar(); };
   $('btnGuardarMision').onclick = function () { guardarDatosMision(); };
   $('txtMisNombre').onchange = function () { if (misionAbierta) { guardarDatosMision(); } };
   $('txtMisObjetivo').onchange = function () { if (misionAbierta) { guardarDatosMision(); } };
@@ -3105,8 +3173,9 @@
     return '';
   }
 
-  /* Gancho de la fase de progreso (XP y nivel). */
+  /* Ganchos de la fase de progreso (XP, nivel y campaña). */
   function pintarProgresoArriba() {}
+  function pintarCampana() {}
 
   /* ---------- misiones ----------
      kibco.proyectos guarda las misiones. Las tareas se vinculan con proyectoId.
@@ -3125,11 +3194,11 @@
     return p ? p.nombre : '';
   }
 
-  function registrarMision(tipo, p, hasta) {
+  function registrarMision(tipo, p, hasta, desde) {
     if (soloLectura) { return; }
     eventos.push({
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: tipo, itemId: p.id,
-      texto: p.nombre, contexto: p.contexto, desde: '', hasta: hasta || ''
+      texto: p.nombre, contexto: p.contexto, desde: desde || '', hasta: hasta || ''
     });
     guardarEventos();
   }
@@ -3371,7 +3440,7 @@
     h.cuando = h.hecho ? new Date().toISOString() : '';
     tocarMision(p);
     if (!guardarProyectos()) { h.hecho = !h.hecho; return; }
-    registrarMision(h.hecho ? 'hito' : 'hito_reabre', p, h.texto);
+    registrarMision(h.hecho ? 'hito' : 'hito_reabre', p, h.texto, '' + K.progresoProyecto(p, items).pct);
     pintarHojaMision();
     pintar();
     if (h.hecho) { celebrar('\uD83C\uDFAF Hito cumplido: ' + h.texto); }

@@ -532,7 +532,84 @@
     return null;
   }
 
+  /* ---------- diario operativo ----------
+     Lectura curada del registro de eventos: solo lo que importa recordar.
+     Una tarea completada que despues se reabrio (o se deshizo) no figura como
+     hecha: el diario no puede decir algo que ya no es verdad. Si se vuelve a
+     completar, figura el dia de la ultima vez. */
+
+  var GLOBALES = { logro: 1, nivel: 1 };
+
+  function porTs(a, b) { return a.ts < b.ts ? -1 : (a.ts > b.ts ? 1 : 0); }
+
+  function diario(eventos, items, filtro) {
+    var porId = {}, i, ev, k;
+    for (i = 0; i < items.length; i++) { porId['#' + items[i].id] = items[i]; }
+    var evs = eventos.slice(0).sort(porTs);
+    var ultima = {};
+    for (i = 0; i < evs.length; i++) {
+      ev = evs[i];
+      k = '#' + ev.itemId;
+      var cierra = (ev.tipo === 'estado' && HECHOS[ev.hasta] === 1) || (ev.tipo === 'excepcion' && ev.hasta === 'delegada');
+      var abre = (ev.tipo === 'estado' || ev.tipo === 'deshacer') && !HECHOS[ev.hasta] ||
+        (ev.tipo === 'excepcion' && ev.hasta !== 'delegada') || ev.tipo === 'vuelta';
+      if (cierra) { ultima[k] = i; }
+      else if (abre && ultima.hasOwnProperty(k)) { delete ultima[k]; }
+    }
+    var desde = filtro && filtro.desde ? filtro.desde : '';
+    var ctx = filtro && filtro.contexto ? filtro.contexto : 'todo';
+    var dias = [], indice = {};
+    for (i = evs.length - 1; i >= 0; i--) {
+      ev = evs[i];
+      if (desde && ev.ts < desde) { break; }
+      if (ctx !== 'todo' && ev.contexto !== ctx && !GLOBALES[ev.tipo]) { continue; }
+      var e = entradaDiario(ev, i, ultima, porId);
+      if (!e) { continue; }
+      var dia = claveDeIso(ev.ts);
+      if (dia === '') { continue; }
+      if (!indice.hasOwnProperty('#' + dia)) {
+        indice['#' + dia] = dias.length;
+        dias.push({ dia: dia, entradas: [], cuenta: { hechas: 0, rutinas: 0, hitos: 0, misiones: 0, logros: 0 } });
+      }
+      var g = dias[indice['#' + dia]];
+      g.entradas.push(e);
+      if (e.clase === 'hecha') { g.cuenta.hechas++; }
+      if (e.clase === 'rutina') { g.cuenta.rutinas++; }
+      if (e.clase === 'hito') { g.cuenta.hitos++; }
+      if (e.clase === 'mision') { g.cuenta.misiones++; }
+      if (e.clase === 'logro') { g.cuenta.logros++; }
+    }
+    return dias;
+  }
+
+  function entradaDiario(ev, i, ultima, porId) {
+    var base = { ts: ev.ts, itemId: ev.itemId, contexto: ev.contexto };
+    function e(clase, ico, texto, sub) {
+      base.clase = clase; base.ico = ico; base.texto = texto; base.sub = sub || '';
+      return base;
+    }
+    if ((ev.tipo === 'estado' && HECHOS[ev.hasta] === 1) || (ev.tipo === 'excepcion' && ev.hasta === 'delegada')) {
+      if (ultima['#' + ev.itemId] !== i) { return null; }
+      var it = porId['#' + ev.itemId];
+      var delegada = ev.tipo === 'excepcion';
+      if (it && it.rutinaId) { return e('rutina', '\uD83D\uDD04', ev.texto, delegada ? 'delegada' : ''); }
+      if (it && it.tipo === 'compra') { return e('hecha', '\uD83D\uDCE6', ev.texto, ev.hasta === 'recibido' ? 'material recibido' : 'comprado'); }
+      return e('hecha', '\u2714', ev.texto, delegada ? 'delegada' : '');
+    }
+    if (ev.tipo === 'hito') { return e('hito', '\uD83C\uDFAF', 'Hito: ' + ev.hasta, ev.texto + (ev.desde ? ' \u00B7 ' + ev.desde + '%' : '')); }
+    if (ev.tipo === 'mision_alta') { return e('mision', '\uD83D\uDE80', 'Nueva mision: ' + ev.texto, ''); }
+    if (ev.tipo === 'mision_fin') { return e('mision', '\uD83C\uDFC1', 'Mision cumplida: ' + ev.texto, ''); }
+    if (ev.tipo === 'mision_reabre') { return e('nota', '\u21A9', 'Retomaste la mision: ' + ev.texto, ''); }
+    if (ev.tipo === 'rutina_alta') { return e('nota', '\uD83D\uDD04', 'Nueva rutina: ' + ev.texto, ev.hasta); }
+    if (ev.tipo === 'comentario') { return e('nota', '\uD83D\uDCAC', ev.hasta, ev.texto); }
+    if (ev.tipo === 'logro') { return e('logro', '\uD83C\uDFC6', 'Logro: ' + ev.hasta, ev.texto); }
+    if (ev.tipo === 'nivel') { return e('logro', '\u2B50', 'Nivel ' + ev.hasta, ev.texto); }
+    if (ev.tipo === 'restauracion') { return e('sistema', '\u2699', 'Restauraste un backup', ev.texto); }
+    return null;
+  }
+
   return {
+    diario: diario,
     normalizarProyecto: normalizarProyecto,
     tareasDeProyecto: tareasDeProyecto,
     progresoProyecto: progresoProyecto,
