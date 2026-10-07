@@ -162,7 +162,7 @@
     return dosDig(d.getDate()) + '/' + dosDig(d.getMonth() + 1) + ' ' + hhmm(d);
   }
 
-  function nuevoId(p) { return (p || 'i') + Date.now() + '-' + Math.floor(Math.random() * 100000); }
+  function nuevoId(p) { return K.nuevoId(p); }
 
   function listaEstados(tipo, ctx) {
     if (tipo !== 'compra') { return ESTADOS_TAREA; }

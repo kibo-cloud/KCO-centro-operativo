@@ -120,10 +120,9 @@ test('S7 xp is deterministic for ties: same result whatever the input order', ()
 });
 
 test('L8 the age check reads ids in the exact format the app generates', () => {
-  // Same expression as nuevoId('h') in kco-app.js.
-  const nuevoId = (p) => (p || 'i') + Date.now() + '-' + Math.floor(Math.random() * 100000);
-  const id = nuevoId('h');
-  const t0 = parseInt(id.slice(1, id.indexOf('-')), 10);
+  // kco-app.js generates every id through KCOCore.nuevoId, so this is the real format.
+  const t0 = new Date('2026-10-07T10:00:00.000Z').getTime();
+  const id = C.nuevoId('h', t0);
   const hito = (cuando) => ({ id: 'p', nombre: 'P', contexto: 'apps', estado: 'activo', terminado: '',
     hitos: [{ id, texto: 'real', hecho: true, cuando: new Date(t0 + cuando).toISOString() }] });
   assert.equal(C.calcularXP([], [hito(60000)]).total, 0, 'ticked one minute after creating it');

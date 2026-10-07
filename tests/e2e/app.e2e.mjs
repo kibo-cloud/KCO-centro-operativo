@@ -18,6 +18,13 @@ async function toTasks(page) {
   await page.click('#segBtnTareas');
 }
 
+const CORRUPT_PROGRESO_SEED = (() => {
+  const list = [];
+  for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
+    creado: new Date(Date.now() - 86400000 * (i + 3)).toISOString(), estadoDesde: new Date(Date.now() - 86400000 * (i + 2)).toISOString() });
+  return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list), 'kibco.progreso': '{roto', 'kibco.eventos': '[]' };
+})();
+
 export const tests = [
   {
     name: 'boot: renders without errors',
@@ -855,16 +862,10 @@ export const tests = [
   },
   {
     name: 'data: corrupt progreso that cannot be quarantined is re-seeded in memory only',
-    seed: (() => {
-      const list = [];
-      for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
-        creado: new Date(Date.now() - 86400000 * (i + 3)).toISOString(), estadoDesde: new Date(Date.now() - 86400000 * (i + 2)).toISOString() });
-      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list), 'kibco.progreso': '{roto', 'kibco.eventos': '[]' };
-    })(),
     async fn(page) {
       await page.cdp.send('Page.addScriptToEvaluateOnNewDocument', { source:
         "(function(){var o=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(String(k).indexOf('.roto.')>-1){throw new Error('quota');}return o.call(this,k,v);};})()" });
-      await page.setStorage(this.seed);
+      await page.setStorage(CORRUPT_PROGRESO_SEED);
       await page.reload();
       await page.reload();
       const keys = await page.eval('Object.keys(localStorage)');

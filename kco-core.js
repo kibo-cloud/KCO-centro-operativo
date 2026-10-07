@@ -45,6 +45,13 @@
     return Math.round((deClave(b).getTime() - deClave(a).getTime()) / 86400000);
   }
 
+  /* Ids con el instante de creacion adentro: 'h1736700000000-12345'. La edad
+     de un hito se lee de aca (anti-farmeo), asi que app y nucleo comparten este
+     unico generador. ahoraMs es opcional y existe para las pruebas. */
+  function nuevoId(p, ahoraMs) {
+    return (p || 'i') + (typeof ahoraMs === 'number' ? ahoraMs : Date.now()) + '-' + Math.floor(Math.random() * 100000);
+  }
+
   function diaSemana(k) { return deClave(k).getDay(); }
 
   function diasDelMes(anio, mes0) { return new Date(anio, mes0 + 1, 0, 12).getDate(); }
@@ -985,6 +992,7 @@
     puntaje: puntaje,
     priorizar: priorizar,
     parsearCaptura: parsearCaptura,
+    nuevoId: nuevoId,
     dosDig: dosDig,
     claveDia: claveDia,
     esClave: esClave,
