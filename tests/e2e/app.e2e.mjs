@@ -557,6 +557,50 @@ export const tests = [
     }
   },
   {
+    name: 'xp: completing shows +XP immediately and the level card updates',
+    async fn(page) {
+      await capture(page, 'tarea de valor');
+      await page.eval(`(function(){var l=JSON.parse(localStorage.getItem('kibco.items'));l[0].creado=new Date(Date.now()-3600000).toISOString();l[0].nivel='importante';localStorage.setItem('kibco.items',JSON.stringify(l));})()`);
+      await page.reload();
+      await page.click('.hero [data-hero="hecho"]');
+      assert.match(await page.text('#qpaso'), /\+25 XP/);
+      assert.match(await page.text('#tarjetaNivel'), /25\/100 XP/);
+      assert.match(await page.text('#tarjetaNivel'), /\+25 XP hoy/);
+      await page.click('#btnDeshacer');
+      assert.match(await page.text('#tarjetaNivel'), /0\/100 XP/, 'undo takes the XP back');
+    }
+  },
+  {
+    name: 'xp: level up is celebrated once and lands in the journal',
+    storage: (() => {
+      const list = [];
+      for (let i = 0; i < 4; i++) list.push({ id: 'x' + i, texto: 'imp ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
+        creado: new Date(Date.now() - 86400000 * 2).toISOString(), estadoDesde: new Date(Date.now() - 86400000).toISOString() });
+      list.push({ id: 'y', texto: 'la que sube', contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente', nivel: 'normal', creado: new Date(Date.now() - 86400000).toISOString() });
+      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list), 'kibco.progreso': JSON.stringify({ nivelVisto: 1, logros: {} }) };
+    })(),
+    async fn(page) {
+      await page.click('.hero [data-hero="hecho"]');
+      assert.match(await page.text('#qpaso'), /Nivel 2!/);
+      assert.equal(JSON.parse(await page.storage('kibco.progreso')).nivelVisto, 2);
+      assert.ok((await events(page)).some((e) => e.tipo === 'nivel' && e.hasta === '2'));
+    }
+  },
+  {
+    name: 'xp: upgrading users get their historic level silently',
+    storage: (() => {
+      const list = [];
+      for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
+        creado: new Date(Date.now() - 86400000 * (i + 3)).toISOString(), estadoDesde: new Date(Date.now() - 86400000 * (i + 2)).toISOString() });
+      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list) };
+    })(),
+    async fn(page) {
+      assert.equal(JSON.parse(await page.storage('kibco.progreso')).nivelVisto, 2);
+      assert.ok(!(await events(page)).some((e) => e.tipo === 'nivel'), 'no fake level-up event');
+      assert.match(await page.text('#tarjetaNivel'), /NV 2/);
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');

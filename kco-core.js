@@ -608,7 +608,130 @@
     return null;
   }
 
+  /* ---------- XP y niveles ----------
+     El XP se DERIVA del estado actual, no se acumula en un contador. Asi:
+       - completar, reabrir y volver a completar no suma dos veces;
+       - borrar o reabrir algo le resta lo que daba;
+       - un backup restaurado da exactamente el mismo XP.
+     Contra el farmeo:
+       - urgente paga igual que importante: etiquetar no es avanzar;
+       - crear y completar en menos de 2 minutos es un registro rapido (2 XP);
+       - el mismo texto completado dos veces el mismo dia cuenta una sola vez;
+       - tope diario para lo chico (tareas, compras, rutinas);
+       - una mision sin sustancia (sin hitos ni tareas, o de un solo dia) paga poco. */
+
+  var XP = {
+    tarea: { baja: 5, normal: 10, importante: 25, urgente: 25 },
+    registroRapido: 2,
+    rutina: 5,
+    rutinaDelegada: 2,
+    compraFabrica: 15,
+    compraSimple: 5,
+    hito: 100,
+    hitosPorDia: 3,
+    mision: 250,
+    misionLiviana: 25,
+    granMision: 250,
+    topeDiarioChico: 200
+  };
+
+  function msEntre(a, b) {
+    var x = new Date(a).getTime(), y = new Date(b).getTime();
+    return isNaN(x) || isNaN(y) ? Infinity : y - x;
+  }
+
+  function xpItem(it) {
+    if (!esHecho(it.estado)) { return 0; }
+    if (esClave(it.ocurrencia) && it.rutinaId) { return it.motivo === 'delegada' ? XP.rutinaDelegada : XP.rutina; }
+    if (it.motivo === 'delegada') { return 0; }
+    if (it.tipo === 'compra') { return esFabrica(it.contexto) ? XP.compraFabrica : XP.compraSimple; }
+    var base = XP.tarea[nivelDe(it)];
+    if (msEntre(it.creado, it.estadoDesde) < 120000) { return Math.min(base, XP.registroRapido); }
+    return base;
+  }
+
+  function sumarEn(mapa, clave, n) { mapa['#' + clave] = (mapa['#' + clave] || 0) + n; }
+
+  function calcularXP(items, proyectos) {
+    var porDia = {}, porCtx = {}, chicoDia = {}, vistos = {}, hitosDia = {}, total = 0, i, j, dia, n;
+    var orden = items.slice(0).sort(function (a, b) { return (a.estadoDesde || '') < (b.estadoDesde || '') ? -1 : 1; });
+    for (i = 0; i < orden.length; i++) {
+      var it = orden[i];
+      n = xpItem(it);
+      if (n === 0) { continue; }
+      dia = claveDeIso(it.estadoDesde);
+      if (dia === '') { continue; }
+      var firma = '#' + dia + '|' + limpio(String(it.texto || '')).toLowerCase();
+      if (!it.rutinaId && vistos[firma]) { continue; }
+      vistos[firma] = true;
+      var usado = chicoDia['#' + dia] || 0;
+      if (usado >= XP.topeDiarioChico) { continue; }
+      if (usado + n > XP.topeDiarioChico) { n = XP.topeDiarioChico - usado; }
+      chicoDia['#' + dia] = usado + n;
+      total += n;
+      sumarEn(porDia, dia, n);
+      sumarEn(porCtx, it.contexto, n);
+    }
+    var listaP = proyectos || [];
+    for (i = 0; i < listaP.length; i++) {
+      var p = listaP[i];
+      for (j = 0; j < p.hitos.length; j++) {
+        var h = p.hitos[j];
+        if (!h.hecho) { continue; }
+        dia = claveDeIso(h.cuando);
+        if (dia === '') { continue; }
+        hitosDia['#' + dia] = (hitosDia['#' + dia] || 0) + 1;
+        if (hitosDia['#' + dia] > XP.hitosPorDia) { continue; }
+        total += XP.hito;
+        sumarEn(porDia, dia, XP.hito);
+        sumarEn(porCtx, p.contexto, XP.hito);
+      }
+      if (p.estado === 'terminado') {
+        dia = claveDeIso(p.terminado);
+        if (dia === '') { continue; }
+        n = xpMision(p, items);
+        total += n;
+        sumarEn(porDia, dia, n);
+        sumarEn(porCtx, p.contexto, n);
+      }
+    }
+    return { total: total, porDia: porDia, porContexto: porCtx };
+  }
+
+  function xpMision(p, items) {
+    var hechas = 0, t = tareasDeProyecto(p.id, items), i, hh = 0;
+    for (i = 0; i < t.length; i++) { if (esHecho(t[i].estado)) { hechas++; } }
+    for (i = 0; i < p.hitos.length; i++) { if (p.hitos[i].hecho) { hh++; } }
+    var dias = p.creado && p.terminado ? msEntre(p.creado, p.terminado) / 86400000 : 0;
+    if (hechas + hh < 3 || dias < 1) { return XP.misionLiviana; }
+    var n = XP.mision;
+    if (hh >= 5 && dias >= 14) { n += XP.granMision; }
+    return n;
+  }
+
+  /* Nivel L necesita 50*L*(L-1) XP acumulado: 100 para el 2, 300 el 3,
+     600 el 4, 1000 el 5... Crece sin volverse inalcanzable. */
+  var TITULOS = [[1, 'Recluta'], [2, 'Aprendiz'], [3, 'Operador'], [5, 'Ejecutor'], [8, 'Estratega'],
+    [12, 'Veterano'], [16, 'Comandante'], [20, 'Maestro'], [30, 'Leyenda']];
+
+  function xpParaNivel(l) { return 50 * l * (l - 1); }
+
+  function nivelPorXP(xp) {
+    var l = 1;
+    while (xpParaNivel(l + 1) <= xp && l < 999) { l++; }
+    var base = xpParaNivel(l), sig = xpParaNivel(l + 1), titulo = TITULOS[0][1], i;
+    for (i = 0; i < TITULOS.length; i++) { if (l >= TITULOS[i][0]) { titulo = TITULOS[i][1]; } }
+    return { nivel: l, titulo: titulo, enNivel: xp - base, tramo: sig - base, falta: sig - xp,
+      pct: Math.floor(((xp - base) * 100) / (sig - base)) };
+  }
+
   return {
+    XP: XP,
+    xpItem: xpItem,
+    calcularXP: calcularXP,
+    xpMision: xpMision,
+    nivelPorXP: nivelPorXP,
+    xpParaNivel: xpParaNivel,
     diario: diario,
     normalizarProyecto: normalizarProyecto,
     tareasDeProyecto: tareasDeProyecto,

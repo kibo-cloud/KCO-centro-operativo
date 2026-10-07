@@ -28,6 +28,10 @@
   var rutinas = [];
   var K_PROYECTOS = 'kibco.proyectos';
   var proyectos = [];
+  /* Memoria del progreso: que nivel ya se celebro y que logros se desbloquearon.
+     El XP en si no se guarda: se recalcula siempre desde los datos. */
+  var K_PROGRESO = 'kibco.progreso';
+  var memProgreso = { nivelVisto: 1, logros: {} };
 
   var ESTADOS_TAREA = [
     { id: 'entrada', ico: '\uD83D\uDCE5', nom: 'Entrada' },
@@ -627,6 +631,7 @@
     if (!estadoValido(it.tipo, it.contexto, nuevo)) { return; }
     var previo = it.estado;
     var foto = fotoDe(it);
+    var xpAntes = xpTotal();
     var ahora = new Date().toISOString();
     it.estado = nuevo;
     it.actualizado = ahora;
@@ -643,7 +648,7 @@
       if (itemAbierto === id) { pintarHojaItem(); }
       (function (idGuardado, f, txt) {
         ofrecerDeshacer(txt, function () { restaurarFoto(idGuardado, f, 'estado'); });
-      })(id, foto, estadoInfo(nuevo).nom + ': ' + it.texto);
+      })(id, foto, estadoInfo(nuevo).nom + ': ' + it.texto + feedbackProgreso(xpAntes));
     } else {
       it.estado = previo;
     }
@@ -1174,6 +1179,8 @@
     }
     if (ev.tipo === 'fecha') { return ev.hasta === '' ? 'Sacaste el dia' : 'Agendaste para ' + nombreDia(ev.hasta); }
     if (ev.tipo === 'excepcion') { return textoMotivo(ev.hasta); }
+    if (ev.tipo === 'nivel') { return '\u2B50 Nivel ' + ev.hasta; }
+    if (ev.tipo === 'logro') { return '\uD83C\uDFC6 Logro: ' + ev.hasta; }
     if (ev.tipo === 'mision_alta') { return 'Nueva mision'; }
     if (ev.tipo === 'mision_fin') { return '\uD83C\uDFC1 Mision cumplida'; }
     if (ev.tipo === 'mision_reabre') { return 'Reabriste la mision'; }
@@ -2694,7 +2701,7 @@
     return JSON.stringify({
       app: 'kco', schema: ESQUEMA, version: VERSION_APP,
       exportado: new Date().toISOString(), contexto: contexto,
-      items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos
+      items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos, progreso: memProgreso
     });
   }
 
@@ -2753,11 +2760,13 @@
     eventos = nuevosEventos;
     rutinas = nuevasRutinas;
     proyectos = nuevosProyectos;
+    memProgreso = normalizarProgreso(datos.progreso);
     soloLectura = false;
     guardarItems();
     guardarEventos();
     guardarRutinas();
     guardarProyectos();
+    guardarProgreso();
     generarOcurrencias();
     escribir(K_ESQUEMA, '' + ESQUEMA);
     eventos.push({
@@ -3173,8 +3182,76 @@
     return '';
   }
 
-  /* Ganchos de la fase de progreso (XP, nivel y campaña). */
-  function pintarProgresoArriba() {}
+  /* ---------- progreso: XP y nivel ---------- */
+
+  function normalizarProgreso(x) {
+    var r = { nivelVisto: 1, logros: {} }, k;
+    if (!x || typeof x !== 'object') { return r; }
+    var n = parseInt(x.nivelVisto, 10);
+    r.nivelVisto = isNaN(n) || n < 1 ? 1 : (n > 999 ? 999 : n);
+    if (x.logros && typeof x.logros === 'object') {
+      for (k in x.logros) {
+        if (x.logros.hasOwnProperty(k) && /^[a-z0-9_]{1,40}$/.test(k) && typeof x.logros[k] === 'string') { r.logros[k] = x.logros[k]; }
+      }
+    }
+    return r;
+  }
+
+  function cargarProgreso() {
+    var crudo = leer(K_PROGRESO);
+    if (!crudo) { return normalizarProgreso(null); }
+    try { return normalizarProgreso(JSON.parse(crudo)); } catch (e) { return normalizarProgreso(null); }
+  }
+
+  function guardarProgreso() { return soloLectura ? false : escribir(K_PROGRESO, JSON.stringify(memProgreso)); }
+
+  function xpTotal() { return K.calcularXP(items, proyectos).total; }
+
+  /* Despues de algo que puede dar XP: devuelve el texto de feedback y, si se
+     subio de nivel, lo deja en el diario. El nivel celebrado nunca baja: si se
+     reabre algo y se pierde XP, no se vuelve a festejar el mismo nivel. */
+  function feedbackProgreso(xpAntes) {
+    var ahora = xpTotal(), d = ahora - xpAntes, txt = '';
+    if (d > 0) { txt = ' \u00B7 +' + d + ' XP'; }
+    var nv = K.nivelPorXP(ahora);
+    if (nv.nivel > memProgreso.nivelVisto && !soloLectura) {
+      memProgreso.nivelVisto = nv.nivel;
+      guardarProgreso();
+      eventos.push({ id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'nivel', itemId: '',
+        texto: nv.titulo, contexto: ctxCaptura, desde: '', hasta: '' + nv.nivel });
+      guardarEventos();
+      txt = txt + ' \u00B7 \u2B50 Nivel ' + nv.nivel + '!';
+    }
+    return txt + revisarLogros();
+  }
+
+  function pintarProgresoArriba(cont) {
+    var x = K.calcularXP(items, proyectos);
+    var nv = K.nivelPorXP(x.total);
+    var hoyXP = x.porDia['#' + hoyClave()] || 0;
+    var c = nodo('button', 'progxp');
+    c.type = 'button';
+    c.id = 'tarjetaNivel';
+    var fila = nodo('div', 'progxp-fila');
+    fila.appendChild(nodo('span', 'progxp-nv mono', '\u2B50 NV ' + nv.nivel + ' \u00B7 ' + nv.titulo.toUpperCase()));
+    fila.appendChild(nodo('span', 'mono progxp-n', nv.enNivel + '/' + nv.tramo + ' XP'));
+    c.appendChild(fila);
+    var barra = nodo('div', 'barra');
+    var bi = nodo('i', '');
+    bi.style.width = nv.pct + '%';
+    barra.appendChild(bi);
+    c.appendChild(barra);
+    var det = [hoyXP > 0 ? '+' + hoyXP + ' XP hoy' : 'Hoy todavia sin XP', 'faltan ' + nv.falta + ' para NV ' + (nv.nivel + 1)];
+    var racha = rachaGlobal();
+    if (racha.actual > 0) { det.unshift('\uD83D\uDD25 ' + racha.actual + (racha.actual === 1 ? ' dia' : ' dias')); }
+    c.appendChild(nodo('div', 'mono progxp-det', det.join(' \u00B7 ')));
+    c.onclick = function () { irAVista('registro'); modoDiario = 'campana'; pintar(); };
+    cont.appendChild(c);
+  }
+
+  /* Ganchos de logros, racha y campaña (siguiente fase). */
+  function revisarLogros() { return ''; }
+  function rachaGlobal() { return { actual: 0, mejor: 0 }; }
   function pintarCampana() {}
 
   /* ---------- misiones ----------
@@ -3436,6 +3513,7 @@
     var i, h = null;
     for (i = 0; i < p.hitos.length; i++) { if (p.hitos[i].id === hid) { h = p.hitos[i]; } }
     if (!h) { return; }
+    var xpAntes = xpTotal();
     h.hecho = !h.hecho;
     h.cuando = h.hecho ? new Date().toISOString() : '';
     tocarMision(p);
@@ -3443,7 +3521,8 @@
     registrarMision(h.hecho ? 'hito' : 'hito_reabre', p, h.texto, '' + K.progresoProyecto(p, items).pct);
     pintarHojaMision();
     pintar();
-    if (h.hecho) { celebrar('\uD83C\uDFAF Hito cumplido: ' + h.texto); }
+    var fb = feedbackProgreso(xpAntes);
+    if (h.hecho) { celebrar('\uD83C\uDFAF Hito cumplido: ' + h.texto + fb); }
   }
 
   function agregarHito() {
@@ -3520,6 +3599,7 @@
     function cerrar() {
       var q = buscarProyecto(p.id);
       if (!q) { return; }
+      var xpAntes = xpTotal();
       q.estado = 'terminado';
       q.terminado = new Date().toISOString();
       tocarMision(q);
@@ -3527,7 +3607,7 @@
       registrarMision('mision_fin', q, '');
       pintarHojaMision();
       pintar();
-      celebrar('\uD83C\uDFC1 Mision cumplida: ' + q.nombre);
+      celebrar('\uD83C\uDFC1 Mision cumplida: ' + q.nombre + feedbackProgreso(xpAntes));
     }
     if (abiertas > 0) {
       pedirConfirmacion('Completar mision', 'Quedan ' + abiertas + ' tareas abiertas en "' + p.nombre +
@@ -3686,7 +3766,7 @@
   function cerrarOcurrencia(id, motivo) {
     var it = buscarItem(id);
     if (!it || soloLectura || it.rutinaId === '' || !MOTIVOS[motivo]) { return; }
-    var foto = fotoDe(it), previo = it.estado, ahora = new Date().toISOString();
+    var foto = fotoDe(it), previo = it.estado, ahora = new Date().toISOString(), xpAntes = xpTotal();
     it.estado = motivo === 'delegada' ? 'completado' : 'cancelado';
     it.motivo = motivo;
     it.estadoDesde = ahora;
@@ -3695,7 +3775,7 @@
     registrar('excepcion', it, previo, motivo);
     pintar();
     if (itemAbierto === id) { pintarHojaItem(); }
-    ofrecerDeshacer(textoMotivo(motivo) + ': ' + it.texto, function () { restaurarFoto(id, foto, 'excepcion'); });
+    ofrecerDeshacer(textoMotivo(motivo) + ': ' + it.texto + feedbackProgreso(xpAntes), function () { restaurarFoto(id, foto, 'excepcion'); });
   }
 
   /* ---------- hoja de rutina ---------- */
@@ -3988,9 +4068,18 @@
   eventos = cargarLista(K_EVENTOS, normalizarEvento);
   rutinas = cargarLista(K_RUTINAS, normRutina);
   proyectos = cargarLista(K_PROYECTOS, K.normalizarProyecto);
+  memProgreso = cargarProgreso();
+  /* Primera vez con 2.0: la historia ya cargada cuenta XP, pero no se festeja
+     como si todo hubiera pasado hoy. Se parte del nivel que ya corresponde. */
+  var progresoNuevo = leer(K_PROGRESO) === null;
   cargarCatalogos();
   aplicarMigracion4();
   generarOcurrencias();
+  if (progresoNuevo && !soloLectura) {
+    memProgreso.nivelVisto = K.nivelPorXP(xpTotal()).nivel;
+    revisarLogros(true);
+    guardarProgreso();
+  }
   filtro = leer(K_FILTRO) || 'activos';
   filtroCompra = leer(K_FILTROC) || 'activos';
   filtroTag = leer(K_FILTROTAG) || '';

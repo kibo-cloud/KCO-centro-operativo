@@ -90,7 +90,7 @@ class Cdp {
     this.ws.send(JSON.stringify({ id, method, params }));
     return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
   }
-  once(method, timeout = 10000) {
+  once(method, timeout = 20000) {
     return new Promise((resolve, reject) => {
       const t = setTimeout(() => reject(new Error('timeout waiting ' + method)), timeout);
       const l = (msg) => {
