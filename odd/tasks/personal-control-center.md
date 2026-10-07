@@ -31,13 +31,13 @@ context without isolating risk. Tests/builds run inline as bounded actions.
 
 ## Tasks
 
-- [ ] T01 Audit + architecture doc (`docs/`) and zero-dependency E2E harness
+- [x] T01 Audit + architecture doc (`docs/`) and zero-dependency E2E harness
       (Edge headless over CDP) protecting v1.1.1 behaviour.
-- [ ] T02 Refactor: move app script to `kco-app.js`, add `kco-core.js` (pure domain,
+- [x] T02 Refactor: move app script to `kco-app.js`, add `kco-core.js` (pure domain,
       Node-testable), CSP meta, SW precache list, ES5 static check.
-- [ ] T03 Data model: five contexts + "Todo", four priority levels, due date,
+- [x] T03 Data model: five contexts + "Todo", four priority levels, due date,
       project/recurrence links; normalizers + migration tests.
-- [ ] T04 Control Center UI: AHORA (situation + next move), HOY + PRÓXIMOS DÍAS,
+- [x] T04 Control Center UI: AHORA (situation + next move), HOY + PRÓXIMOS DÍAS,
       inbox triage, context chips, new navigation.
 - [ ] T05 Recurring tasks: definitions, occurrences as history, exceptions, streaks.
 - [ ] T06 Projects as missions: objective, milestones, linked tasks, next action.
@@ -55,4 +55,11 @@ See prompt section 36 (product completeness) — tracked in the final report.
 
 ## Progress / evidence
 
-(updated per task)
+| Task | Commit | Evidence |
+|---|---|---|
+| T01 | dda133a | e2e 16/16 against untouched v1.1.1 |
+| T02 | 5d2dd2c | e2e 16/16 after split, es5 check ok, unit 5/5 |
+| T03 | 5d10ca5 | unit 13/13, e2e 20/20 |
+| T04 | df5824a | e2e 25/25, screenshots ahora.png / hoy.png reviewed |
+
+Native RDD review: not started. Each START requires a per-candidate human consent prompt; the user ordered an uninterrupted autonomous run, so candidates are left for the user to review (switch left untouched).
