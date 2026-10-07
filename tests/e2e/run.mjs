@@ -4,6 +4,9 @@ import { startServer, launchBrowser, openPage } from './harness.mjs';
 import { tests } from './app.e2e.mjs';
 
 const filter = process.argv[2] || '';
+// A stray rejection must fail loudly as a test failure, never kill the run silently.
+let stray = 0;
+process.on('unhandledRejection', (e) => { stray++; console.log('  UNHANDLED ' + (e && e.stack || e)); });
 const { server, port } = await startServer();
 const browser = await launchBrowser();
 const base = `http://127.0.0.1:${port}`;
@@ -36,4 +39,5 @@ try {
   server.close();
 }
 console.log(`\ne2e: ${pass} passed, ${fail} failed` + (failures.length ? ' -> ' + failures.join(', ') : ''));
-process.exit(fail ? 1 : 0);
+if (stray) console.log('e2e: ' + stray + ' unhandled rejection(s)');
+process.exit(fail || stray ? 1 : 0);

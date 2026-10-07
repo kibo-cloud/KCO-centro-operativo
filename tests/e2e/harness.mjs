@@ -128,12 +128,14 @@ export async function openPage(browser, baseUrl) {
     },
     async goto(p = '/') {
       const loaded = cdp.once('Page.loadEventFired');
+      loaded.catch(() => {});
       await cdp.send('Page.navigate', { url: baseUrl + p });
       await loaded;
       await sleep(150);
     },
     async reload() {
       const loaded = cdp.once('Page.loadEventFired');
+      loaded.catch(() => {});
       await cdp.send('Page.reload', { ignoreCache: false });
       await loaded;
       await sleep(150);
