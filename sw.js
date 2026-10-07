@@ -7,6 +7,8 @@ var CACHE = 'kibco-v15';
 var ARCHIVOS = [
   './',
   './index.html',
+  './kco-core.js',
+  './kco-app.js',
   './manifest.webmanifest',
   './icono-192.png',
   './icono-512.png'
