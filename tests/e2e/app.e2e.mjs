@@ -197,6 +197,72 @@ export const tests = [
     }
   },
   {
+    name: 'model: capture understands #context, !! and a trailing day word',
+    async fn(page) {
+      await capture(page, 'editar video intro #contenido !! mañana');
+      const [it] = await items(page);
+      assert.equal(it.texto, 'editar video intro');
+      assert.equal(it.contexto, 'contenido');
+      assert.equal(it.nivel, 'urgente');
+      assert.equal(it.prioridad, true, 'legacy flag mirrors urgent');
+      assert.match(it.fecha, /^\d{4}-\d{2}-\d{2}$/);
+    }
+  },
+  {
+    name: 'model: legacy item without new fields reads with fallbacks',
+    storage: {
+      'kibco.esquema': '4',
+      'kibco.items': JSON.stringify([{ id: 'old1', texto: 'viejo', contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente', prioridad: true, creado: '2026-01-01T10:00:00.000Z' }])
+    },
+    async fn(page) {
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"trabajo\"]').click()");
+      await page.click('li.item');
+      assert.ok(await page.eval("document.querySelector('#gridNivel [data-nivel=\"urgente\"]').className.indexOf('on')>-1"));
+      await page.click('#gridNivel [data-nivel="baja"]');
+      const [it] = await items(page);
+      assert.equal(it.nivel, 'baja');
+      assert.equal(it.prioridad, false);
+      assert.equal(it.fecha, '');
+    }
+  },
+  {
+    name: 'model: moving a factory purchase to Casa maps the state and drops the pause',
+    async fn(page) {
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"trabajo\"]').click()");
+      await capture(page, 'tornillos');
+      await page.click('[data-acc="acompras"]');
+      await page.eval(`(function(){var l=JSON.parse(localStorage.getItem('kibco.items'));l[0].estado='oc_enviada';l[0].pausado=true;localStorage.setItem('kibco.items',JSON.stringify(l));})()`);
+      await page.reload();
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
+      await page.eval("document.getElementById('tabCompras').click()");
+      await page.click('#listaCompras li.item');
+      await page.click('#gridCtx [data-ctx="hogar"]');
+      const [it] = await items(page);
+      assert.equal(it.contexto, 'hogar');
+      assert.equal(it.estado, 'por_comprar');
+      assert.equal(it.pausado, false);
+      await page.click('#btnDeshacer');
+      const [back] = await items(page);
+      assert.equal(back.contexto, 'trabajo');
+      assert.equal(back.estado, 'oc_enviada');
+    }
+  },
+  {
+    name: 'model: Todo shows every context, capture goes to the last real context',
+    async fn(page) {
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"personal\"]').click()");
+      await capture(page, 'entrenar');
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"trabajo\"]').click()");
+      await capture(page, 'informe');
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
+      await capture(page, 'otra');
+      const list = await items(page);
+      assert.equal(list.find((i) => i.texto === 'otra').contexto, 'trabajo');
+      await page.eval("document.getElementById('tabTablero').click()");
+      assert.equal(await page.count('#lista li.item'), 3);
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');

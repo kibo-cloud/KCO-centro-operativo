@@ -2,6 +2,7 @@
 (function () {
   'use strict';
 
+  var K = window.KCOCore;
   var VERSION_APP = '1.1.1';
   /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
      Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
@@ -23,6 +24,7 @@
   var K_BACKUP = 'kibco.ultimoBackup';
   var K_SOLIC = 'kibco.solicitantes';
   var K_DEST = 'kibco.destinos';
+  var K_CTXCAP = 'kibco.contextoCaptura';
 
   var ESTADOS_TAREA = [
     { id: 'entrada', ico: '\uD83D\uDCE5', nom: 'Entrada' },
@@ -70,6 +72,9 @@
 
   var TAGS_TRABAJO = ['relevamiento', 'limpieza', 'adm', 'proveedor', 'panol', 'gestion'];
   var TAGS_HOGAR = ['comida', 'limpieza', 'higiene', 'mantenimiento', 'hogar'];
+  /* Apps, Contenido y Personal no traen clasificaciones propias: se ordenan por
+     prioridad, dia y mision. Si un item llega con un tag de otro contexto se
+     sigue viendo para poder sacarlo, igual que siempre. */
 
   var RANGOS = [
     { id: 'hoy', nom: 'Hoy', dias: 1 },
@@ -83,6 +88,8 @@
   var items = [];
   var eventos = [];
   var contexto = 'trabajo';
+  /* Donde cae lo que se captura mirando 'Todo': el ultimo contexto elegido. */
+  var ctxCaptura = 'trabajo';
   var filtro = 'activos';
   var filtroCompra = 'activos';
   var filtroTag = '';
@@ -143,12 +150,13 @@
 
   function listaEstados(tipo, ctx) {
     if (tipo !== 'compra') { return ESTADOS_TAREA; }
-    return ctx === 'hogar' ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
+    return K.esFabrica(ctx) ? ESTADOS_COMPRA : ESTADOS_COMPRA_HOGAR;
   }
 
   function listaTags(ctx) {
-    var ids = ctx === 'hogar' ? TAGS_HOGAR : TAGS_TRABAJO;
     var r = [], i;
+    if (ctx === 'todo') { return TAGS.slice(0); }
+    var ids = ctx === 'hogar' ? TAGS_HOGAR : (ctx === 'trabajo' ? TAGS_TRABAJO : []);
     for (i = 0; i < ids.length; i++) {
       var t = tagInfo(ids[i]);
       if (t) { r.push(t); }
@@ -175,7 +183,7 @@
   function estadoEquivalente(tipo, ctx, id) {
     if (estadoValido(tipo, ctx, id)) { return id; }
     if (tipo !== 'compra') { return 'entrada'; }
-    if (ctx === 'hogar') {
+    if (!K.esFabrica(ctx)) {
       if (id === 'recibido') { return 'comprado'; }
       if (id === 'cancelado') { return 'cancelado'; }
       return 'por_comprar';
@@ -353,9 +361,10 @@
   function normalizarItem(it) {
     if (!it || typeof it !== 'object') { return null; }
     var creado = it.creado ? '' + it.creado : new Date().toISOString();
-    var ctx = it.contexto === 'hogar' ? 'hogar' : 'trabajo';
+    var ctx = K.normalizarContexto(it.contexto);
     var tipo = it.tipo === 'compra' ? 'compra' : 'tarea';
-    var est = it.estado ? '' + it.estado : (tipo === 'compra' ? (ctx === 'hogar' ? 'por_comprar' : 'cotizando') : 'entrada');
+    var est = it.estado ? '' + it.estado : (tipo === 'compra' ? (K.esFabrica(ctx) ? 'cotizando' : 'por_comprar') : 'entrada');
+    var nivel = K.nivelDe(it);
     est = estadoEquivalente(tipo, ctx, est);
     var act = it.actualizado ? '' + it.actualizado : creado;
     var tag = it.tag ? '' + it.tag : '';
@@ -367,7 +376,7 @@
       tipo: tipo,
       estado: est,
       espera: it.espera ? '' + it.espera : '',
-      prioridad: it.prioridad === true,
+      prioridad: nivel === 'urgente',
       tag: tag,
       recordatorio: it.recordatorio ? '' + it.recordatorio : '',
       recAvisado: it.recAvisado === true,
@@ -380,8 +389,24 @@
       pasos: normalizarPasos(it.pasos),
       anclado: it.anclado === true,
       solicitante: limpiarTexto(it.solicitante, LARGO_CAMPO),
-      destino: limpiarTexto(it.destino, LARGO_CAMPO)
+      destino: limpiarTexto(it.destino, LARGO_CAMPO),
+      /* Agregados en 2.0, fuera del esquema y con fallback, igual que 0.9.3. */
+      nivel: nivel,
+      fecha: K.esClave(it.fecha) ? it.fecha : '',
+      proyectoId: idSeguro(it.proyectoId),
+      rutinaId: idSeguro(it.rutinaId),
+      ocurrencia: K.esClave(it.ocurrencia) ? it.ocurrencia : '',
+      motivo: MOTIVOS[it.motivo] === 1 ? it.motivo : ''
     };
+  }
+
+  /* Motivo de cierre de una ocurrencia de rutina. Una ocurrencia que no se hizo
+     se cierra como cancelada con su motivo, nunca se borra: el historial queda. */
+  var MOTIVOS = { omitida: 1, no_corresponde: 1, delegada: 1, vencida: 1 };
+
+  function idSeguro(x) {
+    if (typeof x !== 'string') { return ''; }
+    return /^[A-Za-z0-9_-]{1,40}$/.test(x) ? x : '';
   }
 
   function normalizarEvento(ev) {
@@ -392,7 +417,7 @@
       tipo: ev.tipo ? '' + ev.tipo : 'nota',
       itemId: ev.itemId ? '' + ev.itemId : '',
       texto: ev.texto ? '' + ev.texto : '',
-      contexto: ev.contexto === 'hogar' ? 'hogar' : 'trabajo',
+      contexto: K.normalizarContexto(ev.contexto),
       desde: ev.desde ? '' + ev.desde : '',
       hasta: ev.hasta ? '' + ev.hasta : ''
     };
@@ -490,46 +515,8 @@
     return null;
   }
 
-  /* ---------- deteccion de hora al tipear ---------- */
-
-  /* Reglas de deteccion, pensadas para no comerse medidas ni codigos:
-     A) @H:MM o @HH:MM en cualquier lugar  -> siempre es hora.
-     B) HH:MM con dos digitos en la hora   -> solo si esta al final del texto,
-        o si el texto ademas dice "hoy" o "mañana".
-     No se acepta el punto como separador: "presion 3.50" no es una hora.
-     "escala 1:50" tampoco, porque la hora tiene un solo digito y no lleva @. */
-  function parsearHora(entrada) {
-    var texto = entrada;
-    var dia = 0;
-    var m = texto.match(/(^|\s)@\s?([01]?\d|2[0-3]):([0-5]\d)(?=\s|$)/);
-    if (!m) {
-      var mb = texto.match(/(^|\s)([01]\d|2[0-3]):([0-5]\d)(?=\s|$)/);
-      if (mb) {
-        var resto = texto.slice(mb.index + mb[0].length).replace(/^\s+|\s+$/g, '');
-        var conDia = /(^|\s)(hoy|ma[\u00F1n]ana)(\s|$)/i.test(texto);
-        if (resto === '' || conDia) { m = mb; }
-      }
-    }
-    if (!m) { return null; }
-    var h = parseInt(m[2], 10);
-    var min = parseInt(m[3], 10);
-    texto = texto.slice(0, m.index) + ' ' + texto.slice(m.index + m[0].length);
-    var mm = texto.match(/(^|\s)(ma[\u00F1n]ana)(\s|$)/i);
-    if (mm) {
-      dia = 1;
-      texto = texto.slice(0, mm.index) + ' ' + texto.slice(mm.index + mm[0].length);
-    } else {
-      var mh = texto.match(/(^|\s)(hoy)(\s|$)/i);
-      if (mh) { texto = texto.slice(0, mh.index) + ' ' + texto.slice(mh.index + mh[0].length); }
-    }
-    texto = texto.replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
-    if (texto === '') { return null; }
-    var d = new Date();
-    d.setSeconds(0, 0);
-    d.setHours(h, min, 0, 0);
-    if (dia === 1 || d.getTime() <= Date.now()) { d.setDate(d.getDate() + 1); }
-    return { texto: texto, iso: d.toISOString() };
-  }
+  /* La deteccion de hora, dia, contexto y prioridad al tipear vive en
+     KCOCore.parsearCaptura, con sus pruebas. */
 
   function fijarRecordatorio(it, d) {
     it.recordatorio = d.toISOString();
@@ -556,7 +543,7 @@
   function notificar(it) {
     if (!hayNotificacion() || window.Notification.permission !== 'granted') { return false; }
     try {
-      var n = new window.Notification('KCO \u00B7 ' + (it.contexto === 'hogar' ? 'Hogar' : 'Trabajo'), {
+      var n = new window.Notification('KCO \u00B7 ' + nomCtx(it.contexto), {
         body: it.texto, icon: './icono-192.png', tag: it.id
       });
       return !!n;
@@ -598,25 +585,29 @@
 
   /* ---------- captura ---------- */
 
+  /* Todo item nuevo pasa por el mismo normalizador que lo que se lee del disco:
+     un solo lugar define la forma de un item. */
+  function itemNuevo(texto, ctx, extra) {
+    var ahora = new Date().toISOString();
+    var base = {
+      id: nuevoId(), texto: texto, contexto: ctx, tipo: 'tarea', estado: 'entrada',
+      creado: ahora, actualizado: ahora, estadoDesde: ahora
+    }, k;
+    if (extra) { for (k in extra) { if (extra.hasOwnProperty(k)) { base[k] = extra[k]; } } }
+    return normalizarItem(base);
+  }
+
   function capturar() {
     var crudo = $('txtCaptura').value.replace(/^\s+|\s+$/g, '');
     if (crudo === '' || soloLectura) { return; }
-    var texto = crudo;
-    var rec = '';
-    var p = parsearHora(crudo);
-    if (p) { texto = p.texto; rec = p.iso; }
-    var ahora = new Date().toISOString();
-    var it = {
-      id: nuevoId(), texto: texto, contexto: contexto, tipo: 'tarea',
-      estado: 'entrada', espera: '', prioridad: false, tag: '',
-      recordatorio: rec, recAvisado: false,
-      creado: ahora, actualizado: ahora, estadoDesde: ahora,
-      solicitante: '', destino: ''
-    };
+    var p = K.parsearCaptura(crudo, new Date());
+    var it = itemNuevo(p.texto, p.contexto || ctxCaptura, {
+      recordatorio: p.recordatorio, fecha: p.fecha, nivel: p.nivel || 'normal'
+    });
     items.push(it);
     if (guardarItems()) {
       registrar('captura', it, '', 'entrada');
-      if (rec !== '') { registrar('recordatorio', it, '', horaCorta(rec)); }
+      if (it.recordatorio !== '') { registrar('recordatorio', it, '', horaCorta(it.recordatorio)); }
       $('txtCaptura').value = '';
       pintar();
       $('txtCaptura').focus();
@@ -668,12 +659,131 @@
 
   /* ---------- pintado ---------- */
 
+  /* 'todo' no es un contexto de datos: es la vista que junta los cinco. */
+  function enContexto(it) { return contexto === 'todo' || it.contexto === contexto; }
+
   function delContexto(tipo) {
     var r = [], i;
     for (i = 0; i < items.length; i++) {
-      if (items[i].contexto === contexto && items[i].tipo === tipo) { r.push(items[i]); }
+      if (enContexto(items[i]) && items[i].tipo === tipo) { r.push(items[i]); }
     }
     return r;
+  }
+
+  function nomCtx(id) {
+    if (id === 'todo') { return 'Todo'; }
+    var c = K.infoContexto(id);
+    return c ? c.nom : 'Trabajo';
+  }
+
+  function icoCtx(id) {
+    if (id === 'todo') { return '⭐'; }
+    var c = K.infoContexto(id);
+    return c ? c.ico : '';
+  }
+
+  function icoNomCtx(id) { return icoCtx(id) + ' ' + nomCtx(id); }
+
+  /* Fila de contextos del encabezado: Todo primero, despues los cinco. */
+  function pintarSelectorContexto() {
+    var cont = $('ctxsel');
+    while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+    var defs = [{ id: 'todo' }].concat(K.CONTEXTOS), i;
+    for (i = 0; i < defs.length; i++) {
+      (function (id) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = contexto === id ? 'ctxbtn on' : 'ctxbtn';
+        b.setAttribute('data-ctx', id);
+        b.setAttribute('aria-pressed', contexto === id ? 'true' : 'false');
+        b.textContent = icoCtx(id) + ' ' + nomCtx(id).toUpperCase();
+        b.onclick = function () { aplicarContexto(id, true); };
+        cont.appendChild(b);
+      })(defs[i].id);
+    }
+  }
+
+  function pintarPistaCaptura() {
+    var inp = $('txtCaptura');
+    if (inp) {
+      inp.setAttribute('placeholder', 'Capturar en ' + icoNomCtx(ctxCaptura) + ' · Enter guarda');
+    }
+  }
+
+  /* Grilla de opciones de un toque para la ficha: nivel, contexto. */
+  function pintarOpciones(idGrid, defs, actual, rotulo, alElegir, atributo) {
+    var g = $(idGrid);
+    while (g.firstChild) { g.removeChild(g.firstChild); }
+    var i;
+    for (i = 0; i < defs.length; i++) {
+      (function (def) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = (actual === def.id ? 'gbtn on' : 'gbtn') + (def.id === 'urgente' ? ' rojo' : '');
+        b.setAttribute(atributo, def.id);
+        b.textContent = rotulo(def);
+        b.onclick = function () { alElegir(def); };
+        g.appendChild(b);
+      })(defs[i]);
+    }
+  }
+
+  function fijarNivel(id, nivel) {
+    var it = buscarItem(id);
+    if (!it || soloLectura || it.nivel === nivel) { return; }
+    var previo = it.nivel;
+    it.nivel = nivel;
+    it.prioridad = nivel === 'urgente';
+    it.actualizado = new Date().toISOString();
+    if (guardarItems()) {
+      registrar('prioridad', it, previo, nivel);
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    } else {
+      it.nivel = previo;
+      it.prioridad = previo === 'urgente';
+    }
+  }
+
+  function fijarFecha(id, clave) {
+    var it = buscarItem(id);
+    if (!it || soloLectura) { return; }
+    if (clave !== '' && !K.esClave(clave)) { avisar('Fecha invalida.'); return; }
+    if (it.fecha === clave) { return; }
+    var previo = it.fecha;
+    it.fecha = clave;
+    it.actualizado = new Date().toISOString();
+    if (guardarItems()) {
+      registrar('fecha', it, previo, clave);
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+    } else { it.fecha = previo; }
+  }
+
+  /* Cambiar de contexto conserva todo el item. Si cambia el tipo de flujo de
+     compras (fabrica <-> lista simple) el estado se traduce al equivalente y la
+     pausa se suelta, porque fuera de Trabajo no existe. Se puede deshacer. */
+  function moverDeContexto(id, ctx) {
+    var it = buscarItem(id);
+    if (!it || soloLectura || it.contexto === ctx || !K.contextoValido(ctx)) { return; }
+    var foto = fotoDe(it);
+    var previo = it.contexto;
+    it.contexto = ctx;
+    var est = estadoEquivalente(it.tipo, ctx, it.estado);
+    if (est !== it.estado) { it.estado = est; it.estadoDesde = new Date().toISOString(); }
+    if (!K.esFabrica(ctx)) { it.pausado = false; it.pausadoDesde = ''; }
+    it.actualizado = new Date().toISOString();
+    if (guardarItems()) {
+      registrar('contexto', it, previo, ctx);
+      pintar();
+      if (itemAbierto === id) { pintarHojaItem(); }
+      (function (idG, f, txt) {
+        ofrecerDeshacer(txt, function () { restaurarFoto(idG, f, 'contexto'); });
+      })(id, foto, 'A ' + icoNomCtx(ctx) + ': ' + it.texto);
+    } else {
+      it.contexto = previo;
+      it.estado = foto.estado;
+    }
   }
 
   /* Lo anclado va primero, por encima incluso de la prioridad alta. El filtro
@@ -683,7 +793,8 @@
     return arr.sort(function (a, b) {
       var aa = a.anclado === true, ab = b.anclado === true;
       if (aa !== ab) { return aa ? -1 : 1; }
-      if (a.prioridad !== b.prioridad) { return a.prioridad ? -1 : 1; }
+      var pa = K.infoNivel(a.nivel).peso, pb = K.infoNivel(b.nivel).peso;
+      if (pa !== pb) { return pb - pa; }
       if (a.creado === b.creado) { return 0; }
       return a.creado > b.creado ? -1 : 1;
     });
@@ -719,7 +830,7 @@
     for (i = 0; i < arr.length; i++) {
       if (arr[i].estado === 'cancelado') { continue; }
       total++;
-      if (arr[i].estado === cerrado) { hechos++; }
+      if (K.esHecho(arr[i].estado)) { hechos++; }
     }
     var pct = total === 0 ? 0 : Math.round((hechos * 100) / total);
     $(elTxt).textContent = pct + '% \u00B7 ' + hechos + '/' + total;
@@ -728,7 +839,7 @@
 
   /* Siguiente casillero del flujo de compras de fabrica, salteando Cancelado. */
   function estadoSiguiente(it) {
-    if (it.tipo !== 'compra' || it.contexto === 'hogar') { return null; }
+    if (it.tipo !== 'compra' || !K.esFabrica(it.contexto)) { return null; }
     var i;
     for (i = 0; i < ESTADOS_COMPRA.length; i++) {
       if (ESTADOS_COMPRA[i].id !== it.estado) { continue; }
@@ -746,11 +857,41 @@
     return s;
   }
 
+  function claseNivel(it) {
+    if (it.nivel === 'urgente') { return ' prio'; }
+    if (it.nivel === 'importante') { return ' imp'; }
+    if (it.nivel === 'baja') { return ' baja'; }
+    return '';
+  }
+
+  function badgeNivel(it) {
+    if (it.nivel === 'normal' || !esActivo(it.estado)) { return null; }
+    var n = K.infoNivel(it.nivel);
+    return badge('niv-' + it.nivel, n.ico + ' ' + n.nom.toUpperCase());
+  }
+
+  /* El dia en palabras cortas: hoy, mañana, ayer, o dd/mm. */
+  function nombreDia(clave) {
+    var hoy = K.claveDia(new Date());
+    var d = K.difDias(hoy, clave);
+    if (d === 0) { return 'hoy'; }
+    if (d === 1) { return 'ma\u00F1ana'; }
+    if (d === -1) { return 'ayer'; }
+    var p = clave.split('-');
+    return p[2] + '/' + p[1];
+  }
+
+  function badgeFecha(it) {
+    if (it.fecha === '' || !esActivo(it.estado)) { return null; }
+    var vencida = it.fecha < K.claveDia(new Date());
+    return badge('dia' + (vencida ? ' vencido' : ''), '\uD83D\uDCC5 ' + nombreDia(it.fecha));
+  }
+
   var itemsVistos = {};
 
   function nodoItem(it) {
     var li = document.createElement('li');
-    li.className = 'item st-' + it.estado + (it.prioridad ? ' prio' : '') +
+    li.className = 'item st-' + it.estado + claseNivel(it) +
       (it.pausado === true ? ' pausado' : '') +
       (itemsVistos[it.id] ? '' : ' nuevo');
     itemsVistos[it.id] = 1;
@@ -781,7 +922,10 @@
     var l2 = document.createElement('div');
     l2.className = 'linea2';
     if (it.anclado === true) { l2.appendChild(badge('pin', '\uD83D\uDCCC')); }
-    if (it.prioridad) { l2.appendChild(badge('prio', '\uD83D\uDD34 ALTA')); }
+    var bn = badgeNivel(it);
+    if (bn) { l2.appendChild(bn); }
+    var bf = badgeFecha(it);
+    if (bf) { l2.appendChild(bf); }
     var inf = estadoInfo(it.estado);
     l2.appendChild(badge('est', inf.ico + ' ' + inf.nom.toUpperCase()));
     if (it.pausado === true) { l2.appendChild(badge('pausa', '\u23F8 EN ESPERA')); }
@@ -850,7 +994,7 @@
             moverACompras(it.id);
           }, 'Mover a Compras');
         }
-      } else if (it.contexto === 'hogar') {
+      } else if (!K.esFabrica(it.contexto)) {
         sumarAccion(accs, 'abtn', '\u2B1C Marcar comprado', 'comprado', function () {
           alternarComprado(it.id);
         });
@@ -867,7 +1011,7 @@
           });
         }
       }
-    } else if (it.tipo === 'compra' && it.contexto === 'hogar' && it.estado === 'comprado') {
+    } else if (it.tipo === 'compra' && !K.esFabrica(it.contexto) && it.estado === 'comprado') {
       accs = document.createElement('div');
       accs.className = 'accs';
       sumarAccion(accs, 'abtn on', '\u2705 Comprado', 'comprado', function () {
@@ -942,7 +1086,7 @@
   }
 
   function pintarTablero() {
-    progreso('tarea', 'completado', 'progTxt', 'progBarra');
+    progreso('tarea', '', 'progTxt', 'progBarra');
     var defs = [{ id: 'activos', ico: '', nom: 'Activos' }].concat(ESTADOS_TAREA);
     pintarChipsGen('chips', defs, filtro, function (id) { return contar('tarea', id); }, function (id) {
       filtro = id; escribir(K_FILTRO, filtro); pintar();
@@ -960,10 +1104,12 @@
   }
 
   function pintarCompras() {
-    var esHogar = contexto === 'hogar';
-    progreso('compra', esHogar ? 'comprado' : 'recibido', 'progCompraTxt', 'progCompraBarra');
-    $('rotCompras').textContent = esHogar ? 'Lista de compras' : 'Material recibido';
+    var esHogar = contexto !== 'trabajo' && contexto !== 'todo';
+    progreso('compra', '', 'progCompraTxt', 'progCompraBarra');
+    $('rotCompras').textContent = esHogar ? 'Lista de compras' : (contexto === 'todo' ? 'Compras cerradas' : 'Material recibido');
     var base = esHogar ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
+    /* En Todo conviven los dos flujos: se suman los casilleros de la lista simple. */
+    if (contexto === 'todo') { base = ESTADOS_COMPRA.slice(0, 6).concat(ESTADOS_COMPRA_HOGAR); }
     var defs = [{ id: 'activos', ico: '', nom: esHogar ? 'Por comprar' : 'Abiertas' }].concat(base);
     pintarChipsGen('chipsCompra', defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
       filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
@@ -988,7 +1134,7 @@
     var corte = desdeRango(), salida = [], i;
     for (i = 0; i < eventos.length; i++) {
       var ev = eventos[i];
-      if (ev.contexto !== contexto) { continue; }
+      if (contexto !== 'todo' && ev.contexto !== contexto) { continue; }
       var d = fechaObj(ev.ts);
       if (!d) { continue; }
       if (corte && d.getTime() < corte.getTime()) { continue; }
@@ -1003,7 +1149,13 @@
     if (ev.tipo === 'borrado') { return 'Borraste'; }
     if (ev.tipo === 'espera') { return 'Anotaste espera'; }
     if (ev.tipo === 'restauracion') { return 'Restauraste un backup'; }
-    if (ev.tipo === 'prioridad') { return ev.hasta === 'alta' ? 'Marcaste prioridad alta' : 'Sacaste la prioridad'; }
+    if (ev.tipo === 'prioridad') {
+      if (ev.hasta === 'alta') { return 'Marcaste prioridad alta'; }
+      if (ev.hasta === 'normal' && ev.desde === '') { return 'Sacaste la prioridad'; }
+      return 'Prioridad: ' + K.infoNivel(ev.hasta).nom;
+    }
+    if (ev.tipo === 'fecha') { return ev.hasta === '' ? 'Sacaste el dia' : 'Agendaste para ' + nombreDia(ev.hasta); }
+    if (ev.tipo === 'contexto') { return 'Moviste a ' + icoNomCtx(ev.hasta); }
     if (ev.tipo === 'tag') { return ev.hasta === '' ? 'Sacaste la clasificacion' : 'Clasificaste como ' + ev.hasta; }
     if (ev.tipo === 'recordatorio') { return ev.hasta === '' ? 'Sacaste el recordatorio' : 'Recordatorio ' + ev.hasta; }
     if (ev.tipo === 'compra') { return 'Moviste a Compras'; }
@@ -1254,8 +1406,11 @@
     irAVista(ORDEN_VISTAS[destino]);
   }
 
-  function swipeContexto() {
-    aplicarContexto(contexto === 'hogar' ? 'trabajo' : 'hogar', true);
+  function swipeContexto(sentido) {
+    var orden = ['todo'], i, pos = 0;
+    for (i = 0; i < K.CONTEXTOS.length; i++) { orden.push(K.CONTEXTOS[i].id); }
+    for (i = 0; i < orden.length; i++) { if (orden[i] === contexto) { pos = i; } }
+    aplicarContexto(orden[sentido === 'izq' ? (pos + 1) % orden.length : (pos + orden.length - 1) % orden.length], true);
   }
 
   function pedirConfirmacion(titulo, detalle, accion) {
@@ -1292,7 +1447,17 @@
     $('cajaEspera').style.display = it.estado === 'esperando' ? 'block' : 'none';
     if (it.estado === 'esperando') { $('txtEspera').value = it.espera; }
 
-    $('btnPrioridad').className = it.prioridad ? 'gbtn rojo on' : 'gbtn rojo';
+    pintarOpciones('gridNivel', K.NIVELES, it.nivel, function (n) { return n.ico + ' ' + n.nom; },
+      function (n) { fijarNivel(it.id, n.id); }, 'data-nivel');
+    pintarOpciones('gridCtx', K.CONTEXTOS, it.contexto, function (c) { return c.ico + ' ' + c.nom; },
+      function (c) { moverDeContexto(it.id, c.id); }, 'data-ctx');
+    var hoyK = K.claveDia(new Date());
+    $('btnDiaHoy').className = it.fecha === hoyK ? 'gbtn on' : 'gbtn';
+    $('btnDiaMan').className = it.fecha === K.sumarDias(hoyK, 1) ? 'gbtn on' : 'gbtn';
+    $('btnDiaElegir').className = it.fecha !== '' && it.fecha !== hoyK && it.fecha !== K.sumarDias(hoyK, 1) ? 'gbtn on' : 'gbtn';
+    $('btnDiaElegir').textContent = $('btnDiaElegir').className === 'gbtn on' ? '\uD83D\uDCC5 ' + nombreDia(it.fecha) : 'Elegir dia';
+    $('btnSacarDia').style.display = it.fecha === '' ? 'none' : 'block';
+    $('cajaDia').style.display = 'none';
 
     var gt = $('gridTags');
     while (gt.firstChild) { gt.removeChild(gt.firstChild); }
@@ -1422,7 +1587,7 @@
     var foto = fotoDe(it);
     var ahora = new Date().toISOString();
     it.tipo = 'compra';
-    it.estado = it.contexto === 'hogar' ? 'por_comprar' : 'cotizando';
+    it.estado = K.esFabrica(it.contexto) ? 'cotizando' : 'por_comprar';
     it.espera = '';
     it.actualizado = ahora;
     it.estadoDesde = ahora;
@@ -1466,7 +1631,7 @@
      pausa, asi el contador de +48 hs sigue desde donde quedo en vez de
      arrancar de cero. */
   function puedePausar(it) {
-    return it.tipo === 'compra' && it.contexto !== 'hogar' && esActivo(it.estado);
+    return it.tipo === 'compra' && K.esFabrica(it.contexto) && esActivo(it.estado);
   }
 
   function alternarPausa(id) {
@@ -1513,7 +1678,7 @@
   /* Solicitante y destino solo tienen sentido en las compras de fabrica:
      en Hogar no hay quien pida ni a que maquina va. */
   function esPedido(it) {
-    return it.tipo === 'compra' && it.contexto !== 'hogar';
+    return it.tipo === 'compra' && K.esFabrica(it.contexto);
   }
 
   function campoPedido(it, cual) {
@@ -1761,7 +1926,8 @@
   function fotoDe(it) {
     return {
       estado: it.estado, tipo: it.tipo, espera: it.espera,
-      actualizado: it.actualizado, estadoDesde: it.estadoDesde, prioridad: it.prioridad,
+      actualizado: it.actualizado, estadoDesde: it.estadoDesde, prioridad: it.prioridad, nivel: it.nivel,
+      contexto: it.contexto, motivo: it.motivo,
       pausado: it.pausado === true, pausadoDesde: it.pausadoDesde ? it.pausadoDesde : ''
     };
   }
@@ -1773,6 +1939,9 @@
     it.tipo = foto.tipo;
     it.espera = foto.espera;
     it.prioridad = foto.prioridad;
+    it.nivel = foto.nivel;
+    it.contexto = foto.contexto;
+    it.motivo = foto.motivo;
     it.actualizado = foto.actualizado;
     it.estadoDesde = foto.estadoDesde;
     it.pausado = foto.pausado === true;
@@ -1830,10 +1999,10 @@
       n++;
       (function (item) {
         var li = document.createElement('li');
-        li.className = 'item st-' + item.estado + (item.prioridad ? ' prio' : '');
+        li.className = 'item st-' + item.estado + claseNivel(item);
         var e = document.createElement('div');
         e.className = 'etq';
-        e.textContent = (item.contexto === 'hogar' ? '\uD83C\uDFE0 HOGAR' : '\uD83C\uDFED TRABAJO') +
+        e.textContent = icoNomCtx(item.contexto).toUpperCase() +
           (item.tipo === 'compra' ? ' \u00B7 COMPRA' : '');
         var tx = document.createElement('div');
         tx.className = 'txt';
@@ -1865,7 +2034,7 @@
     var i, def = RANGOS[0];
     for (i = 0; i < RANGOS.length; i++) { if (RANGOS[i].id === rango) { def = RANGOS[i]; } }
     var hoy = new Date();
-    var lineas = ['KCO \u00B7 ' + (contexto === 'hogar' ? 'Hogar' : 'Trabajo') + ' \u00B7 ' + def.nom +
+    var lineas = ['KCO \u00B7 ' + nomCtx(contexto) + ' \u00B7 ' + def.nom +
       ' (' + dosDig(hoy.getDate()) + '/' + dosDig(hoy.getMonth() + 1) + '/' + hoy.getFullYear() + ')', ''];
     var evs = eventosFiltrados();
     var hechos = [], movidos = [], nuevos = [];
@@ -1895,18 +2064,18 @@
     var urgentes = [], compras = [], esp = [], pend = [];
     for (i = 0; i < items.length; i++) {
       var it = items[i];
-      if (it.contexto !== contexto || !esActivo(it.estado)) { continue; }
-      if (it.prioridad) { urgentes.push(it.texto); continue; }
+      if (!enContexto(it) || !esActivo(it.estado)) { continue; }
+      if (it.nivel === 'urgente') { urgentes.push(it.texto); continue; }
       if (it.tipo === 'compra') {
-        compras.push(it.texto + (contexto === 'hogar' ? '' : ' (' + estadoInfo(it.estado).nom + ')') +
+        compras.push(it.texto + (!K.esFabrica(it.contexto) ? '' : ' (' + estadoInfo(it.estado).nom + ')') +
           (alertaEntrega(it) > 0 ? ' [+48hs]' : ''));
         continue;
       }
       if (it.estado === 'esperando') { esp.push(it.texto + (it.espera ? ' (' + it.espera + ')' : '')); }
       else { pend.push(it.texto); }
     }
-    bloque('PRIORIDAD ALTA:', urgentes);
-    bloque(contexto === 'hogar' ? 'LISTA DE COMPRAS:' : 'COMPRAS ABIERTAS:', compras);
+    bloque('URGENTE:', urgentes);
+    bloque(contexto === 'trabajo' ? 'COMPRAS ABIERTAS:' : 'LISTA DE COMPRAS:', compras);
     bloque('ESPERANDO:', esp);
     bloque('QUEDA ABIERTO:', pend);
 
@@ -1921,15 +2090,14 @@
     var ahora = new Date();
     var hoy = claveDia(ahora);
     var lineas = [];
-    lineas.push((contexto === 'hogar' ? '\uD83C\uDFE0' : '\uD83D\uDD27') + ' RELEVO DE TURNO \u00B7 ' +
-      (contexto === 'hogar' ? 'Hogar' : 'Trabajo'));
+    lineas.push((contexto === 'trabajo' ? '\uD83D\uDD27' : icoCtx(contexto)) + ' RELEVO DE TURNO \u00B7 ' + nomCtx(contexto));
     lineas.push('\uD83D\uDCC5 ' + dosDig(ahora.getDate()) + '/' + dosDig(ahora.getMonth() + 1) + '/' +
       ahora.getFullYear() + ' \u00B7 ' + hhmm(ahora));
 
     var hechas = [], notas = [], i, ev, d;
     for (i = 0; i < eventos.length; i++) {
       ev = eventos[i];
-      if (ev.contexto !== contexto) { continue; }
+      if (contexto !== 'todo' && ev.contexto !== contexto) { continue; }
       d = fechaObj(ev.ts);
       if (!d || claveDia(d) !== hoy) { continue; }
       if (ev.tipo === 'estado' && CERRADOS[ev.hasta] && ev.hasta !== 'cancelado') {
@@ -1941,13 +2109,13 @@
     var ancladas = [], compras = [], it, det;
     for (i = 0; i < items.length; i++) {
       it = items[i];
-      if (it.contexto !== contexto || !esActivo(it.estado)) { continue; }
-      if (it.anclado === true || it.prioridad) {
-        ancladas.push((it.anclado === true ? '\uD83D\uDCCC ' : '\uD83D\uDD34 ') + it.texto);
+      if (!enContexto(it) || !esActivo(it.estado)) { continue; }
+      if (it.anclado === true || it.nivel === 'urgente') {
+        ancladas.push((it.anclado === true ? '\uD83D\uDCCC ' : '\u203C ') + it.texto);
       }
       if (it.tipo === 'compra') {
         det = it.texto;
-        if (contexto !== 'hogar') { det = det + ' \u2014 ' + estadoInfo(it.estado).nom; }
+        if (K.esFabrica(it.contexto)) { det = det + ' \u2014 ' + estadoInfo(it.estado).nom; }
         if (it.pausado === true) { det = det + ' \u23F8 en espera'; }
         if (alertaEntrega(it) > 0) { det = det + ' \u26A0 +48hs'; }
         compras.push(det);
@@ -1968,9 +2136,9 @@
     }
 
     bloque('\u2705 COMPLETADAS', hechas);
-    bloque(contexto === 'hogar' ? '\uD83D\uDED2 LISTA DE COMPRAS' : '\uD83D\uDED2 COMPRAS PENDIENTES', compras);
+    bloque(contexto === 'trabajo' ? '\uD83D\uDED2 COMPRAS PENDIENTES' : '\uD83D\uDED2 LISTA DE COMPRAS', compras);
     bloque('\uD83D\uDCAC NOTAS DEL DIA', notas);
-    bloque('\uD83D\uDCCC ANCLADO Y PRIORIDAD', ancladas);
+    bloque('\uD83D\uDCCC ANCLADO Y URGENTE', ancladas);
 
     if (lineas.length === 2) { lineas.push(''); lineas.push('Sin novedades en el turno.'); }
     return lineas.join('\n');
@@ -2088,7 +2256,7 @@
     escribir(K_ESQUEMA, '' + ESQUEMA);
     eventos.push({
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'restauracion', itemId: '',
-      texto: nuevosItems.length + ' items restaurados', contexto: contexto, desde: '', hasta: ''
+      texto: nuevosItems.length + ' items restaurados', contexto: ctxCaptura, desde: '', hasta: ''
     });
     guardarEventos();
     $('aviso').className = 'aviso';
@@ -2133,19 +2301,21 @@
   }
 
   function aplicarContexto(nuevo, guardar) {
-    contexto = nuevo === 'hogar' ? 'hogar' : 'trabajo';
+    contexto = nuevo === 'todo' || K.contextoValido(nuevo) ? nuevo : 'trabajo';
+    if (contexto !== 'todo') { ctxCaptura = contexto; }
     aplicarLuz(false);
-    $('btnTrabajo').className = contexto === 'trabajo' ? 'ctxbtn on' : 'ctxbtn';
-    $('btnHogar').className = contexto === 'hogar' ? 'ctxbtn on' : 'ctxbtn';
-    if (guardar) { escribir(K_CTX, contexto); }
+    pintarSelectorContexto();
+    pintarPistaCaptura();
+    if (guardar) {
+      escribir(K_CTX, contexto);
+      escribir(K_CTXCAP, ctxCaptura);
+    }
     pintar();
     chequearRecordatorios();
   }
 
   /* ---------- interfaz ---------- */
 
-  $('btnTrabajo').onclick = function () { aplicarContexto('trabajo', true); };
-  $('btnHogar').onclick = function () { aplicarContexto('hogar', true); };
 
   $('txtCaptura').onkeydown = function (ev) {
     var k = ev.key || ev.keyCode;
@@ -2158,17 +2328,6 @@
 
   $('btnCerrarItem').onclick = function () { itemAbierto = null; cerrarHoja('tapaItem'); };
 
-  $('btnPrioridad').onclick = function () {
-    var it = buscarItem(itemAbierto);
-    if (!it || soloLectura) { return; }
-    it.prioridad = !it.prioridad;
-    it.actualizado = new Date().toISOString();
-    if (guardarItems()) {
-      registrar('prioridad', it, '', it.prioridad ? 'alta' : 'normal');
-      pintar();
-      pintarHojaItem();
-    } else { it.prioridad = !it.prioridad; }
-  };
 
   $('btnGuardarEspera').onclick = function () {
     var it = buscarItem(itemAbierto);
@@ -2194,6 +2353,24 @@
     d.setDate(d.getDate() + 1);
     d.setHours(9, 0, 0, 0);
     fijarRecordatorio(it, d);
+  };
+
+  $('btnDiaHoy').onclick = function () {
+    if (itemAbierto) { fijarFecha(itemAbierto, K.claveDia(new Date())); }
+  };
+  $('btnDiaMan').onclick = function () {
+    if (itemAbierto) { fijarFecha(itemAbierto, K.sumarDias(K.claveDia(new Date()), 1)); }
+  };
+  $('btnDiaElegir').onclick = function () {
+    var it = buscarItem(itemAbierto);
+    $('txtDia').value = it && it.fecha !== '' ? it.fecha : K.claveDia(new Date());
+    $('cajaDia').style.display = $('cajaDia').style.display === 'block' ? 'none' : 'block';
+  };
+  $('btnDiaOk').onclick = function () {
+    if (itemAbierto) { fijarFecha(itemAbierto, $('txtDia').value); }
+  };
+  $('btnSacarDia').onclick = function () {
+    if (itemAbierto) { fijarFecha(itemAbierto, ''); }
   };
 
   $('btnOtraHora').onclick = function () {
@@ -2267,7 +2444,7 @@
     var it = buscarItem(itemAbierto);
     if (!it) { return; }
     var t = it.texto + '\n(' + estadoInfo(it.estado).nom + ' \u00B7 ' +
-      (it.contexto === 'hogar' ? 'Hogar' : 'Trabajo') + ' \u00B7 KCO)';
+      nomCtx(it.contexto) + ' \u00B7 KCO)';
     if (!navigator.share) { mostrarTexto('Compartir item', t); return; }
     compartir('KCO', t);
   };
@@ -2450,6 +2627,8 @@
   modoLuz = leer(K_LUZ) === '1';
   var vg = leer(K_VISTA);
   vista = (vg === 'registro' || vg === 'compras') ? vg : 'tablero';
+  var cc = leer(K_CTXCAP);
+  ctxCaptura = K.contextoValido(cc) ? cc : 'trabajo';
   aplicarContexto(leer(K_CTX) || 'trabajo', false);
   pintarFirma();
 
@@ -2460,7 +2639,7 @@
   window.onpopstate = function () { alVolverAtras(); };
 
   conectarSwipe(document.getElementsByTagName('main')[0], swipeVistas);
-  conectarSwipe(document.getElementsByTagName('header')[0], function () { swipeContexto(); });
+  conectarSwipe(document.getElementsByTagName('header')[0], swipeContexto);
 
   if (vista !== 'tablero') { anclaPuesta = empujarHistorial({ kcoAncla: true }); }
 

@@ -32,6 +32,10 @@ body.ctx-hogar{
   --acc:#00E5FF;
   --accsuave:rgba(0,229,255,.12);
 }
+body.ctx-apps{--acc:#A78BFA;--accsuave:rgba(167,139,250,.13)}
+body.ctx-contenido{--acc:#FF5FA2;--accsuave:rgba(255,95,162,.12)}
+body.ctx-personal{--acc:#3DDC84;--accsuave:rgba(61,220,132,.12)}
+body.ctx-todo{--acc:#F5C451;--accsuave:rgba(245,196,81,.12)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%}
 body{
@@ -51,8 +55,9 @@ header{background:var(--card);border-bottom:1px solid var(--linea);padding:calc(
 /* Punto rojo sobre el engranaje cuando hace mucho que no se saca backup. */
 .iconobtn.avisa:after{content:'';position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--rojo);border:1.5px solid var(--card)}
 .iconobtn:active{border-color:var(--acc);color:var(--acc)}
-.ctxsel{display:flex;gap:6px;margin-top:0;flex:1;min-width:0}
-.ctxbtn{flex:1;min-width:0;padding:9px 6px;min-height:42px;border-radius:9px;cursor:pointer;border:1px solid var(--linea);background:var(--card2);color:var(--txt2);font-size:13px;font-weight:600;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctxsel{display:flex;gap:6px;margin-top:0;flex:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.ctxsel::-webkit-scrollbar{display:none}
+.ctxbtn{flex:0 0 auto;padding:9px 11px;min-height:42px;border-radius:9px;cursor:pointer;border:1px solid var(--linea);background:var(--card2);color:var(--txt2);font-size:13px;font-weight:600;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ctxbtn.on{background:var(--acc);border-color:var(--acc);color:var(--sobreacc)}
 /* Captura fija en el borde inferior: zona del pulgar, siempre visible,
    un solo toque para escribir y Enter para guardar. */
@@ -112,7 +117,13 @@ li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-throug
 .linea2{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:6px}
 .badge{font-family:var(--mono);font-size:10.5px;padding:2px 6px;border-radius:6px;border:1px solid var(--linea2);color:var(--txt2);white-space:nowrap}
 .badge.est{color:var(--acc);border-color:var(--acc)}
-.badge.prio{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
+.badge.prio,.badge.niv-urgente{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
+.badge.niv-importante{color:var(--amar);border-color:var(--amar)}
+.badge.niv-baja{color:var(--txt2);border-style:dashed}
+.badge.dia{color:var(--txt)}
+.badge.dia.vencido{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
+li.item.imp{border-left:3px solid var(--amar)}
+li.item.baja .txt{color:var(--txt2)}
 .badge.rec{color:var(--amar);border-color:var(--amar)}
 .badge.rec.vencido{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
 .badge.pausa{color:var(--amar);border-color:var(--amar);background:rgba(240,180,41,.10)}
@@ -226,9 +237,9 @@ body.luz li.item{border-width:1px}
 .bloque.pri{background:var(--acc);border-color:var(--acc);color:var(--sobreacc);font-weight:600}
 .bloque.peli{color:#FF9A94;border-color:rgba(255,59,48,.35)}
 textarea{width:100%;min-height:130px;padding:12px;border-radius:9px;background:var(--bg);border:1px solid var(--linea);color:var(--txt);font-size:13.5px;font-family:var(--mono);resize:vertical}
-input[type=text],input[type=time],textarea{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:15px;outline:none;font-family:inherit}
+input[type=text],input[type=time],input[type=date],textarea{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:15px;outline:none;font-family:inherit}
 textarea{resize:vertical;min-height:76px;line-height:1.4}
-input[type=time]{font-family:var(--mono)}
+input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
 #txtBusca{margin-bottom:10px}
 .etq{display:inline-block;font-size:10.5px;color:var(--txt2);border:1px solid var(--linea2);border-radius:5px;padding:1px 6px;margin-bottom:5px;font-family:var(--mono)}
 .aviso{background:var(--rojosuave);border:1px solid var(--rojo);color:#FFB4AF;border-radius:10px;padding:11px 12px;margin:12px 12px 0 12px;font-size:13.5px;display:none}
@@ -241,10 +252,7 @@ input[type=time]{font-family:var(--mono)}
 
 <header>
   <div class="fila">
-    <div class="ctxsel">
-      <button class="ctxbtn on" id="btnTrabajo" type="button">&#127981; TRABAJO</button>
-      <button class="ctxbtn" id="btnHogar" type="button">&#127968; HOGAR</button>
-    </div>
+    <div class="ctxsel scroll-x" id="ctxsel" role="toolbar" aria-label="Contexto"></div>
     <button class="iconobtn" id="btnBuscar" type="button" aria-label="Buscar">&#128269;</button>
     <button class="iconobtn" id="btnAjustes" type="button" aria-label="Ajustes">&#9881;</button>
   </div>
@@ -335,8 +343,23 @@ input[type=time]{font-family:var(--mono)}
     <button class="gbtn" id="btnPausa" type="button" style="width:100%;display:none;margin-top:7px">&#9208; Pausar / En espera</button>
 
     <div class="rot">Prioridad</div>
-    <button class="gbtn rojo" id="btnPrioridad" type="button" style="width:100%">&#128308; Prioridad alta</button>
+    <div class="grid" id="gridNivel"></div>
     <button class="gbtn" id="btnAnclar" type="button" style="width:100%;margin-top:7px">&#128204; Anclar arriba de todo</button>
+
+    <div class="rot">Dia</div>
+    <div class="grid3">
+      <button class="gbtn" id="btnDiaHoy" type="button">Hoy</button>
+      <button class="gbtn" id="btnDiaMan" type="button">Ma&ntilde;ana</button>
+      <button class="gbtn" id="btnDiaElegir" type="button">Elegir dia</button>
+    </div>
+    <div id="cajaDia" style="display:none">
+      <input id="txtDia" type="date">
+      <button class="bloque" id="btnDiaOk" type="button">Agendar ese dia</button>
+    </div>
+    <button class="bloque" id="btnSacarDia" type="button" style="display:none">Sacar el dia</button>
+
+    <div class="rot">Contexto</div>
+    <div class="grid" id="gridCtx"></div>
 
     <div class="rot">Checklist</div>
     <div id="listaPasos"></div>
