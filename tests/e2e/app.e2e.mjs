@@ -840,6 +840,66 @@ export const tests = [
     }
   },
   {
+    name: 'multi-tab: a preference-only change keeps this window writable',
+    async fn(page) {
+      for (const k of ['kibco.contexto', 'kibco.contextoCaptura', 'kibco.filtro', 'kibco.filtroCompra', 'kibco.filtroTag',
+        'kibco.luz', 'kibco.vista', 'kibco.ultimoBackup', 'kibco.solicitantes', 'kibco.destinos']) {
+        await page.eval(`window.dispatchEvent(new StorageEvent('storage',{key:${JSON.stringify(k)},newValue:'x'}))`);
+      }
+      assert.doesNotMatch(await page.text('#aviso'), /otra ventana/);
+      await capture(page, 'sigue escribiendo');
+      assert.ok((await items(page)).some((i) => i.texto === 'sigue escribiendo'), 'not read-only');
+      await page.eval("window.dispatchEvent(new StorageEvent('storage',{key:null}))");
+      assert.match(await page.text('#aviso'), /otra ventana/, 'a full clear still counts');
+    }
+  },
+  {
+    name: 'data: corrupt progreso that cannot be quarantined is re-seeded in memory only',
+    seed: (() => {
+      const list = [];
+      for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
+        creado: new Date(Date.now() - 86400000 * (i + 3)).toISOString(), estadoDesde: new Date(Date.now() - 86400000 * (i + 2)).toISOString() });
+      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list), 'kibco.progreso': '{roto', 'kibco.eventos': '[]' };
+    })(),
+    async fn(page) {
+      await page.cdp.send('Page.addScriptToEvaluateOnNewDocument', { source:
+        "(function(){var o=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(String(k).indexOf('.roto.')>-1){throw new Error('quota');}return o.call(this,k,v);};})()" });
+      await page.setStorage(this.seed);
+      await page.reload();
+      await page.reload();
+      const keys = await page.eval('Object.keys(localStorage)');
+      assert.equal(keys.filter((k) => k.indexOf('.roto.') > -1).length, 0, 'no copy could be made');
+      assert.equal(await page.storage('kibco.progreso'), '{roto', 'the unreadable value is never overwritten');
+      await capture(page, 'nueva sin copia');
+      await page.click('.hero [data-hero="hecho"]');
+      assert.ok(!(await events(page)).some((e) => e.tipo === 'logro' || e.tipo === 'nivel'), 'no fake achievement or level events');
+      assert.equal(await page.storage('kibco.progreso'), '{roto');
+    }
+  },
+  {
+    name: 'ux: the five tabs fit at 390px without clipping',
+    async fn(page) {
+      const r = await page.eval(`(function(){var n=document.querySelector('.tabs'),t=n.querySelectorAll('.tab'),w=window.innerWidth,bad=[];
+        for(var i=0;i<t.length;i++){var b=t[i].getBoundingClientRect();if(b.left<0||b.right>w+0.5||t[i].scrollWidth>t[i].clientWidth)bad.push(t[i].id);}
+        return {n:t.length,bad:bad,over:n.scrollWidth>n.clientWidth};})()`);
+      assert.equal(r.n, 5);
+      assert.deepEqual(r.bad, [], 'every tab fully visible');
+      assert.equal(r.over, false, 'no horizontal scroll in the tab bar');
+    }
+  },
+  {
+    name: 'ux: the five tabs fit at 340px without clipping',
+    width: 340,
+    height: 740,
+    async fn(page) {
+      const r = await page.eval(`(function(){var t=document.querySelectorAll('.tabs .tab'),w=window.innerWidth,bad=[];
+        for(var i=0;i<t.length;i++){var b=t[i].getBoundingClientRect();if(b.left<0||b.right>w+0.5||t[i].scrollWidth>t[i].clientWidth)bad.push(t[i].id);}
+        return {bad:bad,page:document.documentElement.scrollWidth>w};})()`);
+      assert.deepEqual(r.bad, []);
+      assert.equal(r.page, false, 'no horizontal page scroll');
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');

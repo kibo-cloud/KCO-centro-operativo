@@ -118,3 +118,14 @@ test('S7 xp is deterministic for ties: same result whatever the input order', ()
   assert.deepEqual(vuelta.porContexto, ida.porContexto);
   assert.equal(ida.porContexto['#hogar'], 10, 'lowest id is counted first');
 });
+
+test('L8 the age check reads ids in the exact format the app generates', () => {
+  // Same expression as nuevoId('h') in kco-app.js.
+  const nuevoId = (p) => (p || 'i') + Date.now() + '-' + Math.floor(Math.random() * 100000);
+  const id = nuevoId('h');
+  const t0 = parseInt(id.slice(1, id.indexOf('-')), 10);
+  const hito = (cuando) => ({ id: 'p', nombre: 'P', contexto: 'apps', estado: 'activo', terminado: '',
+    hitos: [{ id, texto: 'real', hecho: true, cuando: new Date(t0 + cuando).toISOString() }] });
+  assert.equal(C.calcularXP([], [hito(60000)]).total, 0, 'ticked one minute after creating it');
+  assert.equal(C.calcularXP([], [hito(11 * 60000)]).total, C.XP.hito, 'ticked eleven minutes later');
+});

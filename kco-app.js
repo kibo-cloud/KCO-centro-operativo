@@ -4408,7 +4408,9 @@
   cargarCatalogos();
   aplicarMigracion4();
   generarOcurrencias();
-  if (progresoNuevo && !soloLectura) {
+  /* Sin copia posible tambien se siembra, pero solo en memoria (guardarProgreso
+     no escribe): asi no se festejan logros y niveles viejos en cada carga. */
+  if ((progresoNuevo || progresoSinCopia) && !soloLectura) {
     memProgreso.nivelVisto = K.nivelPorXP(xpTotal()).nivel;
     revisarLogros(true);
     guardarProgreso();
@@ -4440,11 +4442,13 @@
 
   /* Otra pestaña o ventana de KCO cambio los datos: lo que esta en memoria aca
      ya es viejo y guardarlo pisaria lo nuevo. Se deja de escribir hasta recargar.
-     Las copias de cuarentena (.roto.) no son datos vivos. key null = se borro todo. */
+     Solo cuentan las claves de datos: preferencias (contexto, filtros, luz,
+     catalogos) y copias de cuarentena no pisan nada. key null = se borro todo. */
+  var CLAVES_DATOS = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA];
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('storage', function (ev) {
       var k = ev ? ev.key : null;
-      if (k !== null && (typeof k !== 'string' || k.indexOf('kibco.') !== 0 || k.indexOf('.roto.') > -1)) { return; }
+      if (k !== null && CLAVES_DATOS.indexOf(k) < 0) { return; }
       soloLectura = true;
       avisar('Los datos cambiaron en otra ventana de KCO. Recarga para seguir sin pisar nada.');
     });

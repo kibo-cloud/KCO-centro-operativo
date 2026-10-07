@@ -18,7 +18,7 @@
   --linea:rgba(255,255,255,.07);
   --linea2:rgba(255,255,255,.13);
   --txt:#E8EAED;
-  --txt2:#7C8595;
+  --txt2:#828B9B;
   --acc:#FF6B2B;
   --sobreacc:#0D0F12;
   --accsuave:rgba(255,107,43,.12);
@@ -37,6 +37,8 @@ body.ctx-contenido{--acc:#FF5FA2;--accsuave:rgba(255,95,162,.12)}
 body.ctx-personal{--acc:#3DDC84;--accsuave:rgba(61,220,132,.12)}
 body.ctx-todo{--acc:#F5C451;--accsuave:rgba(245,196,81,.12)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* La app es oscura siempre: barras de scroll y controles nativos tambien. */
+html{color-scheme:dark}
 html,body{margin:0;padding:0;height:100%}
 body{
   background:var(--bg);color:var(--txt);
@@ -79,8 +81,16 @@ header{background:var(--card);border-bottom:1px solid var(--linea);padding:calc(
 .cat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cat button{flex:0 0 auto;background:none;border:0;color:var(--txt2);font-size:14px;line-height:1;padding:2px 3px;cursor:pointer}
 .tabs{display:flex;background:var(--card);border-bottom:1px solid var(--linea);overflow-x:auto;scrollbar-width:none}
+/* Las cinco vistas entran siempre sin scroll: cada pestana toma un quinto y en
+   pantallas angostas el icono va arriba de un rotulo chico. */
 .tabs::-webkit-scrollbar{display:none}
-.tab{flex:1 0 auto;padding:9px 8px;white-space:nowrap;background:none;border:0;border-bottom:2px solid transparent;color:var(--txt2);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.5px}
+.tab{flex:1 1 0;min-width:0;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:6px 2px;white-space:nowrap;overflow:hidden;background:none;border:0;border-bottom:2px solid transparent;color:var(--txt2);font-size:10.5px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.2px}
+.tab-ico{font-size:15px;line-height:1.1}
+.tab-rot{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+@media (min-width:520px){
+  .tab{flex-direction:row;gap:6px;padding:9px 6px;font-size:12.5px;letter-spacing:.5px}
+  .tab-ico{font-size:13px}
+}
 .tab.on{color:var(--acc);border-bottom-color:var(--acc)}
 main{flex:1;padding:8px 12px 84px 12px;overflow-y:auto}
 .prog{background:none;border:0;border-radius:0;padding:0;margin-bottom:9px}
@@ -91,6 +101,7 @@ main{flex:1;padding:8px 12px 84px 12px;overflow-y:auto}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;-webkit-overflow-scrolling:touch}
 /* Estado y clasificacion comparten una sola fila desplazable. */
 .chipsfila{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;-webkit-overflow-scrolling:touch}
+.chips,.chipsfila{scrollbar-width:thin;scrollbar-color:var(--linea2) transparent}
 .chipsfila .chips{overflow-x:visible;padding-bottom:0;flex:0 0 auto}
 .chipsfila .chips:empty{display:none}
 .chip{flex:0 0 auto;padding:9px 11px;min-height:42px;border-radius:8px;cursor:pointer;border:1px solid var(--linea);background:var(--card);color:var(--txt2);font-size:11.5px;font-family:var(--mono);white-space:nowrap}
@@ -217,12 +228,13 @@ body.luz li.item{border-width:1px}
 .deshacer button{
   flex:0 0 auto;background:none;border:1px solid var(--acc);color:var(--acc);
   border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;font-family:var(--mono);cursor:pointer;
-  min-height:40px;
+  min-height:44px;
 }
 .chipsTag{margin-top:-4px}
 @media (prefers-reduced-motion: reduce){
   .hoja,.tapa{transition:none}
-  li.item.nuevo,main.hacia-der > div,main.hacia-izq > div{animation:none}
+  li.item.nuevo,main.hacia-der > div,main.hacia-izq > div,.deshacer.on{animation:none}
+  button,.barra i,#txtCaptura{transition:none}
 }
 .hoja h2{margin:0 0 10px 0;font-size:16px;font-weight:600}
 .hoja .sub{color:var(--txt2);font-size:12px;margin:-4px 0 14px 0;font-family:var(--mono)}
@@ -273,7 +285,7 @@ input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
 .hero-accs{display:flex;gap:7px;margin-top:10px}
 .hero-accs .bloque{margin-top:0;flex:1 1 0;min-width:0;padding:11px 6px;font-size:13.5px;min-height:46px}
 .hero-sig{margin-top:10px;padding-top:9px;border-top:1px solid var(--linea);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:10.5px;color:var(--txt2)}
-.linkbtn{background:var(--card2);border:1px solid var(--linea);color:var(--txt);border-radius:7px;padding:6px 9px;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:34px}
+.linkbtn{background:var(--card2);border:1px solid var(--linea);color:var(--txt);border-radius:7px;padding:6px 9px;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:44px}
 .hoy-cab{display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 6px 0}
 .hoy-fecha{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:1px;color:var(--acc)}
 .hoy-cuenta{color:var(--txt2);font-size:12px}
@@ -356,6 +368,22 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
 .logro-est{color:var(--txt2);margin-top:3px}
 .logro.ganado .logro-est{color:#FFD166}
 .deshacer.celebra{border-color:var(--acc);background:linear-gradient(90deg,var(--accsuave),var(--card2))}
+/* Foco de teclado visible en el color del contexto (el toque no lo muestra). */
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,#txtCaptura:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.tab:focus-visible{outline-offset:-3px}
+/* Escritorio: la app es una columna legible al centro; las barras siguen de
+   borde a borde pero su contenido se alinea con esa columna. */
+@media (min-width:760px){
+  header{padding-left:calc((100% - 720px) / 2 + 10px);padding-right:calc((100% - 720px) / 2 + 10px)}
+  .tabs{padding:0 calc((100% - 720px) / 2)}
+  main{padding-left:calc((100% - 720px) / 2 + 12px);padding-right:calc((100% - 720px) / 2 + 12px)}
+  .aviso{max-width:696px;margin:12px auto 0 auto}
+  .captura{padding-left:calc((100% - 720px) / 2 + 10px);padding-right:calc((100% - 720px) / 2 + 10px)}
+  .deshacer{left:calc((100% - 720px) / 2 + 10px);right:calc((100% - 720px) / 2 + 10px)}
+  .ctxbtn{padding:9px 9px}
+  .tapa{justify-content:center}
+  .hoja{max-width:640px;border-left:1px solid var(--linea2);border-right:1px solid var(--linea2)}
+}
 </style>
 </head>
 <body class="ctx-trabajo">
@@ -368,14 +396,14 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
   </div>
 </header>
 
-<div class="aviso" id="aviso"></div>
+<div class="aviso" id="aviso" role="alert"></div>
 
 <nav class="tabs" role="tablist" aria-label="Vistas">
-  <button class="tab on" id="tabAhora" type="button" role="tab">&#9889; AHORA</button>
-  <button class="tab" id="tabHoy" type="button" role="tab">&#128197; HOY</button>
-  <button class="tab" id="tabTareas" type="button" role="tab">&#9745; TAREAS</button>
-  <button class="tab" id="tabMisiones" type="button" role="tab">&#127919; MISIONES</button>
-  <button class="tab" id="tabRegistro" type="button" role="tab">&#128214; DIARIO</button>
+  <button class="tab on" id="tabAhora" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#9889;</span><span class="tab-rot">AHORA</span></button>
+  <button class="tab" id="tabHoy" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#128197;</span><span class="tab-rot">HOY</span></button>
+  <button class="tab" id="tabTareas" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#9745;</span><span class="tab-rot">TAREAS</span></button>
+  <button class="tab" id="tabMisiones" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#127919;</span><span class="tab-rot">MISIONES</span></button>
+  <button class="tab" id="tabRegistro" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#128214;</span><span class="tab-rot">DIARIO</span></button>
 </nav>
 
 <main>
@@ -449,7 +477,7 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
          placeholder="Escribi y Enter &middot; 18:00 o @9:30 toma la hora">
 </div>
 
-<div class="deshacer" id="barraDeshacer">
+<div class="deshacer" id="barraDeshacer" role="status" aria-live="polite">
   <div class="qpaso" id="qpaso"></div>
   <button type="button" id="btnDeshacer">DESHACER</button>
 </div>
