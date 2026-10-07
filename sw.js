@@ -1,12 +1,14 @@
 /* KCO — Centro Operativo Personal — service worker */
 'use strict';
 
-var VERSION = '1.1.1';
-var CACHE = 'kibco-v15';
+var VERSION = '2.0.0';
+var CACHE = 'kibco-v16';
 
 var ARCHIVOS = [
   './',
   './index.html',
+  './kco-core.js',
+  './kco-app.js',
   './manifest.webmanifest',
   './icono-192.png',
   './icono-512.png'
@@ -15,7 +17,13 @@ var ARCHIVOS = [
 self.addEventListener('install', function (ev) {
   ev.waitUntil(
     caches.open(CACHE).then(function (cache) {
-      return cache.addAll(ARCHIVOS);
+      /* cache: 'reload' saltea la cache HTTP: una version nueva nunca se arma
+         con archivos viejos que el navegador tenia guardados. */
+      var pedidos = [], i;
+      for (i = 0; i < ARCHIVOS.length; i++) {
+        pedidos.push(new Request(ARCHIVOS[i], { cache: 'reload' }));
+      }
+      return cache.addAll(pedidos);
     }).then(function () {
       return self.skipWaiting();
     })
