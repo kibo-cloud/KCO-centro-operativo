@@ -52,10 +52,10 @@ context without isolating risk. Tests/builds run inline as bounded actions.
 - [x] T08 Gamification: XP (anti-farming), levels.
 - [x] T09 Achievements (incl. secret) + global activity streak.
 - [x] T10 Campaign / stats view.
-- [ ] T12a Data hardening from Judgment Day 1f8a47e (L1-L8, S1-S7, S9) — delegated writer, native RDD.
-- [ ] T11 UX polish (mobile/desktop screenshots review), a11y.
+- [x] T12a Data hardening from Judgment Day 1f8a47e (L1-L8, S1-S7, S9) — delegated writer, native RDD.
+- [x] T11 UX polish (mobile/desktop screenshots review), a11y.
 - [ ] T12 Backup/restore of new collections, PWA offline E2E, security review.
-- [ ] T13 Cleanup, docs (LEEME, CHANGELOG, data model), release v2.0.0.
+- [x] T13 Cleanup, docs (LEEME, CHANGELOG, data model), release v2.0.0.
 
 ## Acceptance
 
@@ -75,5 +75,9 @@ See prompt section 36 (product completeness) — tracked in the final report.
 | T08 | 5cca131 | unit 42, e2e 41 |
 | T09-T10 | 894a1eb | unit 48, e2e 43 |
 | JD | 1f8a47e | Judgment Day APPROVED (0 critical); warnings scheduled as T12a |
+| T12a | e77a053, db0b471, a022ec4 | native RDD review-3af1db6d03e1264a approved and acknowledged; delegated writer |
+| T11 | ec65898 | unit 59, e2e 60; screenshots 360/390/1280 reviewed by parent |
+| T12 (open) | - | already covered by e2e: `backup: text export + file restore round-trip`, `recurring: routines travel in the backup and come back on restore`, `missions: travel in the backup`, `backup: a pre-2.0 backup (no progreso) is re-seeded silently`, `backup: a failed write rolls the whole restore back`, `backup: restore is refused while stored data is from a newer schema`, `backup: a hostile logros key neither throws nor half-restores`, `pwa: service worker caches the shell and the app boots offline`, `security: user text is never parsed as HTML`, plus the ES5/HTML-sink static gate. Pending for the parent: security review sign-off and final tick |
+| T13 | (this commit) | version 2.0.0, cache kibco-v16; LEEME + CHANGELOG 2.0.0, docs/ARQUITECTURA.md, docs/TESTING.md; es5 ok, unit 59/59, e2e 60/60 |
 
-Native RDD review: not started. Each START requires a per-candidate human consent prompt; the user ordered an uninterrupted autonomous run, so candidates are left for the user to review (switch left untouched).
+Native RDD review (T01-T10): not started. Each START requires a per-candidate human consent prompt; the user ordered an uninterrupted autonomous run, so candidates are left for the user to review (switch left untouched).

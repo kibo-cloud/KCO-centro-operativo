@@ -1,5 +1,8 @@
 # Audit — KCO v1.1.1 (baseline before Personal Control Center)
 
+> Historical snapshot of v1.1.1. For the current (2.0.0) architecture see `docs/ARQUITECTURA.md`.
+> Correction: the storage usage is **not** monitored in Ajustes in 2.0.0; a storage meter is listed in the LEEME backlog.
+
 Date: 2026-10-07. Baseline commit: `7fd5627`.
 
 ## What exists

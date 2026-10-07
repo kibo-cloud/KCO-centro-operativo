@@ -1,6 +1,6 @@
 {
   "name": "kco-centro-operativo",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "private": true,
   "description": "KCO Personal Control Center - static PWA. No runtime or dev dependencies.",
   "scripts": {

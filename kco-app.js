@@ -3,7 +3,7 @@
   'use strict';
 
   var K = window.KCOCore;
-  var VERSION_APP = '1.1.1';
+  var VERSION_APP = '2.0.0';
   /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
      Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
   var ESQUEMA = 4;
