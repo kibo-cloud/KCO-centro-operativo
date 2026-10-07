@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -64,9 +64,28 @@ export async function launchBrowser() {
   return {
     port,
     async close() {
-      proc.kill();
-      await sleep(300);
-      try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* locked on Windows */ }
+      // Edge's launcher exits early and the real browser is re-parented, so a
+      // plain kill leaks a whole process tree that keeps the ~450 MB profile
+      // locked. Close the browser over CDP, then kill anything still holding
+      // this run's unique profile directory.
+      try {
+        const v = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
+        const ws = new WebSocket(v.webSocketDebuggerUrl);
+        await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+        ws.send(JSON.stringify({ id: 1, method: 'Browser.close' }));
+        await sleep(1500);
+      } catch { /* already gone */ }
+      try { proc.kill(); } catch { /* ignore */ }
+      if (process.platform === 'win32') {
+        const tag = path.basename(dir).replace(/'/g, '');
+        spawnSync('powershell', ['-NoProfile', '-Command',
+          `Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${tag}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`],
+          { stdio: 'ignore' });
+      }
+      for (let i = 0; i < 10; i++) {
+        try { fs.rmSync(dir, { recursive: true, force: true }); break; } catch { await sleep(300); }
+      }
+      if (fs.existsSync(dir)) console.log('  warn: could not remove browser profile ' + dir);
     }
   };
 }
