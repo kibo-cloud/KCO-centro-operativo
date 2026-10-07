@@ -78,8 +78,9 @@ header{background:var(--card);border-bottom:1px solid var(--linea);padding:calc(
 .cat{display:flex;align-items:center;gap:7px;border:1px solid var(--linea2);border-radius:8px;padding:7px 9px;font-size:12px;font-family:var(--mono);color:var(--txt2);max-width:100%}
 .cat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cat button{flex:0 0 auto;background:none;border:0;color:var(--txt2);font-size:14px;line-height:1;padding:2px 3px;cursor:pointer}
-.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--linea)}
-.tab{flex:1;padding:9px 4px;background:none;border:0;border-bottom:2px solid transparent;color:var(--txt2);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.5px}
+.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--linea);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1 0 auto;padding:9px 8px;white-space:nowrap;background:none;border:0;border-bottom:2px solid transparent;color:var(--txt2);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.5px}
 .tab.on{color:var(--acc);border-bottom-color:var(--acc)}
 main{flex:1;padding:8px 12px 84px 12px;overflow-y:auto}
 .prog{background:none;border:0;border-radius:0;padding:0;margin-bottom:9px}
@@ -291,6 +292,22 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
 .histo .h{flex:0 0 46px;color:var(--txt2);font-size:11.5px}
 .histo .s{flex:0 0 22px;font-size:15px}
 .histo .d{flex:1;color:var(--txt2)}
+.mision{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--linea);border-radius:12px;padding:12px;margin-bottom:8px;color:var(--txt);cursor:pointer;font-size:14px}
+.mision:active{border-color:var(--acc)}
+.mision.compacta{padding:10px 12px}
+.mision.fin{opacity:.6}
+.mision.pausa{border-style:dashed}
+.mis-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:7px}
+.mis-nom{font-weight:600;font-size:15px;word-break:break-word}
+.mis-pct{color:var(--acc);font-size:14px}
+.mis-prox{color:var(--acc);font-size:13.5px;margin-top:8px;word-break:break-word}
+.mis-prox.vacia{color:var(--txt2);font-style:italic}
+.mis-meta{color:var(--txt2);font-size:11px;margin-top:5px}
+.misprog{display:flex;gap:12px;align-items:center;margin:14px 0 4px 0}
+.misprog > b{font-size:28px;color:var(--acc);min-width:64px}
+.mis-proxbox{border:1px solid var(--acc);background:var(--accsuave);border-radius:10px;padding:10px 11px}
+.mis-proxbox .mis-prox{margin-top:0;font-size:15px;font-weight:600}
+.deshacer.celebra{border-color:var(--acc);background:linear-gradient(90deg,var(--accsuave),var(--card2))}
 </style>
 </head>
 <body class="ctx-trabajo">
@@ -309,6 +326,7 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
   <button class="tab on" id="tabAhora" type="button" role="tab">&#9889; AHORA</button>
   <button class="tab" id="tabHoy" type="button" role="tab">&#128197; HOY</button>
   <button class="tab" id="tabTareas" type="button" role="tab">&#9745; TAREAS</button>
+  <button class="tab" id="tabMisiones" type="button" role="tab">&#127919; MISIONES</button>
   <button class="tab" id="tabRegistro" type="button" role="tab">&#128214; DIARIO</button>
 </nav>
 
@@ -349,6 +367,10 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
     <div class="chips scroll-x" id="chipsCompra"></div>
     <ul id="listaCompras" class="lista"></ul>
     <div class="vacio" id="vacioCompras">Sin compras. Convertí una tarea en compra desde su ficha.</div>
+  </div>
+
+  <div id="vistaMisiones" style="display:none">
+    <div id="misionesCuerpo"></div>
   </div>
 
   <div id="vistaRegistro" style="display:none">
@@ -431,6 +453,11 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
 
     <div class="rot">Contexto</div>
     <div class="grid" id="gridCtx"></div>
+
+    <div id="cajaMision" style="display:none">
+      <div class="rot">&#127919; Mision</div>
+      <div class="grid" id="gridMision"></div>
+    </div>
 
     <div class="rot">Checklist</div>
     <div id="listaPasos"></div>
@@ -522,6 +549,46 @@ li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
       <button class="bloque peli" id="btnBorrarRutina" type="button">&#128465; Borrar definicion</button>
     </div>
     <button class="bloque" id="btnCerrarRutina" type="button">Cerrar</button>
+  </div>
+</div>
+
+<div class="tapa" id="tapaMision">
+  <div class="hoja">
+    <h2 id="misTitulo">Nueva mision</h2>
+    <div class="sub" id="misSub"></div>
+    <input id="txtMisNombre" type="text" autocomplete="off" autocapitalize="sentences" maxlength="120"
+           placeholder="Nombre. Ej: TU GASTO - ALFA">
+    <textarea id="txtMisObjetivo" maxlength="600" style="margin-top:8px"
+              placeholder="Objetivo: que tiene que ser verdad cuando termine"></textarea>
+    <div class="rot">Contexto</div>
+    <div class="grid" id="gridMisCtx"></div>
+    <button class="bloque pri" id="btnGuardarMision" type="button">Crear mision</button>
+    <div id="cajaMisExistente" style="display:none">
+      <div class="misprog">
+        <b class="mono" id="misPctTxt">0%</b>
+        <div class="crece">
+          <div class="barra"><i id="misPctBarra"></i></div>
+          <div class="mono mis-meta" id="misPctDet"></div>
+        </div>
+      </div>
+      <div class="rot">Proxima accion</div>
+      <div id="misProxima"></div>
+      <div class="rot">Hitos</div>
+      <div id="misHitos"></div>
+      <input id="txtHito" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
+             maxlength="160" placeholder="Nuevo hito. Ej: QA aprobado">
+      <button class="bloque" id="btnAgregarHito" type="button">Agregar hito</button>
+      <div class="rot">Tareas de la mision</div>
+      <ul class="lista" id="misTareas"></ul>
+      <input id="txtMisTarea" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
+             placeholder="Nueva tarea de esta mision">
+      <button class="bloque" id="btnAgregarMisTarea" type="button">Agregar tarea</button>
+      <div class="rot">Estado</div>
+      <button class="bloque" id="btnMisPausa" type="button">&#9208; Pausar mision</button>
+      <button class="bloque pri" id="btnMisTerminar" type="button">&#127937; Completar mision</button>
+      <button class="bloque peli" id="btnMisBorrar" type="button">&#128465; Borrar mision</button>
+    </div>
+    <button class="bloque" id="btnCerrarMision" type="button">Cerrar</button>
   </div>
 </div>
 

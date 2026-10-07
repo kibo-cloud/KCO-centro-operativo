@@ -442,6 +442,93 @@ export const tests = [
     }
   },
   {
+    name: 'missions: create, add milestones and tasks, next action is concrete',
+    async fn(page) {
+      await page.click('#tabMisiones');
+      await page.click('#btnNuevaMision');
+      await page.type('#txtMisNombre', 'TU GASTO - ALFA');
+      await page.type('#txtMisObjetivo', 'Primera version usable');
+      await page.click('#gridMisCtx [data-ctx="apps"]');
+      await page.click('#btnGuardarMision');
+      for (const h of ['Auditoria', 'QA', 'Preparar release']) {
+        await page.type('#txtHito', h, true);
+      }
+      await page.type('#txtMisTarea', 'Revisar resultado del audit', true);
+      const [p] = JSON.parse(await page.storage('kibco.proyectos'));
+      assert.equal(p.hitos.length, 3);
+      assert.equal(p.contexto, 'apps');
+      const t = (await items(page)).find((i) => i.proyectoId === p.id);
+      assert.equal(t.texto, 'Revisar resultado del audit');
+      assert.match(await page.text('#misProxima'), /Revisar resultado del audit/);
+      await page.click('#misHitos [data-hito="' + p.hitos[0].id + '"]');
+      assert.equal(await page.text('#misPctTxt'), '33%');
+      await page.screenshot(path.join(OUT, 'mision.png'));
+      await page.click('#misProxima [data-mis="hecho"]');
+      assert.equal((await items(page)).find((i) => i.id === t.id).estado, 'completado');
+      assert.match(await page.text('#misProxima'), /Hito: QA/, 'falls back to next milestone');
+      assert.ok((await events(page)).some((e) => e.tipo === 'hito'));
+    }
+  },
+  {
+    name: 'missions: link a task from its sheet; AHORA shows the mission next move',
+    storage: misionSeed(),
+    async fn(page) {
+      await capture(page, 'Escribir changelog');
+      await openFirstItem(page);
+      await page.click('#gridMision [data-mision="pkco"]');
+      assert.equal((await items(page)).find((i) => i.texto === 'Escribir changelog').proyectoId, 'pkco');
+      await page.click('#btnCerrarItem');
+      await page.click('#tabAhora');
+      assert.match(await page.text('#secMisiones'), /KCO/);
+      assert.match(await page.text('#secMisiones'), /Escribir changelog/);
+      await page.click('#tabMisiones');
+      await page.screenshot(path.join(OUT, 'misiones.png'));
+    }
+  },
+  {
+    name: 'missions: completing with open tasks asks first, then records it',
+    storage: misionSeed(),
+    async fn(page) {
+      await page.click('#tabMisiones');
+      await page.click('[data-mision="pkco"]');
+      await page.type('#txtMisTarea', 'pendiente suelta', true);
+      await page.click('#btnMisTerminar');
+      assert.ok(await page.visible('#tapaConfirmar .hoja'));
+      await page.click('#btnConfSi');
+      const [p] = JSON.parse(await page.storage('kibco.proyectos'));
+      assert.equal(p.estado, 'terminado');
+      assert.ok(p.terminado);
+      assert.ok((await events(page)).some((e) => e.tipo === 'mision_fin'));
+      await page.click('#btnMisTerminar');
+      assert.equal(JSON.parse(await page.storage('kibco.proyectos'))[0].estado, 'activo', 'can be reopened');
+    }
+  },
+  {
+    name: 'missions: deleting a mission keeps its tasks (unlinked)',
+    storage: misionSeed(true),
+    async fn(page) {
+      await page.click('#tabMisiones');
+      await page.click('[data-mision="pkco"]');
+      await page.click('#btnMisBorrar');
+      await page.click('#btnConfSi');
+      assert.equal(JSON.parse(await page.storage('kibco.proyectos')).length, 0);
+      const t = (await items(page)).find((i) => i.texto === 'tarea de mision');
+      assert.ok(t, 'task survives');
+      assert.equal(t.proyectoId, '');
+    }
+  },
+  {
+    name: 'missions: travel in the backup',
+    storage: misionSeed(true),
+    async fn(page) {
+      await page.click('#btnAjustes');
+      await page.click('#btnBackupTexto');
+      const data = JSON.parse(await page.eval("document.getElementById('txtSalida').value"));
+      assert.equal(data.proyectos.length, 1);
+      assert.equal(data.proyectos[0].hitos.length, 2);
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');
@@ -488,6 +575,14 @@ function rutinaSeed(history, extra) {
     estado, rutinaId: r.id, ocurrencia: ymd(d), creado: new Date(Date.now() + d * 86400000).toISOString(),
     estadoDesde: new Date(Date.now() + d * 86400000).toISOString() }));
   return { 'kibco.esquema': '4', 'kibco.contexto': 'todo', 'kibco.rutinas': JSON.stringify([r]), 'kibco.items': JSON.stringify(list) };
+}
+
+function misionSeed(withTask) {
+  const p = { id: 'pkco', nombre: 'KCO', objetivo: 'Personal Control Center', contexto: 'apps', estado: 'activo',
+    hitos: [{ id: 'h1', texto: 'Auditoria', hecho: true, cuando: new Date().toISOString() }, { id: 'h2', texto: 'Release' }],
+    creado: new Date().toISOString(), actualizado: new Date().toISOString() };
+  const list = withTask ? [{ id: 'mt', texto: 'tarea de mision', contexto: 'apps', tipo: 'tarea', estado: 'pendiente', proyectoId: 'pkco', creado: new Date().toISOString() }] : [];
+  return { 'kibco.esquema': '4', 'kibco.contexto': 'todo', 'kibco.contextoCaptura': 'apps', 'kibco.proyectos': JSON.stringify([p]), 'kibco.items': JSON.stringify(list) };
 }
 
 async function openFirstItem(page, estado) {

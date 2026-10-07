@@ -458,7 +458,85 @@
     return { actual: actual, mejor: mejor, hechas: hechas, total: occ.length };
   }
 
+  /* ---------- misiones (proyectos) ----------
+     Una mision tiene objetivo, hitos (la estructura: que tiene que pasar) y
+     tareas vinculadas (el trabajo diario, con proyectoId). El progreso sale de
+     los hitos si los hay, porque son la forma de la mision; si no, de las tareas. */
+
+  var ESTADOS_MISION = { activo: 1, pausado: 1, terminado: 1 };
+
+  function idValido(x) { return typeof x === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(x); }
+
+  function normalizarProyecto(p) {
+    if (!p || typeof p !== 'object' || !idValido(p.id)) { return null; }
+    var nombre = typeof p.nombre === 'string' ? limpio(p.nombre).slice(0, 120) : '';
+    if (nombre === '') { return null; }
+    var hitos = [], i, vistos = {};
+    if (Object.prototype.toString.call(p.hitos) === '[object Array]') {
+      for (i = 0; i < p.hitos.length && hitos.length < 100; i++) {
+        var h = p.hitos[i];
+        if (!h || typeof h !== 'object' || typeof h.texto !== 'string') { continue; }
+        var t = limpio(h.texto).slice(0, 160);
+        if (t === '') { continue; }
+        var hid = idValido(h.id) && !vistos['#' + h.id] ? h.id : 'h' + i + '-' + hitos.length;
+        vistos['#' + hid] = true;
+        hitos.push({ id: hid, texto: t, hecho: h.hecho === true, cuando: h.hecho === true && typeof h.cuando === 'string' ? h.cuando : '' });
+      }
+    }
+    var estado = ESTADOS_MISION[p.estado] === 1 ? p.estado : 'activo';
+    return {
+      id: p.id,
+      nombre: nombre,
+      objetivo: typeof p.objetivo === 'string' ? p.objetivo.replace(/^\s+|\s+$/g, '').slice(0, 600) : '',
+      contexto: normalizarContexto(p.contexto),
+      estado: estado,
+      hitos: hitos,
+      creado: typeof p.creado === 'string' ? p.creado : '',
+      actualizado: typeof p.actualizado === 'string' ? p.actualizado : '',
+      terminado: estado === 'terminado' && typeof p.terminado === 'string' ? p.terminado : ''
+    };
+  }
+
+  function tareasDeProyecto(id, items) {
+    var r = [], i;
+    for (i = 0; i < items.length; i++) { if (items[i].proyectoId === id) { r.push(items[i]); } }
+    return r;
+  }
+
+  function progresoProyecto(p, items) {
+    var t = tareasDeProyecto(p.id, items), th = 0, tt = 0, hh = 0, i;
+    for (i = 0; i < t.length; i++) {
+      if (t[i].estado === 'cancelado') { continue; }
+      tt++;
+      if (esHecho(t[i].estado)) { th++; }
+    }
+    for (i = 0; i < p.hitos.length; i++) { if (p.hitos[i].hecho) { hh++; } }
+    var pct = 0;
+    if (p.hitos.length > 0) { pct = Math.round((hh * 100) / p.hitos.length); }
+    else if (tt > 0) { pct = Math.round((th * 100) / tt); }
+    if (p.estado === 'terminado') { pct = 100; }
+    return { pct: pct, hitosHechos: hh, hitosTotal: p.hitos.length, tareasHechas: th, tareasTotal: tt };
+  }
+
+  /* El proximo movimiento concreto de una mision, nunca "en progreso". */
+  function proximaAccion(p, items, hoy, ahoraMs) {
+    var activas = [], i;
+    var t = tareasDeProyecto(p.id, items);
+    for (i = 0; i < t.length; i++) { if (esActivo(t[i].estado)) { activas.push(t[i]); } }
+    var r = priorizar(activas, hoy, ahoraMs);
+    if (r.length > 0) { return { tipo: 'tarea', item: r[0].item, motivo: r[0].motivo }; }
+    for (i = 0; i < p.hitos.length; i++) {
+      if (!p.hitos[i].hecho) { return { tipo: 'hito', hito: p.hitos[i], motivo: activas.length ? 'Lo demas espera' : 'Proximo hito' }; }
+    }
+    if (activas.length > 0) { return { tipo: 'espera', item: activas[0], motivo: 'Esperando o agendada' }; }
+    return null;
+  }
+
   return {
+    normalizarProyecto: normalizarProyecto,
+    tareasDeProyecto: tareasDeProyecto,
+    progresoProyecto: progresoProyecto,
+    proximaAccion: proximaAccion,
     normalizarRutina: normalizarRutina,
     tocaEnDia: tocaEnDia,
     ultimaFecha: ultimaFecha,
