@@ -215,6 +215,10 @@
     return null;
   }
 
+  /* Los ids de estado de un evento vienen de datos importados: se consulta el
+     mapa sin pasar por el prototipo ('constructor' no es un estado cerrado). */
+  function esCerradoId(x) { return Object.prototype.hasOwnProperty.call(CERRADOS, x); }
+
   function esActivo(estado) { return !CERRADOS[estado]; }
 
   /* ---------- datos ---------- */
@@ -1640,7 +1644,7 @@
     cont.appendChild(gest);
     if (vencidas.length > 0) {
       var ulV = seccion(cont, 'secVencidas', '\uD83D\uDD34 VENCIDAS', vencidas.length,
-        'Tenian dia y paso. \u23ED en la ficha o en AHORA las corre a ma\u00F1ana.');
+        'Ten\u00EDan d\u00EDa y ya pas\u00F3. \u23ED en la ficha o en AHORA las corre a ma\u00F1ana.');
       ordenar(vencidas);
       for (i = 0; i < vencidas.length; i++) { ulV.appendChild(nodoItem(vencidas[i], 'Era ' + nombreDia(K.diaDe(vencidas[i])))); }
     }
@@ -2579,8 +2583,8 @@
     for (i = 0; i < evs.length; i++) {
       var ev = evs[i];
       if (ev.tipo === 'captura') { nuevos.push(ev.texto); }
-      if (ev.tipo === 'estado' && CERRADOS[ev.hasta] && ev.hasta !== 'cancelado') { hechos.push(ev.texto); }
-      if (ev.tipo === 'estado' && !CERRADOS[ev.hasta]) {
+      if (ev.tipo === 'estado' && esCerradoId(ev.hasta) && ev.hasta !== 'cancelado') { hechos.push(ev.texto); }
+      if (ev.tipo === 'estado' && !esCerradoId(ev.hasta)) {
         movidos.push(ev.texto + ' \u2192 ' + estadoInfo(ev.hasta).nom);
       }
     }
@@ -2638,7 +2642,7 @@
       if (contexto !== 'todo' && ev.contexto !== contexto) { continue; }
       d = fechaObj(ev.ts);
       if (!d || claveDia(d) !== hoy) { continue; }
-      if (ev.tipo === 'estado' && CERRADOS[ev.hasta] && ev.hasta !== 'cancelado') {
+      if (ev.tipo === 'estado' && esCerradoId(ev.hasta) && ev.hasta !== 'cancelado') {
         hechas.push(ev.texto);
       }
       if (ev.tipo === 'comentario') { notas.push(hhmm(d) + ' ' + ev.texto + ' \u2014 ' + ev.hasta); }
@@ -3367,7 +3371,7 @@
     bi.style.width = nv.pct + '%';
     barra.appendChild(bi);
     c.appendChild(barra);
-    var det = [hoyXP > 0 ? '+' + hoyXP + ' XP hoy' : 'Hoy todavia sin XP', 'faltan ' + nv.falta + ' para NV ' + (nv.nivel + 1)];
+    var det = [hoyXP > 0 ? '+' + hoyXP + ' XP hoy' : 'Hoy todavia sin XP', x.total + ' XP en total', 'faltan ' + nv.falta + ' para NV ' + (nv.nivel + 1)];
     var racha = rachaGlobal();
     if (racha.actual > 0) { det.unshift('\uD83D\uDD25 ' + racha.actual + (racha.actual === 1 ? ' dia' : ' dias')); }
     c.appendChild(nodo('div', 'mono progxp-det', det.join(' \u00B7 ')));
