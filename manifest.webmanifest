@@ -1,14 +1,14 @@
 {
   "name": "KCO — Centro Operativo",
   "short_name": "KCO",
-  "description": "Centro Operativo Personal: captura rapida de trabajo y hogar.",
+  "description": "Centro de control personal: ver la situacion, decidir el proximo paso, actuar y registrar el avance de trabajo, hogar y proyectos.",
   "start_url": "./",
   "scope": "./",
   "id": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#12100e",
-  "theme_color": "#d9730d",
+  "background_color": "#0D0F12",
+  "theme_color": "#0D0F12",
   "lang": "es-AR",
   "dir": "ltr",
   "icons": [
