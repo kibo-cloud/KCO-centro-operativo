@@ -302,7 +302,14 @@
        semana -> ciertos dias de la semana, cada N semanas
        mes    -> un dia del mes, cada N meses (31 en un mes corto = ultimo dia) */
 
-  var LIMITE_BUSQUEDA = 800;
+  /* Cuantos dias hay que mirar para estar seguro de cruzar un periodo entero
+     de la rutina: un tope fijo se quedaba corto con intervalos largos. */
+  var TECHO_BUSQUEDA = 12000;
+
+  function limiteBusqueda(r) {
+    var n = r.tipo === 'semana' ? 7 * r.cada + 7 : (r.tipo === 'mes' ? 31 * r.cada + 31 : r.cada + 1);
+    return n > TECHO_BUSQUEDA ? TECHO_BUSQUEDA : n;
+  }
 
   function entero(x, min, max, def) {
     var n = parseInt(x, 10);
@@ -338,6 +345,9 @@
       inicio: inicio,
       fin: fin,
       activa: r.activa !== false,
+      /* Desde que dia puede generar ocurrencias: al reactivarla o cambiarle el
+         calendario no aparece una ocurrencia ya vencida. Vacio = sin limite. */
+      desdeGeneracion: esClave(r.desdeGeneracion) ? r.desdeGeneracion : '',
       proyectoId: typeof r.proyectoId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(r.proyectoId) ? r.proyectoId : '',
       creado: typeof r.creado === 'string' ? r.creado : '',
       actualizado: typeof r.actualizado === 'string' ? r.actualizado : ''
@@ -368,8 +378,8 @@
 
   /* Ultimo dia que le toco hasta 'hasta' inclusive, o '' si nunca. */
   function ultimaFecha(r, hasta) {
-    var k = r.fin !== '' && r.fin < hasta ? r.fin : hasta, n = 0;
-    while (k >= r.inicio && n < LIMITE_BUSQUEDA) {
+    var k = r.fin !== '' && r.fin < hasta ? r.fin : hasta, n = 0, lim = limiteBusqueda(r);
+    while (k >= r.inicio && n < lim) {
       if (tocaEnDia(r, k)) { return k; }
       k = sumarDias(k, -1);
       n++;
@@ -379,8 +389,8 @@
 
   /* Proximo dia que le toca desde 'desde' inclusive, o '' si ya no le toca mas. */
   function proximaFecha(r, desde) {
-    var k = desde < r.inicio ? r.inicio : desde, n = 0;
-    while (n < LIMITE_BUSQUEDA) {
+    var k = desde < r.inicio ? r.inicio : desde, n = 0, lim = limiteBusqueda(r);
+    while (n < lim) {
       if (r.fin !== '' && k > r.fin) { return ''; }
       if (tocaEnDia(r, k)) { return k; }
       k = sumarDias(k, 1);
@@ -416,20 +426,30 @@
      - Se crea solo la ocurrencia del ultimo dia que le toco (hoy o antes): si la
        app no se abrio en tres dias no aparecen tres "dar de comer" atrasados.
      - Una ocurrencia anterior que siga abierta cuando llega la siguiente se cierra
-       como 'vencida' (sin registrar). No se borra: el historial dice la verdad. */
+       como 'vencida' (sin registrar). No se borra: el historial dice la verdad.
+     - Una rutina pausada o terminada no crea nada, y lo que le quedo abierto de
+       dias anteriores se cierra como 'vencida': no deja un atraso eterno.
+     - Nunca se crea una ocurrencia anterior a desdeGeneracion. */
   function planificarOcurrencias(rutinas, items, hoy) {
-    var crear = [], vencer = [], i, j;
+    var crear = [], vencer = [], i, j, occ;
     for (i = 0; i < rutinas.length; i++) {
       var r = rutinas[i];
-      if (!r.activa) { continue; }
+      if (!r.activa || (r.fin !== '' && r.fin < hoy)) {
+        occ = ocurrenciasDe(r.id, items);
+        for (j = 0; j < occ.length; j++) {
+          if (occ[j].ocurrencia < hoy && esActivo(occ[j].estado)) { vencer.push(occ[j].id); }
+        }
+        continue;
+      }
       var due = ultimaFecha(r, hoy);
       if (due === '') { continue; }
-      var occ = ocurrenciasDe(r.id, items), existe = false;
+      occ = ocurrenciasDe(r.id, items);
+      var existe = false;
       for (j = 0; j < occ.length; j++) {
         if (occ[j].ocurrencia === due) { existe = true; }
         else if (occ[j].ocurrencia < due && esActivo(occ[j].estado)) { vencer.push(occ[j].id); }
       }
-      if (!existe) { crear.push({ rutina: r, fecha: due }); }
+      if (!existe && !(r.desdeGeneracion && due < r.desdeGeneracion)) { crear.push({ rutina: r, fecha: due }); }
     }
     return { crear: crear, vencer: vencer };
   }
@@ -540,17 +560,36 @@
 
   var GLOBALES = { logro: 1, nivel: 1 };
 
-  function porTs(a, b) { return a.ts < b.ts ? -1 : (a.ts > b.ts ? 1 : 0); }
+  /* Orden por hora; a igual hora manda el orden en que se registraron. */
+  function ordenarPorTs(eventos) {
+    var tmp = [], i;
+    for (i = 0; i < eventos.length; i++) { tmp.push({ ev: eventos[i], pos: i }); }
+    tmp.sort(function (a, b) {
+      if (a.ev.ts !== b.ev.ts) { return a.ev.ts < b.ev.ts ? -1 : 1; }
+      return a.pos - b.pos;
+    });
+    for (i = 0; i < tmp.length; i++) { tmp[i] = tmp[i].ev; }
+    return tmp;
+  }
+
+  /* Un evento que deja el item hecho: completarlo, delegarlo, o deshacer una
+     reapertura y que vuelva a quedar hecho. */
+  function esCierre(ev) {
+    if (ev.tipo === 'estado' || ev.tipo === 'deshacer') { return HECHOS[ev.hasta] === 1; }
+    return ev.tipo === 'excepcion' && ev.hasta === 'delegada';
+  }
 
   function diario(eventos, items, filtro) {
     var porId = {}, i, ev, k;
     for (i = 0; i < items.length; i++) { porId['#' + items[i].id] = items[i]; }
-    var evs = eventos.slice(0).sort(porTs);
+    var evs = ordenarPorTs(eventos);
     var ultima = {};
     for (i = 0; i < evs.length; i++) {
       ev = evs[i];
       k = '#' + ev.itemId;
-      var cierra = (ev.tipo === 'estado' && HECHOS[ev.hasta] === 1) || (ev.tipo === 'excepcion' && ev.hasta === 'delegada');
+      /* Deshacer algo que ya estaba hecho (un borrado, un cambio de contexto)
+         no es un cierre nuevo: sigue valiendo el cierre original. */
+      var cierra = esCierre(ev) && !(ev.tipo === 'deshacer' && ultima.hasOwnProperty(k));
       var abre = (ev.tipo === 'estado' || ev.tipo === 'deshacer') && !HECHOS[ev.hasta] ||
         (ev.tipo === 'excepcion' && ev.hasta !== 'delegada') || ev.tipo === 'vuelta';
       if (cierra) { ultima[k] = i; }
@@ -588,7 +627,7 @@
       base.clase = clase; base.ico = ico; base.texto = texto; base.sub = sub || '';
       return base;
     }
-    if ((ev.tipo === 'estado' && HECHOS[ev.hasta] === 1) || (ev.tipo === 'excepcion' && ev.hasta === 'delegada')) {
+    if (esCierre(ev)) {
       if (ultima['#' + ev.itemId] !== i) { return null; }
       var it = porId['#' + ev.itemId];
       var delegada = ev.tipo === 'excepcion';
@@ -618,7 +657,9 @@
        - crear y completar en menos de 2 minutos es un registro rapido (2 XP);
        - el mismo texto completado dos veces el mismo dia cuenta una sola vez;
        - tope diario para lo chico (tareas, compras, rutinas);
-       - una mision sin sustancia (sin hitos ni tareas, o de un solo dia) paga poco. */
+       - una mision sin sustancia (sin hitos ni tareas, o de un solo dia) paga poco;
+       - una sola mision por dia paga completo, las demas de ese dia pagan poco;
+       - un hito tildado a menos de 10 minutos de crearlo no paga. */
 
   var XP = {
     tarea: { baja: 5, normal: 10, importante: 25, urgente: 25 },
@@ -644,17 +685,36 @@
     if (!esHecho(it.estado)) { return 0; }
     if (esClave(it.ocurrencia) && it.rutinaId) { return it.motivo === 'delegada' ? XP.rutinaDelegada : XP.rutina; }
     if (it.motivo === 'delegada') { return 0; }
-    if (it.tipo === 'compra') { return esFabrica(it.contexto) ? XP.compraFabrica : XP.compraSimple; }
-    var base = XP.tarea[nivelDe(it)];
+    var base = it.tipo === 'compra' ? (esFabrica(it.contexto) ? XP.compraFabrica : XP.compraSimple) : XP.tarea[nivelDe(it)];
     if (msEntre(it.creado, it.estadoDesde) < 120000) { return Math.min(base, XP.registroRapido); }
     return base;
   }
 
   function sumarEn(mapa, clave, n) { mapa['#' + clave] = (mapa['#' + clave] || 0) + n; }
 
+  /* Edad minima de un hito para pagar: crearlo y tildarlo al toque no es avanzar. */
+  var MS_HITO_MADURO = 10 * 60000;
+
+  /* nuevoId('h') da 'h<ms>-<azar>': de ahi sale cuando se creo el hito. Si el
+     id no lo trae (hitos viejos o reparados) la edad es desconocida y paga. */
+  function hitoMaduro(h) {
+    var m = typeof h.id === 'string' ? h.id.match(/^h(\d{12,})-\d+$/) : null;
+    if (!m) { return true; }
+    return msEntre(new Date(parseInt(m[1], 10)).toISOString(), h.cuando) >= MS_HITO_MADURO;
+  }
+
+  function compararIds(a, b) {
+    var x = String(a.id || ''), y = String(b.id || '');
+    return x < y ? -1 : (x > y ? 1 : 0);
+  }
+
   function calcularXP(items, proyectos) {
-    var porDia = {}, porCtx = {}, chicoDia = {}, vistos = {}, hitosDia = {}, total = 0, i, j, dia, n;
-    var orden = items.slice(0).sort(function (a, b) { return (a.estadoDesde || '') < (b.estadoDesde || '') ? -1 : 1; });
+    var porDia = {}, porCtx = {}, chicoDia = {}, vistos = {}, hitosDia = {}, misionDia = {}, total = 0, i, j, dia, n;
+    var orden = items.slice(0).sort(function (a, b) {
+      var x = a.estadoDesde || '', y = b.estadoDesde || '';
+      if (x !== y) { return x < y ? -1 : 1; }
+      return compararIds(a, b);
+    });
     for (i = 0; i < orden.length; i++) {
       var it = orden[i];
       n = xpItem(it);
@@ -672,12 +732,18 @@
       sumarEn(porDia, dia, n);
       sumarEn(porCtx, it.contexto, n);
     }
-    var listaP = proyectos || [];
+    /* Las misiones van en el orden en que se cumplieron: la primera del dia es
+       la que puede pagar completo, las demas de ese dia pagan como livianas. */
+    var listaP = (proyectos || []).slice(0).sort(function (a, b) {
+      var x = a.terminado || '', y = b.terminado || '';
+      if (x !== y) { return x < y ? -1 : 1; }
+      return compararIds(a, b);
+    });
     for (i = 0; i < listaP.length; i++) {
       var p = listaP[i];
       for (j = 0; j < p.hitos.length; j++) {
         var h = p.hitos[j];
-        if (!h.hecho) { continue; }
+        if (!h.hecho || !hitoMaduro(h)) { continue; }
         dia = claveDeIso(h.cuando);
         if (dia === '') { continue; }
         hitosDia['#' + dia] = (hitosDia['#' + dia] || 0) + 1;
@@ -690,6 +756,9 @@
         dia = claveDeIso(p.terminado);
         if (dia === '') { continue; }
         n = xpMision(p, items);
+        if (n > XP.misionLiviana) {
+          if (misionDia['#' + dia]) { n = XP.misionLiviana; } else { misionDia['#' + dia] = true; }
+        }
         total += n;
         sumarEn(porDia, dia, n);
         sumarEn(porCtx, p.contexto, n);

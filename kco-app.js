@@ -551,6 +551,7 @@
      KCOCore.parsearCaptura, con sus pruebas. */
 
   function fijarRecordatorio(it, d) {
+    var antes = copiaItem(it);
     it.recordatorio = d.toISOString();
     it.recAvisado = false;
     it.actualizado = new Date().toISOString();
@@ -558,7 +559,7 @@
       registrar('recordatorio', it, '', horaCorta(it.recordatorio));
       pintar();
       pintarHojaItem();
-    }
+    } else { reponerItem(it, antes); }
   }
 
   /* ---------- notificaciones ---------- */
@@ -653,7 +654,7 @@
     if (!it || soloLectura || it.estado === nuevo) { return; }
     if (!estadoValido(it.tipo, it.contexto, nuevo)) { return; }
     var previo = it.estado;
-    var foto = fotoDe(it);
+    var foto = fotoDe(it), antes = copiaItem(it);
     var xpAntes = xpTotal();
     var ahora = new Date().toISOString();
     it.estado = nuevo;
@@ -673,7 +674,7 @@
         ofrecerDeshacer(txt, function () { restaurarFoto(idGuardado, f, 'estado'); });
       })(id, foto, estadoInfo(nuevo).nom + ': ' + it.texto + feedbackProgreso(xpAntes));
     } else {
-      it.estado = previo;
+      reponerItem(it, antes);
     }
   }
 
@@ -801,11 +802,16 @@
   function moverDeContexto(id, ctx) {
     var it = buscarItem(id);
     if (!it || soloLectura || it.contexto === ctx || !K.contextoValido(ctx)) { return; }
-    var foto = fotoDe(it);
+    var foto = fotoDe(it), antes = copiaItem(it);
     var previo = it.contexto;
     it.contexto = ctx;
     var est = estadoEquivalente(it.tipo, ctx, it.estado);
-    if (est !== it.estado) { it.estado = est; it.estadoDesde = new Date().toISOString(); }
+    /* Una compra ya hecha solo cambia de nombre de casillero (comprado <->
+       recibido): no se la vuelve a fechar como si se hubiera hecho ahora. */
+    if (est !== it.estado) {
+      if (!K.esHecho(it.estado)) { it.estadoDesde = new Date().toISOString(); }
+      it.estado = est;
+    }
     if (!K.esFabrica(ctx)) { it.pausado = false; it.pausadoDesde = ''; }
     it.actualizado = new Date().toISOString();
     if (guardarItems()) {
@@ -816,8 +822,7 @@
         ofrecerDeshacer(txt, function () { restaurarFoto(idG, f, 'contexto'); });
       })(id, foto, 'A ' + icoNomCtx(ctx) + ': ' + it.texto);
     } else {
-      it.contexto = previo;
-      it.estado = foto.estado;
+      reponerItem(it, antes);
     }
   }
 
@@ -1029,8 +1034,9 @@
       if (it.tipo === 'tarea') {
         /* Las tareas son el unico caso con dos botones al lado. Ahi no entra
            texto sin partirse, asi que van con el icono solo: son siempre los
-           mismos dos y el rotulo completo esta en la ficha. */
-        var dosAcciones = it.estado === 'entrada' || it.estado === 'pendiente';
+           mismos dos y el rotulo completo esta en la ficha. Una ocurrencia de
+           rutina no se pasa a Compras: lleva solo el Listo, entero. */
+        var dosAcciones = it.rutinaId === '' && (it.estado === 'entrada' || it.estado === 'pendiente');
         sumarAccion(accs, dosAcciones ? 'abtn ico' : 'abtn',
           dosAcciones ? '\u2705' : '\u2705 Listo', 'listo', function () {
             cambiarEstado(it.id, 'completado');
@@ -2097,8 +2103,9 @@
      desde la ficha con "Volver a tarea". */
   function moverACompras(id) {
     var it = buscarItem(id);
-    if (!it || soloLectura || it.tipo === 'compra') { return; }
-    var foto = fotoDe(it);
+    /* Una ocurrencia de rutina no es una compra: se completa o se omite. */
+    if (!it || soloLectura || it.tipo === 'compra' || it.rutinaId !== '') { return; }
+    var foto = fotoDe(it), antes = copiaItem(it);
     var ahora = new Date().toISOString();
     it.tipo = 'compra';
     it.estado = K.esFabrica(it.contexto) ? 'cotizando' : 'por_comprar';
@@ -2117,7 +2124,7 @@
         });
       })(id, foto, 'Movida a Compras: ' + it.texto);
     } else {
-      it.tipo = 'tarea';
+      reponerItem(it, antes);
     }
   }
 
@@ -2151,7 +2158,7 @@
   function alternarPausa(id) {
     var it = buscarItem(id);
     if (!it || soloLectura || !puedePausar(it)) { return; }
-    var ahora = new Date();
+    var ahora = new Date(), antes = copiaItem(it);
     if (it.pausado === true) {
       var desde = fechaObj(it.pausadoDesde);
       var base = fechaObj(it.estadoDesde);
@@ -2170,7 +2177,7 @@
       registrar('pausa', it, '', it.pausado ? 'en espera' : 'reanudada');
       pintar();
       if (itemAbierto === id) { pintarHojaItem(); }
-    }
+    } else { reponerItem(it, antes); }
   }
 
   /* ---------- bitacora ---------- */
@@ -2448,9 +2455,24 @@
     };
   }
 
+  /* Copia de todos los campos de un item, para volverlo atras entero si la
+     escritura falla: lo que queda en memoria tiene que ser lo que esta en disco. */
+  function copiaItem(it) {
+    var c = {}, k;
+    for (k in it) { if (it.hasOwnProperty(k)) { c[k] = it[k]; } }
+    return c;
+  }
+
+  function reponerItem(it, copia) {
+    var k;
+    for (k in it) { if (it.hasOwnProperty(k) && !copia.hasOwnProperty(k)) { delete it[k]; } }
+    for (k in copia) { if (copia.hasOwnProperty(k)) { it[k] = copia[k]; } }
+  }
+
   function restaurarFoto(id, foto, textoEvento) {
     var it = buscarItem(id);
     if (!it || soloLectura) { return; }
+    var antes = copiaItem(it);
     it.estado = foto.estado;
     it.tipo = foto.tipo;
     it.espera = foto.espera;
@@ -2466,7 +2488,7 @@
       registrar('deshacer', it, textoEvento || '', foto.estado);
       pintar();
       if (itemAbierto === id) { pintarHojaItem(); }
-    }
+    } else { reponerItem(it, antes); }
   }
 
   function alternarTag(id, tag) {
@@ -2946,9 +2968,11 @@
   $('btnGuardarEspera').onclick = function () {
     var it = buscarItem(itemAbierto);
     if (!it || soloLectura) { return; }
+    var antes = copiaItem(it);
     it.espera = $('txtEspera').value.replace(/^\s+|\s+$/g, '');
     it.actualizado = new Date().toISOString();
     if (guardarItems()) { registrar('espera', it, '', it.espera); pintar(); pintarHojaItem(); }
+    else { reponerItem(it, antes); }
   };
 
   $('btnHoy18').onclick = function () {
@@ -3037,6 +3061,7 @@
   $('btnSacarRec').onclick = function () {
     var it = buscarItem(itemAbierto);
     if (!it || soloLectura || it.recordatorio === '') { return; }
+    var antes = copiaItem(it);
     it.recordatorio = '';
     it.recAvisado = false;
     it.actualizado = new Date().toISOString();
@@ -3045,7 +3070,7 @@
       pintar();
       pintarHojaItem();
       chequearRecordatorios();
-    }
+    } else { reponerItem(it, antes); }
   };
 
   $('btnAcompra').onclick = function () {
@@ -3093,6 +3118,18 @@
   $('btnBorrar').onclick = function () {
     var it = buscarItem(itemAbierto);
     if (!it || soloLectura) { return; }
+    /* La ocurrencia vigente de una rutina activa no se borra: se volveria a
+       generar sola. Se cierra como omitida y queda en el historial. */
+    if (ocurrenciaVigente(it)) {
+      pedirConfirmacion('Borrar ocurrencia', 'Es la ocurrencia vigente de la rutina "' + it.texto +
+        '". Si se borra vuelve a aparecer, asi que se marca como omitida y queda en el historial.', function () {
+        cerrarOcurrencia(it.id, 'omitida');
+        itemAbierto = null;
+        cerrarHoja('tapaItem');
+        pintar();
+      });
+      return;
+    }
     pedirConfirmacion('Borrar item', 'Se borra "' + it.texto + '". Vas a tener unos segundos para deshacerlo.', function () {
       var i, pos = -1;
       for (i = 0; i < items.length; i++) {
@@ -3101,7 +3138,10 @@
       if (pos === -1) { return; }
       var copia = items[pos];
       items.splice(pos, 1);
-      if (guardarItems()) { registrar('borrado', it, it.estado, ''); }
+      /* Si no se pudo guardar, el item vuelve a su lugar y no hay nada que
+         deshacer: el aviso de escribir ya explica que paso. */
+      if (!guardarItems()) { items.splice(pos, 0, copia); pintar(); return; }
+      registrar('borrado', it, it.estado, '');
       itemAbierto = null;
       cerrarHoja('tapaItem');
       pintar();
@@ -3109,11 +3149,12 @@
       (function (guardado, donde) {
         ofrecerDeshacer('Borrado: ' + guardado.texto, function () {
           if (soloLectura) { return; }
-          items.splice(donde > items.length ? items.length : donde, 0, guardado);
+          var lugar = donde > items.length ? items.length : donde;
+          items.splice(lugar, 0, guardado);
           if (guardarItems()) {
             registrar('deshacer', guardado, 'borrado', guardado.estado);
             pintar();
-          }
+          } else { items.splice(lugar, 1); }
         });
       })(copia, pos);
     });
@@ -3885,9 +3926,13 @@
       if (pos < 0) { return; }
       proyectos.splice(pos, 1);
       if (!guardarProyectos()) { proyectos.splice(pos, 0, p); return; }
-      var cambio = false;
-      for (i = 0; i < items.length; i++) { if (items[i].proyectoId === p.id) { items[i].proyectoId = ''; cambio = true; } }
-      if (cambio) { guardarItems(); }
+      /* Recien con la mision ya borrada se sueltan sus tareas; si eso no se
+         puede guardar, en memoria siguen vinculadas como en disco. */
+      var sueltas = [];
+      for (i = 0; i < items.length; i++) { if (items[i].proyectoId === p.id) { items[i].proyectoId = ''; sueltas.push(items[i]); } }
+      if (sueltas.length && !guardarItems()) {
+        for (i = 0; i < sueltas.length; i++) { sueltas[i].proyectoId = p.id; }
+      }
       registrarMision('mision_baja', p, '');
       misionAbierta = null;
       cerrarHoja('tapaMision');
@@ -4022,17 +4067,26 @@
     return s.actual > 0 ? '\uD83D\uDD25 ' + s.actual + (s.actual === 1 ? ' vez seguida' : ' seguidas') : K.describirRutina(ru);
   }
 
+  /* La ocurrencia abierta del dia que le toca ahora a una rutina activa: si
+     desapareciera, generarOcurrencias la crearia de nuevo. */
+  function ocurrenciaVigente(it) {
+    if (it.rutinaId === '' || !esActivo(it.estado)) { return false; }
+    var r = buscarRutina(it.rutinaId), hoy = hoyClave();
+    if (!r || !r.activa || (r.fin !== '' && r.fin < hoy)) { return false; }
+    return it.ocurrencia === K.ultimaFecha(r, hoy);
+  }
+
   /* Excepciones de una ocurrencia. Delegada cuenta como resuelta; omitida y no
      correspondia la cierran como cancelada con su motivo. Se puede deshacer. */
   function cerrarOcurrencia(id, motivo) {
     var it = buscarItem(id);
     if (!it || soloLectura || it.rutinaId === '' || !MOTIVOS[motivo]) { return; }
-    var foto = fotoDe(it), previo = it.estado, ahora = new Date().toISOString(), xpAntes = xpTotal();
+    var foto = fotoDe(it), antes = copiaItem(it), previo = it.estado, ahora = new Date().toISOString(), xpAntes = xpTotal();
     it.estado = motivo === 'delegada' ? 'completado' : 'cancelado';
     it.motivo = motivo;
     it.estadoDesde = ahora;
     it.actualizado = ahora;
-    if (!guardarItems()) { it.estado = previo; it.motivo = foto.motivo; return; }
+    if (!guardarItems()) { reponerItem(it, antes); return; }
     registrar('excepcion', it, previo, motivo);
     pintar();
     if (itemAbierto === id) { pintarHojaItem(); }
@@ -4198,37 +4252,49 @@
       id: b.id, texto: b.texto, contexto: b.contexto, nivel: b.nivel, tipo: b.tipo, cada: b.cada,
       dias: b.dias, diaMes: b.diaMes, inicio: b.inicio, fin: b.fin,
       activa: previo ? previo.activa : true, proyectoId: b.proyectoId || '',
+      desdeGeneracion: previo ? previo.desdeGeneracion : hoyClave(),
       creado: previo ? previo.creado : ahora, actualizado: ahora
     });
     if (!r) { avisar('Escribi que hay que hacer.'); return; }
+    /* Un calendario nuevo arranca hoy: no inventa una ocurrencia ya vencida. */
+    if (previo && cambioCalendario(previo, r)) { r.desdeGeneracion = hoyClave(); }
     var copia = rutinas.slice(0), i;
     if (previo) {
       for (i = 0; i < rutinas.length; i++) { if (rutinas[i].id === r.id) { rutinas[i] = r; } }
     } else { rutinas.push(r); }
     if (!guardarRutinas()) { rutinas = copia; return; }
     /* Lo abierto se alinea con la definicion; lo cerrado es historia y no se toca. */
-    var cambio = false;
+    var tocados = [];
     for (i = 0; i < items.length; i++) {
       var it = items[i];
       if (it.rutinaId !== r.id || !esActivo(it.estado)) { continue; }
+      tocados.push({ it: it, antes: copiaItem(it) });
       it.texto = r.texto; it.contexto = r.contexto; it.nivel = r.nivel; it.prioridad = r.nivel === 'urgente';
-      cambio = true;
     }
     if (b.origenId) {
       var o = buscarItem(b.origenId), due = K.ultimaFecha(r, hoyClave());
       if (o && esActivo(o.estado) && o.rutinaId === '' && due === hoyClave()) {
+        tocados.push({ it: o, antes: copiaItem(o) });
         o.rutinaId = r.id; o.ocurrencia = due; o.texto = r.texto;
         if (o.estado === 'entrada') { o.estado = 'pendiente'; }
-        cambio = true;
       }
     }
-    if (cambio) { guardarItems(); }
+    /* La rutina ya quedo guardada; si las ocurrencias no, en memoria vuelven a
+       ser las del disco (se alinean la proxima vez que se guarde la rutina). */
+    if (tocados.length && !guardarItems()) {
+      for (i = 0; i < tocados.length; i++) { reponerItem(tocados[i].it, tocados[i].antes); }
+    }
     registrarRutina(previo ? 'rutina_edit' : 'rutina_alta', r);
     generarOcurrencias();
     cerrarHoja('tapaRutina');
     borrador = null;
     pintar();
     if ($('tapaRutinas').className === 'tapa on') { pintarListaRutinas(); }
+  }
+
+  function cambioCalendario(a, b) {
+    return a.tipo !== b.tipo || a.cada !== b.cada || a.diaMes !== b.diaMes || a.inicio !== b.inicio ||
+      a.fin !== b.fin || a.dias.join(',') !== b.dias.join(',');
   }
 
   function registrarRutina(tipo, r) {
@@ -4243,9 +4309,15 @@
   function alternarRutinaActiva() {
     var r = borrador ? buscarRutina(borrador.id) : null;
     if (!r || soloLectura) { return; }
+    var antes = { activa: r.activa, actualizado: r.actualizado, desdeGeneracion: r.desdeGeneracion };
     r.activa = !r.activa;
     r.actualizado = new Date().toISOString();
-    if (!guardarRutinas()) { r.activa = !r.activa; return; }
+    /* Al reactivarla arranca hoy: lo que le toco durante la pausa no se reclama. */
+    if (r.activa) { r.desdeGeneracion = hoyClave(); }
+    if (!guardarRutinas()) {
+      r.activa = antes.activa; r.actualizado = antes.actualizado; r.desdeGeneracion = antes.desdeGeneracion;
+      return;
+    }
     registrarRutina(r.activa ? 'rutina_activa' : 'rutina_pausa', r);
     if (r.activa) { generarOcurrencias(); }
     pintarHojaRutina();
@@ -4365,6 +4437,18 @@
   }
 
   window.onpopstate = function () { alVolverAtras(); };
+
+  /* Otra pestaña o ventana de KCO cambio los datos: lo que esta en memoria aca
+     ya es viejo y guardarlo pisaria lo nuevo. Se deja de escribir hasta recargar.
+     Las copias de cuarentena (.roto.) no son datos vivos. key null = se borro todo. */
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('storage', function (ev) {
+      var k = ev ? ev.key : null;
+      if (k !== null && (typeof k !== 'string' || k.indexOf('kibco.') !== 0 || k.indexOf('.roto.') > -1)) { return; }
+      soloLectura = true;
+      avisar('Los datos cambiaron en otra ventana de KCO. Recarga para seguir sin pisar nada.');
+    });
+  }
 
   conectarSwipe(document.getElementsByTagName('main')[0], swipeVistas);
   conectarSwipe(document.getElementsByTagName('header')[0], swipeContexto);

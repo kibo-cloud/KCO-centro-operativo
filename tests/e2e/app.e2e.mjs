@@ -750,6 +750,96 @@ export const tests = [
     }
   },
   {
+    name: 'rollback: a failed write leaves a state change completely untouched',
+    async fn(page) {
+      await capture(page, 'falla al completar');
+      const before = (await items(page))[0];
+      await toTasks(page);
+      await failItemWrites(page);
+      await page.click('[data-acc="listo"]');
+      assert.match(await page.text('#aviso'), /No se pudo guardar/);
+      await restoreWrites(page);
+      await capture(page, 'otra');
+      const after = (await items(page)).find((i) => i.id === before.id);
+      assert.deepEqual(after, before, 'memory was fully rolled back before the next save');
+    }
+  },
+  {
+    name: 'rollback: a failed delete puts the item back and offers no undo',
+    async fn(page) {
+      await capture(page, 'no me borres');
+      await openFirstItem(page);
+      await failItemWrites(page);
+      await page.click('#btnBorrar');
+      await page.click('#btnConfSi');
+      assert.ok(await page.eval("document.getElementById('barraDeshacer').className.indexOf(' on')===-1"), 'no undo offered');
+      await restoreWrites(page);
+      await capture(page, 'otra');
+      assert.deepEqual((await items(page)).map((i) => i.texto).sort(), ['no me borres', 'otra']);
+    }
+  },
+  {
+    name: 'recurring: deleting today\'s occurrence marks it skipped instead of regenerating it',
+    storage: rutinaSeed([[-1, 'completado']]),
+    async fn(page) {
+      await page.click('#tabHoy');
+      await page.click('#secRutinasHoy li.item');
+      await page.click('#btnBorrar');
+      assert.match(await page.text('#confDetalle'), /omitida/);
+      await page.click('#btnConfSi');
+      let today = (await items(page)).filter((i) => i.rutinaId === 'rgata' && i.ocurrencia === ymd(0));
+      assert.equal(today.length, 1);
+      assert.equal(today[0].estado, 'cancelado');
+      assert.equal(today[0].motivo, 'omitida');
+      await page.reload();
+      today = (await items(page)).filter((i) => i.rutinaId === 'rgata' && i.ocurrencia === ymd(0));
+      assert.equal(today.length, 1, 'not regenerated');
+    }
+  },
+  {
+    name: 'recurring: a routine occurrence card offers no one-tap Mover a Compras',
+    storage: rutinaSeed([]),
+    async fn(page) {
+      await toTasks(page);
+      assert.equal(await page.count('#lista li.item'), 1);
+      assert.equal(await page.count('[data-acc="acompras"]'), 0);
+      assert.match(await page.text('#lista [data-acc="listo"]'), /Listo/);
+    }
+  },
+  {
+    name: 'purchases: moving a done purchase between contexts keeps its completion time',
+    storage: (() => {
+      const hace = new Date(Date.now() - 2 * 86400000).toISOString();
+      return { 'kibco.esquema': '4', 'kibco.contexto': 'todo', 'kibco.filtroCompra': 'comprado',
+        'kibco.items': JSON.stringify([{ id: 'c1', texto: 'detergente', contexto: 'hogar', tipo: 'compra', estado: 'comprado',
+          creado: hace, actualizado: hace, estadoDesde: hace }]) };
+    })(),
+    async fn(page) {
+      const before = (await items(page))[0];
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      await page.click('#listaCompras li.item');
+      await page.click('#gridCtx [data-ctx="trabajo"]');
+      const after = (await items(page))[0];
+      assert.equal(after.contexto, 'trabajo');
+      assert.equal(after.estado, 'recibido');
+      assert.equal(after.estadoDesde, before.estadoDesde);
+    }
+  },
+  {
+    name: 'multi-tab: a change from another window turns this one read-only',
+    async fn(page) {
+      await capture(page, 'antes');
+      await page.eval("window.dispatchEvent(new StorageEvent('storage',{key:'kibco.items.roto.1',newValue:'x'}))");
+      assert.doesNotMatch(await page.text('#aviso'), /otra ventana/, 'quarantine copies are ignored');
+      await page.eval("window.dispatchEvent(new StorageEvent('storage',{key:'kibco.items',newValue:'[]'}))");
+      assert.match(await page.text('#aviso'), /otra ventana/);
+      const stored = await page.storage('kibco.items');
+      await capture(page, 'despues');
+      assert.equal(await page.storage('kibco.items'), stored, 'stale window does not overwrite');
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');
@@ -804,6 +894,15 @@ function misionSeed(withTask) {
     creado: new Date().toISOString(), actualizado: new Date().toISOString() };
   const list = withTask ? [{ id: 'mt', texto: 'tarea de mision', contexto: 'apps', tipo: 'tarea', estado: 'pendiente', proyectoId: 'pkco', creado: new Date().toISOString() }] : [];
   return { 'kibco.esquema': '4', 'kibco.contexto': 'todo', 'kibco.contextoCaptura': 'apps', 'kibco.proyectos': JSON.stringify([p]), 'kibco.items': JSON.stringify(list) };
+}
+
+// Simulates a full browser storage for kibco.items only (the event log still saves).
+async function failItemWrites(page) {
+  await page.eval("(function(){var o=Storage.prototype.setItem;window.__setItem=o;Storage.prototype.setItem=function(k,v){if(k==='kibco.items'){throw new Error('quota');}return o.call(this,k,v);};})()");
+}
+
+async function restoreWrites(page) {
+  await page.eval('Storage.prototype.setItem=window.__setItem');
 }
 
 async function openFirstItem(page, estado) {
