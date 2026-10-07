@@ -1,0 +1,12 @@
+{
+  "name": "kco-centro-operativo",
+  "version": "1.1.1",
+  "private": true,
+  "description": "KCO Personal Control Center - static PWA. No runtime or dev dependencies.",
+  "scripts": {
+    "test": "node --test tests/unit/",
+    "e2e": "node tests/e2e/run.mjs",
+    "check": "node tests/check-es5.mjs",
+    "verify": "node tests/check-es5.mjs && node --test tests/unit/ && node tests/e2e/run.mjs"
+  }
+}
