@@ -13,6 +13,11 @@ async function capture(page, text) {
   await page.type('#txtCaptura', text, true);
 }
 
+async function toTasks(page) {
+  await page.click('#tabTareas');
+  await page.click('#segBtnTareas');
+}
+
 export const tests = [
   {
     name: 'boot: renders without errors',
@@ -49,6 +54,7 @@ export const tests = [
     name: 'core: complete from card, undo restores',
     async fn(page) {
       await capture(page, 'tarea a completar');
+      await toTasks(page);
       await page.click('[data-acc="listo"]');
       assert.equal((await items(page))[0].estado, 'completado');
       await page.click('#btnDeshacer');
@@ -59,6 +65,7 @@ export const tests = [
     name: 'core: reopen a completed task from the sheet',
     async fn(page) {
       await capture(page, 'reabrir esto');
+      await toTasks(page);
       await page.click('[data-acc="listo"]');
       await page.eval("(function(){var it=JSON.parse(localStorage.getItem('kibco.items'))[0];return it.id;})()");
       await openFirstItem(page, 'completado');
@@ -94,6 +101,7 @@ export const tests = [
     name: 'core: move to purchases starts factory flow in Trabajo',
     async fn(page) {
       await capture(page, 'rodamiento 6204');
+      await toTasks(page);
       await page.click('[data-acc="acompras"]');
       const [it] = await items(page);
       assert.equal(it.tipo, 'compra');
@@ -216,7 +224,8 @@ export const tests = [
     },
     async fn(page) {
       await page.eval("document.querySelector('#ctxsel [data-ctx=\"trabajo\"]').click()");
-      await page.click('li.item');
+      await toTasks(page);
+      await page.click('#lista li.item');
       assert.ok(await page.eval("document.querySelector('#gridNivel [data-nivel=\"urgente\"]').className.indexOf('on')>-1"));
       await page.click('#gridNivel [data-nivel="baja"]');
       const [it] = await items(page);
@@ -230,11 +239,13 @@ export const tests = [
     async fn(page) {
       await page.eval("document.querySelector('#ctxsel [data-ctx=\"trabajo\"]').click()");
       await capture(page, 'tornillos');
+      await toTasks(page);
       await page.click('[data-acc="acompras"]');
       await page.eval(`(function(){var l=JSON.parse(localStorage.getItem('kibco.items'));l[0].estado='oc_enviada';l[0].pausado=true;localStorage.setItem('kibco.items',JSON.stringify(l));})()`);
       await page.reload();
       await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
-      await page.eval("document.getElementById('tabCompras').click()");
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
       await page.click('#listaCompras li.item');
       await page.click('#gridCtx [data-ctx="hogar"]');
       const [it] = await items(page);
@@ -258,8 +269,64 @@ export const tests = [
       await capture(page, 'otra');
       const list = await items(page);
       assert.equal(list.find((i) => i.texto === 'otra').contexto, 'trabajo');
-      await page.eval("document.getElementById('tabTablero').click()");
+      await toTasks(page);
       assert.equal(await page.count('#lista li.item'), 3);
+    }
+  },
+  {
+    name: 'ahora: the next move is the overdue urgent item, with its reason',
+    storage: seed(),
+    async fn(page) {
+      assert.equal(await page.text('.hero .hero-txt'), 'Enviar presupuesto bomba');
+      assert.match(await page.text('.hero .hero-meta'), /Vencida/);
+      assert.ok(await page.count('#secInbox li.item') >= 1);
+      await page.screenshot(path.join(OUT, 'ahora.png'));
+    }
+  },
+  {
+    name: 'ahora: hero Done completes it and the next one takes its place',
+    storage: seed(),
+    async fn(page) {
+      await page.click('.hero [data-hero="hecho"]');
+      const it = (await items(page)).find((i) => i.texto === 'Enviar presupuesto bomba');
+      assert.equal(it.estado, 'completado');
+      assert.notEqual(await page.text('.hero .hero-txt'), 'Enviar presupuesto bomba');
+    }
+  },
+  {
+    name: 'ahora: "Mañana" postpones without losing it, undo restores',
+    storage: seed(),
+    async fn(page) {
+      const before = await page.text('.hero .hero-txt');
+      await page.click('.hero [data-hero="manana"]');
+      const it = (await items(page)).find((i) => i.texto === before);
+      assert.equal(it.fecha, ymd(1));
+      await page.click('#btnDeshacer');
+      const back = (await items(page)).find((i) => i.texto === before);
+      assert.equal(back.fecha, ymd(-1));
+    }
+  },
+  {
+    name: 'ahora: inbox triage moves an item out of the inbox in one tap',
+    storage: seed(),
+    async fn(page) {
+      const n = await page.count('#secInbox li.item');
+      await page.click('#secInbox [data-acc="parahoy"]');
+      assert.equal(await page.count('#secInbox li.item'), n - 1);
+      const list = await items(page);
+      assert.equal(list.filter((i) => ['comprar lija', 'idea: modo foco'].includes(i.texto) && i.estado === 'pendiente' && i.fecha === ymd(0)).length, 1);
+    }
+  },
+  {
+    name: 'hoy: today, overdue and upcoming days are grouped',
+    storage: seed(),
+    async fn(page) {
+      await page.click('#tabHoy');
+      assert.ok(await page.visible('#secVencidas'));
+      assert.ok(await page.visible('#secParaHoy'));
+      assert.ok(await page.visible('#dia-' + ymd(2)));
+      assert.match(await page.text('#dia-' + ymd(2)), /Grabar video/);
+      await page.screenshot(path.join(OUT, 'hoy.png'));
     }
   },
   {
@@ -272,9 +339,40 @@ export const tests = [
   }
 ];
 
+function ymd(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function seed() {
+  const iso = (days) => new Date(Date.now() + days * 86400000).toISOString();
+  let n = 0;
+  const it = (o) => Object.assign({ id: 's' + (++n), contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente',
+    nivel: 'normal', creado: iso(-3), actualizado: iso(-3), estadoDesde: iso(-3) }, o);
+  return {
+    'kibco.esquema': '4',
+    'kibco.contexto': 'todo',
+    'kibco.items': JSON.stringify([
+      it({ texto: 'Enviar presupuesto bomba', nivel: 'urgente', prioridad: true, fecha: ymd(-1) }),
+      it({ texto: 'Revisar resultado del audit', contexto: 'apps', estado: 'proceso' }),
+      it({ texto: 'Pagar internet', contexto: 'hogar', fecha: ymd(0), nivel: 'importante' }),
+      it({ texto: 'Grabar video tutorial', contexto: 'contenido', fecha: ymd(2) }),
+      it({ texto: 'Entrenamiento piernas', contexto: 'personal', fecha: ymd(0) }),
+      it({ texto: 'Respuesta de RRHH', estado: 'esperando', espera: 'RRHH' }),
+      it({ texto: 'comprar lija', estado: 'entrada', creado: iso(0) }),
+      it({ texto: 'idea: modo foco', contexto: 'apps', estado: 'entrada', creado: iso(0) }),
+      it({ texto: 'Ordenar placard', contexto: 'hogar', nivel: 'baja' }),
+      it({ texto: 'Informe semanal', estado: 'completado', estadoDesde: iso(0) })
+    ]),
+    'kibco.eventos': '[]'
+  };
+}
+
 async function openFirstItem(page, estado) {
+  await toTasks(page);
   if (estado) {
     await page.eval(`(function(){var c=document.querySelector('#chips [data-filtro="${estado}"]');if(c)c.click();})()`);
   }
-  await page.click('li.item');
+  await page.click('#lista li.item');
 }

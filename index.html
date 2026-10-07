@@ -103,7 +103,7 @@ li.item{background:var(--card);border:1px solid var(--linea);border-radius:11px;
    de los dos y el solapamiento no puede volver a pasar.
    Solo en las listas del tablero y de compras: los resultados de busqueda no
    tienen acciones y siguen en una sola columna. */
-#lista li.item,#listaCompras li.item{display:flex;gap:8px;align-items:flex-start}
+.lista li.item{display:flex;gap:8px;align-items:flex-start}
 .cuerpo{flex:1 1 auto;min-width:0}
 /* La hora de creacion es el ultimo badge de la fila y es la menos util:
    se oculta por CSS y el dato sigue intacto en el item y en la ficha. */
@@ -133,7 +133,7 @@ li.item.baja .txt{color:var(--txt2)}
 .badge.tag{color:var(--txt)}
 .alerta48{margin-top:6px;font-family:var(--mono);font-size:11.5px;color:var(--rojo);background:var(--rojosuave);border:1px solid var(--rojo);border-radius:7px;padding:5px 8px}
 .accs{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
-#lista .accs,#listaCompras .accs{flex:0 0 94px;width:94px;margin-top:0;flex-wrap:nowrap}
+.lista .accs{flex:0 0 94px;width:94px;margin-top:0;flex-wrap:nowrap}
 /* Sin word-break: una palabra nunca se parte al medio. Si no entra, baja
    entera al renglon siguiente. Los rotulos de un solo boton entran en dos
    renglones; cuando hay dos botones van solo con el icono, que no se corta. */
@@ -246,6 +246,42 @@ input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
 .aviso.on{display:block}
 .recuerdo{background:var(--card);border:1px solid var(--amar);color:var(--amar);border-radius:10px;padding:11px 12px;margin-bottom:12px;font-size:13.5px;display:none;font-family:var(--mono)}
 .recuerdo.on{display:block}
+/* ---------- centro de control ---------- */
+.sec{margin-top:16px}
+.sec-tit{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 8px 0;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:1.1px;color:var(--txt2)}
+.sec-tit b{color:var(--txt);font-size:12px}
+.sec-nota{color:var(--txt2);font-size:11.5px;margin:-4px 0 8px 0}
+.sec-titulo-grande{margin:26px 0 0 0;padding-top:14px;border-top:1px solid var(--linea2);font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:1.4px;color:var(--acc)}
+.motivo{color:var(--acc);font-size:11px;margin-top:3px}
+.vacio.chico{padding:10px 4px;font-size:12px;text-align:left}
+.pulso{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 9px;min-height:56px;border-radius:10px;border:1px solid var(--linea);background:var(--card);color:var(--txt2);font-size:10.5px;cursor:pointer;text-align:left;overflow:hidden}
+.tile b{font-size:20px;line-height:1.1;color:var(--txt)}
+.tile span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tile.rojo{border-color:var(--rojo);background:var(--rojosuave)}
+.tile.rojo b{color:var(--rojo)}
+.tile.cero{opacity:.55}
+.hero{position:relative;border:1px solid var(--acc);background:linear-gradient(160deg,var(--accsuave),var(--card) 70%);border-radius:14px;padding:14px 14px 12px 14px;cursor:pointer}
+.hero.prio{border-color:var(--rojo);background:linear-gradient(160deg,var(--rojosuave),var(--card) 70%)}
+.hero.calma{border-color:var(--linea2);background:var(--card);cursor:default}
+.hero-rot{font-family:var(--mono);font-size:10.5px;letter-spacing:1.4px;color:var(--acc);font-weight:700}
+.hero.prio .hero-rot{color:var(--rojo)}
+.hero-txt{font-size:19px;font-weight:600;line-height:1.3;margin:6px 0 4px 0;word-break:break-word}
+.hero.calma .hero-txt{font-size:14.5px;font-weight:400;color:var(--txt2)}
+.hero-meta{color:var(--txt2);font-size:11.5px}
+.hero-accs{display:flex;gap:7px;margin-top:10px}
+.hero-accs .bloque{margin-top:0;flex:1 1 0;min-width:0;padding:11px 6px;font-size:13.5px;min-height:46px}
+.hero-sig{margin-top:10px;padding-top:9px;border-top:1px solid var(--linea);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:10.5px;color:var(--txt2)}
+.linkbtn{background:var(--card2);border:1px solid var(--linea);color:var(--txt);border-radius:7px;padding:6px 9px;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:34px}
+.hoy-cab{display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 6px 0}
+.hoy-fecha{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:1px;color:var(--acc)}
+.hoy-cuenta{color:var(--txt2);font-size:12px}
+.seg{display:flex;gap:0;margin-bottom:10px;border:1px solid var(--linea2);border-radius:10px;overflow:hidden}
+.segbtn{flex:1;padding:10px 6px;min-height:42px;background:var(--card);border:0;color:var(--txt2);font-size:13px;font-weight:600;cursor:pointer}
+.segbtn.on{background:var(--accsuave);color:var(--acc)}
+.badge.ctx{border-color:transparent;padding:2px 2px}
+.badge.rut{border-color:transparent;padding:2px 2px}
+.badge.mot{color:var(--txt2)}
 </style>
 </head>
 <body class="ctx-trabajo">
@@ -260,16 +296,30 @@ input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
 
 <div class="aviso" id="aviso"></div>
 
-<div class="tabs">
-  <button class="tab on" id="tabTablero" type="button">TABLERO</button>
-  <button class="tab" id="tabCompras" type="button">COMPRAS</button>
-  <button class="tab" id="tabRegistro" type="button">REGISTRO</button>
-</div>
+<nav class="tabs" role="tablist" aria-label="Vistas">
+  <button class="tab on" id="tabAhora" type="button" role="tab">&#9889; AHORA</button>
+  <button class="tab" id="tabHoy" type="button" role="tab">&#128197; HOY</button>
+  <button class="tab" id="tabTareas" type="button" role="tab">&#9745; TAREAS</button>
+  <button class="tab" id="tabRegistro" type="button" role="tab">&#128214; DIARIO</button>
+</nav>
 
 <main>
   <div class="recuerdo" id="recuerdo"></div>
 
-  <div id="vistaTablero">
+  <div id="vistaAhora">
+    <div id="ahoraCuerpo"></div>
+  </div>
+
+  <div id="vistaHoy" style="display:none">
+    <div id="hoyCuerpo"></div>
+  </div>
+
+  <div class="seg" id="segTareas" style="display:none" role="group" aria-label="Tareas o compras">
+    <button class="segbtn on" id="segBtnTareas" type="button">&#9745; Tareas</button>
+    <button class="segbtn" id="segBtnCompras" type="button">&#128722; Compras</button>
+  </div>
+
+  <div id="vistaTablero" style="display:none">
     <div class="prog">
       <div class="cab"><span>Progreso</span><b class="mono" id="progTxt">0% &middot; 0/0</b></div>
       <div class="barra"><i id="progBarra"></i></div>
@@ -278,7 +328,7 @@ input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
       <div class="chips" id="chips"></div>
       <div class="chips chipsTag" id="chipsTag"></div>
     </div>
-    <ul id="lista"></ul>
+    <ul id="lista" class="lista"></ul>
     <div class="vacio" id="vacioTablero">Nada por aca todavia.</div>
   </div>
 
@@ -288,7 +338,7 @@ input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
       <div class="barra"><i id="progCompraBarra"></i></div>
     </div>
     <div class="chips scroll-x" id="chipsCompra"></div>
-    <ul id="listaCompras"></ul>
+    <ul id="listaCompras" class="lista"></ul>
     <div class="vacio" id="vacioCompras">Sin compras. Convertí una tarea en compra desde su ficha.</div>
   </div>
 

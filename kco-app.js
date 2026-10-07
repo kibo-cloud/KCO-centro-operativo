@@ -20,7 +20,6 @@
   var K_FILTROC = 'kibco.filtroCompra';
   var K_FILTROTAG = 'kibco.filtroTag';
   var K_LUZ = 'kibco.luz';
-  var K_VISTA = 'kibco.vista';
   var K_BACKUP = 'kibco.ultimoBackup';
   var K_SOLIC = 'kibco.solicitantes';
   var K_DEST = 'kibco.destinos';
@@ -94,7 +93,7 @@
   var filtroCompra = 'activos';
   var filtroTag = '';
   var modoLuz = false;
-  var vista = 'tablero';
+  var vista = 'ahora';
   var rango = 'hoy';
   var soloLectura = false;
   var migrarComprasHogar = false;
@@ -889,7 +888,7 @@
 
   var itemsVistos = {};
 
-  function nodoItem(it) {
+  function nodoItem(it, motivo, modo) {
     var li = document.createElement('li');
     li.className = 'item st-' + it.estado + claseNivel(it) +
       (it.pausado === true ? ' pausado' : '') +
@@ -904,6 +903,7 @@
     d1.className = 'txt';
     d1.textContent = it.texto;
     cu.appendChild(d1);
+    if (motivo) { cu.appendChild(nodo('div', 'motivo mono', motivo)); }
 
     if (it.estado === 'esperando' && it.espera !== '') {
       var de = document.createElement('div');
@@ -921,13 +921,18 @@
 
     var l2 = document.createElement('div');
     l2.className = 'linea2';
+    if (contexto === 'todo') { l2.appendChild(badge('ctx', icoCtx(it.contexto))); }
+    if (it.rutinaId !== '') { l2.appendChild(badge('rut', '\uD83D\uDD04')); }
+    if (it.motivo !== '') { l2.appendChild(badge('mot', textoMotivo(it.motivo))); }
     if (it.anclado === true) { l2.appendChild(badge('pin', '\uD83D\uDCCC')); }
     var bn = badgeNivel(it);
     if (bn) { l2.appendChild(bn); }
     var bf = badgeFecha(it);
     if (bf) { l2.appendChild(bf); }
     var inf = estadoInfo(it.estado);
-    l2.appendChild(badge('est', inf.ico + ' ' + inf.nom.toUpperCase()));
+    /* Pendiente es el estado por defecto de algo clasificado: no hace falta
+       gritarlo en cada tarjeta. Los demas estados si dicen algo. */
+    if (it.estado !== 'pendiente') { l2.appendChild(badge('est', inf.ico + ' ' + inf.nom.toUpperCase())); }
     if (it.pausado === true) { l2.appendChild(badge('pausa', '\u23F8 EN ESPERA')); }
     if (it.tag !== '') {
       var t = tagInfo(it.tag);
@@ -977,7 +982,12 @@
       return b;
     }
 
-    if (esActivo(it.estado)) {
+    if (modo === 'triage' && it.estado === 'entrada') {
+      accs = document.createElement('div');
+      accs.className = 'accs';
+      sumarAccion(accs, 'abtn ico', '\u2714', 'clasificar', function () { sacarDeInbox(it.id, false); }, 'Pasar a pendiente');
+      sumarAccion(accs, 'abtn ico', '\uD83D\uDCC5', 'parahoy', function () { sacarDeInbox(it.id, true); }, 'Para hoy');
+    } else if (esActivo(it.estado)) {
       accs = document.createElement('div');
       accs.className = 'accs';
       if (it.tipo === 'tarea') {
@@ -1206,7 +1216,356 @@
     }
   }
 
-  var ORDEN_VISTAS = ['tablero', 'compras', 'registro'];
+  /* ---------- centro de control: AHORA y HOY ---------- */
+
+  function vaciar(el) { while (el.firstChild) { el.removeChild(el.firstChild); } }
+
+  function hoyClave() { return K.claveDia(new Date()); }
+
+  function nodo(tag, clase, texto) {
+    var e = document.createElement(tag);
+    if (clase) { e.className = clase; }
+    if (typeof texto === 'string') { e.textContent = texto; }
+    return e;
+  }
+
+  /* Encabezado de seccion + su lista. Devuelve el <ul> para llenarlo. */
+  function seccion(cont, id, titulo, n, nota) {
+    var s = nodo('section', 'sec');
+    if (id) { s.id = id; }
+    var h = nodo('h3', 'sec-tit');
+    h.appendChild(nodo('span', '', titulo));
+    if (typeof n === 'number') { h.appendChild(nodo('b', 'mono', '' + n)); }
+    s.appendChild(h);
+    if (nota) { s.appendChild(nodo('div', 'sec-nota', nota)); }
+    var ul = nodo('ul', 'lista');
+    s.appendChild(ul);
+    cont.appendChild(s);
+    return ul;
+  }
+
+  function activosVisibles() {
+    var r = [], i;
+    for (i = 0; i < items.length; i++) {
+      if (enContexto(items[i]) && esActivo(items[i].estado)) { r.push(items[i]); }
+    }
+    return r;
+  }
+
+  /* Accion principal de un toque para cualquier item, la misma que ofrece su tarjeta. */
+  function accionPrincipal(it) {
+    if (it.tipo === 'tarea') { return { txt: '✅ Hecho', fn: function () { cambiarEstado(it.id, 'completado'); } }; }
+    if (!K.esFabrica(it.contexto)) { return { txt: '✅ Comprado', fn: function () { cambiarEstado(it.id, 'comprado'); } }; }
+    if (it.pausado === true) { return { txt: '▶ Seguir', fn: function () { alternarPausa(it.id); } }; }
+    var sig = estadoSiguiente(it);
+    return sig ? { txt: '▶ ' + sig.nom, fn: function () { cambiarEstado(it.id, sig.id); } } : null;
+  }
+
+  function botonHero(cont, clase, texto, fn) {
+    var b = nodo('button', clase, texto);
+    b.type = 'button';
+    b.onclick = function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } fn(); };
+    cont.appendChild(b);
+    return b;
+  }
+
+  function nodoHero(r, siguientes) {
+    var it = r.item;
+    var c = nodo('div', 'hero' + claseNivel(it));
+    c.setAttribute('data-id', it.id);
+    c.appendChild(nodo('div', 'hero-rot', '▶ SIGUIENTE MOVIMIENTO'));
+    c.appendChild(nodo('div', 'hero-txt', it.texto));
+    var meta = [r.motivo, icoNomCtx(it.contexto)];
+    var pr = it.proyectoId ? buscarProyectoNombre(it.proyectoId) : '';
+    if (pr !== '') { meta.push('🎯 ' + pr); }
+    c.appendChild(nodo('div', 'hero-meta mono', meta.join(' · ')));
+    var accs = nodo('div', 'hero-accs');
+    var ap = accionPrincipal(it);
+    if (ap) { botonHero(accs, 'bloque pri', ap.txt, ap.fn).setAttribute('data-hero', 'hecho'); }
+    if (it.tipo === 'tarea' && it.estado !== 'proceso') {
+      botonHero(accs, 'bloque', '⏵ Empezar', function () { cambiarEstado(it.id, 'proceso'); }).setAttribute('data-hero', 'empezar');
+    }
+    botonHero(accs, 'bloque', '⏭ Mañana', function () {
+      posponer(it.id);
+    }).setAttribute('data-hero', 'manana');
+    c.appendChild(accs);
+    if (siguientes.length > 0) {
+      var sg = nodo('div', 'hero-sig');
+      sg.appendChild(nodo('span', 'mono', 'DESPUES '));
+      var j;
+      for (j = 0; j < siguientes.length; j++) {
+        (function (s) {
+          var a = nodo('button', 'linkbtn', s.item.texto);
+          a.type = 'button';
+          a.onclick = function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } abrirItem(s.item.id); };
+          sg.appendChild(a);
+        })(siguientes[j]);
+      }
+      c.appendChild(sg);
+    }
+    c.onclick = function () { abrirItem(it.id); };
+    return c;
+  }
+
+  /* "No ahora": lo corre a mañana sin perderlo. Se puede deshacer. */
+  function posponer(id) {
+    var it = buscarItem(id);
+    if (!it || soloLectura) { return; }
+    var previo = it.fecha, previoRec = it.recordatorio, previoAv = it.recAvisado;
+    var man = K.sumarDias(hoyClave(), 1);
+    it.fecha = man;
+    /* Un recordatorio vencido se corre al mismo horario de mañana. */
+    if (it.recordatorio !== '' && fechaObj(it.recordatorio) && fechaObj(it.recordatorio).getTime() <= Date.now()) {
+      var d = fechaObj(it.recordatorio), m = K.deClave(man);
+      m.setHours(d.getHours(), d.getMinutes(), 0, 0);
+      it.recordatorio = m.toISOString();
+      it.recAvisado = false;
+    }
+    it.actualizado = new Date().toISOString();
+    if (!guardarItems()) { it.fecha = previo; it.recordatorio = previoRec; it.recAvisado = previoAv; return; }
+    registrar('fecha', it, previo, man);
+    pintar();
+    chequearRecordatorios();
+    ofrecerDeshacer('Para mañana: ' + it.texto, function () {
+      var v = buscarItem(id);
+      if (!v || soloLectura) { return; }
+      v.fecha = previo; v.recordatorio = previoRec; v.recAvisado = previoAv;
+      if (guardarItems()) { registrar('fecha', v, man, previo); pintar(); chequearRecordatorios(); }
+    });
+  }
+
+  /* Saca un item del inbox en un toque: queda Pendiente, y opcionalmente para hoy. */
+  function sacarDeInbox(id, paraHoy) {
+    var it = buscarItem(id);
+    if (!it || soloLectura || it.estado !== 'entrada') { return; }
+    var foto = fotoDe(it), fechaPrev = it.fecha, ahora = new Date().toISOString();
+    it.estado = 'pendiente';
+    it.estadoDesde = ahora;
+    it.actualizado = ahora;
+    if (paraHoy) { it.fecha = hoyClave(); }
+    if (!guardarItems()) { it.estado = 'entrada'; it.fecha = fechaPrev; return; }
+    registrar('estado', it, 'entrada', 'pendiente');
+    if (paraHoy && fechaPrev !== it.fecha) { registrar('fecha', it, fechaPrev, it.fecha); }
+    pintar();
+    ofrecerDeshacer((paraHoy ? 'Para hoy: ' : 'Clasificada: ') + it.texto, function () {
+      var v = buscarItem(id);
+      if (!v) { return; }
+      v.fecha = fechaPrev;
+      restaurarFoto(id, foto, 'inbox');
+    });
+  }
+
+  function tile(cont, ico, n, rot, destino, clase) {
+    var b = nodo('button', 'tile' + (clase ? ' ' + clase : '') + (n === 0 ? ' cero' : ''));
+    b.type = 'button';
+    b.setAttribute('data-tile', destino);
+    b.appendChild(nodo('b', 'mono', '' + n));
+    b.appendChild(nodo('span', '', ico + ' ' + rot));
+    b.onclick = function () {
+      var s = $(destino);
+      if (s && s.scrollIntoView) { try { s.scrollIntoView(true); } catch (e) {} }
+    };
+    cont.appendChild(b);
+  }
+
+  function pintarAhora() {
+    var cont = $('ahoraCuerpo');
+    vaciar(cont);
+    var hoy = hoyClave(), ahora = Date.now();
+    var lista = activosVisibles();
+    var ranking = K.priorizar(lista, hoy, ahora);
+    var esperando = [], inbox = [], nAt = 0, nHoy = 0, i, s;
+    for (i = 0; i < lista.length; i++) {
+      s = K.situacion(lista[i], hoy, ahora);
+      if (s === 'atencion') { nAt++; }
+      if (s === 'esperando') { esperando.push(lista[i]); }
+      if (K.diaDe(lista[i]) === hoy) { nHoy++; }
+      if (lista[i].tipo === 'tarea' && lista[i].estado === 'entrada') { inbox.push(lista[i]); }
+    }
+
+    pintarProgresoArriba(cont);
+
+    var pulso = nodo('div', 'pulso');
+    tile(pulso, '🔴', nAt, 'Atencion', 'secAtencion', nAt > 0 ? 'rojo' : '');
+    tile(pulso, '📅', nHoy, 'Hoy', 'secSigue', '');
+    tile(pulso, '📥', inbox.length, 'Inbox', 'secInbox', '');
+    tile(pulso, '🔵', esperando.length, 'Esperando', 'secEsperando', '');
+    cont.appendChild(pulso);
+
+    var mostrados = {};
+    if (ranking.length === 0) {
+      var calma = nodo('div', 'hero calma');
+      calma.appendChild(nodo('div', 'hero-rot', '✔ TODO EN ORDEN'));
+      calma.appendChild(nodo('div', 'hero-txt', lista.length === 0
+        ? 'Nada pendiente en ' + nomCtx(contexto) + '. Captura abajo lo proximo que aparezca.'
+        : 'Lo que queda esta esperando a otros o tiene dia mas adelante.'));
+      cont.appendChild(calma);
+    } else {
+      var sig = [];
+      for (i = 1; i < ranking.length && sig.length < 2; i++) { sig.push(ranking[i]); }
+      cont.appendChild(nodoHero(ranking[0], sig));
+      mostrados['#' + ranking[0].item.id] = true;
+    }
+
+    var at = [];
+    for (i = 0; i < ranking.length; i++) {
+      if (ranking[i].situacion === 'atencion' && !mostrados['#' + ranking[i].item.id]) { at.push(ranking[i]); }
+    }
+    if (at.length > 0) {
+      var ulA = seccion(cont, 'secAtencion', '🔴 REQUIERE ATENCION', at.length);
+      for (i = 0; i < at.length; i++) {
+        ulA.appendChild(nodoItem(at[i].item, at[i].motivo));
+        mostrados['#' + at[i].item.id] = true;
+      }
+    }
+
+    var siguen = [];
+    for (i = 0; i < ranking.length && siguen.length < 6; i++) {
+      var r = ranking[i];
+      if (mostrados['#' + r.item.id] || r.item.estado === 'entrada') { continue; }
+      siguen.push(r);
+    }
+    if (siguen.length > 0) {
+      var resto = 0;
+      for (i = 0; i < ranking.length; i++) {
+        if (!mostrados['#' + ranking[i].item.id] && ranking[i].item.estado !== 'entrada') { resto++; }
+      }
+      var ulS = seccion(cont, 'secSigue', '🟡 A CONTINUACION', resto,
+        resto > siguen.length ? 'Las ' + siguen.length + ' que mas pesan. El resto esta en Tareas.' : '');
+      for (i = 0; i < siguen.length; i++) {
+        ulS.appendChild(nodoItem(siguen[i].item, siguen[i].motivo));
+        mostrados['#' + siguen[i].item.id] = true;
+      }
+    }
+
+    var bandeja = [];
+    for (i = inbox.length - 1; i >= 0; i--) { if (!mostrados['#' + inbox[i].id]) { bandeja.push(inbox[i]); } }
+    if (bandeja.length > 0) {
+      var ulI = seccion(cont, 'secInbox', '📥 INBOX', bandeja.length,
+        'Capturado sin clasificar. ✔ lo pasa a pendiente, 📅 lo deja para hoy.');
+      for (i = 0; i < bandeja.length && i < 8; i++) { ulI.appendChild(nodoItem(bandeja[i], '', 'triage')); }
+    }
+
+    if (esperando.length > 0) {
+      var ulE = seccion(cont, 'secEsperando', '🔵 ESPERANDO', esperando.length);
+      for (i = 0; i < esperando.length && i < 8; i++) { ulE.appendChild(nodoItem(esperando[i], '')); }
+    }
+
+    pintarMisionesAhora(cont);
+  }
+
+  function itemsDelDia(clave) {
+    var r = [], i;
+    for (i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (enContexto(it) && esActivo(it.estado) && K.diaDe(it) === clave) { r.push(it); }
+    }
+    return ordenar(r);
+  }
+
+  var DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+  function tituloDia(clave) {
+    var d = K.deClave(clave);
+    return DIAS_SEMANA[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()];
+  }
+
+  var DIAS_PROXIMOS = 7;
+
+  function pintarHoy() {
+    var cont = $('hoyCuerpo');
+    vaciar(cont);
+    var hoy = hoyClave(), i, it;
+    var vencidas = [], hechas = [];
+    for (i = 0; i < items.length; i++) {
+      it = items[i];
+      if (!enContexto(it)) { continue; }
+      var dia = K.diaDe(it);
+      if (esActivo(it.estado) && dia !== '' && dia < hoy) { vencidas.push(it); }
+      if (K.esHecho(it.estado) && K.claveDeIso(it.estadoDesde) === hoy) { hechas.push(it); }
+    }
+    var deHoy = itemsDelDia(hoy);
+    var rut = ocurrenciasDeHoy();
+
+    var cab = nodo('div', 'hoy-cab');
+    cab.appendChild(nodo('div', 'hoy-fecha', tituloDia(hoy).toUpperCase()));
+    var total = hechas.length + deHoy.length + vencidas.length;
+    var pct = total === 0 ? 0 : Math.round((hechas.length * 100) / total);
+    cab.appendChild(nodo('div', 'mono hoy-cuenta', hechas.length + '/' + total + ' · ' + pct + '%'));
+    cont.appendChild(cab);
+    var barra = nodo('div', 'barra');
+    var bi = nodo('i', '');
+    bi.style.width = pct + '%';
+    barra.appendChild(bi);
+    cont.appendChild(barra);
+
+    if (rut.length > 0) {
+      var ulR = seccion(cont, 'secRutinasHoy', '🔄 RUTINAS DE HOY', rut.length);
+      for (i = 0; i < rut.length; i++) { ulR.appendChild(nodoItem(rut[i], '')); }
+    }
+    if (vencidas.length > 0) {
+      var ulV = seccion(cont, 'secVencidas', '🔴 VENCIDAS', vencidas.length,
+        'Tenian dia y paso. ⏭ en la ficha o en AHORA las corre a mañana.');
+      ordenar(vencidas);
+      for (i = 0; i < vencidas.length; i++) { ulV.appendChild(nodoItem(vencidas[i], 'Era ' + nombreDia(K.diaDe(vencidas[i])))); }
+    }
+    var noRut = [];
+    for (i = 0; i < deHoy.length; i++) { if (deHoy[i].rutinaId === '') { noRut.push(deHoy[i]); } }
+    var ulH = seccion(cont, 'secParaHoy', '📅 PARA HOY', noRut.length);
+    if (noRut.length === 0) {
+      ulH.appendChild(nodo('li', 'vacio chico', 'Nada agendado para hoy. Desde AHORA ves que conviene hacer.'));
+    }
+    for (i = 0; i < noRut.length; i++) { ulH.appendChild(nodoItem(noRut[i], '')); }
+    if (hechas.length > 0) {
+      var ulD = seccion(cont, 'secHechasHoy', '🟢 HECHO HOY', hechas.length);
+      for (i = hechas.length - 1; i >= 0; i--) { ulD.appendChild(nodoItem(hechas[i], '')); }
+    }
+
+    var prox = nodo('div', 'sec-titulo-grande', '📆 PROXIMOS DIAS');
+    cont.appendChild(prox);
+    var alguno = false, d, clave;
+    for (d = 1; d <= DIAS_PROXIMOS; d++) {
+      clave = K.sumarDias(hoy, d);
+      var delDia = itemsDelDia(clave);
+      var previstas = rutinasPrevistas(clave);
+      if (delDia.length === 0 && previstas.length === 0) { continue; }
+      alguno = true;
+      var ulP = seccion(cont, 'dia-' + clave, (d === 1 ? 'MAÑANA · ' : '') + tituloDia(clave).toUpperCase(),
+        delDia.length + previstas.length);
+      for (i = 0; i < delDia.length; i++) { ulP.appendChild(nodoItem(delDia[i], '')); }
+      for (i = 0; i < previstas.length; i++) { ulP.appendChild(nodoPrevista(previstas[i])); }
+    }
+    var luego = [];
+    var tope = K.sumarDias(hoy, DIAS_PROXIMOS);
+    for (i = 0; i < items.length; i++) {
+      it = items[i];
+      if (enContexto(it) && esActivo(it.estado) && K.diaDe(it) > tope) { luego.push(it); }
+    }
+    if (luego.length > 0) {
+      alguno = true;
+      luego.sort(function (a, b) { var x = K.diaDe(a), y = K.diaDe(b); return x < y ? -1 : (x > y ? 1 : 0); });
+      var ulL = seccion(cont, 'secMasAdelante', '🟣 MAS ADELANTE', luego.length);
+      for (i = 0; i < luego.length && i < 10; i++) { ulL.appendChild(nodoItem(luego[i], tituloDia(K.diaDe(luego[i])))); }
+    }
+    if (!alguno) {
+      cont.appendChild(nodo('div', 'vacio chico', 'Nada agendado en los proximos ' + DIAS_PROXIMOS + ' dias.'));
+    }
+  }
+
+  /* Ganchos que completan las rutinas y las misiones (mas abajo). */
+  function ocurrenciasDeHoy() {
+    var r = [], i, hoy = hoyClave();
+    for (i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (enContexto(it) && it.rutinaId !== '' && it.ocurrencia === hoy) { r.push(it); }
+    }
+    return r;
+  }
+
+  var ORDEN_VISTAS = ['ahora', 'hoy', 'tablero', 'compras', 'registro'];
+  var VISTA_DOM = { ahora: 'vistaAhora', hoy: 'vistaHoy', tablero: 'vistaTablero', compras: 'vistaCompras', registro: 'vistaRegistro' };
+  var VISTA_TAB = { ahora: 'tabAhora', hoy: 'tabHoy', tablero: 'tabTareas', compras: 'tabTareas', registro: 'tabRegistro' };
 
   function posVista(v) {
     var i;
@@ -1227,11 +1586,10 @@
     if (v === vista) { return; }
     var dir = posVista(v) > posVista(vista) ? 'der' : 'izq';
     vista = v;
-    escribir(K_VISTA, vista);
     animarMain(dir);
     pintar();
     if (sinHistorial) { return; }
-    if (v !== 'tablero') {
+    if (v !== 'ahora') {
       if (!anclaPuesta && pilaCapas.length === 0) {
         anclaPuesta = empujarHistorial({ kcoAncla: true });
       }
@@ -1242,13 +1600,23 @@
   }
 
   function pintar() {
-    $('vistaTablero').style.display = vista === 'tablero' ? 'block' : 'none';
-    $('vistaCompras').style.display = vista === 'compras' ? 'block' : 'none';
-    $('vistaRegistro').style.display = vista === 'registro' ? 'block' : 'none';
-    $('tabTablero').className = vista === 'tablero' ? 'tab on' : 'tab';
-    $('tabCompras').className = vista === 'compras' ? 'tab on' : 'tab';
-    $('tabRegistro').className = vista === 'registro' ? 'tab on' : 'tab';
-    if (vista === 'tablero') { pintarTablero(); }
+    var v;
+    for (v in VISTA_DOM) {
+      if (VISTA_DOM.hasOwnProperty(v)) { $(VISTA_DOM[v]).style.display = vista === v ? 'block' : 'none'; }
+    }
+    for (v in VISTA_TAB) {
+      if (VISTA_TAB.hasOwnProperty(v)) {
+        var on = VISTA_TAB[vista] === VISTA_TAB[v];
+        $(VISTA_TAB[v]).className = on ? 'tab on' : 'tab';
+        $(VISTA_TAB[v]).setAttribute('aria-selected', on ? 'true' : 'false');
+      }
+    }
+    $('segTareas').style.display = vista === 'tablero' || vista === 'compras' ? 'flex' : 'none';
+    $('segBtnTareas').className = vista === 'tablero' ? 'segbtn on' : 'segbtn';
+    $('segBtnCompras').className = vista === 'compras' ? 'segbtn on' : 'segbtn';
+    if (vista === 'ahora') { pintarAhora(); }
+    else if (vista === 'hoy') { pintarHoy(); }
+    else if (vista === 'tablero') { pintarTablero(); }
     else if (vista === 'compras') { pintarCompras(); }
     else { pintarRegistro(); }
     actualizarAvisoBackup();
@@ -1333,8 +1701,8 @@
       pilaCapas.pop();
       return;
     }
-    if (vista !== 'tablero') {
-      irAVista('tablero', true);
+    if (vista !== 'ahora') {
+      irAVista('ahora', true);
       anclaPuesta = false;
       return;
     }
@@ -2322,8 +2690,11 @@
     if (k === 'Enter' || k === 13) { ev.preventDefault(); capturar(); }
   };
 
-  $('tabTablero').onclick = function () { irAVista('tablero'); };
-  $('tabCompras').onclick = function () { irAVista('compras'); };
+  $('tabAhora').onclick = function () { irAVista('ahora'); };
+  $('tabHoy').onclick = function () { irAVista('hoy'); };
+  $('tabTareas').onclick = function () { irAVista(vista === 'compras' ? 'compras' : 'tablero'); };
+  $('segBtnTareas').onclick = function () { irAVista('tablero'); };
+  $('segBtnCompras').onclick = function () { irAVista('compras'); };
   $('tabRegistro').onclick = function () { irAVista('registro'); };
 
   $('btnCerrarItem').onclick = function () { itemAbierto = null; cerrarHoja('tapaItem'); };
@@ -2604,6 +2975,21 @@
     lector.readAsText(f);
   };
 
+  function textoMotivo(m) {
+    if (m === 'omitida') { return '⏭ Omitida'; }
+    if (m === 'no_corresponde') { return '➖ No correspondia'; }
+    if (m === 'delegada') { return '🤝 Delegada'; }
+    if (m === 'vencida') { return '⌛ Sin registrar'; }
+    return '';
+  }
+
+  /* Ganchos de fases siguientes: misiones, rutinas previstas y progreso. */
+  function buscarProyectoNombre() { return ''; }
+  function pintarMisionesAhora() {}
+  function pintarProgresoArriba() {}
+  function rutinasPrevistas() { return []; }
+  function nodoPrevista() { return nodo('li', ''); }
+
   /* ---------- arranque ---------- */
 
   var AUTOR = 'Desarrollado por Kevin V\u00E1squez';
@@ -2625,8 +3011,9 @@
   filtroCompra = leer(K_FILTROC) || 'activos';
   filtroTag = leer(K_FILTROTAG) || '';
   modoLuz = leer(K_LUZ) === '1';
-  var vg = leer(K_VISTA);
-  vista = (vg === 'registro' || vg === 'compras') ? vg : 'tablero';
+  /* KCO siempre abre en AHORA: la pregunta al abrir es "que hago ahora",
+     no "en que pestaña me quede". */
+  vista = 'ahora';
   var cc = leer(K_CTXCAP);
   ctxCaptura = K.contextoValido(cc) ? cc : 'trabajo';
   aplicarContexto(leer(K_CTX) || 'trabajo', false);
@@ -2641,7 +3028,6 @@
   conectarSwipe(document.getElementsByTagName('main')[0], swipeVistas);
   conectarSwipe(document.getElementsByTagName('header')[0], swipeContexto);
 
-  if (vista !== 'tablero') { anclaPuesta = empujarHistorial({ kcoAncla: true }); }
 
   if (navigator.serviceWorker && typeof navigator.serviceWorker.register === 'function') {
     navigator.serviceWorker.register('./sw.js').then(function () {
