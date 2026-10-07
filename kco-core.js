@@ -725,7 +725,159 @@
       pct: Math.floor(((xp - base) * 100) / (sig - base)) };
   }
 
+  /* ---------- actividad, rachas y estadisticas ----------
+     Un dia activo es un dia con al menos un avance real: algo completado, un
+     hito o una mision cumplida. La racha no se corta por no haber hecho nada
+     TODAVIA hoy: sigue en juego hasta que el dia termina. Y al lado de la racha
+     siempre estan los dias activos totales, que nunca bajan. */
+
+  function diasConAvance(items, proyectos) {
+    var dias = {}, i, j, k;
+    for (i = 0; i < items.length; i++) {
+      if (!esHecho(items[i].estado)) { continue; }
+      k = claveDeIso(items[i].estadoDesde);
+      if (k) { dias['#' + k] = (dias['#' + k] || 0) + 1; }
+    }
+    for (i = 0; i < (proyectos || []).length; i++) {
+      var p = proyectos[i];
+      for (j = 0; j < p.hitos.length; j++) {
+        k = p.hitos[j].hecho ? claveDeIso(p.hitos[j].cuando) : '';
+        if (k) { dias['#' + k] = (dias['#' + k] || 0) + 1; }
+      }
+      k = p.estado === 'terminado' ? claveDeIso(p.terminado) : '';
+      if (k) { dias['#' + k] = (dias['#' + k] || 0) + 1; }
+    }
+    return dias;
+  }
+
+  function rachaGlobal(items, proyectos, hoy) {
+    var dias = diasConAvance(items, proyectos), lista = [], k;
+    for (k in dias) { if (dias.hasOwnProperty(k)) { lista.push(k.slice(1)); } }
+    lista.sort();
+    var mejor = 0, run = 0, prev = '', i;
+    for (i = 0; i < lista.length; i++) {
+      run = prev !== '' && difDias(prev, lista[i]) === 1 ? run + 1 : 1;
+      if (run > mejor) { mejor = run; }
+      prev = lista[i];
+    }
+    var hoyActivo = dias.hasOwnProperty('#' + hoy);
+    var actual = 0, d = hoyActivo ? hoy : sumarDias(hoy, -1);
+    while (dias.hasOwnProperty('#' + d)) { actual++; d = sumarDias(d, -1); }
+    return { actual: actual, mejor: mejor, diasActivos: lista.length, hoyActivo: hoyActivo,
+      primerDia: lista.length ? lista[0] : '' };
+  }
+
+  function estadisticas(items, proyectos, rutinas, hoy) {
+    var s = { tareasHechas: 0, rutinasHechas: 0, comprasHechas: 0, hitos: 0, misionesFin: 0, misionesGrandes: 0,
+      retomadas: 0, madrugadas: 0, alfa: 0, rachaRutinaMejor: 0, inboxAbierto: 0, contextosEquilibrio: 0,
+      porContexto: {}, semanas: [] };
+    var i, j, it, porCtxHechas = {};
+    for (i = 0; i < items.length; i++) {
+      it = items[i];
+      if (it.tipo === 'tarea' && it.estado === 'entrada') { s.inboxAbierto++; }
+      if (!esHecho(it.estado)) { continue; }
+      if (it.rutinaId && esClave(it.ocurrencia)) { s.rutinasHechas++; }
+      else if (it.tipo === 'compra') { s.comprasHechas++; }
+      else { s.tareasHechas++; }
+      porCtxHechas['#' + it.contexto] = (porCtxHechas['#' + it.contexto] || 0) + 1;
+      if (!it.rutinaId && msEntre(it.creado, it.estadoDesde) >= 30 * 86400000) { s.retomadas++; }
+      var h = new Date(it.estadoDesde);
+      if (!isNaN(h.getTime()) && h.getHours() < 7 && h.getHours() >= 4) { s.madrugadas++; }
+    }
+    for (i = 0; i < CONTEXTOS.length; i++) {
+      var n = porCtxHechas['#' + CONTEXTOS[i].id] || 0;
+      s.porContexto[CONTEXTOS[i].id] = n;
+      if (n >= 5) { s.contextosEquilibrio++; }
+    }
+    for (i = 0; i < (proyectos || []).length; i++) {
+      var p = proyectos[i], hh = 0;
+      for (j = 0; j < p.hitos.length; j++) {
+        if (!p.hitos[j].hecho) { continue; }
+        hh++;
+        s.hitos++;
+        if (/\balfa\b/i.test(p.hitos[j].texto)) { s.alfa++; }
+      }
+      if (p.estado === 'terminado') {
+        s.misionesFin++;
+        if (hh >= 5) { s.misionesGrandes++; }
+        if (/\balfa\b/i.test(p.nombre)) { s.alfa++; }
+      }
+    }
+    for (i = 0; i < (rutinas || []).length; i++) {
+      var r = rachaRutina(rutinas[i], items, hoy);
+      if (r.mejor > s.rachaRutinaMejor) { s.rachaRutinaMejor = r.mejor; }
+    }
+    var x = calcularXP(items, proyectos);
+    s.xp = x.total;
+    s.xpPorContexto = x.porContexto;
+    s.nivel = nivelPorXP(x.total).nivel;
+    var rg = rachaGlobal(items, proyectos, hoy);
+    s.racha = rg.actual;
+    s.rachaMejor = rg.mejor;
+    s.diasActivos = rg.diasActivos;
+    s.primerDia = rg.primerDia;
+    s.hoyActivo = rg.hoyActivo;
+    s.totalHechas = s.tareasHechas + s.rutinasHechas + s.comprasHechas;
+    s.inboxCero = s.inboxAbierto === 0 && s.totalHechas >= 20 ? 1 : 0;
+    /* Actividad de las ultimas 12 semanas (lunes a domingo), para la campaña. */
+    var dias = diasConAvance(items, proyectos), lunes = sumarDias(hoy, -((diaSemana(hoy) + 6) % 7)), w, d;
+    for (w = 11; w >= 0; w--) {
+      var ini = sumarDias(lunes, -7 * w), cuenta = 0, activos = 0;
+      for (d = 0; d < 7; d++) {
+        var c = dias['#' + sumarDias(ini, d)] || 0;
+        cuenta += c;
+        if (c > 0) { activos++; }
+      }
+      s.semanas.push({ desde: ini, avances: cuenta, diasActivos: activos });
+    }
+    return s;
+  }
+
+  /* ---------- logros ----------
+     Cada logro es un umbral sobre una estadistica. Se ganan para siempre: lo
+     desbloqueado queda guardado aunque despues el numero baje. Los secretos no
+     se muestran hasta ganarlos: la sorpresa es parte del premio. */
+
+  var LOGROS = [
+    { id: 'primer_paso', ico: '\uD83D\uDC63', nom: 'Primer paso', desc: 'Completaste tu primera tarea', campo: 'totalHechas', meta: 1 },
+    { id: 'en_marcha', ico: '\uD83D\uDE80', nom: 'En marcha', desc: '10 cosas completadas', campo: 'totalHechas', meta: 10 },
+    { id: 'centenario', ico: '\uD83D\uDCAF', nom: 'Centenario', desc: '100 cosas completadas', campo: 'totalHechas', meta: 100 },
+    { id: 'imparable', ico: '\u26A1', nom: 'Imparable', desc: '500 cosas completadas', campo: 'totalHechas', meta: 500 },
+    { id: 'primer_hito', ico: '\uD83C\uDFAF', nom: 'Primer hito', desc: 'Cumpliste el primer hito de una mision', campo: 'hitos', meta: 1 },
+    { id: 'primera_mision', ico: '\uD83C\uDFC1', nom: 'Primera mision', desc: 'Terminaste tu primer proyecto', campo: 'misionesFin', meta: 1 },
+    { id: 'gran_hito', ico: '\uD83C\uDFD4', nom: 'Gran milestone', desc: 'Cumpliste una mision de 5 o mas hitos', campo: 'misionesGrandes', meta: 1 },
+    { id: 'cinco_misiones', ico: '\uD83C\uDF96', nom: 'Estratega', desc: '5 misiones cumplidas', campo: 'misionesFin', meta: 5 },
+    { id: 'racha_7', ico: '\uD83D\uDD25', nom: '7 dias avanzando', desc: 'Una semana seguida con avances', campo: 'rachaMejor', meta: 7 },
+    { id: 'racha_30', ico: '\uD83C\uDF0B', nom: '30 dias avanzando', desc: 'Un mes seguido con avances', campo: 'rachaMejor', meta: 30 },
+    { id: 'dias_100', ico: '\uD83D\uDCC5', nom: '100 dias activos', desc: '100 dias con algun avance, seguidos o no', campo: 'diasActivos', meta: 100 },
+    { id: 'constancia', ico: '\uD83D\uDD04', nom: 'Constancia', desc: 'Una rutina 14 veces seguidas', campo: 'rachaRutinaMejor', meta: 14 },
+    { id: 'rutina_100', ico: '\u267B', nom: 'Habito de hierro', desc: '100 rutinas cumplidas', campo: 'rutinasHechas', meta: 100 },
+    { id: 'equilibrio', ico: '\u2696', nom: 'Equilibrio', desc: '5 o mas completadas en 3 contextos de tu vida', campo: 'contextosEquilibrio', meta: 3 },
+    { id: 'inbox_cero', ico: '\uD83D\uDCED', nom: 'Inbox cero', desc: 'Inbox vacio con 20 o mas cosas hechas', campo: 'inboxCero', meta: 1 },
+    { id: 'nivel_5', ico: '\u2B50', nom: 'Nivel 5', desc: 'Llegaste a nivel 5', campo: 'nivel', meta: 5 },
+    { id: 'nivel_10', ico: '\uD83C\uDF1F', nom: 'Nivel 10', desc: 'Llegaste a nivel 10', campo: 'nivel', meta: 10 },
+    { id: 'primera_alfa', ico: '\uD83C\uDD70', nom: 'Primera Alfa', desc: 'Cumpliste una version Alfa', campo: 'alfa', meta: 1, secreto: true },
+    { id: 'retomaste', ico: '\uD83E\uDDF2', nom: 'Retomaste algo abandonado', desc: 'Completaste algo que llevaba 30 dias o mas', campo: 'retomadas', meta: 1, secreto: true },
+    { id: 'madrugador', ico: '\uD83C\uDF05', nom: 'Madrugador', desc: 'Completaste algo antes de las 7', campo: 'madrugadas', meta: 1, secreto: true }
+  ];
+
+  /* Ids de logros que cumplen y todavia no estaban desbloqueados. */
+  function logrosNuevos(stats, desbloqueados) {
+    var r = [], i;
+    for (i = 0; i < LOGROS.length; i++) {
+      var l = LOGROS[i];
+      if (desbloqueados && desbloqueados.hasOwnProperty(l.id)) { continue; }
+      if ((stats[l.campo] || 0) >= l.meta) { r.push(l); }
+    }
+    return r;
+  }
+
   return {
+    diasConAvance: diasConAvance,
+    rachaGlobal: rachaGlobal,
+    estadisticas: estadisticas,
+    LOGROS: LOGROS,
+    logrosNuevos: logrosNuevos,
     XP: XP,
     xpItem: xpItem,
     calcularXP: calcularXP,

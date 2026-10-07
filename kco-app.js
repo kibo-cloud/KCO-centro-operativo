@@ -3249,10 +3249,186 @@
     cont.appendChild(c);
   }
 
-  /* Ganchos de logros, racha y campaña (siguiente fase). */
-  function revisarLogros() { return ''; }
-  function rachaGlobal() { return { actual: 0, mejor: 0 }; }
-  function pintarCampana() {}
+  /* ---------- logros y racha ---------- */
+
+  function rachaGlobal() { return K.rachaGlobal(items, proyectos, hoyClave()); }
+
+  /* Desbloquea lo que ya se cumple. Silencioso en la primera carga de 2.0:
+     la historia previa gana sus logros sin fingir que todo paso hoy. */
+  function revisarLogros(silencioso) {
+    if (soloLectura) { return ''; }
+    var nuevos = K.logrosNuevos(K.estadisticas(items, proyectos, rutinas, hoyClave()), memProgreso.logros);
+    if (nuevos.length === 0) { return ''; }
+    var ahora = new Date().toISOString(), txt = '', i;
+    for (i = 0; i < nuevos.length; i++) {
+      memProgreso.logros[nuevos[i].id] = ahora;
+      if (!silencioso) {
+        eventos.push({ id: nuevoId('e'), ts: ahora, tipo: 'logro', itemId: '', texto: nuevos[i].desc,
+          contexto: ctxCaptura, desde: nuevos[i].id, hasta: nuevos[i].nom });
+        txt = txt + ' \u00B7 \uD83C\uDFC6 ' + nuevos[i].nom;
+      }
+    }
+    guardarProgreso();
+    if (!silencioso) { guardarEventos(); }
+    return txt;
+  }
+  /* ---------- campaña: mirar hacia atras y ver que se avanzo ---------- */
+
+  function statTile(cont, valor, rot, sub) {
+    var t = nodo('div', 'stat');
+    t.appendChild(nodo('b', 'mono', '' + valor));
+    t.appendChild(nodo('span', '', rot));
+    if (sub) { t.appendChild(nodo('small', 'mono', sub)); }
+    cont.appendChild(t);
+  }
+
+  function fechaLarga(clave) {
+    if (!clave) { return ''; }
+    var d = K.deClave(clave);
+    return d.getDate() + ' ' + MESES[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  function pintarCampana() {
+    var cont = $('campanaCuerpo');
+    vaciar(cont);
+    var hoy = hoyClave();
+    var st = K.estadisticas(items, proyectos, rutinas, hoy);
+    var nv = K.nivelPorXP(st.xp);
+
+    var cab = nodo('div', 'camp-cab');
+    cab.appendChild(nodo('div', 'camp-nv mono', '\u2B50 NIVEL ' + nv.nivel));
+    cab.appendChild(nodo('div', 'camp-tit', nv.titulo));
+    cab.appendChild(nodo('div', 'mono camp-xp', st.xp + ' XP \u00B7 faltan ' + nv.falta + ' para el nivel ' + (nv.nivel + 1)));
+    var barra = nodo('div', 'barra');
+    var bi = nodo('i', '');
+    bi.style.width = nv.pct + '%';
+    barra.appendChild(bi);
+    cab.appendChild(barra);
+    cab.appendChild(nodo('div', 'mono camp-desde', st.primerDia
+      ? 'Campa\u00F1a en curso desde el ' + fechaLarga(st.primerDia)
+      : 'La campa\u00F1a empieza con lo primero que completes.'));
+    cont.appendChild(cab);
+
+    var g = nodo('div', 'stats');
+    statTile(g, st.diasActivos, 'dias activos', 'nunca baja');
+    statTile(g, st.racha, 'racha actual', 'mejor ' + st.rachaMejor + (st.racha > 0 && !st.hoyActivo ? ' \u00B7 hoy en juego' : ''));
+    statTile(g, st.tareasHechas + st.comprasHechas, 'completadas', st.rutinasHechas + ' rutinas aparte');
+    statTile(g, st.misionesFin, 'misiones cumplidas', st.hitos + ' hitos');
+    cont.appendChild(g);
+
+    pintarSemanas(cont, st.semanas);
+    pintarPorContexto(cont, st);
+    pintarLogros(cont);
+
+    var fin = [], i;
+    for (i = 0; i < proyectos.length; i++) { if (proyectos[i].estado === 'terminado') { fin.push(proyectos[i]); } }
+    if (fin.length > 0) {
+      fin.sort(function (a, b) { return a.terminado < b.terminado ? 1 : -1; });
+      var s = nodo('section', 'sec');
+      var h = nodo('h3', 'sec-tit');
+      h.appendChild(nodo('span', '', '\uD83C\uDFC1 LO QUE TERMINASTE'));
+      h.appendChild(nodo('b', 'mono', '' + fin.length));
+      s.appendChild(h);
+      for (i = 0; i < fin.length && i < 12; i++) { s.appendChild(nodoMision(fin[i], true)); }
+      cont.appendChild(s);
+    }
+  }
+
+  /* Una serie (avances por semana): barras de un solo tono, base comun, sin
+     segundo eje. Tocar una barra dice su valor; el resumen va en texto. */
+  function pintarSemanas(cont, semanas) {
+    var s = nodo('section', 'sec');
+    var h = nodo('h3', 'sec-tit');
+    h.appendChild(nodo('span', '', '\uD83D\uDCC8 ULTIMAS 12 SEMANAS'));
+    var total = 0, max = 0, i;
+    for (i = 0; i < semanas.length; i++) { total += semanas[i].avances; if (semanas[i].avances > max) { max = semanas[i].avances; } }
+    h.appendChild(nodo('b', 'mono', total + ' avances'));
+    s.appendChild(h);
+    var cap = nodo('div', 'mono sem-cap', 'Toca una semana para ver el detalle.');
+    var graf = nodo('div', 'semanas');
+    graf.setAttribute('role', 'img');
+    var resumen = [];
+    for (i = 0; i < semanas.length; i++) {
+      (function (w, ultima) {
+        var p = w.desde.split('-');
+        var etiqueta = 'Semana del ' + p[2] + '/' + p[1] + ': ' + w.avances + ' avances en ' + w.diasActivos + ' dias';
+        resumen.push(p[2] + '/' + p[1] + ' ' + w.avances);
+        var col = nodo('button', 'sem' + (ultima ? ' actual' : ''));
+        col.type = 'button';
+        col.setAttribute('title', etiqueta);
+        col.setAttribute('aria-label', etiqueta);
+        var barra = nodo('i', '');
+        barra.style.height = (max === 0 ? 0 : Math.max(w.avances > 0 ? 6 : 0, Math.round((w.avances * 100) / max))) + '%';
+        col.appendChild(barra);
+        col.onclick = function () { cap.textContent = etiqueta + (ultima ? ' (esta semana)' : ''); };
+        graf.appendChild(col);
+      })(semanas[i], i === semanas.length - 1);
+    }
+    graf.setAttribute('aria-label', 'Avances por semana: ' + resumen.join(', '));
+    s.appendChild(graf);
+    s.appendChild(cap);
+    cont.appendChild(s);
+  }
+
+  /* Donde se fue el esfuerzo: completadas y XP por contexto, rotulo en texto. */
+  function pintarPorContexto(cont, st) {
+    var s = nodo('section', 'sec');
+    var h = nodo('h3', 'sec-tit');
+    h.appendChild(nodo('span', '', '\uD83E\uDDED ACTIVIDAD POR CONTEXTO'));
+    s.appendChild(h);
+    var max = 0, i, c, n;
+    for (i = 0; i < K.CONTEXTOS.length; i++) { n = st.porContexto[K.CONTEXTOS[i].id] || 0; if (n > max) { max = n; } }
+    for (i = 0; i < K.CONTEXTOS.length; i++) {
+      c = K.CONTEXTOS[i];
+      n = st.porContexto[c.id] || 0;
+      var xp = st.xpPorContexto['#' + c.id] || 0;
+      var f = nodo('div', 'ctxbar' + (n === 0 ? ' cero' : ''));
+      f.appendChild(nodo('span', 'ctxbar-nom', c.ico + ' ' + c.nom));
+      var pista = nodo('span', 'ctxbar-pista');
+      var b = nodo('i', '');
+      b.style.width = (max === 0 ? 0 : Math.round((n * 100) / max)) + '%';
+      pista.appendChild(b);
+      f.appendChild(pista);
+      f.appendChild(nodo('span', 'mono ctxbar-n', n + ' \u00B7 ' + xp + ' XP'));
+      s.appendChild(f);
+    }
+    cont.appendChild(s);
+  }
+
+  function pintarLogros(cont) {
+    var s = nodo('section', 'sec');
+    s.id = 'secLogros';
+    var h = nodo('h3', 'sec-tit');
+    var ganados = 0, i;
+    for (i = 0; i < K.LOGROS.length; i++) { if (memProgreso.logros.hasOwnProperty(K.LOGROS[i].id)) { ganados++; } }
+    h.appendChild(nodo('span', '', '\uD83C\uDFC6 LOGROS'));
+    h.appendChild(nodo('b', 'mono', ganados + '/' + K.LOGROS.length));
+    s.appendChild(h);
+    var st = K.estadisticas(items, proyectos, rutinas, hoyClave());
+    var g = nodo('div', 'logros');
+    for (i = 0; i < K.LOGROS.length; i++) {
+      var l = K.LOGROS[i];
+      var gano = memProgreso.logros.hasOwnProperty(l.id);
+      var c = nodo('div', 'logro' + (gano ? ' ganado' : '') + (!gano && l.secreto ? ' secreto' : ''));
+      c.setAttribute('data-logro', l.id);
+      if (!gano && l.secreto) {
+        c.appendChild(nodo('div', 'logro-ico', '\u2753'));
+        c.appendChild(nodo('b', '', 'Logro secreto'));
+        c.appendChild(nodo('small', '', 'Se revela cuando lo ganes.'));
+      } else {
+        c.appendChild(nodo('div', 'logro-ico', l.ico));
+        c.appendChild(nodo('b', '', l.nom));
+        c.appendChild(nodo('small', '', l.desc));
+        var v = Math.min(st[l.campo] || 0, l.meta);
+        c.appendChild(nodo('small', 'mono logro-est', gano
+          ? '\u2714 ' + fechaNota(memProgreso.logros[l.id])
+          : (l.meta > 1 ? v + '/' + l.meta : 'pendiente')));
+      }
+      g.appendChild(c);
+    }
+    s.appendChild(g);
+    cont.appendChild(s);
+  }
 
   /* ---------- misiones ----------
      kibco.proyectos guarda las misiones. Las tareas se vinculan con proyectoId.

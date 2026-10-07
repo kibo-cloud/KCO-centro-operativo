@@ -601,6 +601,44 @@ export const tests = [
     }
   },
   {
+    name: 'achievements: first completion unlocks one, announced once, kept forever',
+    async fn(page) {
+      await capture(page, 'algo');
+      await page.eval(`(function(){var l=JSON.parse(localStorage.getItem('kibco.items'));l[0].creado=new Date(Date.now()-3600000).toISOString();localStorage.setItem('kibco.items',JSON.stringify(l));})()`);
+      await page.reload();
+      await page.click('.hero [data-hero="hecho"]');
+      assert.match(await page.text('#qpaso'), /Primer paso/);
+      const prog = JSON.parse(await page.storage('kibco.progreso'));
+      assert.ok(prog.logros.primer_paso);
+      assert.ok((await events(page)).some((e) => e.tipo === 'logro' && e.hasta === 'Primer paso'));
+      await page.click('#btnDeshacer');
+      assert.ok(JSON.parse(await page.storage('kibco.progreso')).logros.primer_paso, 'never taken away');
+    }
+  },
+  {
+    name: 'campaign: stats, weekly activity, contexts and achievements (secrets hidden)',
+    storage: (() => {
+      const list = [];
+      for (let d = 0; d < 9; d++) list.push({ id: 'c' + d, texto: 'avance ' + d, contexto: d % 2 ? 'apps' : 'personal', tipo: 'tarea', estado: 'completado',
+        nivel: 'normal', creado: new Date(Date.now() - (d + 2) * 86400000).toISOString(), estadoDesde: (() => { const x = new Date(Date.now() - d * 86400000); x.setHours(12, 0, 0, 0); return x.toISOString(); })() });
+      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list) };
+    })(),
+    async fn(page) {
+      await page.click('#tarjetaNivel');
+      assert.ok(await page.visible('#campanaCuerpo'));
+      const txt = await page.text('#campanaCuerpo');
+      assert.match(txt, /9dias activos/);
+      assert.match(txt, /9racha actual/);
+      assert.match(txt, /7 dias avanzando/);
+      assert.match(txt, /Logro secreto/);
+      assert.doesNotMatch(txt, /Madrugador/);
+      assert.equal(await page.count('.semanas .sem'), 12);
+      assert.ok(await page.eval("document.querySelector('[data-logro=\"racha_7\"]').className.indexOf('ganado')>-1"),
+        'historic 7-day streak unlocked silently on first 2.0 run');
+      await page.screenshot(path.join(OUT, 'campana.png'));
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');
