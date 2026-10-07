@@ -237,7 +237,7 @@ body.luz li.item{border-width:1px}
 .bloque.pri{background:var(--acc);border-color:var(--acc);color:var(--sobreacc);font-weight:600}
 .bloque.peli{color:#FF9A94;border-color:rgba(255,59,48,.35)}
 textarea{width:100%;min-height:130px;padding:12px;border-radius:9px;background:var(--bg);border:1px solid var(--linea);color:var(--txt);font-size:13.5px;font-family:var(--mono);resize:vertical}
-input[type=text],input[type=time],input[type=date],textarea{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:15px;outline:none;font-family:inherit}
+input[type=text],input[type=time],input[type=date],input[type=number],textarea{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:15px;outline:none;font-family:inherit}
 textarea{resize:vertical;min-height:76px;line-height:1.4}
 input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
 #txtBusca{margin-bottom:10px}
@@ -282,6 +282,15 @@ input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
 .badge.ctx{border-color:transparent;padding:2px 2px}
 .badge.rut{border-color:transparent;padding:2px 2px}
 .badge.mot{color:var(--txt2)}
+.badge.racha{color:#FF9F43;border-color:#FF9F43}
+li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
+.semana{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.diab{min-height:44px;border-radius:9px;border:1px solid var(--linea);background:var(--card2);color:var(--txt2);font-family:var(--mono);font-size:14px;font-weight:700;cursor:pointer}
+.diab.on{border-color:var(--acc);background:var(--accsuave);color:var(--acc)}
+.histo{display:flex;width:100%;gap:9px;align-items:center;padding:8px 2px;border:0;border-bottom:1px solid var(--linea);background:none;color:var(--txt);font-size:13px;text-align:left;cursor:pointer;min-height:40px}
+.histo .h{flex:0 0 46px;color:var(--txt2);font-size:11.5px}
+.histo .s{flex:0 0 22px;font-size:15px}
+.histo .d{flex:1;color:var(--txt2)}
 </style>
 </head>
 <body class="ctx-trabajo">
@@ -369,6 +378,18 @@ input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
     <h2 id="itemTitulo">Item</h2>
     <div class="sub" id="itemSub"></div>
 
+    <div id="cajaOcurrencia" style="display:none">
+      <div class="rot">&#128260; Rutina</div>
+      <div class="pista" id="ocuInfo" style="margin-top:0;margin-bottom:8px"></div>
+      <div class="grid3">
+        <button class="gbtn" id="btnEx_omitida" type="button">&#9197; Omitir</button>
+        <button class="gbtn" id="btnEx_no_corresponde" type="button">&#10134; No tocaba</button>
+        <button class="gbtn" id="btnEx_delegada" type="button">&#129309; Delegada</button>
+      </div>
+      <div class="pista">No tocaba no corta la racha. Delegada cuenta como resuelta.</div>
+      <button class="bloque" id="btnVerRutina" type="button">Ver la rutina e historial</button>
+    </div>
+
     <div class="rot" id="rotEstados">Estado</div>
     <div class="grid" id="gridEstados"></div>
 
@@ -443,11 +464,64 @@ input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
 
     <div class="rot">Acciones</div>
     <button class="bloque" id="btnAcompra" type="button">&#128722; Mover a Compras</button>
+    <button class="bloque" id="btnHacerRutina" type="button">&#128260; Hacer recurrente</button>
     <button class="bloque" id="btnVolverTarea" type="button">&#8617; Volver a tarea</button>
     <button class="bloque" id="btnEditar" type="button">&#9998; Editar texto</button>
     <button class="bloque" id="btnCompartirItem" type="button">&#128228; Compartir</button>
     <button class="bloque peli" id="btnBorrar" type="button">&#128465; Borrar</button>
     <button class="bloque pri" id="btnCerrarItem" type="button">Cerrar</button>
+  </div>
+</div>
+
+<div class="tapa" id="tapaRutinas">
+  <div class="hoja">
+    <h2>&#128260; Rutinas</h2>
+    <div class="sub">Cada rutina crea su tarea el dia que toca. Lo hecho queda en el historial.</div>
+    <ul id="listaRutinas" class="lista"></ul>
+    <button class="bloque pri" id="btnNuevaRutina" type="button">&#10133; Nueva rutina</button>
+    <button class="bloque" id="btnCerrarRutinas" type="button">Cerrar</button>
+  </div>
+</div>
+
+<div class="tapa" id="tapaRutina">
+  <div class="hoja">
+    <h2 id="rutTitulo">Nueva rutina</h2>
+    <div class="sub" id="rutSub"></div>
+    <input id="txtRutina" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
+           maxlength="200" placeholder="Ej: dar de comer a la gata">
+    <div class="rot">Frecuencia</div>
+    <div class="grid" id="gridFrec"></div>
+    <div id="cajaCada">
+      <div class="rot" id="rotCada">Cada cuantos dias</div>
+      <input id="numCada" type="number" inputmode="numeric" min="1" max="365" value="1">
+    </div>
+    <div id="cajaSemana">
+      <div class="rot">Dias</div>
+      <div class="semana" id="gridSemana"></div>
+    </div>
+    <div id="cajaMes">
+      <div class="rot">Dia del mes</div>
+      <input id="numDiaMes" type="number" inputmode="numeric" min="1" max="31" value="1">
+      <div class="pista">Si el mes es mas corto, toca el ultimo dia.</div>
+    </div>
+    <div class="rot">Contexto</div>
+    <div class="grid" id="gridRutCtx"></div>
+    <div class="rot">Prioridad</div>
+    <div class="grid" id="gridRutNivel"></div>
+    <div class="grid" style="margin-top:4px">
+      <div><div class="rot">Desde</div><input id="rutInicio" type="date"></div>
+      <div><div class="rot">Hasta (opcional)</div><input id="rutFin" type="date"></div>
+    </div>
+    <div class="pista" id="rutProxima"></div>
+    <button class="bloque pri" id="btnGuardarRutina" type="button">Guardar rutina</button>
+    <div id="cajaRutExistente" style="display:none">
+      <div class="rot">Historial</div>
+      <div class="pista mono" id="rutRacha" style="margin-top:0;margin-bottom:6px"></div>
+      <div id="rutHistorial"></div>
+      <button class="bloque" id="btnPausarRutina" type="button">&#9208; Pausar rutina</button>
+      <button class="bloque peli" id="btnBorrarRutina" type="button">&#128465; Borrar definicion</button>
+    </div>
+    <button class="bloque" id="btnCerrarRutina" type="button">Cerrar</button>
   </div>
 </div>
 

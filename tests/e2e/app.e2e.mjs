@@ -330,6 +330,118 @@ export const tests = [
     }
   },
   {
+    name: 'recurring: create a daily routine, today occurrence appears once',
+    async fn(page) {
+      await page.click('#tabHoy');
+      await page.click('#btnRutinas');
+      await page.click('#btnNuevaRutina');
+      await page.type('#txtRutina', 'Dar de comer a la gata');
+      await page.click('#gridFrec [data-frec="diaria"]');
+      await page.click('#gridRutCtx [data-ctx="hogar"]');
+      await page.click('#btnGuardarRutina');
+      const defs = JSON.parse(await page.storage('kibco.rutinas'));
+      assert.equal(defs.length, 1);
+      let occ = (await items(page)).filter((i) => i.rutinaId === defs[0].id);
+      assert.equal(occ.length, 1);
+      assert.equal(occ[0].ocurrencia, ymd(0));
+      assert.equal(occ[0].estado, 'pendiente');
+      assert.equal(occ[0].contexto, 'hogar');
+      await page.reload();
+      occ = (await items(page)).filter((i) => i.rutinaId === defs[0].id);
+      assert.equal(occ.length, 1, 'idempotent across reloads');
+      await page.click('#tabHoy');
+      assert.match(await page.text('#secRutinasHoy'), /gata/);
+    }
+  },
+  {
+    name: 'recurring: completing keeps history; next day is a new record and the streak grows',
+    storage: rutinaSeed([[-3, 'completado'], [-2, 'completado'], [-1, 'completado']]),
+    async fn(page) {
+      const list = await items(page);
+      const today = list.filter((i) => i.rutinaId === 'rgata' && i.ocurrencia === ymd(0));
+      assert.equal(today.length, 1, 'today generated as a separate item');
+      assert.equal(list.filter((i) => i.rutinaId === 'rgata').length, 4, 'history preserved');
+      await page.click('#tabHoy');
+      assert.match(await page.text('#secRutinasHoy'), /3 seguidas/);
+      await page.click('#secRutinasHoy [data-acc="listo"]');
+      await page.click('#tabHoy');
+      assert.match(await page.text('#secRutinasHoy'), /4 seguidas/);
+      assert.match(await page.text('#secRutinasHoy'), /1\/1/);
+    }
+  },
+  {
+    name: 'recurring: an occurrence left open overnight closes as unrecorded, never piles up',
+    storage: rutinaSeed([[-5, 'completado'], [-1, 'pendiente']]),
+    async fn(page) {
+      const list = (await items(page)).filter((i) => i.rutinaId === 'rgata');
+      const ayer = list.find((i) => i.ocurrencia === ymd(-1));
+      assert.equal(ayer.estado, 'cancelado');
+      assert.equal(ayer.motivo, 'vencida');
+      assert.equal(list.filter((i) => i.estado === 'pendiente').length, 1, 'only today is open');
+      assert.equal(list.length, 3, 'no backlog for the days the app was closed');
+    }
+  },
+  {
+    name: 'recurring: "no tocaba" exception keeps the streak; undo restores',
+    storage: rutinaSeed([[-2, 'completado'], [-1, 'completado']]),
+    async fn(page) {
+      await page.click('#tabHoy');
+      await page.click('#secRutinasHoy li.item');
+      assert.ok(await page.visible('#cajaOcurrencia'));
+      await page.click('#btnEx_no_corresponde');
+      let t = (await items(page)).find((i) => i.ocurrencia === ymd(0));
+      assert.equal(t.estado, 'cancelado');
+      assert.equal(t.motivo, 'no_corresponde');
+      await page.click('#btnCerrarItem');
+      await page.click('#tabHoy');
+      assert.match(await page.text('#secRutinasHoy'), /2 seguidas/);
+      await page.click('#btnDeshacer');
+      t = (await items(page)).find((i) => i.ocurrencia === ymd(0));
+      assert.equal(t.estado, 'pendiente');
+      assert.equal(t.motivo, '');
+    }
+  },
+  {
+    name: 'recurring: upcoming days preview future occurrences without creating them',
+    storage: rutinaSeed([], { tipo: 'semana', dias: [new Date(Date.now() + 2 * 86400000).getDay()] }),
+    async fn(page) {
+      await page.click('#tabHoy');
+      assert.ok(await page.count('#dia-' + ymd(2) + ' li.prevista') === 1);
+      assert.equal((await items(page)).filter((i) => i.rutinaId === 'rgata' && i.ocurrencia >= ymd(1)).length, 0);
+    }
+  },
+  {
+    name: 'recurring: "hacer recurrente" turns the task into today\'s occurrence (no duplicate)',
+    async fn(page) {
+      await capture(page, 'regar plantas');
+      await openFirstItem(page);
+      await page.click('#btnHacerRutina');
+      await page.click('#btnGuardarRutina');
+      const list = await items(page);
+      assert.equal(list.length, 1);
+      assert.ok(list[0].rutinaId);
+      assert.equal(list[0].ocurrencia, ymd(0));
+    }
+  },
+  {
+    name: 'recurring: routines travel in the backup and come back on restore',
+    storage: rutinaSeed([[-1, 'completado']]),
+    async fn(page) {
+      await page.click('#btnAjustes');
+      await page.click('#btnBackupTexto');
+      const json = await page.eval("document.getElementById('txtSalida').value");
+      assert.equal(JSON.parse(json).rutinas.length, 1);
+      const file = path.join(os.tmpdir(), 'kco-e2e-rutinas.json');
+      fs.writeFileSync(file, json);
+      await page.eval("localStorage.setItem('kibco.rutinas','[]');localStorage.setItem('kibco.items','[]')");
+      await page.reload();
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      assert.equal(JSON.parse(await page.storage('kibco.rutinas')).length, 1);
+      assert.equal((await items(page)).filter((i) => i.rutinaId === 'rgata').length, 2);
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');
@@ -367,6 +479,15 @@ function seed() {
     ]),
     'kibco.eventos': '[]'
   };
+}
+
+function rutinaSeed(history, extra) {
+  const r = Object.assign({ id: 'rgata', texto: 'Dar de comer a la gata', contexto: 'hogar', tipo: 'dias', cada: 1,
+    inicio: ymd(-10), activa: true }, extra || {});
+  const list = history.map(([d, estado], k) => ({ id: 'h' + k, texto: r.texto, contexto: 'hogar', tipo: 'tarea',
+    estado, rutinaId: r.id, ocurrencia: ymd(d), creado: new Date(Date.now() + d * 86400000).toISOString(),
+    estadoDesde: new Date(Date.now() + d * 86400000).toISOString() }));
+  return { 'kibco.esquema': '4', 'kibco.contexto': 'todo', 'kibco.rutinas': JSON.stringify([r]), 'kibco.items': JSON.stringify(list) };
 }
 
 async function openFirstItem(page, estado) {

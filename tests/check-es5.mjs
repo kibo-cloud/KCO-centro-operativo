@@ -21,6 +21,7 @@ function strip(src) {
     if (c === '"' || c === "'") {
       let j = i + 1;
       while (j < src.length && src[j] !== c) { if (src[j] === '\\') j++; if (src[j] === '\n') break; j++; }
+      if (/[^\x00-\x7E]/.test(src.slice(i, j))) problems.push(['non-ASCII char in string literal (use \\uXXXX escapes)', i]);
       out += '""'; last = '"'; i = j + 1; continue;
     }
     if (c === '/' && (REGEX_PREV.has(last) || REGEX_KW.test(out.trimEnd()) || last === '')) {

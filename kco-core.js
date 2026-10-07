@@ -61,11 +61,11 @@
      comprado, cancelado. El id 'hogar' se conserva y se muestra como Casa. */
 
   var CONTEXTOS = [
-    { id: 'trabajo', ico: '🏭', nom: 'Trabajo' },
-    { id: 'hogar', ico: '🏠', nom: 'Casa' },
-    { id: 'apps', ico: '💻', nom: 'Apps' },
-    { id: 'contenido', ico: '🎬', nom: 'Contenido' },
-    { id: 'personal', ico: '🏋', nom: 'Personal' }
+    { id: 'trabajo', ico: '\uD83C\uDFED', nom: 'Trabajo' },
+    { id: 'hogar', ico: '\uD83C\uDFE0', nom: 'Casa' },
+    { id: 'apps', ico: '\uD83D\uDCBB', nom: 'Apps' },
+    { id: 'contenido', ico: '\uD83C\uDFAC', nom: 'Contenido' },
+    { id: 'personal', ico: '\uD83C\uDFCB', nom: 'Personal' }
   ];
 
   function infoContexto(id) {
@@ -83,10 +83,10 @@
      asi una version anterior de KCO ve lo urgente como prioridad alta. */
 
   var NIVELES = [
-    { id: 'urgente', ico: '‼', nom: 'Urgente', peso: 3 },
-    { id: 'importante', ico: '❗', nom: 'Importante', peso: 2 },
-    { id: 'normal', ico: '○', nom: 'Normal', peso: 1 },
-    { id: 'baja', ico: '↓', nom: 'Baja', peso: 0 }
+    { id: 'urgente', ico: '\u203C', nom: 'Urgente', peso: 3 },
+    { id: 'importante', ico: '\u2757', nom: 'Importante', peso: 2 },
+    { id: 'normal', ico: '\u25CB', nom: 'Normal', peso: 1 },
+    { id: 'baja', ico: '\u2193', nom: 'Baja', peso: 0 }
   ];
 
   function infoNivel(id) {
@@ -139,17 +139,17 @@
        hecho / cancelado */
 
   var SITUACIONES = [
-    { id: 'atencion', ico: '🔴', nom: 'Requiere atencion' },
-    { id: 'proximo', ico: '🟡', nom: 'Proximo' },
-    { id: 'esperando', ico: '🔵', nom: 'Esperando' },
-    { id: 'programado', ico: '🟣', nom: 'Programado' },
-    { id: 'hecho', ico: '🟢', nom: 'Hecho' }
+    { id: 'atencion', ico: '\uD83D\uDD34', nom: 'Requiere atencion' },
+    { id: 'proximo', ico: '\uD83D\uDFE1', nom: 'Proximo' },
+    { id: 'esperando', ico: '\uD83D\uDD35', nom: 'Esperando' },
+    { id: 'programado', ico: '\uD83D\uDFE3', nom: 'Programado' },
+    { id: 'hecho', ico: '\uD83D\uDFE2', nom: 'Hecho' }
   ];
 
   function infoSituacion(id) {
     var i;
     for (i = 0; i < SITUACIONES.length; i++) { if (SITUACIONES[i].id === id) { return SITUACIONES[i]; } }
-    return { id: 'cancelado', ico: '❌', nom: 'Cancelado' };
+    return { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' };
   }
 
   function recordatorioVencido(it, ahoraMs) {
@@ -293,7 +293,180 @@
     return r;
   }
 
+  /* ---------- rutinas (tareas recurrentes) ----------
+     Una rutina es una DEFINICION. Cada vez que le toca, genera una OCURRENCIA:
+     un item comun con rutinaId y ocurrencia (el dia). La ocurrencia se completa
+     o se cierra con un motivo y queda como historial; la siguiente es otro item.
+     Frecuencias:
+       dias   -> cada N dias desde el inicio (N=1 es diaria)
+       semana -> ciertos dias de la semana, cada N semanas
+       mes    -> un dia del mes, cada N meses (31 en un mes corto = ultimo dia) */
+
+  var LIMITE_BUSQUEDA = 800;
+
+  function entero(x, min, max, def) {
+    var n = parseInt(x, 10);
+    if (isNaN(n)) { return def; }
+    return n < min ? min : (n > max ? max : n);
+  }
+
+  function normalizarRutina(r, hoy) {
+    if (!r || typeof r !== 'object') { return null; }
+    var texto = typeof r.texto === 'string' ? limpio(r.texto).slice(0, 200) : '';
+    if (texto === '' || typeof r.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(r.id)) { return null; }
+    var inicio = esClave(r.inicio) ? r.inicio : hoy;
+    var tipo = r.tipo === 'semana' || r.tipo === 'mes' ? r.tipo : 'dias';
+    var dias = [], vistos = {}, i;
+    if (Object.prototype.toString.call(r.dias) === '[object Array]') {
+      for (i = 0; i < r.dias.length; i++) {
+        var d = parseInt(r.dias[i], 10);
+        if (d >= 0 && d <= 6 && !vistos[d]) { vistos[d] = true; dias.push(d); }
+      }
+    }
+    dias.sort();
+    if (tipo === 'semana' && dias.length === 0) { dias = [diaSemana(inicio)]; }
+    var fin = esClave(r.fin) && r.fin >= inicio ? r.fin : '';
+    return {
+      id: r.id,
+      texto: texto,
+      contexto: normalizarContexto(r.contexto),
+      nivel: nivelDe(r),
+      tipo: tipo,
+      cada: entero(r.cada, 1, 365, 1),
+      dias: dias,
+      diaMes: entero(r.diaMes, 1, 31, parseInt(inicio.split('-')[2], 10)),
+      inicio: inicio,
+      fin: fin,
+      activa: r.activa !== false,
+      proyectoId: typeof r.proyectoId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(r.proyectoId) ? r.proyectoId : '',
+      creado: typeof r.creado === 'string' ? r.creado : '',
+      actualizado: typeof r.actualizado === 'string' ? r.actualizado : ''
+    };
+  }
+
+  function lunesDe(k) {
+    var dow = diaSemana(k);
+    return sumarDias(k, -((dow + 6) % 7));
+  }
+
+  function tocaEnDia(r, k) {
+    if (k < r.inicio || (r.fin !== '' && k > r.fin)) { return false; }
+    if (r.tipo === 'dias') { return difDias(r.inicio, k) % r.cada === 0; }
+    if (r.tipo === 'semana') {
+      var semanas = Math.round(difDias(lunesDe(r.inicio), lunesDe(k)) / 7);
+      if (semanas % r.cada !== 0) { return false; }
+      var dow = diaSemana(k), i;
+      for (i = 0; i < r.dias.length; i++) { if (r.dias[i] === dow) { return true; } }
+      return false;
+    }
+    var a = deClave(r.inicio), b = deClave(k);
+    var meses = (b.getFullYear() * 12 + b.getMonth()) - (a.getFullYear() * 12 + a.getMonth());
+    if (meses % r.cada !== 0) { return false; }
+    var tope = diasDelMes(b.getFullYear(), b.getMonth());
+    return b.getDate() === (r.diaMes > tope ? tope : r.diaMes);
+  }
+
+  /* Ultimo dia que le toco hasta 'hasta' inclusive, o '' si nunca. */
+  function ultimaFecha(r, hasta) {
+    var k = r.fin !== '' && r.fin < hasta ? r.fin : hasta, n = 0;
+    while (k >= r.inicio && n < LIMITE_BUSQUEDA) {
+      if (tocaEnDia(r, k)) { return k; }
+      k = sumarDias(k, -1);
+      n++;
+    }
+    return '';
+  }
+
+  /* Proximo dia que le toca desde 'desde' inclusive, o '' si ya no le toca mas. */
+  function proximaFecha(r, desde) {
+    var k = desde < r.inicio ? r.inicio : desde, n = 0;
+    while (n < LIMITE_BUSQUEDA) {
+      if (r.fin !== '' && k > r.fin) { return ''; }
+      if (tocaEnDia(r, k)) { return k; }
+      k = sumarDias(k, 1);
+      n++;
+    }
+    return '';
+  }
+
+  var NOMBRES_DIA = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+
+  function describirRutina(r) {
+    if (r.tipo === 'dias') { return r.cada === 1 ? 'Todos los dias' : 'Cada ' + r.cada + ' dias'; }
+    if (r.tipo === 'semana') {
+      var orden = [1, 2, 3, 4, 5, 6, 0], nombres = [], i, j;
+      for (i = 0; i < orden.length; i++) {
+        for (j = 0; j < r.dias.length; j++) { if (r.dias[j] === orden[i]) { nombres.push(NOMBRES_DIA[orden[i]]); } }
+      }
+      var lista = r.dias.length === 7 ? 'todos los dias' : nombres.join(', ');
+      return (r.cada === 1 ? 'Cada semana: ' : 'Cada ' + r.cada + ' semanas: ') + lista;
+    }
+    return (r.cada === 1 ? 'Todos los meses' : 'Cada ' + r.cada + ' meses') + ' el dia ' + r.diaMes;
+  }
+
+  function ocurrenciasDe(rutinaId, items) {
+    var r = [], i;
+    for (i = 0; i < items.length; i++) {
+      if (items[i].rutinaId === rutinaId && esClave(items[i].ocurrencia)) { r.push(items[i]); }
+    }
+    return r;
+  }
+
+  /* Que hay que crear y que hay que cerrar hoy. Puro: no toca nada.
+     - Se crea solo la ocurrencia del ultimo dia que le toco (hoy o antes): si la
+       app no se abrio en tres dias no aparecen tres "dar de comer" atrasados.
+     - Una ocurrencia anterior que siga abierta cuando llega la siguiente se cierra
+       como 'vencida' (sin registrar). No se borra: el historial dice la verdad. */
+  function planificarOcurrencias(rutinas, items, hoy) {
+    var crear = [], vencer = [], i, j;
+    for (i = 0; i < rutinas.length; i++) {
+      var r = rutinas[i];
+      if (!r.activa) { continue; }
+      var due = ultimaFecha(r, hoy);
+      if (due === '') { continue; }
+      var occ = ocurrenciasDe(r.id, items), existe = false;
+      for (j = 0; j < occ.length; j++) {
+        if (occ[j].ocurrencia === due) { existe = true; }
+        else if (occ[j].ocurrencia < due && esActivo(occ[j].estado)) { vencer.push(occ[j].id); }
+      }
+      if (!existe) { crear.push({ rutina: r, fecha: due }); }
+    }
+    return { crear: crear, vencer: vencer };
+  }
+
+  /* Como cuenta cada ocurrencia para una racha:
+       +1      hecha (incluye delegada: se resolvio)
+       neutro  'no correspondia', o la de hoy todavia abierta
+       corta   omitida, vencida o cancelada a secas
+     Los dias en que la app no genero ocurrencia (no se abrio, rutina pausada)
+     son neutros: la racha mide constancia registrada, no castiga ausencias. */
+  function pesoOcurrencia(it, hoy) {
+    if (esHecho(it.estado)) { return 1; }
+    if (it.estado === 'cancelado') { return it.motivo === 'no_corresponde' ? 0 : -1; }
+    return it.ocurrencia >= hoy ? 0 : -1;
+  }
+
+  function rachaRutina(r, items, hoy) {
+    var occ = ocurrenciasDe(r.id, items);
+    occ.sort(function (a, b) { return a.ocurrencia < b.ocurrencia ? -1 : (a.ocurrencia > b.ocurrencia ? 1 : 0); });
+    var actual = 0, mejor = 0, hechas = 0, i, p;
+    for (i = 0; i < occ.length; i++) {
+      p = pesoOcurrencia(occ[i], hoy);
+      if (p === 1) { actual++; hechas++; if (actual > mejor) { mejor = actual; } }
+      else if (p === -1) { actual = 0; }
+    }
+    return { actual: actual, mejor: mejor, hechas: hechas, total: occ.length };
+  }
+
   return {
+    normalizarRutina: normalizarRutina,
+    tocaEnDia: tocaEnDia,
+    ultimaFecha: ultimaFecha,
+    proximaFecha: proximaFecha,
+    describirRutina: describirRutina,
+    ocurrenciasDe: ocurrenciasDe,
+    planificarOcurrencias: planificarOcurrencias,
+    rachaRutina: rachaRutina,
     CONTEXTOS: CONTEXTOS,
     infoContexto: infoContexto,
     contextoValido: contextoValido,
