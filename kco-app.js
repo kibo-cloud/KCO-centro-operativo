@@ -32,6 +32,10 @@
      El XP en si no se guarda: se recalcula siempre desde los datos. */
   var K_PROGRESO = 'kibco.progreso';
   var memProgreso = { nivelVisto: 1, logros: {} };
+  /* progresoNuevo: hay que sembrarlo en silencio (primera vez o guardado roto).
+     progresoSinCopia: el guardado esta roto y no se pudo copiar; no se pisa. */
+  var progresoNuevo = false;
+  var progresoSinCopia = false;
 
   var ESTADOS_TAREA = [
     { id: 'entrada', ico: '\uD83D\uDCE5', nom: 'Entrada' },
@@ -106,6 +110,9 @@
   /* DIARIO tiene tres lecturas del mismo historial: curada, cruda y campaña. */
   var modoDiario = 'diario';
   var soloLectura = false;
+  /* Solo lectura porque los datos son de una version mas nueva: ahi tampoco
+     se restaura, porque pisaria datos que esta version no entiende. */
+  var esquemaFuturo = false;
   var migrarComprasHogar = false;
   var itemAbierto = null;
   var confAccion = null;
@@ -297,6 +304,7 @@
   /* Aprende sola: si lo tipeado no esta, entra. La comparacion ignora
      mayusculas, asi "Cinta 3" y "cinta 3" no quedan como dos entradas. */
   function aprender(lista, clave, texto) {
+    if (soloLectura) { return false; }
     var t = limpiarTexto(texto, LARGO_CAMPO);
     if (t === '') { return false; }
     if (enCatalogo(lista, t) > -1) { return false; }
@@ -308,6 +316,7 @@
   }
 
   function olvidar(lista, clave, texto) {
+    if (soloLectura) { return false; }
     var i = enCatalogo(lista, texto);
     if (i < 0) { return false; }
     lista.splice(i, 1);
@@ -434,13 +443,26 @@
 
   function esArray(x) { return Object.prototype.toString.call(x) === '[object Array]'; }
 
+  /* Copia intacta de un valor que no se puede leer, en <clave>.roto.<ts>. Una sola
+     copia por valor distinto: recargar con el mismo dato roto no llena el almacenamiento. */
+  function ponerEnCuarentena(clave, crudo) {
+    var pre = clave + '.roto.', i, k;
+    try {
+      for (i = 0; i < window.localStorage.length; i++) {
+        k = window.localStorage.key(i);
+        if (k && k.indexOf(pre) === 0 && window.localStorage.getItem(k) === crudo) { return true; }
+      }
+    } catch (e) { /* sin acceso para listar: se intenta la copia igual */ }
+    return escribir(pre + Date.now(), crudo);
+  }
+
   function cargarLista(clave, normalizador) {
     var crudo = leer(clave);
     if (crudo === null || crudo === '') { return []; }
     var datos = null;
     try { datos = JSON.parse(crudo); } catch (e) { datos = null; }
     if (!esArray(datos)) {
-      escribir(clave + '.roto.' + Date.now(), crudo);
+      ponerEnCuarentena(clave, crudo);
       soloLectura = true;
       avisar('Datos ilegibles en ' + clave + '. Guarde una copia intacta y no escribo encima. Restaura un backup desde Ajustes.');
       return [];
@@ -464,6 +486,7 @@
     }
     if (n > ESQUEMA) {
       soloLectura = true;
+      esquemaFuturo = true;
       avisar('Estos datos son de una version mas nueva de KCO (esquema ' + n + '). No escribo nada para no romperlos.');
       return;
     }
@@ -2263,6 +2286,7 @@
      por coma a proposito, porque un destino como "Cinta 3, sector B" es un solo
      valor y no dos. */
   function sumarAMano(idInput, lista, clave) {
+    if (soloLectura) { return; }
     var crudo = $(idInput).value;
     if (limpiarTexto(crudo, LARGO_CAMPO) === '' && crudo.replace(/[\s;]/g, '') === '') { return; }
     var partes = crudo.split(/[\r\n;]+/);
@@ -2730,45 +2754,83 @@
     }
   }
 
+  var AVISO_ESQUEMA_FUTURO = 'Los datos guardados son de una version mas nueva de KCO. No restauro para no pisarlos: actualiza la app primero.';
+
+  function esObjeto(x) { return !!x && typeof x === 'object' && !esArray(x); }
+
+  /* Todo o nada: primero se normaliza todo el backup sin tocar nada; recien
+     despues se escribe. Si alguna escritura falla, se repone lo que habia
+     (en memoria y en el almacenamiento) y se avisa que no cambio nada. */
   function aplicarBackup(datos) {
-    var nuevosItems = [], nuevosEventos = [], i;
-    for (i = 0; i < datos.items.length; i++) {
-      var n = normalizarItem(datos.items[i]);
-      if (n) { nuevosItems.push(n); }
-    }
-    if (esArray(datos.eventos)) {
-      for (i = 0; i < datos.eventos.length; i++) {
-        var e = normalizarEvento(datos.eventos[i]);
-        if (e) { nuevosEventos.push(e); }
+    if (esquemaFuturo) { avisar(AVISO_ESQUEMA_FUTURO); return false; }
+    var nuevosItems = [], nuevosEventos = [], nuevasRutinas = [], nuevosProyectos = [];
+    var nuevoProgreso, conProgreso, i, n;
+    try {
+      for (i = 0; i < datos.items.length; i++) {
+        n = normalizarItem(datos.items[i]);
+        if (n) { nuevosItems.push(n); }
       }
-    }
-    var nuevasRutinas = [];
-    if (esArray(datos.rutinas)) {
-      for (i = 0; i < datos.rutinas.length; i++) {
-        var r = normRutina(datos.rutinas[i]);
-        if (r) { nuevasRutinas.push(r); }
+      if (esArray(datos.eventos)) {
+        for (i = 0; i < datos.eventos.length; i++) {
+          n = normalizarEvento(datos.eventos[i]);
+          if (n) { nuevosEventos.push(n); }
+        }
       }
-    }
-    var nuevosProyectos = [];
-    if (esArray(datos.proyectos)) {
-      for (i = 0; i < datos.proyectos.length; i++) {
-        var pj = K.normalizarProyecto(datos.proyectos[i]);
-        if (pj) { nuevosProyectos.push(pj); }
+      if (esArray(datos.rutinas)) {
+        for (i = 0; i < datos.rutinas.length; i++) {
+          n = normRutina(datos.rutinas[i]);
+          if (n) { nuevasRutinas.push(n); }
+        }
       }
+      if (esArray(datos.proyectos)) {
+        for (i = 0; i < datos.proyectos.length; i++) {
+          n = K.normalizarProyecto(datos.proyectos[i]);
+          if (n) { nuevosProyectos.push(n); }
+        }
+      }
+      conProgreso = esObjeto(datos.progreso);
+      nuevoProgreso = normalizarProgreso(conProgreso ? datos.progreso : null);
+    } catch (e) {
+      avisar('El backup trae datos que no se pueden leer. No se cambio nada.');
+      return false;
     }
+    /* Un progreso roto que no se pudo copiar se copia ahora; si tampoco se
+       puede, la escritura del progreso falla y el restore se deshace entero. */
+    if (progresoSinCopia && ponerEnCuarentena(K_PROGRESO, leer(K_PROGRESO))) { progresoSinCopia = false; }
+    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA];
+    var crudos = [], j;
+    for (j = 0; j < claves.length; j++) { crudos.push(leer(claves[j])); }
+    var antes = { items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos,
+      progreso: memProgreso, soloLectura: soloLectura };
     items = nuevosItems;
     eventos = nuevosEventos;
     rutinas = nuevasRutinas;
     proyectos = nuevosProyectos;
-    memProgreso = normalizarProgreso(datos.progreso);
+    memProgreso = nuevoProgreso;
     soloLectura = false;
-    guardarItems();
-    guardarEventos();
-    guardarRutinas();
-    guardarProyectos();
-    guardarProgreso();
+    /* Backup anterior a 2.0 (sin progreso): se siembra en silencio, igual que
+       la primera vez, para no festejar de nuevo toda la historia. */
+    if (!conProgreso) {
+      memProgreso.nivelVisto = K.nivelPorXP(xpTotal()).nivel;
+      revisarLogros(true);
+    }
+    var ok = guardarItems() && guardarEventos() && guardarRutinas() && guardarProyectos() &&
+      guardarProgreso() && escribir(K_ESQUEMA, '' + ESQUEMA);
+    if (!ok) {
+      for (j = 0; j < claves.length; j++) {
+        if (leer(claves[j]) !== crudos[j]) { reponerCrudo(claves[j], crudos[j]); }
+      }
+      items = antes.items;
+      eventos = antes.eventos;
+      rutinas = antes.rutinas;
+      proyectos = antes.proyectos;
+      memProgreso = antes.progreso;
+      soloLectura = antes.soloLectura;
+      avisar('No se pudo restaurar el backup (fallo al guardar). No se cambio nada.');
+      pintar();
+      return false;
+    }
     generarOcurrencias();
-    escribir(K_ESQUEMA, '' + ESQUEMA);
     eventos.push({
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'restauracion', itemId: '',
       texto: nuevosItems.length + ' items restaurados', contexto: ctxCaptura, desde: '', hasta: ''
@@ -2776,9 +2838,18 @@
     guardarEventos();
     $('aviso').className = 'aviso';
     pintar();
+    return true;
+  }
+
+  /* Vuelve una clave a su valor crudo previo (o la borra si no existia). */
+  function reponerCrudo(clave, crudo) {
+    try {
+      if (crudo === null) { window.localStorage.removeItem(clave); } else { window.localStorage.setItem(clave, crudo); }
+    } catch (e) { /* nada mas para hacer: el aviso ya esta */ }
   }
 
   function procesarImportacion(texto) {
+    if (esquemaFuturo) { avisar(AVISO_ESQUEMA_FUTURO); return; }
     var datos = null;
     try { datos = JSON.parse(texto); } catch (e) { datos = null; }
     if (!datos || typeof datos !== 'object' || esArray(datos)) {
@@ -3191,19 +3262,33 @@
     r.nivelVisto = isNaN(n) || n < 1 ? 1 : (n > 999 ? 999 : n);
     if (x.logros && typeof x.logros === 'object') {
       for (k in x.logros) {
-        if (x.logros.hasOwnProperty(k) && /^[a-z0-9_]{1,40}$/.test(k) && typeof x.logros[k] === 'string') { r.logros[k] = x.logros[k]; }
+        if (Object.prototype.hasOwnProperty.call(x.logros, k) && /^[a-z0-9_]{1,40}$/.test(k) && typeof x.logros[k] === 'string') { r.logros[k] = x.logros[k]; }
       }
     }
     return r;
   }
 
+  /* El progreso se puede regenerar desde la historia, asi que uno ilegible no
+     pone la app en solo lectura: se guarda la copia intacta y se siembra de
+     nuevo en silencio. Sin copia no se pisa nunca. */
   function cargarProgreso() {
     var crudo = leer(K_PROGRESO);
-    if (!crudo) { return normalizarProgreso(null); }
-    try { return normalizarProgreso(JSON.parse(crudo)); } catch (e) { return normalizarProgreso(null); }
+    progresoNuevo = false;
+    progresoSinCopia = false;
+    if (crudo === null || crudo === '') { progresoNuevo = true; return normalizarProgreso(null); }
+    var datos = null;
+    try { datos = JSON.parse(crudo); } catch (e) { datos = null; }
+    if (!esObjeto(datos)) {
+      if (ponerEnCuarentena(K_PROGRESO, crudo)) { progresoNuevo = true; } else { progresoSinCopia = true; }
+      return normalizarProgreso(null);
+    }
+    return normalizarProgreso(datos);
   }
 
-  function guardarProgreso() { return soloLectura ? false : escribir(K_PROGRESO, JSON.stringify(memProgreso)); }
+  function guardarProgreso() {
+    if (soloLectura || progresoSinCopia) { return false; }
+    return escribir(K_PROGRESO, JSON.stringify(memProgreso));
+  }
 
   function xpTotal() { return K.calcularXP(items, proyectos).total; }
 
@@ -4244,10 +4329,10 @@
   eventos = cargarLista(K_EVENTOS, normalizarEvento);
   rutinas = cargarLista(K_RUTINAS, normRutina);
   proyectos = cargarLista(K_PROYECTOS, K.normalizarProyecto);
+  /* Primera vez con 2.0 (o progreso roto ya copiado): la historia ya cargada
+     cuenta XP, pero no se festeja como si todo hubiera pasado hoy. Se parte del
+     nivel que ya corresponde. cargarProgreso deja progresoNuevo. */
   memProgreso = cargarProgreso();
-  /* Primera vez con 2.0: la historia ya cargada cuenta XP, pero no se festeja
-     como si todo hubiera pasado hoy. Se parte del nivel que ya corresponde. */
-  var progresoNuevo = leer(K_PROGRESO) === null;
   cargarCatalogos();
   aplicarMigracion4();
   generarOcurrencias();

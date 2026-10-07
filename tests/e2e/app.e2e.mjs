@@ -181,6 +181,117 @@ export const tests = [
     }
   },
   {
+    name: 'backup: restore is refused while stored data is from a newer schema',
+    storage: { 'kibco.esquema': '99', 'kibco.items': JSON.stringify([{ id: 'f1', texto: 'del futuro', estado: 'pendiente' }]) },
+    async fn(page) {
+      const before = await page.storage('kibco.items');
+      const file = path.join(os.tmpdir(), 'kco-e2e-newer.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 4, items: [] }));
+      await page.setFile('#archivoImport', file);
+      assert.match(await page.text('#aviso'), /mas nueva/);
+      // Even if a confirmation slipped through, accepting it must not change anything.
+      await page.eval("(function(){var b=document.getElementById('btnConfSi');if(b&&b.offsetParent!==null){b.click();}})()");
+      await sleep(100);
+      assert.equal(await page.storage('kibco.items'), before);
+      assert.equal(await page.storage('kibco.esquema'), '99');
+    }
+  },
+  {
+    name: 'backup: a hostile logros key neither throws nor half-restores',
+    storage: { 'kibco.esquema': '4', 'kibco.items': JSON.stringify([{ id: 'v1', texto: 'viejo', estado: 'pendiente', creado: new Date().toISOString() }]) },
+    async fn(page) {
+      const file = path.join(os.tmpdir(), 'kco-e2e-hostil.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 4, items: [{ id: 'n1', texto: 'nuevo', estado: 'pendiente', creado: new Date().toISOString() }],
+        progreso: { nivelVisto: 1, logros: { hasOwnProperty: 'x', primer_paso: '2026-01-01T10:00:00.000Z' } } }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      const list = await items(page);
+      assert.equal(list.length, 1);
+      assert.equal(list[0].texto, 'nuevo');
+      const prog = JSON.parse(await page.storage('kibco.progreso'));
+      assert.ok(prog.logros.primer_paso);
+      assert.ok(!Object.prototype.hasOwnProperty.call(prog.logros, 'hasOwnProperty'));
+    }
+  },
+  {
+    name: 'backup: a failed write rolls the whole restore back',
+    storage: { 'kibco.esquema': '4', 'kibco.items': JSON.stringify([{ id: 'v1', texto: 'viejo', estado: 'pendiente', creado: new Date().toISOString() }]), 'kibco.eventos': '[]' },
+    async fn(page) {
+      const beforeItems = await page.storage('kibco.items');
+      const beforeEvents = await page.storage('kibco.eventos');
+      const file = path.join(os.tmpdir(), 'kco-e2e-falla.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 4, items: [{ id: 'n1', texto: 'nuevo', estado: 'pendiente', creado: new Date().toISOString() }], proyectos: [] }));
+      await page.eval("(function(){var o=Storage.prototype.setItem;window.__setItem=o;Storage.prototype.setItem=function(k,v){if(k==='kibco.proyectos'){throw new Error('quota');}return o.call(this,k,v);};})()");
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      assert.match(await page.text('#aviso'), /No se pudo restaurar/);
+      assert.equal(await page.storage('kibco.items'), beforeItems);
+      assert.equal(await page.storage('kibco.eventos'), beforeEvents);
+      await page.eval('Storage.prototype.setItem=window.__setItem');
+      await capture(page, 'despues');
+      assert.deepEqual((await items(page)).map((i) => i.texto).sort(), ['despues', 'viejo'], 'memory rolled back too');
+    }
+  },
+  {
+    name: 'backup: a pre-2.0 backup (no progreso) is re-seeded silently',
+    async fn(page) {
+      const list = [];
+      for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
+        creado: new Date(Date.now() - 86400000 * (i + 3)).toISOString(), estadoDesde: new Date(Date.now() - 86400000 * (i + 2)).toISOString() });
+      const file = path.join(os.tmpdir(), 'kco-e2e-pre2.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 4, items: list, eventos: [] }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      const prog = JSON.parse(await page.storage('kibco.progreso'));
+      assert.equal(prog.nivelVisto, 2);
+      assert.ok(prog.logros.primer_paso);
+      await capture(page, 'nueva despues del restore');
+      await page.click('.hero [data-hero="hecho"]');
+      const evs = await events(page);
+      assert.ok(evs.some((e) => e.tipo === 'completado' || e.hasta === 'completado'), 'the completion happened');
+      assert.ok(!evs.some((e) => e.tipo === 'logro' || e.tipo === 'nivel'), 'no fake achievement or level events');
+    }
+  },
+  {
+    name: 'data: corrupt progreso is quarantined and re-seeded without announcements',
+    storage: (() => {
+      const list = [];
+      for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
+        creado: new Date(Date.now() - 86400000 * (i + 3)).toISOString(), estadoDesde: new Date(Date.now() - 86400000 * (i + 2)).toISOString() });
+      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list), 'kibco.progreso': '{roto' };
+    })(),
+    async fn(page) {
+      const keys = await page.eval('Object.keys(localStorage)');
+      const copies = keys.filter((k) => k.indexOf('kibco.progreso.roto.') === 0);
+      assert.equal(copies.length, 1, 'one quarantine copy');
+      assert.equal(await page.storage(copies[0]), '{roto');
+      assert.equal(JSON.parse(await page.storage('kibco.progreso')).nivelVisto, 2);
+      assert.ok(!(await events(page)).some((e) => e.tipo === 'logro' || e.tipo === 'nivel'), 'nothing announced');
+      await capture(page, 'sigue escribiendo');
+      assert.ok((await items(page)).some((i) => i.texto === 'sigue escribiendo'), 'not read-only');
+    }
+  },
+  {
+    name: 'data: the same corrupt value is quarantined only once',
+    storage: { 'kibco.esquema': '4', 'kibco.items': '{not json' },
+    async fn(page) {
+      await page.reload();
+      await page.reload();
+      const keys = await page.eval('Object.keys(localStorage)');
+      assert.equal(keys.filter((k) => k.indexOf('kibco.items.roto.') === 0).length, 1);
+    }
+  },
+  {
+    name: 'data: catalogs are not written while read-only',
+    storage: { 'kibco.esquema': '4', 'kibco.items': '{not json' },
+    async fn(page) {
+      await page.click('#btnAjustes');
+      await page.type('#txtNuevoSolic', 'Mantenimiento');
+      await page.click('#btnSumarSolic');
+      assert.equal(await page.storage('kibco.solicitantes'), null);
+    }
+  },
+  {
     name: 'security: user text is never parsed as HTML',
     async fn(page) {
       await capture(page, '<img src=x onerror="window.__pwned=1">');

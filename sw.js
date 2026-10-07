@@ -17,7 +17,13 @@ var ARCHIVOS = [
 self.addEventListener('install', function (ev) {
   ev.waitUntil(
     caches.open(CACHE).then(function (cache) {
-      return cache.addAll(ARCHIVOS);
+      /* cache: 'reload' saltea la cache HTTP: una version nueva nunca se arma
+         con archivos viejos que el navegador tenia guardados. */
+      var pedidos = [], i;
+      for (i = 0; i < ARCHIVOS.length; i++) {
+        pedidos.push(new Request(ARCHIVOS[i], { cache: 'reload' }));
+      }
+      return cache.addAll(pedidos);
     }).then(function () {
       return self.skipWaiting();
     })
