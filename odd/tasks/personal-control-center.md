@@ -54,7 +54,7 @@ context without isolating risk. Tests/builds run inline as bounded actions.
 - [x] T10 Campaign / stats view.
 - [x] T12a Data hardening from Judgment Day 1f8a47e (L1-L8, S1-S7, S9) — delegated writer, native RDD.
 - [x] T11 UX polish (mobile/desktop screenshots review), a11y.
-- [ ] T12 Backup/restore of new collections, PWA offline E2E, security review.
+- [x] T12 Backup/restore of new collections, PWA offline E2E, security review.
 - [x] T13 Cleanup, docs (LEEME, CHANGELOG, data model), release v2.0.0.
 
 ## Acceptance
@@ -78,6 +78,12 @@ See prompt section 36 (product completeness) — tracked in the final report.
 | T12a | e77a053, db0b471, a022ec4 | native RDD review-3af1db6d03e1264a approved and acknowledged; delegated writer |
 | T11 | ec65898 | unit 59, e2e 60; screenshots 360/390/1280 reviewed by parent |
 | T12 (open) | - | already covered by e2e: `backup: text export + file restore round-trip`, `recurring: routines travel in the backup and come back on restore`, `missions: travel in the backup`, `backup: a pre-2.0 backup (no progreso) is re-seeded silently`, `backup: a failed write rolls the whole restore back`, `backup: restore is refused while stored data is from a newer schema`, `backup: a hostile logros key neither throws nor half-restores`, `pwa: service worker caches the shell and the app boots offline`, `security: user text is never parsed as HTML`, plus the ES5/HTML-sink static gate. Pending for the parent: security review sign-off and final tick |
-| T13 | (this commit) | version 2.0.0, cache kibco-v16; LEEME + CHANGELOG 2.0.0, docs/ARQUITECTURA.md, docs/TESTING.md; es5 ok, unit 59/59, e2e 60/60 |
+| T13 | 6911d81 | version 2.0.0, cache kibco-v16; LEEME + CHANGELOG 2.0.0, docs/ARQUITECTURA.md, docs/TESTING.md; es5 ok, unit 59/59, e2e 60/60 |
 
 Native RDD review (T01-T10): not started. Each START requires a per-candidate human consent prompt; the user ordered an uninterrupted autonomous run, so candidates are left for the user to review (switch left untouched).
+
+## Release verification (independent verifier, HEAD 45dedbf)
+
+RELEASE: READY. Unit 59/59, e2e 60/60 (exit 0), ES5 + node --check ok; v1.1.1-shaped dataset migrates with 66/66 checks; backup exports all collections; restore of 2.0 and v1.1.1 backups ok; SW precaches every referenced file, cache kibco-v16; offline spec passes; 390x844 and 1280x800 screenshots without overflow; no HTML/code sinks, CSP script-src self, no secrets in history; all v1.1.1 features present. Follow-ups applied in the final fix commit: search hint, total XP on the level card, prototype-safe state lookups.
+
+Native RDD: review-3af1db6d03e1264a (T12a, approved, acknowledged), review-af12b64973cfcec6 (T11+T13, approved, acknowledged). Last two small commits (shared id generator, final UI fixes) are under the slice budget and remain without their own native review.
