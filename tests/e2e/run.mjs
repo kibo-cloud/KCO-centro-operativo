@@ -31,6 +31,7 @@ try {
       failures.push(t.name);
       console.log('  FAIL ' + t.name + '\n       ' + String(e.stack || e).split('\n').slice(0, 4).join('\n       '));
     } finally {
+      await page.teardown();
       await page.close();
     }
   }

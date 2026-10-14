@@ -1,0 +1,140 @@
+{
+  "kco-app.js": {
+    "mtime": 1791398421.5880845,
+    "seen": 1791894042.57033,
+    "ast_hash": "dce90dc999f1e49d5eed92f396a4bdb0",
+    "semantic_hash": "dce90dc999f1e49d5eed92f396a4bdb0"
+  },
+  "kco-core.js": {
+    "mtime": 1791398421.412862,
+    "seen": 1791894042.570335,
+    "ast_hash": "b42442b4cfc2689a0f2c2364bb34a596",
+    "semantic_hash": "b42442b4cfc2689a0f2c2364bb34a596"
+  },
+  "package.json": {
+    "mtime": 1791398421.2032936,
+    "seen": 1791894042.5703373,
+    "ast_hash": "f6001f935b72d020158a16b3619fc405",
+    "semantic_hash": "f6001f935b72d020158a16b3619fc405"
+  },
+  "sw.js": {
+    "mtime": 1791398421.2032936,
+    "seen": 1791894042.5703382,
+    "ast_hash": "c2cc714e13f22008ec93f7b10830aac6",
+    "semantic_hash": "c2cc714e13f22008ec93f7b10830aac6"
+  },
+  "tests/check-es5.mjs": {
+    "mtime": 1791398409.6259267,
+    "seen": 1791894042.57034,
+    "ast_hash": "fca14562cc3c00cb1b78c9db3dab72ae",
+    "semantic_hash": "fca14562cc3c00cb1b78c9db3dab72ae"
+  },
+  "tests/e2e/app.e2e.mjs": {
+    "mtime": 1791398421.412862,
+    "seen": 1791894042.570341,
+    "ast_hash": "3cb8d6785a357d87346d0d8cc2dde21b",
+    "semantic_hash": "3cb8d6785a357d87346d0d8cc2dde21b"
+  },
+  "tests/e2e/harness.mjs": {
+    "mtime": 1791398419.6246214,
+    "seen": 1791894042.570342,
+    "ast_hash": "89ee9a2f4774f3014c33eb7b5964342e",
+    "semantic_hash": "89ee9a2f4774f3014c33eb7b5964342e"
+  },
+  "tests/e2e/run.mjs": {
+    "mtime": 1791398410.10073,
+    "seen": 1791894042.5703433,
+    "ast_hash": "4f2a8e99da883a5a334c5821e65a61be",
+    "semantic_hash": "4f2a8e99da883a5a334c5821e65a61be"
+  },
+  "tests/unit/diario.test.js": {
+    "mtime": 1791398410.0217137,
+    "seen": 1791894042.5703444,
+    "ast_hash": "a427971210639388df757aedb9813437",
+    "semantic_hash": "a427971210639388df757aedb9813437"
+  },
+  "tests/unit/fechas.test.js": {
+    "mtime": 1791398409.3945105,
+    "seen": 1791894042.5703454,
+    "ast_hash": "4c4e85b63e18e8cf15422a5b7adb5af0",
+    "semantic_hash": "4c4e85b63e18e8cf15422a5b7adb5af0"
+  },
+  "tests/unit/judgment.test.js": {
+    "mtime": 1791398421.4260335,
+    "seen": 1791894042.5703468,
+    "ast_hash": "ffa2ef98f45e9342232d6c28beebbfac",
+    "semantic_hash": "ffa2ef98f45e9342232d6c28beebbfac"
+  },
+  "tests/unit/logros.test.js": {
+    "mtime": 1791398417.966616,
+    "seen": 1791894042.5703478,
+    "ast_hash": "119f496f839051473554d094cf3d502c",
+    "semantic_hash": "119f496f839051473554d094cf3d502c"
+  },
+  "tests/unit/misiones.test.js": {
+    "mtime": 1791398409.891027,
+    "seen": 1791894042.5703492,
+    "ast_hash": "93690a09e8f7a55d615df8f4c808f871",
+    "semantic_hash": "93690a09e8f7a55d615df8f4c808f871"
+  },
+  "tests/unit/modelo.test.js": {
+    "mtime": 1791398409.4423642,
+    "seen": 1791894042.5703504,
+    "ast_hash": "62ad1bbdb6179cdaa146723dccd97288",
+    "semantic_hash": "62ad1bbdb6179cdaa146723dccd97288"
+  },
+  "tests/unit/rutinas.test.js": {
+    "mtime": 1791398409.6259267,
+    "seen": 1791894042.5703516,
+    "ast_hash": "8f2994d97ea4621abb4eaf8ab2e6ad94",
+    "semantic_hash": "8f2994d97ea4621abb4eaf8ab2e6ad94"
+  },
+  "tests/unit/xp.test.js": {
+    "mtime": 1791398410.195598,
+    "seen": 1791894042.5703526,
+    "ast_hash": "bca113e53eaafb04e5444132685b56fb",
+    "semantic_hash": "bca113e53eaafb04e5444132685b56fb"
+  },
+  "LEEME.md": {
+    "mtime": 1791398421.1999876,
+    "seen": 1791894042.570354,
+    "ast_hash": "3968e4306d3c030354829673a92b5f01",
+    "semantic_hash": "3968e4306d3c030354829673a92b5f01"
+  },
+  "docs/ARQUITECTURA.md": {
+    "mtime": 1791398421.1999876,
+    "seen": 1791894042.570355,
+    "ast_hash": "1f70d6b87577e666f7827fe8221861c9",
+    "semantic_hash": "1f70d6b87577e666f7827fe8221861c9"
+  },
+  "docs/AUDITORIA-v1.1.1.md": {
+    "mtime": 1791398421.1999876,
+    "seen": 1791894042.5703561,
+    "ast_hash": "e4a7faf98f576781cc87f98dd2402b7b",
+    "semantic_hash": "e4a7faf98f576781cc87f98dd2402b7b"
+  },
+  "docs/TESTING.md": {
+    "mtime": 1791398421.2017884,
+    "seen": 1791894042.5703573,
+    "ast_hash": "8e351810383f0bbddc60c1b6c54e2048",
+    "semantic_hash": "8e351810383f0bbddc60c1b6c54e2048"
+  },
+  "index.html": {
+    "mtime": 1791398421.5880845,
+    "seen": 1791894042.5703583,
+    "ast_hash": "08c79ef2e27639e04c183d25d0a83fa1",
+    "semantic_hash": "08c79ef2e27639e04c183d25d0a83fa1"
+  },
+  "odd/reviews/judgment-day-1f8a47e.md": {
+    "mtime": 1791398418.9468641,
+    "seen": 1791894042.5703595,
+    "ast_hash": "bafd879431e15c752f64705d07513298",
+    "semantic_hash": "bafd879431e15c752f64705d07513298"
+  },
+  "odd/tasks/personal-control-center.md": {
+    "mtime": 1791398421.7203646,
+    "seen": 1791894042.5703611,
+    "ast_hash": "37b6e31a1fbdc672bf84518ffd57beb2",
+    "semantic_hash": "37b6e31a1fbdc672bf84518ffd57beb2"
+  }
+}

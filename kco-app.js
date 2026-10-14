@@ -15,11 +15,18 @@
   var K_CTX = 'kibco.contexto';
   var K_ITEMS = 'kibco.items';
   var K_EVENTOS = 'kibco.eventos';
+  /* Ultimo recurso: solo si una escritura del registro falla (almacenamiento
+     lleno) se compacta lo viejo (KCOCore.compactarEventos) sin cambiar ninguna
+     vista derivada. Nunca se compacta de forma preventiva: no se pierde historia. */
+  var VENTANA_EVENTOS_DIAS = 180;
+  var AVISO_REGISTRO = 'No se pudo guardar el registro: almacenamiento lleno. Export\u00E1 un backup.';
   var K_ESQUEMA = 'kibco.esquema';
   var K_FILTRO = 'kibco.filtro';
   var K_FILTROC = 'kibco.filtroCompra';
   var K_FILTROTAG = 'kibco.filtroTag';
   var K_LUZ = 'kibco.luz';
+  /* Preferencia de tema: la lee y aplica tema.js en <head>; aca solo se elige y guarda. */
+  var K_TEMA = 'kibco.tema';
   var K_BACKUP = 'kibco.ultimoBackup';
   var K_SOLIC = 'kibco.solicitantes';
   var K_DEST = 'kibco.destinos';
@@ -128,12 +135,13 @@
     try { return window.localStorage.getItem(clave); } catch (e) { return null; }
   }
 
-  function escribir(clave, valor) {
+  /* silencioso: quien llama decide el aviso (p. ej. reintenta antes de avisar). */
+  function escribir(clave, valor, silencioso) {
     try {
       window.localStorage.setItem(clave, valor);
       return true;
     } catch (e) {
-      avisar('No se pudo guardar. Puede estar lleno el almacenamiento del navegador.');
+      if (!silencioso) { avisar('No se pudo guardar. Puede estar lleno el almacenamiento del navegador.'); }
       return false;
     }
   }
@@ -524,25 +532,57 @@
     }
     if (cambiados === 0) { return; }
     guardarItems();
-    eventos.push({
+    anotarEventos([{
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'migracion', itemId: '',
       texto: cambiados + ' compras de Hogar pasadas a la lista simple',
       contexto: 'hogar', desde: 'esquema 3', hasta: 'esquema 4'
-    });
-    guardarEventos();
+    }]);
   }
 
   function guardarItems() { return soloLectura ? false : escribir(K_ITEMS, JSON.stringify(items)); }
-  function guardarEventos() { return soloLectura ? false : escribir(K_EVENTOS, JSON.stringify(eventos)); }
+
+  function corteEventos() {
+    var d = new Date();
+    d.setDate(d.getDate() - VENTANA_EVENTOS_DIAS);
+    return d.toISOString();
+  }
+
+  /* Guarda el registro. Si la escritura falla, compacta lo viejo y reintenta
+     una sola vez. La memoria solo toma la version
+     compactada si quedo guardada: memoria y almacenamiento dicen lo mismo. */
+  function guardarEventos() {
+    if (soloLectura) { return false; }
+    var lista = eventos;
+    if (escribir(K_EVENTOS, JSON.stringify(lista), true)) { eventos = lista; return true; }
+    if (lista === eventos) {
+      lista = K.compactarEventos(eventos, corteEventos());
+      if (lista.length < eventos.length && escribir(K_EVENTOS, JSON.stringify(lista), true)) {
+        eventos = lista;
+        return true;
+      }
+    }
+    avisar(AVISO_REGISTRO);
+    return false;
+  }
+
+  /* Agrega eventos y los guarda. Si no se pueden guardar, salen de memoria (el
+     cambio del item ya guardado se queda: el aviso dice que falto el registro). */
+  function anotarEventos(nuevos) {
+    if (soloLectura || nuevos.length === 0) { return false; }
+    var i;
+    for (i = 0; i < nuevos.length; i++) { eventos.push(nuevos[i]); }
+    if (guardarEventos()) { return true; }
+    eventos.splice(eventos.length - nuevos.length, nuevos.length);
+    return false;
+  }
 
   function registrar(tipo, item, desde, hasta) {
-    if (soloLectura) { return; }
-    eventos.push({
+    if (soloLectura) { return false; }
+    return anotarEventos([{
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: tipo,
       itemId: item.id, texto: item.texto, contexto: item.contexto,
       desde: desde || '', hasta: hasta || ''
-    });
-    guardarEventos();
+    }]);
   }
 
   function buscarItem(id) {
@@ -615,8 +655,9 @@
     for (i = 0; i < vencidos.length && i < 4; i++) {
       partes.push(hhmm(fechaObj(vencidos[i].recordatorio)) + ' ' + vencidos[i].texto);
     }
-    caja.textContent = '\u23F0 Vencido: ' + partes.join(' \u00B7 ') +
-      (vencidos.length > 4 ? ' (+' + (vencidos.length - 4) + ')' : '');
+    vaciar(caja);
+    conIcono(caja, 'clock', 'Vencido: ' + partes.join(' \u00B7 ') +
+      (vencidos.length > 4 ? ' (+' + (vencidos.length - 4) + ')' : ''));
     caja.className = 'recuerdo on';
   }
 
@@ -722,31 +763,88 @@
     return c ? c.ico : '';
   }
 
-  function icoNomCtx(id) { return icoCtx(id) + ' ' + nomCtx(id); }
+  /* Identidad visual de un contexto en la interfaz: un punto de su color
+     (kco.css, --ctx-*). El emoji queda solo en textos que se exportan. */
+  function punto(id) {
+    var s = document.createElement('span');
+    s.className = 'punto p-' + id;
+    s.setAttribute('aria-hidden', 'true');
+    return s;
+  }
 
-  /* Fila de contextos del encabezado: Todo primero, despues los cinco. */
-  function pintarSelectorContexto() {
-    var cont = $('ctxsel');
-    while (cont.firstChild) { cont.removeChild(cont.firstChild); }
-    var defs = [{ id: 'todo' }].concat(K.CONTEXTOS), i;
-    for (i = 0; i < defs.length; i++) {
-      (function (id) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = contexto === id ? 'ctxbtn on' : 'ctxbtn';
-        b.setAttribute('data-ctx', id);
-        b.setAttribute('aria-pressed', contexto === id ? 'true' : 'false');
-        b.textContent = icoCtx(id) + ' ' + nomCtx(id).toUpperCase();
-        b.onclick = function () { aplicarContexto(id, true); };
-        cont.appendChild(b);
-      })(defs[i].id);
+  function badgeCtx(id) {
+    var b = badge('ctx', '');
+    b.appendChild(punto(id));
+    b.appendChild(document.createTextNode(nomCtx(id)));
+    return b;
+  }
+
+  /* Abiertos por contexto ('todo' = todos), para el selector y la barra lateral. */
+  function cuentasPorContexto() {
+    var r = { todo: 0 }, i, c;
+    for (i = 0; i < K.CONTEXTOS.length; i++) { r[K.CONTEXTOS[i].id] = 0; }
+    for (i = 0; i < items.length; i++) {
+      if (!esActivo(items[i].estado)) { continue; }
+      c = items[i].contexto;
+      r.todo++;
+      if (r.hasOwnProperty(c)) { r[c]++; }
     }
+    return r;
+  }
+
+  function filaContexto(id, enHoja) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ctxfila';
+    b.setAttribute('data-ctx', id);
+    b.appendChild(punto(id));
+    b.appendChild(nodo('span', 'ctxfila-nom', nomCtx(id)));
+    b.appendChild(nodo('span', 'ctxfila-n', '0'));
+    b.appendChild(svgIco('check', 'ctxfila-ok'));
+    b.onclick = function () {
+      if (enHoja) { cerrarHoja('tapaCtx'); }
+      aplicarContexto(id, true);
+    };
+    return b;
+  }
+
+  /* Las filas se arman una vez y despues solo se actualizan: repintar no le
+     saca el foco de teclado al boton que se acaba de usar. */
+  function filasContexto(cont, defs, n, enHoja) {
+    var i, b, id, on;
+    if (!cont.firstChild) {
+      for (i = 0; i < defs.length; i++) { cont.appendChild(filaContexto(defs[i].id, enHoja)); }
+    }
+    for (b = cont.firstChild; b; b = b.nextSibling) {
+      id = b.getAttribute('data-ctx');
+      on = id === contexto;
+      b.className = on ? 'ctxfila on' : 'ctxfila';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.getElementsByTagName('span')[2].textContent = '' + (n[id] || 0);
+    }
+  }
+
+  /* Selector de contexto: hoja en movil (#ctxsel, se abre desde el chip de la
+     barra superior), lista en la barra lateral de escritorio (#ctxLateral). */
+  function pintarSelectorContexto() {
+    var defs = [{ id: 'todo' }].concat(K.CONTEXTOS), n = cuentasPorContexto();
+    filasContexto($('ctxsel'), defs, n, true);
+    filasContexto($('ctxLateral'), defs, n, false);
+    $('ctxPunto').className = 'punto p-' + contexto;
+    $('ctxNombre').textContent = nomCtx(contexto);
+  }
+
+  function abrirSelectorContexto() {
+    pintarSelectorContexto();
+    abrirHoja('tapaCtx');
+    var b = $('ctxsel').getElementsByClassName('on')[0];
+    if (b && b.focus) { try { b.focus(); } catch (e) {} }
   }
 
   function pintarPistaCaptura() {
     var inp = $('txtCaptura');
     if (inp) {
-      inp.setAttribute('placeholder', 'Capturar en ' + icoNomCtx(ctxCaptura) + ' \u00B7 Enter guarda');
+      inp.setAttribute('placeholder', 'Capturar en ' + nomCtx(ctxCaptura) + ' \u00B7 Enter guarda');
     }
   }
 
@@ -762,6 +860,7 @@
         b.className = (actual === def.id ? 'gbtn on' : 'gbtn') + (def.id === 'urgente' ? ' rojo' : '');
         b.setAttribute(atributo, def.id);
         b.textContent = rotulo(def);
+        if (atributo === 'data-ctx') { b.insertBefore(punto(def.id), b.firstChild); }
         b.onclick = function () { alElegir(def); };
         g.appendChild(b);
       })(defs[i]);
@@ -824,7 +923,7 @@
       if (itemAbierto === id) { pintarHojaItem(); }
       (function (idG, f, txt) {
         ofrecerDeshacer(txt, function () { restaurarFoto(idG, f, 'contexto'); });
-      })(id, foto, 'A ' + icoNomCtx(ctx) + ': ' + it.texto);
+      })(id, foto, 'A ' + nomCtx(ctx) + ': ' + it.texto);
     } else {
       reponerItem(it, antes);
     }
@@ -853,7 +952,7 @@
         var b = document.createElement('button');
         b.type = 'button';
         b.className = actual === def.id ? 'chip on' : 'chip';
-        b.textContent = (def.ico ? def.ico + ' ' : '') + def.nom + ' ' + cuenta(def.id);
+        b.textContent = def.nom + ' ' + cuenta(def.id);
         b.setAttribute('data-filtro', def.id);
         b.onclick = function () { alElegir(def.id); };
         cont.appendChild(b);
@@ -894,11 +993,8 @@
     return null;
   }
 
-  function badge(clase, texto) {
-    var s = document.createElement('span');
-    s.className = 'badge ' + clase;
-    s.textContent = texto;
-    return s;
+  function badge(clase, texto, ico) {
+    return nodo('span', 'badge ' + clase, texto, ico);
   }
 
   function claseNivel(it) {
@@ -911,7 +1007,7 @@
   function badgeNivel(it) {
     if (it.nivel === 'normal' || !esActivo(it.estado)) { return null; }
     var n = K.infoNivel(it.nivel);
-    return badge('niv-' + it.nivel, n.ico + ' ' + n.nom.toUpperCase());
+    return badge('niv-' + it.nivel, n.nom);
   }
 
   /* El dia en palabras cortas: hoy, mañana, ayer, o dd/mm. */
@@ -928,20 +1024,51 @@
   function badgeFecha(it) {
     if (it.fecha === '' || !esActivo(it.estado)) { return null; }
     var vencida = it.fecha < K.claveDia(new Date());
-    return badge('dia' + (vencida ? ' vencido' : ''), '\uD83D\uDCC5 ' + nombreDia(it.fecha));
+    return badge('dia' + (vencida ? ' vencido' : ''), nombreDia(it.fecha), 'calendar');
   }
 
   var itemsVistos = {};
 
   function nodoItem(it, motivo, modo) {
     var li = document.createElement('li');
-    li.className = 'item st-' + it.estado + claseNivel(it) +
+    li.className = 'item fila st-' + it.estado + claseNivel(it) +
       (it.pausado === true ? ' pausado' : '') +
       (itemsVistos[it.id] ? '' : ' nuevo');
     itemsVistos[it.id] = 1;
     li.setAttribute('data-id', it.id);
-    /* Todo el contenido vive en su propia columna: asi el alto de la tarjeta
-       es el del lado mas alto y la columna de acciones nunca se desborda. */
+    /* La tarjeta se enfoca con Tab: Enter abre la ficha, la tecla de menu (o
+       Shift+F10, o clic derecho, o mantener apretado) abre el menu rapido. */
+    li.setAttribute('tabindex', '0');
+    /* Detras de la fila, lo que revela el gesto: verde con tilde a la derecha
+       (completar), acento con "mas" a la izquierda (menu rapido). */
+    var rev = nodo('div', 'rev');
+    rev.setAttribute('aria-hidden', 'true');
+    rev.appendChild(svgIco('check', 'rev-ok'));
+    rev.appendChild(svgIco('more', 'rev-mas'));
+    li.appendChild(rev);
+    var fila = nodo('div', 'desliza');
+    li.appendChild(fila);
+
+    /* Circulo a la izquierda (Things/Todoist): completar o reabrir una tarea,
+       marcar una compra de lista simple. Su nombre lleva el texto del item. */
+    var ah = accionHecho(it);
+    if (ah) {
+      var chk = document.createElement('button');
+      chk.type = 'button';
+      chk.className = ah.on ? 'chk on' : 'chk';
+      chk.setAttribute('data-acc', it.tipo === 'tarea' ? (ah.on ? 'reabrir' : 'listo') : 'comprado');
+      chk.setAttribute('aria-label', ah.rot + ': ' + it.texto);
+      chk.setAttribute('aria-pressed', ah.on ? 'true' : 'false');
+      var circ = nodo('span', 'chk-c');
+      circ.appendChild(svgIco('check'));
+      chk.appendChild(circ);
+      chk.onclick = function (ev) {
+        if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+        ah.fn();
+      };
+      fila.appendChild(chk);
+    }
+
     var cu = document.createElement('div');
     cu.className = 'cuerpo';
     var d1 = document.createElement('div');
@@ -953,7 +1080,7 @@
     if (it.estado === 'esperando' && it.espera !== '') {
       var de = document.createElement('div');
       de.className = 'espera';
-      de.textContent = '\u23F8 ' + it.espera;
+      conIcono(de, 'pause', it.espera);
       cu.appendChild(de);
     }
 
@@ -966,10 +1093,10 @@
 
     var l2 = document.createElement('div');
     l2.className = 'linea2';
-    if (contexto === 'todo') { l2.appendChild(badge('ctx', icoCtx(it.contexto))); }
-    if (it.rutinaId !== '') { l2.appendChild(badge('rut', '\uD83D\uDD04')); }
+    if (contexto === 'todo') { l2.appendChild(badgeCtx(it.contexto)); }
+    if (it.rutinaId !== '') { l2.appendChild(badge('rut', '', 'repeat')).setAttribute('title', 'Rutina'); }
     if (it.motivo !== '') { l2.appendChild(badge('mot', textoMotivo(it.motivo))); }
-    if (it.anclado === true) { l2.appendChild(badge('pin', '\uD83D\uDCCC')); }
+    if (it.anclado === true) { l2.appendChild(badge('pin', '', 'pin')).setAttribute('title', 'Anclado'); }
     var bn = badgeNivel(it);
     if (bn) { l2.appendChild(bn); }
     var bf = badgeFecha(it);
@@ -977,8 +1104,8 @@
     var inf = estadoInfo(it.estado);
     /* Pendiente es el estado por defecto de algo clasificado: no hace falta
        gritarlo en cada tarjeta. Los demas estados si dicen algo. */
-    if (it.estado !== 'pendiente') { l2.appendChild(badge('est', inf.ico + ' ' + inf.nom.toUpperCase())); }
-    if (it.pausado === true) { l2.appendChild(badge('pausa', '\u23F8 EN ESPERA')); }
+    if (it.estado !== 'pendiente') { l2.appendChild(badge('est', inf.nom)); }
+    if (it.pausado === true) { l2.appendChild(badge('pausa', 'En espera', 'pause')); }
     if (it.tag !== '') {
       var t = tagInfo(it.tag);
       if (t) { l2.appendChild(badge('tag', t.ico + ' ' + t.nom)); }
@@ -987,15 +1114,15 @@
       var d = fechaObj(it.recordatorio);
       if (d) {
         var vencido = d.getTime() <= Date.now() && esActivo(it.estado);
-        l2.appendChild(badge('rec' + (vencido ? ' vencido' : ''), '\u23F0 ' + horaCorta(it.recordatorio)));
+        l2.appendChild(badge('rec' + (vencido ? ' vencido' : ''), horaCorta(it.recordatorio), 'clock'));
       }
     }
     var pasos = pasosDe(it);
     if (pasos.length > 0) {
-      l2.appendChild(badge('pasos', '\u2611 ' + pasosHechos(pasos) + '/' + pasos.length));
+      l2.appendChild(badge('pasos', pasosHechos(pasos) + '/' + pasos.length, 'tareas'));
     }
     var notas = notasDe(it);
-    if (notas.length > 0) { l2.appendChild(badge('nota', '\uD83D\uDCAC ' + notas.length)); }
+    if (notas.length > 0) { l2.appendChild(badge('nota', '' + notas.length, 'message')); }
     l2.appendChild(badge('', horaCorta(it.creado)));
     cu.appendChild(l2);
 
@@ -1003,81 +1130,169 @@
     if (hs > 0) {
       var a = document.createElement('div');
       a.className = 'alerta48';
-      a.textContent = '\u26A0 ' + Math.floor(hs) + ' hs esperando entrega. Reclamar o cerrar.';
+      conIcono(a, 'alert-triangle', Math.floor(hs) + ' hs esperando entrega. Reclamar o cerrar.');
       cu.appendChild(a);
     }
-    li.appendChild(cu);
+    fila.appendChild(cu);
 
-    /* Acciones de un toque, sin abrir la ficha. Lo que mas se hace en el dia
-       tiene que costar un dedo, no tres. */
-    var accs = null;
-    function sumarAccion(cont, clase, texto, marca, fn, rotulo) {
+    /* Una sola accion secundaria, chica y sin borde: "Para hoy" en el inbox
+       (triaje en un toque) y avanzar/seguir en el flujo de compras de fabrica.
+       Mover a Compras ya no vive en la tarjeta: esta en la ficha y en el menu. */
+    function accion2(clase, marca, rotulo, ico, texto, fn) {
       var b = document.createElement('button');
       b.type = 'button';
       b.className = clase;
       b.setAttribute('data-acc', marca);
-      b.setAttribute('aria-label', rotulo ? rotulo : texto);
-      b.setAttribute('title', rotulo ? rotulo : texto);
-      b.textContent = texto;
+      b.setAttribute('aria-label', rotulo);
+      b.setAttribute('title', rotulo);
+      conIcono(b, ico, texto);
       b.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
         fn();
       };
-      cont.appendChild(b);
-      return b;
+      fila.appendChild(b);
     }
-
     if (modo === 'triage' && it.estado === 'entrada') {
-      accs = document.createElement('div');
-      accs.className = 'accs';
-      sumarAccion(accs, 'abtn ico', '\u2714', 'clasificar', function () { sacarDeInbox(it.id, false); }, 'Pasar a pendiente');
-      sumarAccion(accs, 'abtn ico', '\uD83D\uDCC5', 'parahoy', function () { sacarDeInbox(it.id, true); }, 'Para hoy');
-    } else if (esActivo(it.estado)) {
-      accs = document.createElement('div');
-      accs.className = 'accs';
-      if (it.tipo === 'tarea') {
-        /* Las tareas son el unico caso con dos botones al lado. Ahi no entra
-           texto sin partirse, asi que van con el icono solo: son siempre los
-           mismos dos y el rotulo completo esta en la ficha. Una ocurrencia de
-           rutina no se pasa a Compras: lleva solo el Listo, entero. */
-        var dosAcciones = it.rutinaId === '' && (it.estado === 'entrada' || it.estado === 'pendiente');
-        sumarAccion(accs, dosAcciones ? 'abtn ico' : 'abtn',
-          dosAcciones ? '\u2705' : '\u2705 Listo', 'listo', function () {
-            cambiarEstado(it.id, 'completado');
-          }, 'Listo');
-        if (dosAcciones) {
-          sumarAccion(accs, 'abtn ico', '\uD83D\uDED2', 'acompras', function () {
-            moverACompras(it.id);
-          }, 'Mover a Compras');
-        }
-      } else if (!K.esFabrica(it.contexto)) {
-        sumarAccion(accs, 'abtn', '\u2B1C Marcar comprado', 'comprado', function () {
-          alternarComprado(it.id);
-        });
-      } else if (it.pausado === true) {
+      accion2('iconobtn mini', 'parahoy', 'Para hoy', 'calendar', '', function () { sacarDeInbox(it.id, true); });
+    } else if (it.tipo === 'compra' && K.esFabrica(it.contexto) && esActivo(it.estado)) {
+      if (it.pausado === true) {
         /* En pausa la tarjeta ofrece reanudar, no avanzar: primero se descongela. */
-        sumarAccion(accs, 'abtn on', '\u25B6 Seguir', 'reanudar', function () {
-          alternarPausa(it.id);
-        });
+        accion2('acc2 on', 'reanudar', 'Seguir', 'play', 'Seguir', function () { alternarPausa(it.id); });
       } else {
         var sig = estadoSiguiente(it);
         if (sig) {
-          sumarAccion(accs, 'abtn', '\u25B6 ' + sig.nom, 'siguiente', function () {
-            cambiarEstado(it.id, sig.id);
-          });
+          accion2('acc2', 'siguiente', 'Pasar a ' + sig.nom, 'arrow-right', sig.nom, function () { cambiarEstado(it.id, sig.id); });
         }
       }
-    } else if (it.tipo === 'compra' && !K.esFabrica(it.contexto) && it.estado === 'comprado') {
-      accs = document.createElement('div');
-      accs.className = 'accs';
-      sumarAccion(accs, 'abtn on', '\u2705 Comprado', 'comprado', function () {
-        alternarComprado(it.id);
-      });
     }
-    if (accs && accs.firstChild) { li.appendChild(accs); }
 
-    li.onclick = function () { abrirItem(it.id); };
+    li.onclick = function () {
+      if (gestoReciente(li)) { return; }
+      abrirItem(it.id);
+    };
+    li.onkeydown = function (ev) {
+      if (ev.target !== li) { return; }
+      var k = ev.key || '';
+      if (k === 'Enter' || k === ' ' || ev.keyCode === 13 || ev.keyCode === 32) { ev.preventDefault(); abrirItem(it.id); }
+      if (esActivo(it.estado) && (k === 'ContextMenu' || ev.keyCode === 93 || (ev.shiftKey && (k === 'F10' || ev.keyCode === 121)))) {
+        ev.preventDefault();
+        abrirMenuRapido(it.id);
+      }
+    };
+    if (esActivo(it.estado)) {
+      li.oncontextmenu = function (ev) {
+        if (ev && ev.preventDefault) { ev.preventDefault(); }
+        abrirMenuRapido(it.id);
+      };
+      conectarSwipeFila(li, fila, it.id, !!ah);
+    }
     return li;
+  }
+
+  /* ---------- gesto en filas ----------
+     Solo tactil. Se decide la intencion con los primeros 10px: si es mas
+     vertical que horizontal es scroll y la fila no hace nada (touch-action
+     pan-y en kco.css deja el scroll al navegador). Horizontal: la fila sigue al
+     dedo; soltando pasado el umbral (80px o un tiron rapido), a la derecha
+     completa (con deshacer, como el circulo) y a la izquierda abre el menu
+     rapido. Mientras una fila tiene el gesto, el swipe entre vistas no cuenta. */
+  var gestoFila = false;
+  var UMBRAL_FILA = 80;
+
+  function gestoReciente(li) {
+    var t = parseInt(li.getAttribute('data-gesto') || '0', 10);
+    return Date.now() - t < 500;
+  }
+
+  function conectarSwipeFila(li, fila, id, puedeHecho) {
+    if (!li.addEventListener || typeof window.PointerEvent === 'undefined') { return; }
+    var x0 = 0, y0 = 0, t0 = 0, dx = 0, modo = null, idP = null;
+    li.addEventListener('pointerdown', function (ev) {
+      if (ev.pointerType !== 'touch' || ev.isPrimary === false || pilaCapas.length > 0) { return; }
+      x0 = ev.clientX; y0 = ev.clientY; t0 = Date.now(); dx = 0; modo = 'duda'; idP = ev.pointerId;
+    });
+    li.addEventListener('pointermove', function (ev) {
+      if (!modo || ev.pointerId !== idP) { return; }
+      var mx = ev.clientX - x0, my = ev.clientY - y0;
+      var ax = mx < 0 ? -mx : mx, ay = my < 0 ? -my : my;
+      if (modo === 'duda') {
+        if (ay > 10 && ay >= ax) { modo = null; return; }
+        if (ax > 10 && ax > ay * 1.5) {
+          modo = 'h';
+          gestoFila = true;
+          li.className = li.className + ' arrastra';
+        } else { return; }
+      }
+      /* Sin accion de completar, la derecha ofrece resistencia y no hace nada. */
+      dx = mx > 0 && !puedeHecho ? mx / 4 : mx;
+      fila.style.transform = 'translate3d(' + dx + 'px,0,0)';
+      li.setAttribute('data-rev', dx > 0 ? 'ok' : 'mas');
+      li.setAttribute('data-umbral', (dx < 0 ? -dx : dx) >= UMBRAL_FILA ? '1' : '0');
+    });
+    function soltar(ev, cancelado) {
+      if (!modo || ev.pointerId !== idP) { return; }
+      var era = modo;
+      modo = null;
+      if (era !== 'h') { return; }
+      li.setAttribute('data-gesto', '' + Date.now());
+      li.className = li.className.replace(/ arrastra/g, '');
+      li.removeAttribute('data-rev');
+      li.removeAttribute('data-umbral');
+      fila.style.transform = '';
+      if (cancelado) { return; }
+      var ad = dx < 0 ? -dx : dx, ms = Date.now() - t0;
+      if (ad < UMBRAL_FILA && !(ad > 40 && ad / (ms > 0 ? ms : 1) > 0.6)) { return; }
+      var it = buscarItem(id), acc = it ? accionHecho(it) : null;
+      if (dx > 0 && puedeHecho && acc) { acc.fn(); }
+      if (dx < 0) { abrirMenuRapido(id); }
+    }
+    li.addEventListener('pointerup', function (ev) { soltar(ev, false); });
+    li.addEventListener('pointercancel', function (ev) { soltar(ev, true); });
+  }
+
+  /* ---------- menu rapido ----------
+     Hoja chica (la misma hoja accesible de siempre) con lo que mas se hace sin
+     abrir la ficha: Hoy, Mañana, Prioridad, Mover a Compras y Borrar, mas un
+     acceso a la ficha completa. Se abre deslizando a la izquierda, con clic
+     derecho, manteniendo apretado o con la tecla de menu sobre la tarjeta. */
+  var itemRapido = null;
+
+  function abrirMenuRapido(id) {
+    var it = buscarItem(id);
+    if (!it || pilaCapas.length > 0) { return; }
+    itemRapido = id;
+    $('rapTitulo').textContent = it.texto;
+    $('rapNivel').style.display = 'none';
+    $('btnRapNivel').setAttribute('aria-expanded', 'false');
+    $('btnRapCompras').style.display = it.tipo === 'tarea' && it.rutinaId === '' ? '' : 'none';
+    pintarOpciones('rapNivel', K.NIVELES, it.nivel, function (n) { return n.nom; }, function (n) {
+      cerrarHoja('tapaRapido');
+      fijarNivel(id, n.id);
+    }, 'data-nivel');
+    abrirHoja('tapaRapido');
+  }
+
+  function accionRapida(cual) {
+    var id = itemRapido, it = buscarItem(id);
+    if (!it) { cerrarHoja('tapaRapido'); return; }
+    if (cual === 'prioridad') {
+      var abierto = $('rapNivel').style.display !== 'none';
+      $('rapNivel').style.display = abierto ? 'none' : '';
+      $('btnRapNivel').setAttribute('aria-expanded', abierto ? 'false' : 'true');
+      return;
+    }
+    cerrarHoja('tapaRapido');
+    if (cual === 'hoy') {
+      if (it.estado === 'entrada') { sacarDeInbox(id, true); } else { fijarFecha(id, hoyClave()); }
+    } else if (cual === 'manana') {
+      posponer(id);
+    } else if (cual === 'compras') {
+      moverACompras(id);
+    } else if (cual === 'borrar') {
+      pedirBorrar(id);
+    } else if (cual === 'ficha') {
+      abrirItem(id);
+    }
   }
 
   /* Filtro por clasificacion: encontrar sin abrir el teclado.
@@ -1111,7 +1326,7 @@
         b.type = 'button';
         b.className = filtroTag === def.id ? 'chip on' : 'chip';
         b.setAttribute('data-tag-filtro', def.id === '' ? 'todo' : def.id);
-        b.textContent = (def.ico ? def.ico + ' ' : '') + def.nom +
+        b.textContent = def.nom +
           (def.id === '' ? '' : ' ' + contarTag(def.id));
         b.onclick = function () {
           filtroTag = filtroTag === def.id ? '' : def.id;
@@ -1154,7 +1369,7 @@
       $('vacioTablero').textContent = 'Nada en ' + (t ? t.nom : 'esa clasificacion') + ' con este filtro.';
     } else {
       $('vacioTablero').textContent = filtro === 'activos'
-        ? 'Nada activo aca. Escribi arriba y toca Enter.'
+        ? 'Nada activo ac\u00E1. Escrib\u00ED abajo y toc\u00E1 Enter.'
         : 'No hay items en este filtro.';
     }
   }
@@ -1172,7 +1387,7 @@
     });
     pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras');
     $('vacioCompras').textContent = esHogar
-      ? 'Lista vacia. Escribi arriba y toca Mover a Compras.'
+      ? 'Lista vac\u00EDa. Escrib\u00ED en la barra de captura y toc\u00E1 Mover a Compras.'
       : 'Sin compras. Toca Mover a Compras en cualquier tarea.';
   }
 
@@ -1228,7 +1443,7 @@
     if (ev.tipo === 'rutina_pausa') { return 'Pausaste la rutina'; }
     if (ev.tipo === 'rutina_activa') { return 'Reactivaste la rutina'; }
     if (ev.tipo === 'rutina_baja') { return 'Borraste la rutina'; }
-    if (ev.tipo === 'contexto') { return 'Moviste a ' + icoNomCtx(ev.hasta); }
+    if (ev.tipo === 'contexto') { return 'Moviste a ' + nomCtx(ev.hasta); }
     if (ev.tipo === 'tag') { return ev.hasta === '' ? 'Sacaste la clasificacion' : 'Clasificaste como ' + ev.hasta; }
     if (ev.tipo === 'recordatorio') { return ev.hasta === '' ? 'Sacaste el recordatorio' : 'Recordatorio ' + ev.hasta; }
     if (ev.tipo === 'compra') { return 'Moviste a Compras'; }
@@ -1237,17 +1452,18 @@
     if (ev.tipo === 'comentario') { return 'Comentaste'; }
     if (ev.tipo === 'anclado') { return ev.hasta === 'anclado' ? 'Anclaste arriba' : 'Sacaste el ancla'; }
     if (ev.tipo === 'migracion') { return 'Migracion de datos'; }
+    if (ev.tipo === 'compactado') { return 'Historial viejo compactado'; }
     if (ev.tipo === 'estado') { return estadoInfo(ev.desde).nom + ' \u2192 ' + estadoInfo(ev.hasta).nom; }
     return 'Movimiento';
   }
 
-  var MESES_LARGO = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+  var MESES_LARGO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
   function cabeceraDiaDiario(clave) {
     var d = K.deClave(clave);
     var rel = etiquetaDia(clave);
     var largo = d.getDate() + ' ' + MESES_LARGO[d.getMonth()] + ' ' + d.getFullYear();
-    return rel === 'Hoy' || rel === 'Ayer' ? rel.toUpperCase() + ' \u00B7 ' + largo : largo + ' \u00B7 ' + DIAS_SEMANA[d.getDay()];
+    return rel === 'Hoy' || rel === 'Ayer' ? rel + ' \u00B7 ' + largo : largo + ' \u00B7 ' + DIAS_SEMANA[d.getDay()];
   }
 
   function resumenDia(c) {
@@ -1348,19 +1564,61 @@
 
   function hoyClave() { return K.claveDia(new Date()); }
 
-  function nodo(tag, clase, texto) {
+  /* Icono SVG de iconos.js (decorativo). Sin iconos.js queda un span vacio. */
+  function svgIco(nombre, clase) {
+    return window.KCOIconos ? window.KCOIconos.crear(nombre, clase) : document.createElement('span');
+  }
+
+  /* Icono + rotulo: el texto va en su propio <span> para que kco.css separe
+     el icono solo cuando hay texto al lado (.ico:not(:last-child)). */
+  function conIcono(e, ico, texto) {
+    e.appendChild(svgIco(ico));
+    if (texto) {
+      var t = document.createElement('span');
+      t.textContent = texto;
+      e.appendChild(t);
+    }
+    return e;
+  }
+
+  function nodo(tag, clase, texto, ico) {
     var e = document.createElement(tag);
     if (clase) { e.className = clase; }
+    if (ico) { return conIcono(e, ico, texto); }
     if (typeof texto === 'string') { e.textContent = texto; }
     return e;
   }
 
+  /* Cambia el rotulo de un boton conservando su icono (o poniendo otro). */
+  function rotular(el, texto, ico) {
+    var s = el.getElementsByTagName('svg')[0];
+    vaciar(el);
+    if (ico || !s) { conIcono(el, ico || el.getAttribute('data-ico') || '', texto); return; }
+    el.appendChild(s);
+    var t = document.createElement('span');
+    t.textContent = texto;
+    el.appendChild(t);
+  }
+
+  /* Marcado estatico: <x data-ico="nombre"> recibe su icono al arrancar; su
+     texto pasa a un <span> (mismo textContent). */
+  function decorarIconos() {
+    var l = document.querySelectorAll('[data-ico]'), i, el, txt;
+    for (i = 0; i < l.length; i++) {
+      el = l[i];
+      if (el.getElementsByTagName('svg').length) { continue; }
+      txt = el.textContent.replace(/^\s+|\s+$/g, '');
+      vaciar(el);
+      conIcono(el, el.getAttribute('data-ico'), txt);
+    }
+  }
+
   /* Encabezado de seccion + su lista. Devuelve el <ul> para llenarlo. */
-  function seccion(cont, id, titulo, n, nota) {
+  function seccion(cont, id, titulo, n, nota, ico) {
     var s = nodo('section', 'sec');
     if (id) { s.id = id; }
     var h = nodo('h3', 'sec-tit');
-    h.appendChild(nodo('span', '', titulo));
+    h.appendChild(nodo('span', '', titulo, ico));
     if (typeof n === 'number' || typeof n === 'string') { h.appendChild(nodo('b', 'mono', '' + n)); }
     s.appendChild(h);
     if (nota) { s.appendChild(nodo('div', 'sec-nota', nota)); }
@@ -1380,15 +1638,15 @@
 
   /* Accion principal de un toque para cualquier item, la misma que ofrece su tarjeta. */
   function accionPrincipal(it) {
-    if (it.tipo === 'tarea') { return { txt: '\u2705 Hecho', fn: function () { cambiarEstado(it.id, 'completado'); } }; }
-    if (!K.esFabrica(it.contexto)) { return { txt: '\u2705 Comprado', fn: function () { cambiarEstado(it.id, 'comprado'); } }; }
-    if (it.pausado === true) { return { txt: '\u25B6 Seguir', fn: function () { alternarPausa(it.id); } }; }
+    if (it.tipo === 'tarea') { return { txt: 'Hecho', ico: 'check', fn: function () { cambiarEstado(it.id, 'completado'); } }; }
+    if (!K.esFabrica(it.contexto)) { return { txt: 'Comprado', ico: 'check', fn: function () { cambiarEstado(it.id, 'comprado'); } }; }
+    if (it.pausado === true) { return { txt: 'Seguir', ico: 'play', fn: function () { alternarPausa(it.id); } }; }
     var sig = estadoSiguiente(it);
-    return sig ? { txt: '\u25B6 ' + sig.nom, fn: function () { cambiarEstado(it.id, sig.id); } } : null;
+    return sig ? { txt: sig.nom, ico: 'arrow-right', fn: function () { cambiarEstado(it.id, sig.id); } } : null;
   }
 
-  function botonHero(cont, clase, texto, fn) {
-    var b = nodo('button', clase, texto);
+  function botonHero(cont, clase, texto, fn, ico) {
+    var b = nodo('button', clase, texto, ico);
     b.type = 'button';
     b.onclick = function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } fn(); };
     cont.appendChild(b);
@@ -1399,25 +1657,25 @@
     var it = r.item;
     var c = nodo('div', 'hero' + claseNivel(it));
     c.setAttribute('data-id', it.id);
-    c.appendChild(nodo('div', 'hero-rot', '\u25B6 SIGUIENTE MOVIMIENTO'));
+    c.appendChild(nodo('div', 'hero-rot', 'Siguiente movimiento', 'zap'));
     c.appendChild(nodo('div', 'hero-txt', it.texto));
-    var meta = [r.motivo, icoNomCtx(it.contexto)];
+    var meta = [r.motivo, nomCtx(it.contexto)];
     var pr = it.proyectoId ? buscarProyectoNombre(it.proyectoId) : '';
-    if (pr !== '') { meta.push('\uD83C\uDFAF ' + pr); }
+    if (pr !== '') { meta.push(pr); }
     c.appendChild(nodo('div', 'hero-meta mono', meta.join(' \u00B7 ')));
     var accs = nodo('div', 'hero-accs');
     var ap = accionPrincipal(it);
-    if (ap) { botonHero(accs, 'bloque pri', ap.txt, ap.fn).setAttribute('data-hero', 'hecho'); }
+    if (ap) { botonHero(accs, 'bloque pri', ap.txt, ap.fn, ap.ico).setAttribute('data-hero', 'hecho'); }
     if (it.tipo === 'tarea' && it.estado !== 'proceso') {
-      botonHero(accs, 'bloque', '\u23F5 Empezar', function () { cambiarEstado(it.id, 'proceso'); }).setAttribute('data-hero', 'empezar');
+      botonHero(accs, 'bloque', 'Empezar', function () { cambiarEstado(it.id, 'proceso'); }, 'play').setAttribute('data-hero', 'empezar');
     }
-    botonHero(accs, 'bloque', '\u23ED Ma\u00F1ana', function () {
+    botonHero(accs, 'bloque', 'Ma\u00F1ana', function () {
       posponer(it.id);
-    }).setAttribute('data-hero', 'manana');
+    }, 'forward').setAttribute('data-hero', 'manana');
     c.appendChild(accs);
     if (siguientes.length > 0) {
       var sg = nodo('div', 'hero-sig');
-      sg.appendChild(nodo('span', 'mono', 'DESPUES '));
+      sg.appendChild(nodo('span', '', 'Despu\u00E9s '));
       var j;
       for (j = 0; j < siguientes.length; j++) {
         (function (s) {
@@ -1486,7 +1744,8 @@
     b.type = 'button';
     b.setAttribute('data-tile', destino);
     b.appendChild(nodo('b', 'mono', '' + n));
-    b.appendChild(nodo('span', '', ico + ' ' + rot));
+    b.appendChild(nodo('span', '', rot));
+    b.appendChild(svgIco(ico, 'tile-ico'));
     b.onclick = function () {
       var s = $(destino);
       if (s && s.scrollIntoView) { try { s.scrollIntoView(true); } catch (e) {} }
@@ -1512,18 +1771,18 @@
     pintarProgresoArriba(cont);
 
     var pulso = nodo('div', 'pulso');
-    tile(pulso, '\uD83D\uDD34', nAt, 'Atencion', 'secAtencion', nAt > 0 ? 'rojo' : '');
-    tile(pulso, '\uD83D\uDCC5', nHoy, 'Hoy', 'secSigue', '');
-    tile(pulso, '\uD83D\uDCE5', inbox.length, 'Inbox', 'secInbox', '');
-    tile(pulso, '\uD83D\uDD35', esperando.length, 'Esperando', 'secEsperando', '');
+    tile(pulso, 'alert-circle', nAt, 'Atenci\u00F3n', 'secAtencion', nAt > 0 ? 'rojo' : '');
+    tile(pulso, 'calendar', nHoy, 'Hoy', 'secSigue', '');
+    tile(pulso, 'inbox', inbox.length, 'Inbox', 'secInbox', '');
+    tile(pulso, 'hourglass', esperando.length, 'Esperando', 'secEsperando', '');
     cont.appendChild(pulso);
 
     var mostrados = {};
     if (ranking.length === 0) {
       var calma = nodo('div', 'hero calma');
-      calma.appendChild(nodo('div', 'hero-rot', '\u2714 TODO EN ORDEN'));
+      calma.appendChild(nodo('div', 'hero-rot', 'Todo en orden', 'check-circle'));
       calma.appendChild(nodo('div', 'hero-txt', lista.length === 0
-        ? 'Nada pendiente en ' + nomCtx(contexto) + '. Captura abajo lo proximo que aparezca.'
+        ? 'Nada pendiente en ' + nomCtx(contexto) + '. Captur\u00E1 lo pr\u00F3ximo que aparezca.'
         : 'Lo que queda esta esperando a otros o tiene dia mas adelante.'));
       cont.appendChild(calma);
     } else {
@@ -1538,7 +1797,7 @@
       if (ranking[i].situacion === 'atencion' && !mostrados['#' + ranking[i].item.id]) { at.push(ranking[i]); }
     }
     if (at.length > 0) {
-      var ulA = seccion(cont, 'secAtencion', '\uD83D\uDD34 REQUIERE ATENCION', at.length);
+      var ulA = seccion(cont, 'secAtencion', 'Requiere atenci\u00F3n', at.length, '', 'alert-circle');
       for (i = 0; i < at.length; i++) {
         ulA.appendChild(nodoItem(at[i].item, at[i].motivo));
         mostrados['#' + at[i].item.id] = true;
@@ -1556,8 +1815,8 @@
       for (i = 0; i < ranking.length; i++) {
         if (!mostrados['#' + ranking[i].item.id] && ranking[i].item.estado !== 'entrada') { resto++; }
       }
-      var ulS = seccion(cont, 'secSigue', '\uD83D\uDFE1 A CONTINUACION', resto,
-        resto > siguen.length ? 'Las ' + siguen.length + ' que mas pesan. El resto esta en Tareas.' : '');
+      var ulS = seccion(cont, 'secSigue', 'A continuaci\u00F3n', resto,
+        resto > siguen.length ? 'Las ' + siguen.length + ' que mas pesan. El resto esta en Tareas.' : '', 'arrow-right');
       for (i = 0; i < siguen.length; i++) {
         ulS.appendChild(nodoItem(siguen[i].item, siguen[i].motivo));
         mostrados['#' + siguen[i].item.id] = true;
@@ -1567,13 +1826,13 @@
     var bandeja = [];
     for (i = inbox.length - 1; i >= 0; i--) { if (!mostrados['#' + inbox[i].id]) { bandeja.push(inbox[i]); } }
     if (bandeja.length > 0) {
-      var ulI = seccion(cont, 'secInbox', '\uD83D\uDCE5 INBOX', bandeja.length,
-        'Capturado sin clasificar. \u2714 lo pasa a pendiente, \uD83D\uDCC5 lo deja para hoy.');
+      var ulI = seccion(cont, 'secInbox', 'Inbox', bandeja.length,
+        'Capturado sin clasificar. El c\u00EDrculo lo completa, el calendario lo deja para hoy; desliz\u00E1 a la izquierda para m\u00E1s.', 'inbox');
       for (i = 0; i < bandeja.length && i < 8; i++) { ulI.appendChild(nodoItem(bandeja[i], '', 'triage')); }
     }
 
     if (esperando.length > 0) {
-      var ulE = seccion(cont, 'secEsperando', '\uD83D\uDD35 ESPERANDO', esperando.length);
+      var ulE = seccion(cont, 'secEsperando', 'Esperando', esperando.length, '', 'hourglass');
       for (i = 0; i < esperando.length && i < 8; i++) { ulE.appendChild(nodoItem(esperando[i], '')); }
     }
 
@@ -1591,6 +1850,8 @@
 
   var DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
   var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+  function capital(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; }
 
   function tituloDia(clave) {
     var d = K.deClave(clave);
@@ -1615,7 +1876,7 @@
     var rut = ocurrenciasDeHoy();
 
     var cab = nodo('div', 'hoy-cab');
-    cab.appendChild(nodo('div', 'hoy-fecha', tituloDia(hoy).toUpperCase()));
+    cab.appendChild(nodo('div', 'hoy-fecha', capital(tituloDia(hoy))));
     var total = hechas.length + deHoy.length + vencidas.length;
     var pct = total === 0 ? 0 : Math.round((hechas.length * 100) / total);
     cab.appendChild(nodo('div', 'mono hoy-cuenta', hechas.length + '/' + total + ' \u00B7 ' + pct + '%'));
@@ -1629,7 +1890,7 @@
     if (rut.length > 0) {
       var hechasR = 0;
       for (i = 0; i < rut.length; i++) { if (!esActivo(rut[i].estado)) { hechasR++; } }
-      var ulR = seccion(cont, 'secRutinasHoy', '\uD83D\uDD04 RUTINAS DE HOY', hechasR + '/' + rut.length);
+      var ulR = seccion(cont, 'secRutinasHoy', 'Rutinas de hoy', hechasR + '/' + rut.length, '', 'repeat');
       ordenar(rut);
       rut.sort(function (a, b) { return esActivo(a.estado) === esActivo(b.estado) ? 0 : (esActivo(a.estado) ? -1 : 1); });
       for (i = 0; i < rut.length; i++) {
@@ -1637,30 +1898,30 @@
         ulR.appendChild(nodoItem(rut[i], ruD ? lineaRacha(ruD) : ''));
       }
     }
-    var gest = nodo('button', 'bloque', '\uD83D\uDD04 Rutinas' + (rutinas.length ? ' (' + rutinas.length + ')' : ': crear la primera'));
+    var gest = nodo('button', 'bloque', 'Rutinas' + (rutinas.length ? ' (' + rutinas.length + ')' : ': crear la primera'), 'repeat');
     gest.type = 'button';
     gest.id = 'btnRutinas';
     gest.onclick = function () { abrirListaRutinas(); };
     cont.appendChild(gest);
     if (vencidas.length > 0) {
-      var ulV = seccion(cont, 'secVencidas', '\uD83D\uDD34 VENCIDAS', vencidas.length,
-        'Ten\u00EDan d\u00EDa y ya pas\u00F3. \u23ED en la ficha o en AHORA las corre a ma\u00F1ana.');
+      var ulV = seccion(cont, 'secVencidas', 'Vencidas', vencidas.length,
+        'Ten\u00EDan d\u00EDa y ya pas\u00F3. Ma\u00F1ana, en la ficha o en Ahora, las corre un d\u00EDa.', 'alert-circle');
       ordenar(vencidas);
       for (i = 0; i < vencidas.length; i++) { ulV.appendChild(nodoItem(vencidas[i], 'Era ' + nombreDia(K.diaDe(vencidas[i])))); }
     }
     var noRut = [];
     for (i = 0; i < deHoy.length; i++) { if (deHoy[i].rutinaId === '') { noRut.push(deHoy[i]); } }
-    var ulH = seccion(cont, 'secParaHoy', '\uD83D\uDCC5 PARA HOY', noRut.length);
+    var ulH = seccion(cont, 'secParaHoy', 'Para hoy', noRut.length, '', 'calendar');
     if (noRut.length === 0) {
       ulH.appendChild(nodo('li', 'vacio chico', 'Nada agendado para hoy. Desde AHORA ves que conviene hacer.'));
     }
     for (i = 0; i < noRut.length; i++) { ulH.appendChild(nodoItem(noRut[i], '')); }
     if (hechas.length > 0) {
-      var ulD = seccion(cont, 'secHechasHoy', '\uD83D\uDFE2 HECHO HOY', hechas.length);
+      var ulD = seccion(cont, 'secHechasHoy', 'Hecho hoy', hechas.length, '', 'check-circle');
       for (i = hechas.length - 1; i >= 0; i--) { ulD.appendChild(nodoItem(hechas[i], '')); }
     }
 
-    var prox = nodo('div', 'sec-titulo-grande', '\uD83D\uDCC6 PROXIMOS DIAS');
+    var prox = nodo('div', 'sec-titulo-grande', 'Pr\u00F3ximos d\u00EDas');
     cont.appendChild(prox);
     var alguno = false, d, clave;
     for (d = 1; d <= DIAS_PROXIMOS; d++) {
@@ -1669,7 +1930,7 @@
       var previstas = rutinasPrevistas(clave);
       if (delDia.length === 0 && previstas.length === 0) { continue; }
       alguno = true;
-      var ulP = seccion(cont, 'dia-' + clave, (d === 1 ? 'MA\u00D1ANA \u00B7 ' : '') + tituloDia(clave).toUpperCase(),
+      var ulP = seccion(cont, 'dia-' + clave, (d === 1 ? 'Ma\u00F1ana \u00B7 ' : '') + (d === 1 ? tituloDia(clave) : capital(tituloDia(clave))),
         delDia.length + previstas.length);
       for (i = 0; i < delDia.length; i++) { ulP.appendChild(nodoItem(delDia[i], '')); }
       for (i = 0; i < previstas.length; i++) { ulP.appendChild(nodoPrevista(previstas[i])); }
@@ -1683,7 +1944,7 @@
     if (luego.length > 0) {
       alguno = true;
       luego.sort(function (a, b) { var x = K.diaDe(a), y = K.diaDe(b); return x < y ? -1 : (x > y ? 1 : 0); });
-      var ulL = seccion(cont, 'secMasAdelante', '\uD83D\uDFE3 MAS ADELANTE', luego.length);
+      var ulL = seccion(cont, 'secMasAdelante', 'M\u00E1s adelante', luego.length, '', 'layers');
       for (i = 0; i < luego.length && i < 10; i++) { ulL.appendChild(nodoItem(luego[i], tituloDia(K.diaDe(luego[i])))); }
     }
     if (!alguno) {
@@ -1704,6 +1965,56 @@
   var ORDEN_VISTAS = ['ahora', 'hoy', 'tablero', 'compras', 'misiones', 'registro'];
   var VISTA_DOM = { ahora: 'vistaAhora', hoy: 'vistaHoy', tablero: 'vistaTablero', compras: 'vistaCompras', misiones: 'vistaMisiones', registro: 'vistaRegistro' };
   var VISTA_TAB = { ahora: 'tabAhora', hoy: 'tabHoy', tablero: 'tabTareas', compras: 'tabTareas', misiones: 'tabMisiones', registro: 'tabRegistro' };
+
+  /* Barra lateral de escritorio: las cinco vistas (Tareas cubre Compras). */
+  var NAV_VISTAS = [
+    { v: 'ahora', nom: 'Ahora', ico: 'zap' },
+    { v: 'hoy', nom: 'Hoy', ico: 'calendar' },
+    { v: 'tablero', nom: 'Tareas', ico: 'tareas' },
+    { v: 'misiones', nom: 'Misiones', ico: 'target' },
+    { v: 'registro', nom: 'Diario', ico: 'book' }
+  ];
+  var TITULO_VISTA = { ahora: 'Ahora', hoy: 'Hoy', tablero: 'Tareas', compras: 'Compras', misiones: 'Misiones', registro: 'Diario' };
+
+  /* Cuentas baratas (una pasada): atencion en Ahora, lo de hoy, lo abierto y
+     las misiones activas del contexto. El Diario no lleva cuenta. */
+  function cuentasVistas() {
+    var hoy = hoyClave(), ahora = Date.now(), l = activosVisibles(), i;
+    var r = { ahora: 0, hoy: 0, tablero: l.length, misiones: misionesVisibles('activo').length, registro: 0 };
+    for (i = 0; i < l.length; i++) {
+      if (K.situacion(l[i], hoy, ahora) === 'atencion') { r.ahora++; }
+      if (K.diaDe(l[i]) === hoy) { r.hoy++; }
+    }
+    return r;
+  }
+
+  /* Se arma una vez; cada pintado actualiza estado y cuentas sin rehacer los
+     botones (el foco de teclado no se pierde al navegar). */
+  function pintarNavLateral() {
+    var nav = $('navLateral'), n = cuentasVistas(), i, b, v, on, cn;
+    if (!nav.firstChild) {
+      for (i = 0; i < NAV_VISTAS.length; i++) {
+        (function (d) {
+          var x = nodo('button', 'lat-item', '');
+          x.type = 'button';
+          x.setAttribute('data-vista', d.v);
+          x.appendChild(svgIco(d.ico));
+          x.appendChild(nodo('span', 'lat-item-nom', d.nom));
+          x.appendChild(nodo('span', 'lat-item-n' + (d.v === 'ahora' ? ' rojo' : ''), ''));
+          x.onclick = function () { irAVista(d.v === 'tablero' && vista === 'compras' ? 'compras' : d.v); };
+          nav.appendChild(x);
+        })(NAV_VISTAS[i]);
+      }
+    }
+    for (b = nav.firstChild; b; b = b.nextSibling) {
+      v = b.getAttribute('data-vista');
+      on = VISTA_TAB[vista] === VISTA_TAB[v];
+      b.className = on ? 'lat-item on' : 'lat-item';
+      if (on) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); }
+      cn = b.getElementsByTagName('span')[1];
+      cn.textContent = n[v] > 0 ? '' + n[v] : '';
+    }
+  }
 
   function posVista(v) {
     var i;
@@ -1749,6 +2060,9 @@
         $(VISTA_TAB[v]).setAttribute('aria-selected', on ? 'true' : 'false');
       }
     }
+    $('tituloVista').textContent = TITULO_VISTA[vista] || '';
+    pintarSelectorContexto();
+    pintarNavLateral();
     $('segTareas').style.display = vista === 'tablero' || vista === 'compras' ? 'flex' : 'none';
     $('segBtnTareas').className = vista === 'tablero' ? 'segbtn on' : 'segbtn';
     $('segBtnCompras').className = vista === 'compras' ? 'segbtn on' : 'segbtn';
@@ -1796,22 +2110,191 @@
     } catch (e) { ignorarPop = 0; }
   }
 
+  /* Foco: al abrir una hoja se recuerda quien la abrio y al cerrarla el foco
+     vuelve ahi. Si ese elemento ya no existe (la lista se repinto), se busca la
+     tarjeta del mismo item. */
+  var focoPrevio = {};
+
+  function recordarFoco(id) {
+    var a = document.activeElement;
+    if (!a || a === document.body) { focoPrevio[id] = null; return; }
+    focoPrevio[id] = { el: a, dataId: a.getAttribute ? a.getAttribute('data-id') : null };
+  }
+
+  function enfocar(el) {
+    if (!el || !el.focus) { return; }
+    try { el.focus({ preventScroll: true }); } catch (e) { try { el.focus(); } catch (e2) { /* nada */ } }
+  }
+
+  function devolverFoco(id) {
+    var f = focoPrevio[id], el;
+    focoPrevio[id] = null;
+    if (!f) { return; }
+    el = f.el;
+    if (!el || !document.body.contains(el) || el.offsetParent === null) {
+      el = f.dataId ? document.querySelector('li.item[data-id="' + f.dataId.replace(/[^A-Za-z0-9_-]/g, '') + '"]') : null;
+    }
+    if (el && el.offsetParent !== null) { enfocar(el); }
+  }
+
+  /* Al abrir, el foco entra a la hoja por su titulo (anuncia el dialogo sin
+     abrir el teclado en el telefono); si el titulo esta oculto, por la hoja. */
+  function enfocarHoja(id) {
+    var t = $(id), h = t.querySelector('h2');
+    enfocar(h && h.className.indexOf('oculto-vis') < 0 ? h : t.querySelector('.hoja'));
+  }
+
   function cerrarDom(id) {
     var el = $(id);
     if (el) { el.className = 'tapa'; }
     if (id === 'tapaItem') { itemAbierto = null; }
     if (id === 'tapaConfirmar') { confAccion = null; }
+    if (id === 'tapaCtx') { $('btnCtx').setAttribute('aria-expanded', 'false'); }
+    devolverFoco(id);
   }
 
   function abrirHoja(id) {
     var i;
+    if (id === 'tapaCtx') { $('btnCtx').setAttribute('aria-expanded', 'true'); }
     for (i = 0; i < pilaCapas.length; i++) {
       if (pilaCapas[i] === id) { $(id).className = 'tapa on'; return; }
     }
+    recordarFoco(id);
     $(id).className = 'tapa on';
     $(id).style.zIndex = '' + (30 + pilaCapas.length);
+    $(id).querySelector('.hoja').scrollTop = 0;
     pilaCapas.push(id);
     empujarHistorial({ kcoCapa: id });
+    enfocarHoja(id);
+  }
+
+  /* Cierre por la X, Escape, el fondo o el gesto: el mismo camino que el boton
+     atras (cerrarHoja), asi el historial queda siempre a la par de las capas. */
+  function cerrarCapa(id) {
+    if (id === 'tapaMision') { misionAbierta = null; }
+    if (id === 'tapaRutina') { borrador = null; }
+    cerrarHoja(id);
+  }
+
+  function capaArriba() { return pilaCapas.length ? pilaCapas[pilaCapas.length - 1] : null; }
+
+  /* Lo que se puede enfocar con Tab dentro de una hoja, en orden del documento. */
+  function enfocables(cont) {
+    var l = cont.querySelectorAll('button, input, textarea, select, a[href], [tabindex]'), r = [], i, e;
+    for (i = 0; i < l.length; i++) {
+      e = l[i];
+      if (e.disabled || e.getAttribute('tabindex') === '-1' || e.type === 'hidden') { continue; }
+      if (e.offsetParent === null) { continue; }
+      r.push(e);
+    }
+    return r;
+  }
+
+  /* Tab y Shift+Tab giran dentro de la hoja de arriba: el foco nunca se va a la
+     pagina de atras (aria-modal). Se mueve a mano para no depender del navegador. */
+  function moverFocoEn(cont, atras) {
+    var l = enfocables(cont), pos = l.indexOf(document.activeElement);
+    if (!l.length) { enfocar(cont); return; }
+    if (pos < 0) { enfocar(atras ? l[l.length - 1] : l[0]); return; }
+    enfocar(l[(pos + (atras ? l.length - 1 : 1)) % l.length]);
+  }
+
+  function movimientoReducido() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  function esControl(el, tope) {
+    for (; el && el !== tope; el = el.parentNode) {
+      if (/^(BUTTON|INPUT|TEXTAREA|SELECT|A)$/.test(el.tagName || '')) { return true; }
+    }
+    return false;
+  }
+
+  /* Deslizar hacia abajo desde la cabecera (asa + titulo) cierra la hoja en
+     pantallas tactiles: mas de 80px, o un tiron rapido. El cuerpo de la hoja
+     sigue scrolleando normal: el gesto vive solo en la cabecera. Con movimiento
+     reducido la hoja no sigue al dedo; se decide al soltar. */
+  function conectarArrastreHoja(tapa, hoja, cab) {
+    if (!cab.addEventListener || typeof window.PointerEvent === 'undefined') { return; }
+    var activo = false, idP = null, y0 = 0, t0 = 0, dy = 0;
+    cab.addEventListener('pointerdown', function (ev) {
+      if (ev.pointerType !== 'touch' && ev.pointerType !== 'pen') { return; }
+      if (esControl(ev.target, cab)) { return; }
+      activo = true; idP = ev.pointerId; y0 = ev.clientY; t0 = Date.now(); dy = 0;
+    });
+    cab.addEventListener('pointermove', function (ev) {
+      if (!activo || ev.pointerId !== idP) { return; }
+      dy = ev.clientY - y0;
+      if (dy < 0) { dy = 0; }
+      if (!movimientoReducido()) {
+        hoja.style.transition = 'none';
+        hoja.style.transform = 'translate3d(0,' + dy + 'px,0)';
+      }
+    });
+    function soltar(ev, cancelado) {
+      if (!activo || ev.pointerId !== idP) { return; }
+      activo = false;
+      var ms = Date.now() - t0, v = dy / (ms > 0 ? ms : 1);
+      hoja.style.transition = '';
+      hoja.style.transform = '';
+      if (!cancelado && (dy > 80 || (dy > 30 && v > 0.6))) { cerrarCapa(tapa.id); }
+    }
+    cab.addEventListener('pointerup', function (ev) { soltar(ev, false); });
+    cab.addEventListener('pointercancel', function (ev) { soltar(ev, true); });
+  }
+
+  /* Toda hoja es un dialogo modal con nombre: cabecera con asa (movil), titulo
+     y una X de cerrar arriba a la derecha. Tocar el fondo tambien cierra. */
+  function prepararHoja(tapa) {
+    var hoja = tapa.querySelector('.hoja'), h2 = hoja.querySelector('h2');
+    var cab = hoja.querySelector('.hoja-cab'), fila, asa;
+    if (!h2.id) { h2.id = tapa.id + 'Tit'; }
+    if (!cab) {
+      cab = nodo('div', 'hoja-cab');
+      asa = nodo('div', 'asa');
+      asa.setAttribute('aria-hidden', 'true');
+      cab.appendChild(asa);
+      fila = nodo('div', 'hoja-fila');
+      fila.appendChild(h2);
+      cab.appendChild(fila);
+      hoja.insertBefore(cab, hoja.firstChild);
+    } else {
+      fila = cab.querySelector('.hoja-fila');
+    }
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'iconobtn hoja-x';
+    x.setAttribute('aria-label', 'Cerrar');
+    x.setAttribute('title', 'Cerrar');
+    x.appendChild(svgIco('x'));
+    x.onclick = function () { cerrarCapa(tapa.id); };
+    fila.appendChild(x);
+    tapa.setAttribute('role', 'dialog');
+    tapa.setAttribute('aria-modal', 'true');
+    tapa.setAttribute('aria-labelledby', h2.id);
+    h2.setAttribute('tabindex', '-1');
+    hoja.setAttribute('tabindex', '-1');
+    tapa.addEventListener('click', function (ev) {
+      if (ev.target === tapa && capaArriba() === tapa.id) { cerrarCapa(tapa.id); }
+    });
+    conectarArrastreHoja(tapa, hoja, cab);
+  }
+
+  function prepararHojas() {
+    var l = document.querySelectorAll('.tapa'), i;
+    for (i = 0; i < l.length; i++) { prepararHoja(l[i]); }
+    document.addEventListener('keydown', function (ev) {
+      var id = capaArriba();
+      if (!id) { return; }
+      var k = ev.key || '';
+      if (k === 'Escape' || k === 'Esc' || ev.keyCode === 27) {
+        ev.preventDefault();
+        cerrarCapa(id);
+      } else if (k === 'Tab' || ev.keyCode === 9) {
+        ev.preventDefault();
+        moverFocoEn($(id).querySelector('.hoja'), ev.shiftKey === true);
+      }
+    });
   }
 
   function cerrarHoja(id) {
@@ -1887,12 +2370,14 @@
     var ini = null;
     var t0 = 0;
     el.addEventListener('touchstart', function (ev) {
+      gestoFila = false;
       if (enScrollHorizontal(ev.target, el)) { ini = null; return; }
       ini = puntoDe(ev, 'ini');
       t0 = Date.now();
     }, false);
     el.addEventListener('touchend', function (ev) {
       if (!ini) { return; }
+      if (gestoFila) { ini = null; gestoFila = false; return; }
       var fin = puntoDe(ev, 'fin');
       var desde = ini;
       ini = null;
@@ -1930,12 +2415,80 @@
     abrirHoja('tapaConfirmar');
   }
 
+  /* El campo de texto crece con el contenido (sin barra de scroll propia). */
+  function ajustarAlto(t) {
+    t.style.height = 'auto';
+    t.style.height = t.scrollHeight + 'px';
+  }
+
+  /* Editar el texto de un item: guarda, registra 'edicion' y ofrece deshacer.
+     Devuelve false si no hubo cambio (vacio, igual o sin poder guardar). */
+  function editarTexto(id, valor) {
+    var it = buscarItem(id);
+    if (!it || soloLectura) { return false; }
+    var nuevo = ('' + valor).replace(/^\s+|\s+$/g, '');
+    if (nuevo === '' || nuevo === it.texto) { return false; }
+    var previo = it.texto, antes = copiaItem(it);
+    it.texto = nuevo;
+    it.actualizado = new Date().toISOString();
+    if (!guardarItems()) { reponerItem(it, antes); return false; }
+    registrar('edicion', it, previo, nuevo);
+    pintar();
+    if (itemAbierto === id) { pintarHojaItem(); }
+    ofrecerDeshacer('Texto editado: ' + nuevo, function () {
+      var v = buscarItem(id);
+      if (!v || soloLectura || v.texto !== nuevo) { return; }
+      var copia = copiaItem(v);
+      v.texto = previo;
+      v.actualizado = new Date().toISOString();
+      if (guardarItems()) {
+        registrar('deshacer', v, 'edicion', v.estado);
+        pintar();
+        if (itemAbierto === id) { pintarHojaItem(); }
+      } else { reponerItem(v, copia); }
+    });
+    return true;
+  }
+
+  /* La accion principal de un item, la del circulo de la tarjeta y la de Hecho
+     en la ficha: completar o reabrir una tarea, marcar o desmarcar una compra de
+     lista simple. El flujo de fabrica no tiene una sola "hecha": null. */
+  function accionHecho(it) {
+    if (it.tipo === 'tarea') {
+      if (esActivo(it.estado)) {
+        return { on: false, txt: 'Hecho', rot: 'Completar', fn: function () { cambiarEstado(it.id, 'completado'); } };
+      }
+      if (it.estado === 'completado') {
+        return { on: true, txt: 'Reabrir', rot: 'Reabrir', fn: function () { cambiarEstado(it.id, 'pendiente'); } };
+      }
+      return null;
+    }
+    if (!K.esFabrica(it.contexto) && (esActivo(it.estado) || it.estado === 'comprado')) {
+      var comprado = it.estado === 'comprado';
+      return { on: comprado, txt: comprado ? 'Comprado' : 'Comprar', rot: comprado ? 'Desmarcar comprado' : 'Marcar comprado',
+        fn: function () { alternarComprado(it.id); } };
+    }
+    return null;
+  }
+
   function pintarHojaItem() {
     var it = buscarItem(itemAbierto);
     if (!it) { cerrarHoja('tapaItem'); return; }
     $('itemTitulo').textContent = it.texto;
+    var tt = $('txtTituloItem');
+    tt.setAttribute('data-id', it.id);
+    if (document.activeElement !== tt) { tt.value = it.texto; }
+    tt.readOnly = soloLectura;
+    ajustarAlto(tt);
+    var ah = accionHecho(it), bh = $('btnHecho');
+    bh.style.display = ah ? '' : 'none';
+    if (ah) {
+      rotular(bh, ah.txt, 'check');
+      bh.className = ah.on ? 'rbtn hecho on' : 'rbtn hecho';
+      bh.setAttribute('aria-pressed', ah.on ? 'true' : 'false');
+    }
     var inf = estadoInfo(it.estado);
-    $('itemSub').textContent = (it.tipo === 'compra' ? 'COMPRA \u00B7 ' : '') + inf.ico + ' ' + inf.nom +
+    $('itemSub').textContent = (it.tipo === 'compra' ? 'Compra \u00B7 ' : '') + inf.ico + ' ' + inf.nom +
       ' \u00B7 creado ' + horaCorta(it.creado);
     $('rotEstados').textContent = it.tipo === 'compra' ? 'Estado de compra' : 'Estado';
 
@@ -1957,15 +2510,16 @@
     $('cajaEspera').style.display = it.estado === 'esperando' ? 'block' : 'none';
     if (it.estado === 'esperando') { $('txtEspera').value = it.espera; }
 
-    pintarOpciones('gridNivel', K.NIVELES, it.nivel, function (n) { return n.ico + ' ' + n.nom; },
+    pintarOpciones('gridNivel', K.NIVELES, it.nivel, function (n) { return n.nom; },
       function (n) { fijarNivel(it.id, n.id); }, 'data-nivel');
-    pintarOpciones('gridCtx', K.CONTEXTOS, it.contexto, function (c) { return c.ico + ' ' + c.nom; },
+    pintarOpciones('gridCtx', K.CONTEXTOS, it.contexto, function (c) { return c.nom; },
       function (c) { moverDeContexto(it.id, c.id); }, 'data-ctx');
     var hoyK = K.claveDia(new Date());
-    $('btnDiaHoy').className = it.fecha === hoyK ? 'gbtn on' : 'gbtn';
-    $('btnDiaMan').className = it.fecha === K.sumarDias(hoyK, 1) ? 'gbtn on' : 'gbtn';
-    $('btnDiaElegir').className = it.fecha !== '' && it.fecha !== hoyK && it.fecha !== K.sumarDias(hoyK, 1) ? 'gbtn on' : 'gbtn';
-    $('btnDiaElegir').textContent = $('btnDiaElegir').className === 'gbtn on' ? '\uD83D\uDCC5 ' + nombreDia(it.fecha) : 'Elegir dia';
+    var otroDia = it.fecha !== '' && it.fecha !== hoyK && it.fecha !== K.sumarDias(hoyK, 1);
+    $('btnDiaHoy').className = it.fecha === hoyK ? 'rbtn on' : 'rbtn';
+    $('btnDiaMan').className = it.fecha === K.sumarDias(hoyK, 1) ? 'rbtn on' : 'rbtn';
+    $('btnDiaElegir').className = otroDia ? 'rbtn on' : 'rbtn';
+    rotular($('btnDiaElegir'), otroDia ? nombreDia(it.fecha) : 'Elegir d\u00EDa', 'clock');
     $('btnSacarDia').style.display = it.fecha === '' ? 'none' : 'block';
     $('cajaDia').style.display = 'none';
 
@@ -2006,14 +2560,14 @@
 
     var bp = $('btnPausa');
     if (puedePausar(it)) {
-      bp.style.display = 'block';
-      bp.textContent = it.pausado === true ? '\u25B6 Reanudar la compra' : '\u23F8 Pausar / En espera';
-      bp.className = it.pausado === true ? 'gbtn on' : 'gbtn';
+      bp.style.display = '';
+      rotular(bp, it.pausado === true ? 'Reanudar la compra' : 'Pausar / En espera', it.pausado === true ? 'play' : 'pause');
+      bp.className = it.pausado === true ? 'gbtn ancho on' : 'gbtn ancho';
     } else {
       bp.style.display = 'none';
     }
     if (it.pausado === true) {
-      $('itemSub').textContent = $('itemSub').textContent + ' \u00B7 \u23F8 en espera';
+      $('itemSub').textContent = $('itemSub').textContent + ' \u00B7 en espera';
     }
 
     var ln = $('listaNotas');
@@ -2042,10 +2596,8 @@
     }
     $('txtNota').value = '';
 
-    $('btnAnclar').textContent = it.anclado === true
-      ? '\uD83D\uDCCC Anclado arriba de todo'
-      : '\uD83D\uDCCC Anclar arriba de todo';
-    $('btnAnclar').className = it.anclado === true ? 'gbtn on' : 'gbtn';
+    rotular($('btnAnclar'), it.anclado === true ? 'Anclado arriba de todo' : 'Anclar arriba de todo');
+    $('btnAnclar').className = it.anclado === true ? 'gbtn ancho on' : 'gbtn ancho';
 
     var lp = $('listaPasos');
     while (lp.firstChild) { lp.removeChild(lp.firstChild); }
@@ -2098,9 +2650,9 @@
       }
     }
     pintarMisionEnFicha(it);
-    $('btnHacerRutina').style.display = it.rutinaId === '' && it.tipo === 'tarea' ? 'block' : 'none';
-    $('btnAcompra').style.display = it.tipo === 'compra' || it.rutinaId !== '' ? 'none' : 'block';
-    $('btnVolverTarea').style.display = it.tipo === 'compra' ? 'block' : 'none';
+    $('btnHacerRutina').style.display = it.rutinaId === '' && it.tipo === 'tarea' ? '' : 'none';
+    $('btnAcompra').style.display = it.tipo === 'compra' || it.rutinaId !== '' ? 'none' : '';
+    $('btnVolverTarea').style.display = it.tipo === 'compra' ? '' : 'none';
   }
 
   /* Un toque, sin confirmacion: no se borra nada y se puede volver atras
@@ -2529,7 +3081,7 @@
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
     if (q === '') {
       $('vacioBusca').style.display = 'block';
-      $('vacioBusca').textContent = 'Escribi para buscar.';
+      $('vacioBusca').textContent = 'Escrib\u00ED para buscar.';
       return;
     }
     var i, n = 0;
@@ -2544,15 +3096,15 @@
         li.className = 'item st-' + item.estado + claseNivel(item);
         var e = document.createElement('div');
         e.className = 'etq';
-        e.textContent = icoNomCtx(item.contexto).toUpperCase() +
-          (item.tipo === 'compra' ? ' \u00B7 COMPRA' : '');
+        e.textContent = nomCtx(item.contexto) +
+          (item.tipo === 'compra' ? ' \u00B7 Compra' : '');
         var tx = document.createElement('div');
         tx.className = 'txt';
         tx.textContent = item.texto;
         var l2 = document.createElement('div');
         l2.className = 'linea2';
         var inf = estadoInfo(item.estado);
-        l2.appendChild(badge('est', inf.ico + ' ' + inf.nom.toUpperCase()));
+        l2.appendChild(badge('est', inf.ico + ' ' + inf.nom));
         l2.appendChild(badge('', horaCorta(item.creado)));
         li.appendChild(e);
         li.appendChild(tx);
@@ -2719,7 +3271,8 @@
     var v = $('vBackup');
     if (v) {
       var u = leer(K_BACKUP);
-      v.textContent = u ? horaCorta(u) + ' \u00B7 hace ' + dias + ' d' : 'nunca (hace ' + dias + ' d)';
+      /* Sin ningun backup no hay "hace N d" que contar: solo "nunca". */
+      v.textContent = u ? horaCorta(u) + ' \u00B7 hace ' + dias + ' d' : 'nunca';
     }
   }
 
@@ -2857,12 +3410,11 @@
       return false;
     }
     generarOcurrencias();
-    eventos.push({
+    $('aviso').className = 'aviso';
+    anotarEventos([{
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'restauracion', itemId: '',
       texto: nuevosItems.length + ' items restaurados', contexto: ctxCaptura, desde: '', hasta: ''
-    });
-    guardarEventos();
-    $('aviso').className = 'aviso';
+    }]);
     pintar();
     return true;
   }
@@ -2908,17 +3460,35 @@
     document.body.className = modoLuz ? base + ' luz' : base;
     var b = $('btnLuz');
     if (b) {
-      b.textContent = modoLuz ? '\u2600 Modo luz de planta: ACTIVADO' : '\u2600 Modo luz de planta';
+      rotular(b, modoLuz ? 'Modo luz de planta: activado' : 'Modo luz de planta');
       b.className = modoLuz ? 'bloque pri' : 'bloque';
     }
     if (guardar) { escribir(K_LUZ, modoLuz ? '1' : '0'); }
+  }
+
+  /* Selector Sistema / Claro / Oscuro de Ajustes. tema.js ya aplico el tema antes
+     de pintar; si por algo no cargo, el selector queda sin efecto pero no rompe. */
+  function pintarTema() {
+    var pref = window.KCOTema ? window.KCOTema.preferencia() : 'sistema';
+    var bs = $('segTema').getElementsByTagName('button');
+    var i;
+    for (i = 0; i < bs.length; i++) {
+      var on = bs[i].getAttribute('data-tema') === pref;
+      bs[i].className = on ? 'segbtn on' : 'segbtn';
+      bs[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  function elegirTema(pref) {
+    if (!window.KCOTema) { return; }
+    escribir(K_TEMA, window.KCOTema.elegir(pref));
+    pintarTema();
   }
 
   function aplicarContexto(nuevo, guardar) {
     contexto = nuevo === 'todo' || K.contextoValido(nuevo) ? nuevo : 'trabajo';
     if (contexto !== 'todo') { ctxCaptura = contexto; }
     aplicarLuz(false);
-    pintarSelectorContexto();
     pintarPistaCaptura();
     if (guardar) {
       escribir(K_CTX, contexto);
@@ -2930,6 +3500,19 @@
 
   /* ---------- interfaz ---------- */
 
+
+  decorarIconos();
+  prepararHojas();
+
+  $('btnCtx').onclick = function () { abrirSelectorContexto(); };
+
+  /* Escribiendo en movil la barra de pestanas se aparta y la captura baja al
+     borde: queda pegada al teclado y nada flota encima del campo (kco.css). */
+  (function () {
+    var inp = $('txtCaptura'), raiz = document.documentElement;
+    inp.addEventListener('focus', function () { raiz.setAttribute('data-escribiendo', '1'); });
+    inp.addEventListener('blur', function () { raiz.removeAttribute('data-escribiendo'); });
+  })();
 
   $('txtCaptura').onkeydown = function (ev) {
     var k = ev.key || ev.keyCode;
@@ -2962,11 +3545,9 @@
   $('btnMisPausa').onclick = function () { alternarPausaMision(); };
   $('btnMisTerminar').onclick = function () { terminarMision(); };
   $('btnMisBorrar').onclick = function () { borrarMision(); };
-  $('btnCerrarMision').onclick = function () { misionAbierta = null; cerrarHoja('tapaMision'); };
   acercarAlTeclado($('txtHito'));
   acercarAlTeclado($('txtMisTarea'));
 
-  $('btnCerrarItem').onclick = function () { itemAbierto = null; cerrarHoja('tapaItem'); };
 
 
   $('btnGuardarEspera').onclick = function () {
@@ -3011,9 +3592,7 @@
   $('btnGuardarRutina').onclick = function () { guardarRutina(); };
   $('btnPausarRutina').onclick = function () { alternarRutinaActiva(); };
   $('btnBorrarRutina').onclick = function () { borrarRutina(); };
-  $('btnCerrarRutina').onclick = function () { borrador = null; cerrarHoja('tapaRutina'); };
   $('btnNuevaRutina').onclick = function () { abrirRutina(null); };
-  $('btnCerrarRutinas').onclick = function () { cerrarHoja('tapaRutinas'); };
   $('numCada').onchange = function () { if (borrador) { leerCamposRutina(); pintarHojaRutina(); } };
   $('numDiaMes').onchange = $('numCada').onchange;
   $('rutInicio').onchange = $('numCada').onchange;
@@ -3085,30 +3664,39 @@
     if (itemAbierto) { volverATarea(itemAbierto); }
   };
 
-  $('btnEditar').onclick = function () {
-    var it = buscarItem(itemAbierto);
-    if (!it) { return; }
-    $('txtEditar').value = it.texto;
-    abrirHoja('tapaEditar');
-  };
+  /* Titulo editable arriba de la ficha: Enter o salir del campo guarda (por
+     editarTexto, con registro y deshacer); Shift+Enter hace un salto de linea;
+     Escape descarta lo escrito. El id del item viaja en el campo, asi un blur
+     que llega despues de cerrar la ficha igual guarda en el item correcto. */
+  (function () {
+    var t = $('txtTituloItem');
+    function guardarTitulo() {
+      var id = t.getAttribute('data-id'), it = buscarItem(id);
+      if (!it) { return; }
+      if (!editarTexto(id, t.value)) { t.value = it.texto; }
+      ajustarAlto(t);
+    }
+    t.addEventListener('blur', guardarTitulo);
+    t.addEventListener('input', function () { ajustarAlto(t); });
+    t.onkeydown = function (ev) {
+      var k = ev.key || ev.keyCode;
+      if ((k === 'Enter' || k === 13) && !ev.shiftKey) { ev.preventDefault(); guardarTitulo(); t.blur(); }
+      if (k === 'Escape' || k === 'Esc' || k === 27) {
+        var it = buscarItem(t.getAttribute('data-id'));
+        if (it && t.value !== it.texto) {
+          if (ev.stopPropagation) { ev.stopPropagation(); }
+          ev.preventDefault();
+          t.value = it.texto;
+          ajustarAlto(t);
+        }
+      }
+    };
+  })();
 
-  $('btnGuardarEdicion').onclick = function () {
-    var it = buscarItem(itemAbierto);
-    if (!it || soloLectura) { return; }
-    var nuevo = $('txtEditar').value.replace(/^\s+|\s+$/g, '');
-    if (nuevo === '' || nuevo === it.texto) { cerrarHoja('tapaEditar'); return; }
-    var previo = it.texto;
-    it.texto = nuevo;
-    it.actualizado = new Date().toISOString();
-    if (guardarItems()) {
-      registrar('edicion', it, previo, nuevo);
-      cerrarHoja('tapaEditar');
-      pintar();
-      pintarHojaItem();
-    } else { it.texto = previo; }
+  $('btnHecho').onclick = function () {
+    var it = buscarItem(itemAbierto), a = it ? accionHecho(it) : null;
+    if (a) { a.fn(); }
   };
-
-  $('btnCancelarEdicion').onclick = function () { cerrarHoja('tapaEditar'); };
 
   $('btnCompartirItem').onclick = function () {
     var it = buscarItem(itemAbierto);
@@ -3119,8 +3707,11 @@
     compartir('KCO', t);
   };
 
-  $('btnBorrar').onclick = function () {
-    var it = buscarItem(itemAbierto);
+  $('btnBorrar').onclick = function () { if (itemAbierto) { pedirBorrar(itemAbierto); } };
+
+  /* Borrar pide confirmacion (desde la ficha o el menu rapido). */
+  function pedirBorrar(id) {
+    var it = buscarItem(id);
     if (!it || soloLectura) { return; }
     /* La ocurrencia vigente de una rutina activa no se borra: se volveria a
        generar sola. Se cierra como omitida y queda en el historial. */
@@ -3162,7 +3753,15 @@
         });
       })(copia, pos);
     });
-  };
+  }
+
+  (function () {
+    var l = document.querySelectorAll('#tapaRapido [data-rap]'), i;
+    for (i = 0; i < l.length; i++) {
+      (function (b) { b.onclick = function () { accionRapida(b.getAttribute('data-rap')); }; })(l[i]);
+    }
+    $('btnRapFicha').onclick = function () { accionRapida('ficha'); };
+  })();
 
   $('btnConfSi').onclick = function () {
     var accion = confAccion;
@@ -3175,7 +3774,6 @@
   $('btnBuscar').onclick = function () { $('txtBusca').value = ''; pintarBusqueda(); abrirHoja('tapaBuscar'); };
   $('txtBusca').oninput = function () { pintarBusqueda(); };
   $('txtBusca').onkeyup = function () { pintarBusqueda(); };
-  $('btnCerrarBusca').onclick = function () { cerrarHoja('tapaBuscar'); };
 
   $('btnRelevo').onclick = function () { mostrarTexto('Reporte de Turno', textoRelevo()); };
   $('btnResumen').onclick = function () { mostrarTexto('Resumen', textoResumen()); };
@@ -3184,7 +3782,6 @@
     if (navigator.share) { compartir('KCO', t); } else { copiar(t); }
   };
   $('btnCopiarTexto').onclick = function () { copiar($('txtSalida').value); };
-  $('btnCerrarTexto').onclick = function () { cerrarHoja('tapaTexto'); };
 
   $('btnAjustes').onclick = function () {
     actualizarAvisoBackup();
@@ -3194,9 +3791,9 @@
     $('vTotal').textContent = '' + items.length;
     $('vEventos').textContent = '' + eventos.length;
     $('vNotif').textContent = estadoNotif();
+    pintarTema();
     abrirHoja('tapaAjustes');
   };
-  $('btnCerrarAjustes').onclick = function () { cerrarHoja('tapaAjustes'); };
 
   $('btnPermiso').onclick = function () {
     if (!hayNotificacion()) { avisar('Este navegador no tiene notificaciones.'); return; }
@@ -3268,6 +3865,14 @@
       if (itemAbierto) { agregarNota(itemAbierto, $('txtNota').value); }
     }
   };
+
+  (function () {
+    var bs = $('segTema').getElementsByTagName('button');
+    var i;
+    for (i = 0; i < bs.length; i++) {
+      bs[i].onclick = function () { elegirTema(this.getAttribute('data-tema')); };
+    }
+  })();
 
   $('btnLuz').onclick = function () {
     modoLuz = !modoLuz;
@@ -3347,9 +3952,8 @@
     if (nv.nivel > memProgreso.nivelVisto && !soloLectura) {
       memProgreso.nivelVisto = nv.nivel;
       guardarProgreso();
-      eventos.push({ id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'nivel', itemId: '',
-        texto: nv.titulo, contexto: ctxCaptura, desde: '', hasta: '' + nv.nivel });
-      guardarEventos();
+      anotarEventos([{ id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'nivel', itemId: '',
+        texto: nv.titulo, contexto: ctxCaptura, desde: '', hasta: '' + nv.nivel }]);
       txt = txt + ' \u00B7 \u2B50 Nivel ' + nv.nivel + '!';
     }
     return txt + revisarLogros();
@@ -3363,7 +3967,7 @@
     c.type = 'button';
     c.id = 'tarjetaNivel';
     var fila = nodo('div', 'progxp-fila');
-    fila.appendChild(nodo('span', 'progxp-nv mono', '\u2B50 NV ' + nv.nivel + ' \u00B7 ' + nv.titulo.toUpperCase()));
+    fila.appendChild(nodo('span', 'progxp-nv', 'NV ' + nv.nivel + ' \u00B7 ' + nv.titulo, 'star'));
     fila.appendChild(nodo('span', 'mono progxp-n', nv.enNivel + '/' + nv.tramo + ' XP'));
     c.appendChild(fila);
     var barra = nodo('div', 'barra');
@@ -3385,21 +3989,27 @@
 
   /* Desbloquea lo que ya se cumple. Silencioso en la primera carga de 2.0:
      la historia previa gana sus logros sin fingir que todo paso hoy. */
+  /* Un logro anunciado se escribe primero en el diario y despues en progreso.
+     Si el diario no se puede guardar (almacenamiento lleno), el logro NO se marca
+     como ganado: anotarEventos ya aviso "No se pudo guardar el registro" y la
+     proxima accion lo vuelve a detectar y anunciar. Asi nunca queda un logro
+     ganado que el diario no muestra. Si lo que falla es progreso, escribir()
+     avisa y la memoria lo conserva: en esta sesion no se repite. */
   function revisarLogros(silencioso) {
     if (soloLectura) { return ''; }
     var nuevos = K.logrosNuevos(K.estadisticas(items, proyectos, rutinas, hoyClave()), memProgreso.logros);
     if (nuevos.length === 0) { return ''; }
-    var ahora = new Date().toISOString(), txt = '', i;
-    for (i = 0; i < nuevos.length; i++) {
-      memProgreso.logros[nuevos[i].id] = ahora;
-      if (!silencioso) {
-        eventos.push({ id: nuevoId('e'), ts: ahora, tipo: 'logro', itemId: '', texto: nuevos[i].desc,
+    var ahora = new Date().toISOString(), txt = '', i, evs = [];
+    if (!silencioso) {
+      for (i = 0; i < nuevos.length; i++) {
+        evs.push({ id: nuevoId('e'), ts: ahora, tipo: 'logro', itemId: '', texto: nuevos[i].desc,
           contexto: ctxCaptura, desde: nuevos[i].id, hasta: nuevos[i].nom });
         txt = txt + ' \u00B7 \uD83C\uDFC6 ' + nuevos[i].nom;
       }
+      if (!anotarEventos(evs)) { return ''; }
     }
+    for (i = 0; i < nuevos.length; i++) { memProgreso.logros[nuevos[i].id] = ahora; }
     guardarProgreso();
-    if (!silencioso) { guardarEventos(); }
     return txt;
   }
   /* ---------- campaña: mirar hacia atras y ver que se avanzo ---------- */
@@ -3426,7 +4036,7 @@
     var nv = K.nivelPorXP(st.xp);
 
     var cab = nodo('div', 'camp-cab');
-    cab.appendChild(nodo('div', 'camp-nv mono', '\u2B50 NIVEL ' + nv.nivel));
+    cab.appendChild(nodo('div', 'camp-nv', 'Nivel ' + nv.nivel, 'star'));
     cab.appendChild(nodo('div', 'camp-tit', nv.titulo));
     cab.appendChild(nodo('div', 'mono camp-xp', st.xp + ' XP \u00B7 faltan ' + nv.falta + ' para el nivel ' + (nv.nivel + 1)));
     var barra = nodo('div', 'barra');
@@ -3456,7 +4066,7 @@
       fin.sort(function (a, b) { return a.terminado < b.terminado ? 1 : -1; });
       var s = nodo('section', 'sec');
       var h = nodo('h3', 'sec-tit');
-      h.appendChild(nodo('span', '', '\uD83C\uDFC1 LO QUE TERMINASTE'));
+      h.appendChild(nodo('span', '', 'Lo que terminaste', 'flag'));
       h.appendChild(nodo('b', 'mono', '' + fin.length));
       s.appendChild(h);
       for (i = 0; i < fin.length && i < 12; i++) { s.appendChild(nodoMision(fin[i], true)); }
@@ -3469,7 +4079,7 @@
   function pintarSemanas(cont, semanas) {
     var s = nodo('section', 'sec');
     var h = nodo('h3', 'sec-tit');
-    h.appendChild(nodo('span', '', '\uD83D\uDCC8 ULTIMAS 12 SEMANAS'));
+    h.appendChild(nodo('span', '', '\u00DAltimas 12 semanas', 'trending-up'));
     var total = 0, max = 0, i;
     for (i = 0; i < semanas.length; i++) { total += semanas[i].avances; if (semanas[i].avances > max) { max = semanas[i].avances; } }
     h.appendChild(nodo('b', 'mono', total + ' avances'));
@@ -3504,7 +4114,7 @@
   function pintarPorContexto(cont, st) {
     var s = nodo('section', 'sec');
     var h = nodo('h3', 'sec-tit');
-    h.appendChild(nodo('span', '', '\uD83E\uDDED ACTIVIDAD POR CONTEXTO'));
+    h.appendChild(nodo('span', '', 'Actividad por contexto', 'compass'));
     s.appendChild(h);
     var max = 0, i, c, n;
     for (i = 0; i < K.CONTEXTOS.length; i++) { n = st.porContexto[K.CONTEXTOS[i].id] || 0; if (n > max) { max = n; } }
@@ -3513,7 +4123,9 @@
       n = st.porContexto[c.id] || 0;
       var xp = st.xpPorContexto['#' + c.id] || 0;
       var f = nodo('div', 'ctxbar' + (n === 0 ? ' cero' : ''));
-      f.appendChild(nodo('span', 'ctxbar-nom', c.ico + ' ' + c.nom));
+      var cn = nodo('span', 'ctxbar-nom', c.nom);
+      cn.insertBefore(punto(c.id), cn.firstChild);
+      f.appendChild(cn);
       var pista = nodo('span', 'ctxbar-pista');
       var b = nodo('i', '');
       b.style.width = (max === 0 ? 0 : Math.round((n * 100) / max)) + '%';
@@ -3531,7 +4143,7 @@
     var h = nodo('h3', 'sec-tit');
     var ganados = 0, i;
     for (i = 0; i < K.LOGROS.length; i++) { if (memProgreso.logros.hasOwnProperty(K.LOGROS[i].id)) { ganados++; } }
-    h.appendChild(nodo('span', '', '\uD83C\uDFC6 LOGROS'));
+    h.appendChild(nodo('span', '', 'Logros', 'trophy'));
     h.appendChild(nodo('b', 'mono', ganados + '/' + K.LOGROS.length));
     s.appendChild(h);
     var st = K.estadisticas(items, proyectos, rutinas, hoyClave());
@@ -3578,12 +4190,11 @@
   }
 
   function registrarMision(tipo, p, hasta, desde) {
-    if (soloLectura) { return; }
-    eventos.push({
+    if (soloLectura) { return false; }
+    return anotarEventos([{
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: tipo, itemId: p.id,
       texto: p.nombre, contexto: p.contexto, desde: desde || '', hasta: hasta || ''
-    });
-    guardarEventos();
+    }]);
   }
 
   function textoProxima(p) {
@@ -3599,7 +4210,9 @@
     c.type = 'button';
     c.setAttribute('data-mision', p.id);
     var top = nodo('div', 'mis-top');
-    top.appendChild(nodo('span', 'mis-nom', icoCtx(p.contexto) + ' ' + p.nombre));
+    var mn = nodo('span', 'mis-nom', p.nombre);
+    mn.insertBefore(punto(p.contexto), mn.firstChild);
+    top.appendChild(mn);
     top.appendChild(nodo('b', 'mono mis-pct', pr.pct + '%'));
     c.appendChild(top);
     var barra = nodo('div', 'barra');
@@ -3608,7 +4221,7 @@
     barra.appendChild(bi);
     c.appendChild(barra);
     if (p.estado === 'terminado') {
-      c.appendChild(nodo('div', 'mis-prox mono', '\uD83C\uDFC1 Mision cumplida ' + (p.terminado ? fechaNota(p.terminado) : '')));
+      c.appendChild(nodo('div', 'mis-prox mono', 'Misi\u00F3n cumplida ' + (p.terminado ? fechaNota(p.terminado) : ''), 'flag'));
     } else {
       var px = textoProxima(p);
       c.appendChild(nodo('div', 'mis-prox' + (px ? '' : ' vacia'), px ? px.txt : '\u2192 Defini la proxima accion'));
@@ -3617,7 +4230,7 @@
       var meta = [];
       if (pr.hitosTotal > 0) { meta.push(pr.hitosHechos + '/' + pr.hitosTotal + ' hitos'); }
       meta.push(pr.tareasHechas + '/' + pr.tareasTotal + ' tareas');
-      if (p.estado === 'pausado') { meta.push('\u23F8 en pausa'); }
+      if (p.estado === 'pausado') { meta.push('en pausa'); }
       c.appendChild(nodo('div', 'mis-meta mono', meta.join(' \u00B7 ')));
     }
     c.onclick = function () { abrirMision(p.id); };
@@ -3640,7 +4253,7 @@
     var s = nodo('section', 'sec');
     s.id = 'secMisiones';
     var h = nodo('h3', 'sec-tit');
-    h.appendChild(nodo('span', '', '\uD83C\uDFAF MISIONES ACTIVAS'));
+    h.appendChild(nodo('span', '', 'Misiones activas', 'target'));
     h.appendChild(nodo('b', 'mono', '' + act.length));
     s.appendChild(h);
     var i;
@@ -3651,7 +4264,7 @@
   function pintarMisiones() {
     var cont = $('misionesCuerpo');
     vaciar(cont);
-    var nueva = nodo('button', 'bloque pri', '\u2795 Nueva mision');
+    var nueva = nodo('button', 'bloque pri', 'Nueva misi\u00F3n', 'plus');
     nueva.type = 'button';
     nueva.id = 'btnNuevaMision';
     nueva.onclick = function () { abrirMision(null); };
@@ -3662,20 +4275,20 @@
       return;
     }
     cont.appendChild(nueva);
-    function grupo(titulo, lista, id) {
+    function grupo(titulo, lista, id, ico) {
       if (lista.length === 0) { return; }
       var s = nodo('section', 'sec');
       s.id = id;
       var h = nodo('h3', 'sec-tit');
-      h.appendChild(nodo('span', '', titulo));
+      h.appendChild(nodo('span', '', titulo, ico));
       h.appendChild(nodo('b', 'mono', '' + lista.length));
       s.appendChild(h);
       for (i = 0; i < lista.length; i++) { s.appendChild(nodoMision(lista[i], false)); }
       cont.appendChild(s);
     }
-    grupo('\uD83C\uDFAF ACTIVAS', act, 'secMisActivas');
-    grupo('\u23F8 EN PAUSA', pau, 'secMisPausadas');
-    grupo('\uD83C\uDFC1 CUMPLIDAS', fin, 'secMisCumplidas');
+    grupo('Activas', act, 'secMisActivas', 'target');
+    grupo('En pausa', pau, 'secMisPausadas', 'pause');
+    grupo('Cumplidas', fin, 'secMisCumplidas', 'flag');
   }
 
   /* ---------- hoja de mision ---------- */
@@ -3699,7 +4312,7 @@
   function pintarHojaMision() {
     var p = misionAbierta ? buscarProyecto(misionAbierta) : null;
     $('misTitulo').textContent = p ? p.nombre : 'Nueva mision';
-    pintarOpciones('gridMisCtx', K.CONTEXTOS, misBorradorCtx, function (c) { return c.ico + ' ' + c.nom; },
+    pintarOpciones('gridMisCtx', K.CONTEXTOS, misBorradorCtx, function (c) { return c.nom; },
       function (c) {
         misBorradorCtx = c.id;
         if (p) { guardarDatosMision(); } else { pintarHojaMision(); }
@@ -3708,7 +4321,7 @@
     $('cajaMisExistente').style.display = p ? 'block' : 'none';
     if (!p) { $('misSub').textContent = 'Nombre y objetivo. Los hitos y las tareas se agregan despues.'; return; }
     var pr = K.progresoProyecto(p, items);
-    $('misSub').textContent = (p.estado === 'terminado' ? '\uD83C\uDFC1 Cumplida' : (p.estado === 'pausado' ? '\u23F8 En pausa' : '\uD83C\uDFAF Activa')) +
+    $('misSub').textContent = (p.estado === 'terminado' ? 'Cumplida' : (p.estado === 'pausado' ? 'En pausa' : 'Activa')) +
       ' \u00B7 ' + pr.pct + '% \u00B7 creada ' + (p.creado ? fechaNota(p.creado) : '');
     $('misPctTxt').textContent = pr.pct + '%';
     $('misPctBarra').style.width = pr.pct + '%';
@@ -3725,14 +4338,14 @@
       if (px.accion.tipo === 'tarea') {
         var ap = accionPrincipal(px.accion.item);
         if (ap) {
-          var b = nodo('button', 'bloque pri', ap.txt);
+          var b = nodo('button', 'bloque pri', ap.txt, ap.ico);
           b.type = 'button';
           b.setAttribute('data-mis', 'hecho');
           b.onclick = function () { ap.fn(); pintarHojaMision(); };
           box.appendChild(b);
         }
       } else if (px.accion.tipo === 'hito') {
-        var bh = nodo('button', 'bloque pri', '\u2714 Hito cumplido');
+        var bh = nodo('button', 'bloque pri', 'Hito cumplido', 'check');
         bh.type = 'button';
         bh.setAttribute('data-mis', 'hito');
         bh.onclick = function () { alternarHito(p.id, px.accion.hito.id); };
@@ -3777,8 +4390,8 @@
     if (tareas.length === 0) { lt.appendChild(nodo('li', 'sinnotas', 'Sin tareas vinculadas.')); }
 
     $('btnMisPausa').style.display = p.estado === 'terminado' ? 'none' : 'block';
-    $('btnMisPausa').textContent = p.estado === 'pausado' ? '\u25B6 Reactivar mision' : '\u23F8 Pausar mision';
-    $('btnMisTerminar').textContent = p.estado === 'terminado' ? '\u21A9 Reabrir mision' : '\uD83C\uDFC1 Completar mision';
+    rotular($('btnMisPausa'), p.estado === 'pausado' ? 'Reactivar misi\u00F3n' : 'Pausar misi\u00F3n', p.estado === 'pausado' ? 'play' : 'pause');
+    rotular($('btnMisTerminar'), p.estado === 'terminado' ? 'Reabrir misi\u00F3n' : 'Completar misi\u00F3n', p.estado === 'terminado' ? 'undo' : 'flag');
     $('btnMisTerminar').className = p.estado === 'terminado' ? 'bloque' : 'bloque pri';
   }
 
@@ -3963,7 +4576,7 @@
     for (i = 0; i < proyectos.length; i++) {
       var p = proyectos[i];
       if (p.estado !== 'terminado' || p.id === it.proyectoId) {
-        defs.push({ id: p.id, nom: icoCtx(p.contexto) + ' ' + p.nombre });
+        defs.push({ id: p.id, nom: p.nombre });
       }
     }
     $('cajaMision').style.display = defs.length > 1 ? 'block' : 'none';
@@ -4057,8 +4670,8 @@
     var cu = nodo('div', 'cuerpo');
     cu.appendChild(nodo('div', 'txt', ru.texto));
     var l2 = nodo('div', 'linea2');
-    if (contexto === 'todo') { l2.appendChild(badge('ctx', icoCtx(ru.contexto))); }
-    l2.appendChild(badge('rut', '\uD83D\uDD04 ' + K.describirRutina(ru)));
+    if (contexto === 'todo') { l2.appendChild(badgeCtx(ru.contexto)); }
+    l2.appendChild(badge('rut', K.describirRutina(ru), 'repeat'));
     l2.appendChild(badge('', 'previsto'));
     cu.appendChild(l2);
     li.appendChild(cu);
@@ -4175,7 +4788,7 @@
         gs.appendChild(bt);
       })(ORDEN_SEMANA[i]);
     }
-    pintarOpciones('gridRutCtx', K.CONTEXTOS, b.contexto, function (c) { return c.ico + ' ' + c.nom; },
+    pintarOpciones('gridRutCtx', K.CONTEXTOS, b.contexto, function (c) { return c.nom; },
       function (c) { leerCamposRutina(); b.contexto = c.id; pintarHojaRutina(); }, 'data-ctx');
     pintarOpciones('gridRutNivel', K.NIVELES, b.nivel, function (n) { return n.ico + ' ' + n.nom; },
       function (n) { leerCamposRutina(); b.nivel = n.id; pintarHojaRutina(); }, 'data-nivel');
@@ -4183,7 +4796,7 @@
     var prox = prueba ? K.proximaFecha(prueba, hoyClave()) : '';
     $('rutProxima').textContent = prueba
       ? K.describirRutina(prueba) + (prox ? ' \u00B7 proxima: ' + nombreDia(prox) : ' \u00B7 no le toca mas')
-      : 'Escribi que hay que hacer.';
+      : 'Escrib\u00ED qu\u00E9 hay que hacer.';
 
     var existente = !b.esNueva;
     $('cajaRutExistente').style.display = existente ? 'block' : 'none';
@@ -4193,7 +4806,7 @@
       $('rutRacha').textContent = '\uD83D\uDD25 racha ' + st.actual + ' \u00B7 mejor ' + st.mejor + ' \u00B7 ' +
         st.hechas + ' hechas de ' + st.total;
       pintarHistorialRutina(ru);
-      $('btnPausarRutina').textContent = ru.activa ? '\u23F8 Pausar rutina' : '\u25B6 Reactivar rutina';
+      rotular($('btnPausarRutina'), ru.activa ? 'Pausar rutina' : 'Reactivar rutina', ru.activa ? 'pause' : 'play');
       $('rutSub').textContent = ru.activa ? 'Activa' : 'En pausa: no genera ocurrencias';
     } else {
       $('rutSub').textContent = b.origenId ? 'Sale de una tarea: esa tarea pasa a ser la de hoy si le toca.' : '';
@@ -4259,7 +4872,7 @@
       desdeGeneracion: previo ? previo.desdeGeneracion : hoyClave(),
       creado: previo ? previo.creado : ahora, actualizado: ahora
     });
-    if (!r) { avisar('Escribi que hay que hacer.'); return; }
+    if (!r) { avisar('Escrib\u00ED qu\u00E9 hay que hacer.'); return; }
     /* Un calendario nuevo arranca hoy: no inventa una ocurrencia ya vencida. */
     if (previo && cambioCalendario(previo, r)) { r.desdeGeneracion = hoyClave(); }
     var copia = rutinas.slice(0), i;
@@ -4302,12 +4915,11 @@
   }
 
   function registrarRutina(tipo, r) {
-    if (soloLectura) { return; }
-    eventos.push({
+    if (soloLectura) { return false; }
+    return anotarEventos([{
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: tipo, itemId: r.id,
       texto: r.texto, contexto: r.contexto, desde: '', hasta: K.describirRutina(r)
-    });
-    guardarEventos();
+    }]);
   }
 
   function alternarRutinaActiva() {
@@ -4366,11 +4978,11 @@
         var cu = nodo('div', 'cuerpo');
         cu.appendChild(nodo('div', 'txt', ru.texto));
         var l2 = nodo('div', 'linea2');
-        l2.appendChild(badge('ctx', icoCtx(ru.contexto)));
+        l2.appendChild(badgeCtx(ru.contexto));
         l2.appendChild(badge('rut', K.describirRutina(ru)));
         var st = K.rachaRutina(ru, items, hoyClave());
         if (st.actual > 0) { l2.appendChild(badge('racha', '\uD83D\uDD25 ' + st.actual)); }
-        if (!ru.activa) { l2.appendChild(badge('pausa', '\u23F8 EN PAUSA')); }
+        if (!ru.activa) { l2.appendChild(badge('pausa', 'En pausa', 'pause')); }
         else {
           var px = K.proximaFecha(ru, hoyClave());
           if (px) { l2.appendChild(badge('', 'prox ' + nombreDia(px))); }
@@ -4446,12 +5058,15 @@
 
   /* Otra pestaña o ventana de KCO cambio los datos: lo que esta en memoria aca
      ya es viejo y guardarlo pisaria lo nuevo. Se deja de escribir hasta recargar.
-     Solo cuentan las claves de datos: preferencias (contexto, filtros, luz,
-     catalogos) y copias de cuarentena no pisan nada. key null = se borro todo. */
+     Solo cuentan las claves de datos: preferencias (contexto, filtros, luz, tema,
+     catalogos) y copias de cuarentena no pisan nada. key null = se borro todo.
+     El tema es la unica preferencia que se sincroniza en vivo: es visual, no
+     pisa nada y dos ventanas con temas distintos se ven rotas. */
   var CLAVES_DATOS = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA];
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('storage', function (ev) {
       var k = ev ? ev.key : null;
+      if ((k === K_TEMA || k === null) && window.KCOTema) { window.KCOTema.releer(); pintarTema(); }
       if (k !== null && CLAVES_DATOS.indexOf(k) < 0) { return; }
       soloLectura = true;
       avisar('Los datos cambiaron en otra ventana de KCO. Recarga para seguir sin pisar nada.');
@@ -4462,8 +5077,68 @@
   conectarSwipe(document.getElementsByTagName('header')[0], swipeContexto);
 
 
+  /* Atajo "Capturar" del manifest (./?capturar=1): abre con el cursor en la
+     captura. La query se limpia para que recargar no repita el foco. */
+  if (/[?&]capturar=1(&|$)/.test(window.location.search || '')) {
+    $('txtCaptura').focus();
+    if (window.history && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(window.history.state, '', window.location.pathname);
+    }
+  }
+
+  /* ---------- actualizacion de la app (service worker) ----------
+     Una version nueva queda esperando (sw.js no hace skipWaiting al instalarse).
+     Se avisa sin bloquear; al tocar "Actualizar" se le pide SKIP_WAITING y,
+     cuando toma el control, se recarga una sola vez. Solo se recarga si la
+     persona lo pidio: la primera instalacion (clients.claim) no recarga. */
+  var swEsperando = null;
+  var swRecargando = false;
+  var swActualizarPedido = false;
+
+  function avisarVersionNueva(w) {
+    swEsperando = w;
+    $('avisoVersion').className = 'avisover on';
+  }
+
+  function vigilarActualizacion(reg) {
+    if (!reg) { return; }
+    if (reg.waiting && navigator.serviceWorker.controller) { avisarVersionNueva(reg.waiting); }
+    if (typeof reg.addEventListener !== 'function') { return; }
+    reg.addEventListener('updatefound', function () {
+      var w = reg.installing;
+      if (!w || typeof w.addEventListener !== 'function') { return; }
+      w.addEventListener('statechange', function () {
+        /* Sin controller es la primera instalacion: no hay nada que actualizar. */
+        if (w.state === 'installed' && navigator.serviceWorker.controller) { avisarVersionNueva(w); }
+      });
+    });
+    /* La PWA puede quedar abierta dias: al volver a primer plano se busca version. */
+    if (typeof reg.update === 'function' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible') { return; }
+        var p = reg.update();
+        if (p && typeof p.then === 'function') { p.then(null, function () {}); }
+      });
+    }
+  }
+
+  $('btnActualizar').onclick = function () {
+    if (!swEsperando) { return; }
+    swActualizarPedido = true;
+    $('avisoVersion').className = 'avisover';
+    swEsperando.postMessage({ type: 'SKIP_WAITING' });
+  };
+
   if (navigator.serviceWorker && typeof navigator.serviceWorker.register === 'function') {
-    navigator.serviceWorker.register('./sw.js').then(function () {
+    if (typeof navigator.serviceWorker.addEventListener === 'function') {
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!swActualizarPedido || swRecargando) { return; }
+        swRecargando = true;
+        window.location.reload();
+      });
+    }
+    navigator.serviceWorker.register('./sw.js').then(function (reg) {
+      vigilarActualizacion(reg);
       if (navigator.serviceWorker.controller) {
         var canal = new MessageChannel();
         canal.port1.onmessage = function (ev) {

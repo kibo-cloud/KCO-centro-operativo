@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FILES = ['kco-core.js', 'kco-app.js', 'sw.js'];
+const FILES = ['tema.js', 'iconos.js', 'kco-core.js', 'kco-app.js', 'sw.js'];
 const REGEX_PREV = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '<', '>', '~', '^']);
 const REGEX_KW = /(?:return|typeof|case|in|of|new|delete|void|throw)$/;
 

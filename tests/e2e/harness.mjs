@@ -139,8 +139,48 @@ export async function openPage(browser, baseUrl) {
   await cdp.send('Log.enable');
   await cdp.send('DOM.enable');
 
+  // Per-spec CDP state that must not outlive the spec (see teardown()).
+  const initScripts = [];
+  const mediaEmulated = new Set();
+  let focusEmulated = false;
+
   const page = {
     cdp, errors, baseUrl,
+    // Injects a script before any page script on every next document of this page.
+    async addInitScript(source) {
+      const { identifier } = await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source });
+      initScripts.push(identifier);
+      return identifier;
+    },
+    // Emulates CSS media features (e.g. prefers-color-scheme); applies live.
+    async emulateMedia(features) {
+      await cdp.send('Emulation.setEmulatedMedia', { features });
+      for (const f of features) mediaEmulated.add(f.name);
+    },
+    // Headless pages are not focused, so focus/blur events do not fire; this makes them fire.
+    async emulateFocus() {
+      await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+      focusEmulated = true;
+    },
+    // Undoes every per-spec override so nothing leaks into later specs, even if
+    // a future runner reuses the target: init scripts, emulated media, focus emulation.
+    async teardown() {
+      while (initScripts.length) {
+        const identifier = initScripts.pop();
+        try { await cdp.send('Page.removeScriptToEvaluateOnNewDocument', { identifier }); } catch { /* target gone */ }
+      }
+      // An empty features list does not clear a feature: each one is reset to ''.
+      if (mediaEmulated.size) {
+        const features = [...mediaEmulated].map((name) => ({ name, value: '' }));
+        try { await cdp.send('Emulation.setEmulatedMedia', { media: '', features }); } catch { /* target gone */ }
+        mediaEmulated.clear();
+      }
+      if (focusEmulated) {
+        try { await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: false }); } catch { /* target gone */ }
+        focusEmulated = false;
+      }
+    },
+    pendingInitScripts() { return initScripts.length; },
     async viewport(width, height, mobile = true) {
       await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
       await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: mobile });
@@ -184,6 +224,33 @@ export async function openPage(browser, baseUrl) {
     text(sel) { return page.eval(`(function(){var e=document.querySelector(${JSON.stringify(sel)});return e?e.textContent:null;})()`); },
     count(sel) { return page.eval(`document.querySelectorAll(${JSON.stringify(sel)}).length`); },
     visible(sel) { return page.eval(`(function(){var e=document.querySelector(${JSON.stringify(sel)});return !!(e&&e.offsetParent!==null);})()`); },
+    // Real key press through CDP (default actions and keydown listeners run), e.g. 'Escape', 'Tab'.
+    async key(name, { shift = false } = {}) {
+      const codes = { Escape: 27, Tab: 9, Enter: 13 };
+      const base = { key: name, code: name, windowsVirtualKeyCode: codes[name] || 0, modifiers: shift ? 8 : 0 };
+      await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base });
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+      await sleep(60);
+    },
+    // Touch tap at viewport coordinates (needs a mobile viewport: touch emulation on).
+    async tap(x, y) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await sleep(120);
+    },
+    // Touch drag from (x0,y0) to (x1,y1) in small steps, like a finger (pointer + touch events).
+    async drag(x0, y0, x1, y1, steps = 8) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] });
+      for (let i = 1; i <= steps; i++) {
+        const x = x0 + ((x1 - x0) * i) / steps, y = y0 + ((y1 - y0) * i) / steps;
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+        await sleep(16);
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await sleep(120);
+    },
+    // Bounding box of the first match, or null.
+    rect(sel) { return page.eval(`(function(){var e=document.querySelector(${JSON.stringify(sel)});if(!e)return null;var r=e.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height,b:r.bottom,r:r.right};})()`); },
     storage(key) { return page.eval(`localStorage.getItem(${JSON.stringify(key)})`); },
     async setStorage(obj) {
       await page.eval(`(function(){localStorage.clear();var o=${JSON.stringify(obj)};for(var k in o){localStorage.setItem(k,o[k]);}})()`);

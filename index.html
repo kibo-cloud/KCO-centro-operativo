@@ -2,409 +2,52 @@
 <html lang="es-AR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0D0F12" id="metaTheme">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<!-- Barra del sistema: una variante por esquema; tema.js las iguala al tema activo. -->
+<meta name="theme-color" content="#F2F3F6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D0F12" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>KCO — Centro Operativo</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icono-192.png">
-<link rel="apple-touch-icon" href="./icono-192.png">
-<style>
-:root{
-  --bg:#0D0F12;
-  --card:#161920;
-  --card2:#1D212A;
-  --linea:rgba(255,255,255,.07);
-  --linea2:rgba(255,255,255,.13);
-  --txt:#E8EAED;
-  --txt2:#828B9B;
-  --acc:#FF6B2B;
-  --sobreacc:#0D0F12;
-  --accsuave:rgba(255,107,43,.12);
-  --rojo:#FF3B30;
-  --rojosuave:rgba(255,59,48,.12);
-  --ok:#2ECC71;
-  --amar:#F0B429;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Roboto Mono",monospace;
-}
-body.ctx-hogar{
-  --acc:#00E5FF;
-  --accsuave:rgba(0,229,255,.12);
-}
-body.ctx-apps{--acc:#A78BFA;--accsuave:rgba(167,139,250,.13)}
-body.ctx-contenido{--acc:#FF5FA2;--accsuave:rgba(255,95,162,.12)}
-body.ctx-personal{--acc:#3DDC84;--accsuave:rgba(61,220,132,.12)}
-body.ctx-todo{--acc:#F5C451;--accsuave:rgba(245,196,81,.12)}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-/* La app es oscura siempre: barras de scroll y controles nativos tambien. */
-html{color-scheme:dark}
-html,body{margin:0;padding:0;height:100%}
-body{
-  background:var(--bg);color:var(--txt);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-  font-size:16px;line-height:1.45;display:flex;flex-direction:column;min-height:100%;
-}
-button{font-family:inherit;transition:transform .09s ease,background .15s ease,border-color .15s ease,color .15s ease}
-button:active{transform:scale(.97)}
-.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-header{background:var(--card);border-bottom:1px solid var(--linea);padding:calc(env(safe-area-inset-top) + 8px) 10px 8px 10px}
-.fila{display:flex;align-items:center;gap:8px}
-.marca{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:1.5px;color:var(--acc)}
-.marca span{color:var(--txt2);font-weight:400;font-size:11px;letter-spacing:.5px}
-.crece{flex:1}
-.iconobtn{position:relative;background:none;border:1px solid var(--linea);color:var(--txt2);border-radius:9px;font-size:16px;line-height:1;padding:11px 11px;cursor:pointer}
-/* Punto rojo sobre el engranaje cuando hace mucho que no se saca backup. */
-.iconobtn.avisa:after{content:'';position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--rojo);border:1.5px solid var(--card)}
-.iconobtn:active{border-color:var(--acc);color:var(--acc)}
-.ctxsel{display:flex;gap:6px;margin-top:0;flex:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.ctxsel::-webkit-scrollbar{display:none}
-.ctxbtn{flex:0 0 auto;padding:9px 11px;min-height:42px;border-radius:9px;cursor:pointer;border:1px solid var(--linea);background:var(--card2);color:var(--txt2);font-size:13px;font-weight:600;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ctxbtn.on{background:var(--acc);border-color:var(--acc);color:var(--sobreacc)}
-/* Captura fija en el borde inferior: zona del pulgar, siempre visible,
-   un solo toque para escribir y Enter para guardar. */
-.captura{
-  position:fixed;left:0;right:0;bottom:0;z-index:22;
-  padding:8px 10px calc(env(safe-area-inset-bottom) + 8px) 10px;
-  background:var(--card);border-top:1px solid var(--linea2);
-  box-shadow:0 -4px 16px rgba(0,0,0,.38);
-}
-#txtCaptura{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:16px;outline:none;transition:border-color .15s ease}
-#txtCaptura:focus{border-color:var(--acc)}
-.pista{color:var(--txt2);font-size:11.5px;margin-top:7px;font-family:var(--mono)}
-/* Solicitante y destino en la tarjeta de compra de Trabajo. */
-.pedido{color:var(--txt2);font-size:11.5px;margin-top:5px;font-family:var(--mono);word-break:break-word}
-/* Catalogos en Ajustes: lo que la app fue aprendiendo sola. */
-.catalogo{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
-.catalogo .vacio{color:var(--txt2);font-size:12px;font-family:var(--mono)}
-.cat{display:flex;align-items:center;gap:7px;border:1px solid var(--linea2);border-radius:8px;padding:7px 9px;font-size:12px;font-family:var(--mono);color:var(--txt2);max-width:100%}
-.cat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cat button{flex:0 0 auto;background:none;border:0;color:var(--txt2);font-size:14px;line-height:1;padding:2px 3px;cursor:pointer}
-.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--linea);overflow-x:auto;scrollbar-width:none}
-/* Las cinco vistas entran siempre sin scroll: cada pestana toma un quinto y en
-   pantallas angostas el icono va arriba de un rotulo chico. */
-.tabs::-webkit-scrollbar{display:none}
-.tab{flex:1 1 0;min-width:0;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:6px 2px;white-space:nowrap;overflow:hidden;background:none;border:0;border-bottom:2px solid transparent;color:var(--txt2);font-size:10.5px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.2px}
-.tab-ico{font-size:15px;line-height:1.1}
-.tab-rot{max-width:100%;overflow:hidden;text-overflow:ellipsis}
-@media (min-width:520px){
-  .tab{flex-direction:row;gap:6px;padding:9px 6px;font-size:12.5px;letter-spacing:.5px}
-  .tab-ico{font-size:13px}
-}
-.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
-main{flex:1;padding:8px 12px 84px 12px;overflow-y:auto}
-.prog{background:none;border:0;border-radius:0;padding:0;margin-bottom:9px}
-.prog .cab{display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;color:var(--txt2);margin-bottom:4px;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase}
-.prog .cab b{color:var(--txt);font-size:13px;letter-spacing:0}
-.barra{height:4px;background:var(--card2);border-radius:3px;overflow:hidden}
-.barra i{display:block;height:100%;background:var(--acc);width:0;transition:width .3s ease}
-.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;-webkit-overflow-scrolling:touch}
-/* Estado y clasificacion comparten una sola fila desplazable. */
-.chipsfila{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;-webkit-overflow-scrolling:touch}
-.chips,.chipsfila{scrollbar-width:thin;scrollbar-color:var(--linea2) transparent}
-.chipsfila .chips{overflow-x:visible;padding-bottom:0;flex:0 0 auto}
-.chipsfila .chips:empty{display:none}
-.chip{flex:0 0 auto;padding:9px 11px;min-height:42px;border-radius:8px;cursor:pointer;border:1px solid var(--linea);background:var(--card);color:var(--txt2);font-size:11.5px;font-family:var(--mono);white-space:nowrap}
-.chip.on{border-color:var(--acc);color:var(--acc);background:var(--accsuave)}
-ul{list-style:none;margin:0;padding:0}
-li.item{background:var(--card);border:1px solid var(--linea);border-radius:11px;padding:9px 10px;margin-bottom:7px;cursor:pointer;transition:transform .09s ease,border-color .15s ease}
-/* La tarjeta es de dos columnas: cuerpo a la izquierda, acciones a la derecha.
-   Antes la columna de acciones iba en posicion absoluta y no empujaba el alto,
-   asi que en una tarjeta con pocos badges el segundo boton se salia por abajo
-   y lo tapaba la tarjeta siguiente. Con flex el alto lo manda el lado mas alto
-   de los dos y el solapamiento no puede volver a pasar.
-   Solo en las listas del tablero y de compras: los resultados de busqueda no
-   tienen acciones y siguen en una sola columna. */
-.lista li.item{display:flex;gap:8px;align-items:flex-start}
-.cuerpo{flex:1 1 auto;min-width:0}
-/* La hora de creacion es el ultimo badge de la fila y es la menos util:
-   se oculta por CSS y el dato sigue intacto en el item y en la ficha. */
-li.item .linea2 .badge:last-child{display:none}
-li.item:active{transform:scale(.985)}
-li.item.prio{border-color:var(--rojo);background:linear-gradient(90deg,var(--rojosuave),var(--card) 55%)}
-li.item.st-completado,li.item.st-recibido{opacity:.5}
-li.item.st-cancelado{opacity:.4}
-li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-through}
-.txt{white-space:pre-wrap;word-break:break-word;font-size:14.5px}
-.linea2{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:6px}
-.badge{font-family:var(--mono);font-size:10.5px;padding:2px 6px;border-radius:6px;border:1px solid var(--linea2);color:var(--txt2);white-space:nowrap}
-.badge.est{color:var(--acc);border-color:var(--acc)}
-.badge.prio,.badge.niv-urgente{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
-.badge.niv-importante{color:var(--amar);border-color:var(--amar)}
-.badge.niv-baja{color:var(--txt2);border-style:dashed}
-.badge.dia{color:var(--txt)}
-.badge.dia.vencido{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
-li.item.imp{border-left:3px solid var(--amar)}
-li.item.baja .txt{color:var(--txt2)}
-.badge.rec{color:var(--amar);border-color:var(--amar)}
-.badge.rec.vencido{color:var(--rojo);border-color:var(--rojo);background:var(--rojosuave)}
-.badge.pausa{color:var(--amar);border-color:var(--amar);background:rgba(240,180,41,.10)}
-.badge.nota{color:var(--txt2)}
-.badge.pin{color:var(--acc);border-color:var(--acc);background:var(--accsuave)}
-.badge.pasos{color:var(--txt2)}
-.badge.tag{color:var(--txt)}
-.alerta48{margin-top:6px;font-family:var(--mono);font-size:11.5px;color:var(--rojo);background:var(--rojosuave);border:1px solid var(--rojo);border-radius:7px;padding:5px 8px}
-.accs{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
-.lista .accs{flex:0 0 94px;width:94px;margin-top:0;flex-wrap:nowrap}
-/* Sin word-break: una palabra nunca se parte al medio. Si no entra, baja
-   entera al renglon siguiente. Los rotulos de un solo boton entran en dos
-   renglones; cuando hay dos botones van solo con el icono, que no se corta. */
-.abtn{flex:1 1 0;min-width:0;padding:7px 3px;min-height:44px;border-radius:8px;cursor:pointer;border:1px solid var(--linea2);background:var(--card2);color:var(--txt2);font-size:10px;line-height:1.2;font-family:var(--mono)}
-.abtn.ico{font-size:19px;line-height:1;padding:6px 2px}
-.abtn:active{border-color:var(--acc);color:var(--acc)}
-.abtn.on{border-color:var(--ok);color:var(--ok)}
-.espera{color:var(--amar);font-size:12px;margin-top:6px;font-family:var(--mono)}
-li.item.pausado{border-color:var(--amar)}
-/* Bitacora: notas cortas con fecha, sin tocar el titulo del item. */
-.nota{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--linea);font-size:13.5px}
-.nota .h{flex:0 0 80px;color:var(--txt2);font-family:var(--mono);font-size:11px;padding-top:3px}
-.nota .d{flex:1;word-break:break-word;white-space:pre-wrap}
-.sinnotas{color:var(--txt2);font-size:12.5px;font-family:var(--mono);padding:7px 0}
-/* Checklist del item: pasos verificables para tareas compuestas. */
-.paso{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--linea)}
-.paso .tic{flex:0 0 auto;background:none;border:0;color:var(--txt);font-size:17px;line-height:1.1;padding:4px 2px;cursor:pointer}
-.paso .d{flex:1;min-width:0;font-size:13.5px;word-break:break-word;padding-top:4px}
-.paso.hecho .d{text-decoration:line-through;color:var(--txt2)}
-.paso .equis{flex:0 0 auto;background:none;border:0;color:var(--txt2);font-size:15px;line-height:1.1;padding:4px 3px;cursor:pointer}
-.vacio{color:var(--txt2);font-size:13.5px;padding:26px 4px;text-align:center;font-family:var(--mono)}
-.dia{color:var(--acc);font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;margin:16px 0 8px 0;font-family:var(--mono)}
-.ev{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--linea);font-size:14px}
-.ev .h{color:var(--txt2);font-size:11.5px;flex:0 0 40px;padding-top:3px;font-family:var(--mono)}
-.ev .d{flex:1;word-break:break-word}
-.ev .d b{font-weight:600;font-size:13.5px}
-.ev small{display:block;color:var(--txt2);font-size:12.5px}
-.tapa{
-  position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;z-index:30;
-  opacity:0;visibility:hidden;pointer-events:none;
-  transition:opacity .22s ease,visibility 0s linear .22s;
-}
-.tapa.on{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .22s ease,visibility 0s linear 0s}
-.hoja{
-  width:100%;max-height:90%;overflow-y:auto;background:var(--card);
-  border-top:1px solid var(--linea2);border-radius:16px 16px 0 0;
-  padding:18px 16px calc(env(safe-area-inset-bottom) + 20px) 16px;
-  transform:translate3d(0,100%,0);will-change:transform;
-  transition:transform .34s cubic-bezier(0.16,1,0.3,1);
-}
-.tapa.on .hoja{transform:translate3d(0,0,0)}
-@keyframes kcoEntra{from{opacity:0;transform:translate3d(0,-6px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
-@keyframes kcoVistaDer{from{opacity:0;transform:translate3d(22px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
-@keyframes kcoVistaIzq{from{opacity:0;transform:translate3d(-22px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
-li.item.nuevo{animation:kcoEntra .19s ease-out both}
-main.hacia-der > div{animation:kcoVistaDer .24s cubic-bezier(0.16,1,0.3,1) both}
-main.hacia-izq > div{animation:kcoVistaIzq .24s cubic-bezier(0.16,1,0.3,1) both}
-.pie{
-  text-align:center;color:var(--txt2);font-size:10.5px;letter-spacing:.4px;
-  opacity:.55;padding:22px 4px 4px 4px;
-}
-main.hacia-der > .pie,main.hacia-izq > .pie{animation:none}
-/* Modo "luz de planta": sube el contraste de lo secundario y agranda lo que
-   hay que leer de reojo. No cambia la paleta de marca, solo su legibilidad. */
-body.luz{
-  --txt2:#C2CAD6;
-  --linea:rgba(255,255,255,.16);
-  --linea2:rgba(255,255,255,.28);
-  --card:#1B1F27;
-  --card2:#252A34;
-}
-body.luz .txt{font-size:16.5px}
-body.luz .badge{font-size:12.5px;padding:3px 8px}
-body.luz .chip{font-size:13.5px}
-body.luz .abtn{font-size:13.5px}
-body.luz .meta,body.luz .pista,body.luz .espera{font-size:13px}
-body.luz .pie{opacity:.8;font-size:11.5px}
-body.luz li.item{border-width:1px}
-
-/* Barra de deshacer: aparece abajo, no tapa la captura y se va sola. */
-.deshacer{
-  position:fixed;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 76px);
-  background:var(--card2);border:1px solid var(--linea2);border-radius:11px;
-  padding:11px 12px;display:none;align-items:center;gap:10px;z-index:25;
-  box-shadow:0 6px 20px rgba(0,0,0,.45);
-}
-.deshacer.on{display:flex;animation:kcoSube .2s cubic-bezier(0.16,1,0.3,1) both}
-@keyframes kcoSube{from{opacity:0;transform:translate3d(0,14px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
-.deshacer .qpaso{flex:1;font-size:13px;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.deshacer button{
-  flex:0 0 auto;background:none;border:1px solid var(--acc);color:var(--acc);
-  border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;font-family:var(--mono);cursor:pointer;
-  min-height:44px;
-}
-.chipsTag{margin-top:-4px}
-@media (prefers-reduced-motion: reduce){
-  .hoja,.tapa{transition:none}
-  li.item.nuevo,main.hacia-der > div,main.hacia-izq > div,.deshacer.on{animation:none}
-  button,.barra i,#txtCaptura{transition:none}
-}
-.hoja h2{margin:0 0 10px 0;font-size:16px;font-weight:600}
-.hoja .sub{color:var(--txt2);font-size:12px;margin:-4px 0 14px 0;font-family:var(--mono)}
-.rot{font-family:var(--mono);font-size:11px;color:var(--txt2);letter-spacing:1px;text-transform:uppercase;margin:14px 0 7px 0}
-.dato{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--linea);font-size:13.5px}
-.dato span:last-child{color:var(--txt2);text-align:right;word-break:break-all;font-family:var(--mono);font-size:12.5px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
-.gbtn{padding:13px 9px;min-height:48px;border-radius:9px;cursor:pointer;text-align:left;border:1px solid var(--linea);background:var(--card2);color:var(--txt);font-size:13px}
-.gbtn.on{border-color:var(--acc);background:var(--accsuave);color:var(--acc);font-weight:600}
-.gbtn.rojo.on{border-color:var(--rojo);background:var(--rojosuave);color:var(--rojo)}
-.bloque{width:100%;padding:13px;border-radius:9px;cursor:pointer;margin-top:8px;background:var(--card2);border:1px solid var(--linea);color:var(--txt);font-size:14.5px}
-.bloque.pri{background:var(--acc);border-color:var(--acc);color:var(--sobreacc);font-weight:600}
-.bloque.peli{color:#FF9A94;border-color:rgba(255,59,48,.35)}
-textarea{width:100%;min-height:130px;padding:12px;border-radius:9px;background:var(--bg);border:1px solid var(--linea);color:var(--txt);font-size:13.5px;font-family:var(--mono);resize:vertical}
-input[type=text],input[type=time],input[type=date],input[type=number],textarea{width:100%;padding:12px;border-radius:9px;border:1px solid var(--linea);background:var(--bg);color:var(--txt);font-size:15px;outline:none;font-family:inherit}
-textarea{resize:vertical;min-height:76px;line-height:1.4}
-input[type=time],input[type=date]{font-family:var(--mono);color-scheme:dark}
-#txtBusca{margin-bottom:10px}
-.etq{display:inline-block;font-size:10.5px;color:var(--txt2);border:1px solid var(--linea2);border-radius:5px;padding:1px 6px;margin-bottom:5px;font-family:var(--mono)}
-.aviso{background:var(--rojosuave);border:1px solid var(--rojo);color:#FFB4AF;border-radius:10px;padding:11px 12px;margin:12px 12px 0 12px;font-size:13.5px;display:none}
-.aviso.on{display:block}
-.recuerdo{background:var(--card);border:1px solid var(--amar);color:var(--amar);border-radius:10px;padding:11px 12px;margin-bottom:12px;font-size:13.5px;display:none;font-family:var(--mono)}
-.recuerdo.on{display:block}
-/* ---------- centro de control ---------- */
-.sec{margin-top:16px}
-.sec-tit{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 8px 0;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:1.1px;color:var(--txt2)}
-.sec-tit b{color:var(--txt);font-size:12px}
-.sec-nota{color:var(--txt2);font-size:11.5px;margin:-4px 0 8px 0}
-.sec-titulo-grande{margin:26px 0 0 0;padding-top:14px;border-top:1px solid var(--linea2);font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:1.4px;color:var(--acc)}
-.motivo{color:var(--acc);font-size:11px;margin-top:3px}
-.vacio.chico{padding:10px 4px;font-size:12px;text-align:left}
-.pulso{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
-.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 9px;min-height:56px;border-radius:10px;border:1px solid var(--linea);background:var(--card);color:var(--txt2);font-size:10.5px;cursor:pointer;text-align:left;overflow:hidden}
-.tile b{font-size:20px;line-height:1.1;color:var(--txt)}
-.tile span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.tile.rojo{border-color:var(--rojo);background:var(--rojosuave)}
-.tile.rojo b{color:var(--rojo)}
-.tile.cero{opacity:.55}
-.hero{position:relative;border:1px solid var(--acc);background:linear-gradient(160deg,var(--accsuave),var(--card) 70%);border-radius:14px;padding:14px 14px 12px 14px;cursor:pointer}
-.hero.prio{border-color:var(--rojo);background:linear-gradient(160deg,var(--rojosuave),var(--card) 70%)}
-.hero.calma{border-color:var(--linea2);background:var(--card);cursor:default}
-.hero-rot{font-family:var(--mono);font-size:10.5px;letter-spacing:1.4px;color:var(--acc);font-weight:700}
-.hero.prio .hero-rot{color:var(--rojo)}
-.hero-txt{font-size:19px;font-weight:600;line-height:1.3;margin:6px 0 4px 0;word-break:break-word}
-.hero.calma .hero-txt{font-size:14.5px;font-weight:400;color:var(--txt2)}
-.hero-meta{color:var(--txt2);font-size:11.5px}
-.hero-accs{display:flex;gap:7px;margin-top:10px}
-.hero-accs .bloque{margin-top:0;flex:1 1 0;min-width:0;padding:11px 6px;font-size:13.5px;min-height:46px}
-.hero-sig{margin-top:10px;padding-top:9px;border-top:1px solid var(--linea);display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:10.5px;color:var(--txt2)}
-.linkbtn{background:var(--card2);border:1px solid var(--linea);color:var(--txt);border-radius:7px;padding:6px 9px;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:44px}
-.hoy-cab{display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 6px 0}
-.hoy-fecha{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:1px;color:var(--acc)}
-.hoy-cuenta{color:var(--txt2);font-size:12px}
-.seg{display:flex;gap:0;margin-bottom:10px;border:1px solid var(--linea2);border-radius:10px;overflow:hidden}
-.segbtn{flex:1;padding:10px 6px;min-height:42px;background:var(--card);border:0;color:var(--txt2);font-size:13px;font-weight:600;cursor:pointer}
-.segbtn.on{background:var(--accsuave);color:var(--acc)}
-.badge.ctx{border-color:transparent;padding:2px 2px}
-.badge.rut{border-color:transparent;padding:2px 2px}
-.badge.mot{color:var(--txt2)}
-.badge.racha{color:#FF9F43;border-color:#FF9F43}
-li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
-.semana{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-.diab{min-height:44px;border-radius:9px;border:1px solid var(--linea);background:var(--card2);color:var(--txt2);font-family:var(--mono);font-size:14px;font-weight:700;cursor:pointer}
-.diab.on{border-color:var(--acc);background:var(--accsuave);color:var(--acc)}
-.histo{display:flex;width:100%;gap:9px;align-items:center;padding:8px 2px;border:0;border-bottom:1px solid var(--linea);background:none;color:var(--txt);font-size:13px;text-align:left;cursor:pointer;min-height:40px}
-.histo .h{flex:0 0 46px;color:var(--txt2);font-size:11.5px}
-.histo .s{flex:0 0 22px;font-size:15px}
-.histo .d{flex:1;color:var(--txt2)}
-.mision{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--linea);border-radius:12px;padding:12px;margin-bottom:8px;color:var(--txt);cursor:pointer;font-size:14px}
-.mision:active{border-color:var(--acc)}
-.mision.compacta{padding:10px 12px}
-.mision.fin{opacity:.6}
-.mision.pausa{border-style:dashed}
-.mis-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:7px}
-.mis-nom{font-weight:600;font-size:15px;word-break:break-word}
-.mis-pct{color:var(--acc);font-size:14px}
-.mis-prox{color:var(--acc);font-size:13.5px;margin-top:8px;word-break:break-word}
-.mis-prox.vacia{color:var(--txt2);font-style:italic}
-.mis-meta{color:var(--txt2);font-size:11px;margin-top:5px}
-.misprog{display:flex;gap:12px;align-items:center;margin:14px 0 4px 0}
-.misprog > b{font-size:28px;color:var(--acc);min-width:64px}
-.mis-proxbox{border:1px solid var(--acc);background:var(--accsuave);border-radius:10px;padding:10px 11px}
-.mis-proxbox .mis-prox{margin-top:0;font-size:15px;font-weight:600}
-.diario-dia{display:flex;justify-content:space-between;gap:8px;align-items:baseline;border-bottom:1px solid var(--linea2);padding-bottom:5px}
-.diario-cuenta{color:var(--txt2);font-weight:400;letter-spacing:0;font-size:11px;white-space:nowrap}
-.diario-ev{align-items:flex-start}
-.diario-ev .ico{flex:0 0 24px;font-size:15px;line-height:1.3;text-align:center}
-.diario-ev .h{flex:0 0 auto;order:3}
-.diario-ev.toca{cursor:pointer}
-.diario-ev.hito b,.diario-ev.mision b{color:var(--acc)}
-.diario-ev.logro b{color:#FFD166}
-.progxp{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--linea);border-radius:12px;padding:10px 12px;margin-bottom:10px;color:var(--txt);cursor:pointer}
-.progxp-fila{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
-.progxp-nv{color:#FFD166;font-size:12px;font-weight:700;letter-spacing:.8px}
-.progxp-n{color:var(--txt2);font-size:11px}
-.progxp .barra{height:6px}
-.progxp .barra i{background:linear-gradient(90deg,#FFD166,var(--acc))}
-.progxp-det{color:var(--txt2);font-size:11px;margin-top:6px}
-.camp-cab{background:linear-gradient(160deg,rgba(255,209,102,.13),var(--card) 70%);border:1px solid rgba(255,209,102,.45);border-radius:14px;padding:14px}
-.camp-nv{color:#FFD166;font-size:12px;font-weight:700;letter-spacing:1.4px}
-.camp-tit{font-size:24px;font-weight:700;margin:2px 0 4px 0}
-.camp-xp,.camp-desde{color:var(--txt2);font-size:11.5px;margin-bottom:8px}
-.camp-desde{margin:8px 0 0 0}
-.camp-cab .barra{height:6px}
-.camp-cab .barra i{background:linear-gradient(90deg,#FFD166,var(--acc))}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
-.stat{background:var(--card);border:1px solid var(--linea);border-radius:11px;padding:10px 11px;display:flex;flex-direction:column;gap:1px}
-.stat b{font-size:24px;line-height:1.15;color:var(--txt)}
-.stat span{color:var(--txt);font-size:12.5px}
-.stat small{color:var(--txt2);font-size:10.5px}
-.semanas{display:flex;align-items:flex-end;gap:2px;height:96px;padding:0 0 0 0;border-bottom:1px solid var(--linea2)}
-.sem{flex:1;height:100%;display:flex;align-items:flex-end;background:none;border:0;padding:0 1px;cursor:pointer;min-width:0}
-.sem i{display:block;width:100%;background:var(--acc);opacity:.55;border-radius:4px 4px 0 0;min-height:0}
-.sem.actual i{opacity:1}
-.sem:hover i,.sem:focus i{opacity:1}
-.sem-cap{color:var(--txt2);font-size:11px;margin-top:6px;min-height:16px}
-.ctxbar{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12.5px}
-.ctxbar.cero{opacity:.5}
-.ctxbar-nom{flex:0 0 98px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ctxbar-pista{flex:1;height:8px;background:var(--card2);border-radius:4px;overflow:hidden}
-.ctxbar-pista i{display:block;height:100%;background:var(--acc);border-radius:0 4px 4px 0}
-.ctxbar-n{flex:0 0 auto;color:var(--txt2);font-size:11px;min-width:74px;text-align:right}
-.logros{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.logro{background:var(--card);border:1px solid var(--linea);border-radius:11px;padding:10px;display:flex;flex-direction:column;gap:2px;opacity:.55}
-.logro.ganado{opacity:1;border-color:rgba(255,209,102,.5);background:linear-gradient(160deg,rgba(255,209,102,.10),var(--card) 70%)}
-.logro.secreto{border-style:dashed}
-.logro-ico{font-size:22px;line-height:1.2}
-.logro b{font-size:13px}
-.logro small{color:var(--txt2);font-size:11px;line-height:1.3}
-.logro-est{color:var(--txt2);margin-top:3px}
-.logro.ganado .logro-est{color:#FFD166}
-.deshacer.celebra{border-color:var(--acc);background:linear-gradient(90deg,var(--accsuave),var(--card2))}
-/* Foco de teclado visible en el color del contexto (el toque no lo muestra). */
-button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,#txtCaptura:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.tab:focus-visible{outline-offset:-3px}
-/* Escritorio: la app es una columna legible al centro; las barras siguen de
-   borde a borde pero su contenido se alinea con esa columna. */
-@media (min-width:760px){
-  header{padding-left:calc((100% - 720px) / 2 + 10px);padding-right:calc((100% - 720px) / 2 + 10px)}
-  .tabs{padding:0 calc((100% - 720px) / 2)}
-  main{padding-left:calc((100% - 720px) / 2 + 12px);padding-right:calc((100% - 720px) / 2 + 12px)}
-  .aviso{max-width:696px;margin:12px auto 0 auto}
-  .captura{padding-left:calc((100% - 720px) / 2 + 10px);padding-right:calc((100% - 720px) / 2 + 10px)}
-  .deshacer{left:calc((100% - 720px) / 2 + 10px);right:calc((100% - 720px) / 2 + 10px)}
-  .ctxbtn{padding:9px 9px}
-  .tapa{justify-content:center}
-  .hoja{max-width:640px;border-left:1px solid var(--linea2);border-right:1px solid var(--linea2)}
-}
-</style>
+<link rel="apple-touch-icon" sizes="180x180" href="./icono-180.png">
+<link rel="stylesheet" href="./kco.css">
+<!-- Bloqueante a proposito: fija data-tema antes del primer pintado (sin destello). -->
+<script src="./tema.js"></script>
 </head>
 <body class="ctx-trabajo">
 
-<header>
-  <div class="fila">
-    <div class="ctxsel scroll-x" id="ctxsel" role="toolbar" aria-label="Contexto"></div>
-    <button class="iconobtn" id="btnBuscar" type="button" aria-label="Buscar">&#128269;</button>
-    <button class="iconobtn" id="btnAjustes" type="button" aria-label="Ajustes">&#9881;</button>
-  </div>
+<!-- Escritorio (>= 1024px): barra lateral con vistas y contextos. En movil no se muestra. -->
+<aside class="lateral" id="lateral" aria-label="Navegaci&oacute;n">
+  <div class="lat-marca"><span class="lat-logo" aria-hidden="true">K</span><span class="lat-nom">KCO<small>Centro operativo</small></span></div>
+  <nav class="lat-nav" id="navLateral" aria-label="Vistas"></nav>
+  <div class="lat-rot" id="rotCtxLateral">Contextos</div>
+  <div class="lat-ctx" id="ctxLateral" role="group" aria-labelledby="rotCtxLateral"></div>
+</aside>
+
+<header class="appbar">
+  <button class="ctxchip" id="btnCtx" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="tapaCtx">
+    <span class="punto" id="ctxPunto" aria-hidden="true"></span><span class="ctxchip-nom" id="ctxNombre">Trabajo</span><span class="ctxchip-chev" data-ico="chevron-down"></span>
+  </button>
+  <h1 class="appbar-tit" id="tituloVista">Ahora</h1>
+  <span class="crece"></span>
+  <button class="iconobtn" id="btnBuscar" type="button" aria-label="Buscar" title="Buscar" data-ico="search"></button>
+  <button class="iconobtn" id="btnAjustes" type="button" aria-label="Ajustes" title="Ajustes" data-ico="settings"></button>
 </header>
 
-<div class="aviso" id="aviso" role="alert"></div>
+<!-- Captura: en movil fija justo arriba de la barra de pestanas; en escritorio arriba de la columna. -->
+<div class="captura">
+  <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
+         autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="Capturar"
+         placeholder="Escrib&iacute; y Enter &middot; 18:00 o @9:30 toma la hora">
+</div>
 
-<nav class="tabs" role="tablist" aria-label="Vistas">
-  <button class="tab on" id="tabAhora" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#9889;</span><span class="tab-rot">AHORA</span></button>
-  <button class="tab" id="tabHoy" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#128197;</span><span class="tab-rot">HOY</span></button>
-  <button class="tab" id="tabTareas" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#9745;</span><span class="tab-rot">TAREAS</span></button>
-  <button class="tab" id="tabMisiones" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#127919;</span><span class="tab-rot">MISIONES</span></button>
-  <button class="tab" id="tabRegistro" type="button" role="tab"><span class="tab-ico" aria-hidden="true">&#128214;</span><span class="tab-rot">DIARIO</span></button>
-</nav>
+<div class="aviso" id="aviso" role="alert"></div>
+<div class="avisover" id="avisoVersion" role="status" aria-live="polite">
+  <span>Nueva versi&oacute;n disponible</span>
+  <button id="btnActualizar" type="button">Actualizar</button>
+</div>
 
 <main>
   <div class="recuerdo" id="recuerdo"></div>
@@ -418,8 +61,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   </div>
 
   <div class="seg" id="segTareas" style="display:none" role="group" aria-label="Tareas o compras">
-    <button class="segbtn on" id="segBtnTareas" type="button">&#9745; Tareas</button>
-    <button class="segbtn" id="segBtnCompras" type="button">&#128722; Compras</button>
+    <button class="segbtn on" id="segBtnTareas" type="button" data-ico="tareas">Tareas</button>
+    <button class="segbtn" id="segBtnCompras" type="button" data-ico="cart">Compras</button>
   </div>
 
   <div id="vistaTablero" style="display:none">
@@ -451,15 +94,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 
   <div id="vistaRegistro" style="display:none">
     <div class="seg" role="group" aria-label="Lectura del historial">
-      <button class="segbtn on" id="btnModoDiario" type="button">&#128214; Diario</button>
-      <button class="segbtn" id="btnModoCampana" type="button">&#127942; Campa&ntilde;a</button>
-      <button class="segbtn" id="btnModoRegistro" type="button">&#128220; Registro</button>
+      <button class="segbtn on" id="btnModoDiario" type="button" data-ico="book">Diario</button>
+      <button class="segbtn" id="btnModoCampana" type="button" data-ico="trophy">Campa&ntilde;a</button>
+      <button class="segbtn" id="btnModoRegistro" type="button" data-ico="list">Registro</button>
     </div>
     <div id="cajaRango">
       <div class="chips scroll-x" id="chipsRango"></div>
       <div class="grid">
-        <button class="bloque" id="btnRelevo" type="button" style="margin-top:0">&#128260; Reporte de turno</button>
-        <button class="bloque" id="btnResumen" type="button" style="margin-top:0">&#128203; Resumen</button>
+        <button class="bloque" id="btnRelevo" type="button" style="margin-top:0" data-ico="repeat">Reporte de turno</button>
+        <button class="bloque" id="btnResumen" type="button" style="margin-top:0" data-ico="clipboard">Resumen</button>
       </div>
     </div>
     <div id="diarioCuerpo"></div>
@@ -468,39 +111,77 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
     <div class="vacio" id="vacioRegistro">Sin movimientos en este periodo.</div>
   </div>
 
-  <div class="pie mono" id="pie"></div>
+  <div class="pie" id="pie"></div>
 </main>
 
-<div class="captura">
-  <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
-         autocorrect="off" spellcheck="false" enterkeyhint="done"
-         placeholder="Escribi y Enter &middot; 18:00 o @9:30 toma la hora">
-</div>
+<!-- Movil: barra de pestanas inferior. En escritorio la reemplaza la barra lateral. -->
+<nav class="tabs" role="tablist" aria-label="Vistas">
+  <button class="tab on" id="tabAhora" type="button" role="tab" aria-selected="true"><span class="tab-ico" data-ico="zap"></span><span class="tab-rot">Ahora</span></button>
+  <button class="tab" id="tabHoy" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="calendar"></span><span class="tab-rot">Hoy</span></button>
+  <button class="tab" id="tabTareas" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="tareas"></span><span class="tab-rot">Tareas</span></button>
+  <button class="tab" id="tabMisiones" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="target"></span><span class="tab-rot">Misiones</span></button>
+  <button class="tab" id="tabRegistro" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="book"></span><span class="tab-rot">Diario</span></button>
+</nav>
 
 <div class="deshacer" id="barraDeshacer" role="status" aria-live="polite">
   <div class="qpaso" id="qpaso"></div>
   <button type="button" id="btnDeshacer">DESHACER</button>
 </div>
 
+<div class="tapa" id="tapaCtx" role="dialog" aria-modal="true" aria-labelledby="ctxTitulo">
+  <div class="hoja hoja-ctx">
+    <h2 id="ctxTitulo">Contexto</h2>
+    <div class="ctxlista" id="ctxsel" role="group" aria-labelledby="ctxTitulo"></div>
+  </div>
+</div>
+
+<!-- Ficha del item: arriba lo mas usado (titulo editable, Hecho, dia, prioridad,
+     contexto) para que entre sin scrollear en el telefono; abajo, por secciones,
+     lo demas. kco-app.js completa la cabecera (X de cerrar) como en toda hoja. -->
 <div class="tapa" id="tapaItem">
-  <div class="hoja">
-    <h2 id="itemTitulo">Item</h2>
-    <div class="sub" id="itemSub"></div>
+  <div class="hoja hoja-item">
+    <div class="hoja-cab">
+      <div class="asa" aria-hidden="true"></div>
+      <div class="hoja-fila">
+        <h2 id="itemTitulo" class="oculto-vis">Item</h2>
+        <div class="sub" id="itemSub"></div>
+      </div>
+    </div>
+    <textarea id="txtTituloItem" class="titulo-edit" rows="1" autocomplete="off" autocapitalize="sentences"
+              enterkeyhint="done" spellcheck="false" aria-label="Texto"></textarea>
+
+    <div class="rapidas">
+      <button class="rbtn" id="btnHecho" type="button" data-ico="check">Hecho</button>
+      <button class="rbtn" id="btnDiaHoy" type="button" data-ico="calendar">Hoy</button>
+      <button class="rbtn" id="btnDiaMan" type="button" data-ico="forward">Ma&ntilde;ana</button>
+      <button class="rbtn" id="btnDiaElegir" type="button" data-ico="clock">Elegir d&iacute;a</button>
+    </div>
+    <div id="cajaDia" style="display:none">
+      <input id="txtDia" type="date" aria-label="D&iacute;a">
+      <button class="bloque" id="btnDiaOk" type="button">Agendar ese d&iacute;a</button>
+    </div>
+    <button class="bloque sutil" id="btnSacarDia" type="button" style="display:none">Sacar el d&iacute;a</button>
+
+    <div class="rot" id="rotNivel">Prioridad</div>
+    <div class="segctl" id="gridNivel" role="group" aria-labelledby="rotNivel"></div>
+
+    <div class="rot" id="rotCtxItem">Contexto</div>
+    <div class="opciones" id="gridCtx" role="group" aria-labelledby="rotCtxItem"></div>
 
     <div id="cajaOcurrencia" style="display:none">
-      <div class="rot">&#128260; Rutina</div>
+      <div class="rot" data-ico="repeat">Rutina</div>
       <div class="pista" id="ocuInfo" style="margin-top:0;margin-bottom:8px"></div>
-      <div class="grid3">
-        <button class="gbtn" id="btnEx_omitida" type="button">&#9197; Omitir</button>
-        <button class="gbtn" id="btnEx_no_corresponde" type="button">&#10134; No tocaba</button>
-        <button class="gbtn" id="btnEx_delegada" type="button">&#129309; Delegada</button>
+      <div class="segctl">
+        <button class="gbtn" id="btnEx_omitida" type="button">Omitir</button>
+        <button class="gbtn" id="btnEx_no_corresponde" type="button">No tocaba</button>
+        <button class="gbtn" id="btnEx_delegada" type="button">Delegada</button>
       </div>
       <div class="pista">No tocaba no corta la racha. Delegada cuenta como resuelta.</div>
       <button class="bloque" id="btnVerRutina" type="button">Ver la rutina e historial</button>
     </div>
 
     <div class="rot" id="rotEstados">Estado</div>
-    <div class="grid" id="gridEstados"></div>
+    <div class="opciones" id="gridEstados"></div>
 
     <div id="cajaPedido" style="display:none">
       <div class="rot">Solicitante</div>
@@ -520,80 +201,81 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
       <button class="bloque" id="btnGuardarEspera" type="button">Guardar espera</button>
     </div>
 
-    <button class="gbtn" id="btnPausa" type="button" style="width:100%;display:none;margin-top:7px">&#9208; Pausar / En espera</button>
-
-    <div class="rot">Prioridad</div>
-    <div class="grid" id="gridNivel"></div>
-    <button class="gbtn" id="btnAnclar" type="button" style="width:100%;margin-top:7px">&#128204; Anclar arriba de todo</button>
-
-    <div class="rot">Dia</div>
-    <div class="grid3">
-      <button class="gbtn" id="btnDiaHoy" type="button">Hoy</button>
-      <button class="gbtn" id="btnDiaMan" type="button">Ma&ntilde;ana</button>
-      <button class="gbtn" id="btnDiaElegir" type="button">Elegir dia</button>
-    </div>
-    <div id="cajaDia" style="display:none">
-      <input id="txtDia" type="date">
-      <button class="bloque" id="btnDiaOk" type="button">Agendar ese dia</button>
-    </div>
-    <button class="bloque" id="btnSacarDia" type="button" style="display:none">Sacar el dia</button>
-
-    <div class="rot">Contexto</div>
-    <div class="grid" id="gridCtx"></div>
+    <button class="gbtn ancho" id="btnPausa" type="button" style="display:none" data-ico="pause">Pausar / En espera</button>
+    <button class="gbtn ancho" id="btnAnclar" type="button" data-ico="pin">Anclar arriba de todo</button>
 
     <div id="cajaMision" style="display:none">
-      <div class="rot">&#127919; Mision</div>
-      <div class="grid" id="gridMision"></div>
+      <div class="rot" data-ico="target">Misi&oacute;n</div>
+      <div class="opciones" id="gridMision"></div>
     </div>
 
     <div class="rot">Checklist</div>
     <div id="listaPasos"></div>
-    <input id="txtPaso" type="text" autocomplete="off" autocapitalize="sentences"
-           enterkeyhint="done" placeholder="Ej: desmontar tapa">
-    <button class="bloque" id="btnAgregarPaso" type="button">Agregar paso</button>
+    <div class="campo-boton">
+      <input id="txtPaso" type="text" autocomplete="off" autocapitalize="sentences"
+             enterkeyhint="done" placeholder="Nuevo paso. Ej: desmontar tapa" aria-label="Nuevo paso">
+      <button class="iconobtn" id="btnAgregarPaso" type="button" aria-label="Agregar paso" title="Agregar paso" data-ico="plus"></button>
+    </div>
 
-    <div class="rot">Comentarios / bitacora</div>
+    <div class="rot">Comentarios</div>
     <div id="listaNotas"></div>
-    <input id="txtNota" type="text" autocomplete="off" autocapitalize="sentences"
-           enterkeyhint="done" placeholder="Ej: proveedor confirmo stock para el viernes">
-    <button class="bloque" id="btnAgregarNota" type="button">Agregar comentario</button>
+    <div class="campo-boton">
+      <input id="txtNota" type="text" autocomplete="off" autocapitalize="sentences"
+             enterkeyhint="done" placeholder="Ej: proveedor confirm&oacute; stock para el viernes" aria-label="Nuevo comentario">
+      <button class="iconobtn" id="btnAgregarNota" type="button" aria-label="Agregar comentario" title="Agregar comentario" data-ico="plus"></button>
+    </div>
 
-    <div class="rot">Clasificacion (opcional)</div>
-    <div class="grid" id="gridTags"></div>
+    <div class="rot">Clasificaci&oacute;n (opcional)</div>
+    <div class="opciones" id="gridTags"></div>
 
     <div class="rot">Recordatorio</div>
-    <div class="grid3">
+    <div class="segctl">
       <button class="gbtn" id="btnHoy18" type="button">Hoy 18:00</button>
-      <button class="gbtn" id="btnMan9" type="button">Man 09:00</button>
+      <button class="gbtn" id="btnMan9" type="button">Ma&ntilde;ana 09:00</button>
       <button class="gbtn" id="btnOtraHora" type="button">Elegir</button>
     </div>
     <div id="cajaHora" style="display:none">
-      <input id="txtHora" type="time" value="18:00">
+      <input id="txtHora" type="time" value="18:00" aria-label="Hora">
       <div class="grid" style="margin-top:7px">
         <button class="gbtn" id="btnHoraHoy" type="button">Hoy a esa hora</button>
-        <button class="gbtn" id="btnHoraManana" type="button">Mañana a esa hora</button>
+        <button class="gbtn" id="btnHoraManana" type="button">Ma&ntilde;ana a esa hora</button>
       </div>
     </div>
     <button class="bloque" id="btnSacarRec" type="button" style="display:none">Sacar recordatorio</button>
 
-    <div class="rot">Acciones</div>
-    <button class="bloque" id="btnAcompra" type="button">&#128722; Mover a Compras</button>
-    <button class="bloque" id="btnHacerRutina" type="button">&#128260; Hacer recurrente</button>
-    <button class="bloque" id="btnVolverTarea" type="button">&#8617; Volver a tarea</button>
-    <button class="bloque" id="btnEditar" type="button">&#9998; Editar texto</button>
-    <button class="bloque" id="btnCompartirItem" type="button">&#128228; Compartir</button>
-    <button class="bloque peli" id="btnBorrar" type="button">&#128465; Borrar</button>
-    <button class="bloque pri" id="btnCerrarItem" type="button">Cerrar</button>
+    <div class="rot">M&aacute;s acciones</div>
+    <div class="acciones">
+      <button class="fila-acc" id="btnAcompra" type="button" data-ico="cart">Mover a Compras</button>
+      <button class="fila-acc" id="btnHacerRutina" type="button" data-ico="repeat">Hacer recurrente</button>
+      <button class="fila-acc" id="btnVolverTarea" type="button" data-ico="undo">Volver a tarea</button>
+      <button class="fila-acc" id="btnCompartirItem" type="button" data-ico="share">Compartir</button>
+      <button class="fila-acc peli" id="btnBorrar" type="button" data-ico="trash">Borrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Menu rapido de una tarjeta (deslizar a la izquierda, clic derecho o tecla de menu). -->
+<div class="tapa" id="tapaRapido">
+  <div class="hoja hoja-rapido">
+    <h2 id="rapTitulo">Acciones</h2>
+    <div class="acciones">
+      <button class="fila-acc" type="button" data-rap="hoy" data-ico="calendar">Para hoy</button>
+      <button class="fila-acc" type="button" data-rap="manana" data-ico="forward">Para ma&ntilde;ana</button>
+      <button class="fila-acc" id="btnRapNivel" type="button" data-rap="prioridad" data-ico="flag" aria-expanded="false" aria-controls="rapNivel">Prioridad</button>
+      <div class="segctl rap-nivel" id="rapNivel" role="group" aria-label="Prioridad" style="display:none"></div>
+      <button class="fila-acc" id="btnRapCompras" type="button" data-rap="compras" data-ico="cart">Mover a Compras</button>
+      <button class="fila-acc peli" type="button" data-rap="borrar" data-ico="trash">Borrar</button>
+    </div>
+    <button class="bloque" id="btnRapFicha" type="button" data-ico="more">M&aacute;s opciones</button>
   </div>
 </div>
 
 <div class="tapa" id="tapaRutinas">
   <div class="hoja">
-    <h2>&#128260; Rutinas</h2>
+    <h2>Rutinas</h2>
     <div class="sub">Cada rutina crea su tarea el dia que toca. Lo hecho queda en el historial.</div>
     <ul id="listaRutinas" class="lista"></ul>
-    <button class="bloque pri" id="btnNuevaRutina" type="button">&#10133; Nueva rutina</button>
-    <button class="bloque" id="btnCerrarRutinas" type="button">Cerrar</button>
+    <button class="bloque pri" id="btnNuevaRutina" type="button" data-ico="plus">Nueva rutina</button>
   </div>
 </div>
 
@@ -632,10 +314,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
       <div class="rot">Historial</div>
       <div class="pista mono" id="rutRacha" style="margin-top:0;margin-bottom:6px"></div>
       <div id="rutHistorial"></div>
-      <button class="bloque" id="btnPausarRutina" type="button">&#9208; Pausar rutina</button>
-      <button class="bloque peli" id="btnBorrarRutina" type="button">&#128465; Borrar definicion</button>
+      <button class="bloque" id="btnPausarRutina" type="button" data-ico="pause">Pausar rutina</button>
+      <button class="bloque peli" id="btnBorrarRutina" type="button" data-ico="trash">Borrar definicion</button>
     </div>
-    <button class="bloque" id="btnCerrarRutina" type="button">Cerrar</button>
   </div>
 </div>
 
@@ -671,20 +352,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
              placeholder="Nueva tarea de esta mision">
       <button class="bloque" id="btnAgregarMisTarea" type="button">Agregar tarea</button>
       <div class="rot">Estado</div>
-      <button class="bloque" id="btnMisPausa" type="button">&#9208; Pausar mision</button>
-      <button class="bloque pri" id="btnMisTerminar" type="button">&#127937; Completar mision</button>
-      <button class="bloque peli" id="btnMisBorrar" type="button">&#128465; Borrar mision</button>
+      <button class="bloque" id="btnMisPausa" type="button" data-ico="pause">Pausar mision</button>
+      <button class="bloque pri" id="btnMisTerminar" type="button" data-ico="flag">Completar mision</button>
+      <button class="bloque peli" id="btnMisBorrar" type="button" data-ico="trash">Borrar mision</button>
     </div>
-    <button class="bloque" id="btnCerrarMision" type="button">Cerrar</button>
-  </div>
-</div>
-
-<div class="tapa" id="tapaEditar">
-  <div class="hoja">
-    <h2>Editar texto</h2>
-    <textarea id="txtEditar"></textarea>
-    <button class="bloque pri" id="btnGuardarEdicion" type="button">Guardar</button>
-    <button class="bloque" id="btnCancelarEdicion" type="button">Cancelar</button>
   </div>
 </div>
 
@@ -694,7 +365,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
     <input id="txtBusca" type="text" autocomplete="off" placeholder="Buscar en todos los contextos...">
     <ul id="resultados"></ul>
     <div class="vacio" id="vacioBusca">Escribi para buscar.</div>
-    <button class="bloque pri" id="btnCerrarBusca" type="button">Cerrar</button>
   </div>
 </div>
 
@@ -704,7 +374,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
     <textarea id="txtSalida" readonly></textarea>
     <button class="bloque pri" id="btnCompartirTexto" type="button">Compartir</button>
     <button class="bloque" id="btnCopiarTexto" type="button">Copiar</button>
-    <button class="bloque" id="btnCerrarTexto" type="button">Cerrar</button>
   </div>
 </div>
 
@@ -729,10 +398,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
     <div class="dato"><span>Ultimo backup</span><span id="vBackup">-</span></div>
     <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
     <div class="rot">Pantalla</div>
-    <button class="bloque" id="btnLuz" type="button">&#9728; Modo luz de planta</button>
+    <div class="seg" id="segTema" role="group" aria-label="Tema">
+      <button class="segbtn" type="button" data-tema="sistema">Sistema</button>
+      <button class="segbtn" type="button" data-tema="claro">Claro</button>
+      <button class="segbtn" type="button" data-tema="oscuro">Oscuro</button>
+    </div>
+    <button class="bloque" id="btnLuz" type="button" data-ico="sun">Modo luz de planta</button>
     <div class="pista" style="margin-top:8px">Sube el contraste y agranda los textos chicos para leer bajo el sol o los tubos de la planta.</div>
     <div class="rot">Recordatorios</div>
-    <button class="bloque" id="btnPermiso" type="button">&#128276; Activar notificaciones</button>
+    <button class="bloque" id="btnPermiso" type="button" data-ico="bell">Activar notificaciones</button>
     <div class="pista" style="margin-top:8px">Suenan con KCO abierta o recien usada. Con la app cerrada Android no las dispara: al abrir KCO vas a ver los vencidos arriba.</div>
     <div class="rot">Catalogos de compras</div>
     <div class="pista" style="margin-top:0;margin-bottom:9px">Solicitantes y destinos que KCO fue aprendiendo sola. Borrar uno de aca no toca ninguna compra ya cargada.</div>
@@ -740,23 +414,23 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
     <div id="chipsSolic" class="catalogo"></div>
     <textarea id="txtNuevoSolic" rows="3" autocomplete="off" autocapitalize="words"
               placeholder="Uno por renglon. Se puede pegar una lista entera."></textarea>
-    <button class="bloque" id="btnSumarSolic" type="button">&#10133; Sumar solicitantes</button>
+    <button class="bloque" id="btnSumarSolic" type="button" data-ico="plus">Sumar solicitantes</button>
     <div class="dato" style="margin-top:12px"><span>Destinos / usos</span><span id="vDest">-</span></div>
     <div id="chipsDest" class="catalogo"></div>
     <textarea id="txtNuevoDest" rows="3" autocomplete="off" autocapitalize="sentences"
               placeholder="Uno por renglon. Se puede pegar una lista entera."></textarea>
-    <button class="bloque" id="btnSumarDest" type="button">&#10133; Sumar destinos</button>
+    <button class="bloque" id="btnSumarDest" type="button" data-ico="plus">Sumar destinos</button>
 
     <div class="rot">Backup</div>
-    <button class="bloque" id="btnExportar" type="button">&#128190; Descargar backup (.json)</button>
-    <button class="bloque" id="btnBackupTexto" type="button">&#128228; Compartir backup como texto</button>
-    <button class="bloque" id="btnImportar" type="button">&#128229; Restaurar backup</button>
+    <button class="bloque" id="btnExportar" type="button" data-ico="download">Descargar backup (.json)</button>
+    <button class="bloque" id="btnBackupTexto" type="button" data-ico="share">Compartir backup como texto</button>
+    <button class="bloque" id="btnImportar" type="button" data-ico="upload">Restaurar backup</button>
     <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
-    <button class="bloque pri" id="btnCerrarAjustes" type="button">Cerrar</button>
-    <div class="pie mono">KCO v<span id="pieVersion">-</span> &middot; esquema <span id="pieEsquema">-</span><br>Desarrollado por Kevin V&aacute;squez</div>
+    <div class="pie">KCO v<span id="pieVersion">-</span> &middot; esquema <span id="pieEsquema">-</span><br>Desarrollado por Kevin V&aacute;squez</div>
   </div>
 </div>
 
+<script src="./iconos.js"></script>
 <script src="./kco-core.js"></script>
 <script src="./kco-app.js"></script>
 </body>

@@ -654,6 +654,72 @@
     return null;
   }
 
+  /* ---------- compactacion del registro ----------
+     El registro crece con cada accion. Para acotarlo se sacan eventos VIEJOS
+     (anteriores a `corte`, un ISO) que ninguna vista derivada necesita:
+       - XP, nivel, logros, rachas y campana se derivan de items y misiones, no
+         del registro: compactar no los puede cambiar;
+       - el diario solo muestra el ULTIMO cierre vigente de cada item y lo que
+         figura por si mismo (hitos, misiones, comentarios, logros, niveles...).
+     Se saca:
+       - ruido viejo (captura, edicion, prioridad, fecha, tag...): el diario no
+         lo muestra ni lo usa;
+       - cambios de estado viejos que no son el cierre que el diario muestra: un
+         cierre superado, una reapertura, un deshacer sin efecto. Ningun evento
+         de estado de un item ANTERIOR a su ultimo cierre vigente cambia que
+         cierre queda vigente, ni ahora ni con eventos que lleguen despues.
+     Nunca se saca: lo reciente, tipos desconocidos, fechas ilegibles, nada que el
+     diario muestre. Lo quitado queda como un evento 'compactado' de forma comun
+     (se lee igual en versiones viejas). Es idempotente y no muta la entrada. */
+
+  var DESCARTABLES = { captura: 1, edicion: 1, borrado: 1, espera: 1, prioridad: 1, fecha: 1, contexto: 1,
+    recordatorio: 1, compra: 1, pausa: 1, anclado: 1, tag: 1, mision_tarea: 1, migracion: 1 };
+  var DE_ESTADO = { estado: 1, deshacer: 1, excepcion: 1, vuelta: 1 };
+
+  function compactarEventos(eventos, corte) {
+    var lista = eventos || [];
+    var orden = ordenarPorTs(lista), ultima = {}, i, ev, k;
+    /* Mismo recorrido que diario(): que evento de cierre queda vigente por item. */
+    for (i = 0; i < orden.length; i++) {
+      ev = orden[i];
+      k = '#' + ev.itemId;
+      var cierra = esCierre(ev) && !(ev.tipo === 'deshacer' && ultima.hasOwnProperty(k));
+      var abre = (ev.tipo === 'estado' || ev.tipo === 'deshacer') && !HECHOS[ev.hasta] ||
+        (ev.tipo === 'excepcion' && ev.hasta !== 'delegada') || ev.tipo === 'vuelta';
+      if (cierra) { ultima[k] = ev; }
+      else if (abre && ultima.hasOwnProperty(k)) { delete ultima[k]; }
+    }
+    var quitar = [], ultimoQuitado = -1;
+    for (i = 0; i < lista.length; i++) {
+      ev = lista[i];
+      var viejo = typeof corte === 'string' && corte !== '' && typeof ev.ts === 'string' &&
+        claveDeIso(ev.ts) !== '' && ev.ts < corte;
+      var sale = viejo && (DESCARTABLES[ev.tipo] === 1 ||
+        (DE_ESTADO[ev.tipo] === 1 && ultima['#' + ev.itemId] !== ev));
+      quitar.push(sale);
+      if (sale) { ultimoQuitado = i; }
+    }
+    var salida = [], n = 0, primero = '', ultimoTs = '';
+    for (i = 0; i < lista.length; i++) {
+      if (quitar[i]) {
+        n++;
+        if (primero === '' || lista[i].ts < primero) { primero = lista[i].ts; }
+        if (lista[i].ts > ultimoTs) { ultimoTs = lista[i].ts; }
+      } else {
+        salida.push(lista[i]);
+      }
+      if (i === ultimoQuitado) {
+        salida.push({
+          id: 'ecomp' + ultimoTs.replace(/[^0-9]/g, '') + '-' + n,
+          ts: ultimoTs, tipo: 'compactado', itemId: '',
+          texto: n + ' movimientos viejos resumidos', contexto: 'trabajo',
+          desde: claveDeIso(primero), hasta: claveDeIso(ultimoTs)
+        });
+      }
+    }
+    return salida;
+  }
+
   /* ---------- XP y niveles ----------
      El XP se DERIVA del estado actual, no se acumula en un contador. Asi:
        - completar, reabrir y volver a completar no suma dos veces;
@@ -961,6 +1027,7 @@
     nivelPorXP: nivelPorXP,
     xpParaNivel: xpParaNivel,
     diario: diario,
+    compactarEventos: compactarEventos,
     normalizarProyecto: normalizarProyecto,
     tareasDeProyecto: tareasDeProyecto,
     progresoProyecto: progresoProyecto,

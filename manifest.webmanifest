@@ -1,7 +1,7 @@
 {
   "name": "KCO — Centro Operativo",
   "short_name": "KCO",
-  "description": "Centro de control personal: ver la situacion, decidir el proximo paso, actuar y registrar el avance de trabajo, hogar y proyectos.",
+  "description": "Centro de control personal: ver la situación, decidir el próximo paso, actuar y registrar el avance de trabajo, hogar y proyectos.",
   "start_url": "./",
   "scope": "./",
   "id": "./",
@@ -25,10 +25,29 @@
       "purpose": "any"
     },
     {
-      "src": "./icono-512.png",
+      "src": "./icono-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "shortcuts": [
+    {
+      "name": "Capturar",
+      "short_name": "Capturar",
+      "description": "Anotar algo nuevo al instante",
+      "url": "./?capturar=1",
+      "icons": [
+        {
+          "src": "./icono-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

@@ -18,7 +18,10 @@ decidio asi. El uso de la app y el formato de datos estan en `LEEME.md`.
 
 ```
 +---------------------------------------------------------------+
-| index.html   marcado + CSS + CSP; carga kco-core.js y kco-app.js |
+| index.html   marcado + CSP; carga kco.css, tema.js, iconos.js, kco-core.js, kco-app.js |
+| tema.js      en <head>: fija data-tema antes del primer pintado  |
+| kco.css      tokens de diseno (:root) + reglas de estilo          |
+| iconos.js    iconos SVG de trazo (window.KCOIconos), sin assets  |
 +---------------------------------------------------------------+
 | kco-app.js   interfaz y persistencia (IIFE, ES5)                |
 |   localStorage <-> normalizar -> estado en memoria -> pintar    |
@@ -30,16 +33,109 @@ decidio asi. El uso de la app y el formato de datos estan en `LEEME.md`.
 |   sin DOM, sin localStorage, "hoy" y "ahora" por parametro      |
 |   Node: require('./kco-core.js')  ->  tests/unit               |
 +---------------------------------------------------------------+
-| sw.js        service worker: cache-first, cache kibco-v16       |
+| sw.js        service worker: cache-first, cache kibco-<VERSION>  |
 +---------------------------------------------------------------+
 ```
 
 | Capa | Responsabilidad | No hace |
 |---|---|---|
-| `index.html` | estructura de vistas y hojas, estilos, CSP `script-src 'self'` | no tiene JS en linea |
+| `index.html` | estructura de vistas y hojas, CSP `script-src 'self'` | no tiene JS ni bloque `<style>` en linea |
+| `kco.css` | capa de tokens de diseno y todas las reglas de estilo; precacheado por el SW | no define colores ni medidas sueltas cuando existe un token exacto |
+| `tema.js` | lee `kibco.tema`, resuelve claro/oscuro (con `prefers-color-scheme` si es Sistema), pone `data-tema` en `<html>` y el color de los `<meta name="theme-color">`; expone `window.KCOTema` | no guarda nada: la escritura de la preferencia es de `kco-app.js` |
+| `iconos.js` | juego de iconos de trazo (grilla 24, `currentColor`, trazo 1.75) dibujado para KCO; `window.KCOIconos.crear(nombre, clase)` devuelve un `<svg>` decorativo (`aria-hidden`) armado con `createElementNS` | no usa `innerHTML` ni archivos externos; el nombre accesible lo pone el boton |
 | `kco-app.js` | estado en memoria, lectura/escritura de `kibco.*`, render con `textContent`, eventos de UI, backups | no define reglas de dominio que ya estan en el nucleo |
 | `kco-core.js` | reglas puras y deterministas; exporta por `module.exports` en Node y `window.KCOCore` en el navegador | no toca DOM, almacenamiento ni reloj implicito |
-| `sw.js` | precache de `ARCHIVOS` con `cache: 'reload'`, borra solo caches `kibco-*` viejas, responde la version | no cachea respuestas que no sean 200 `basic` |
+| `sw.js` | precache de `ARCHIVOS` con `cache: 'reload'` en la cache `kibco-` + `VERSION`, borra solo caches `kibco-*` viejas, responde la version, se activa solo con `SKIP_WAITING` | no cachea respuestas que no sean 200 `basic`; no hace `skipWaiting` al instalarse |
+
+## Design tokens
+
+Todo el estilo vive en `kco.css` (precacheado en `ARCHIVOS` de `sw.js`). Arriba de todo, `:root`
+declara la capa de tokens; las reglas los usan con `var(--...)`.
+
+| Grupo | Tokens | Nota |
+|---|---|---|
+| Color | `--bg`, `--surface`, `--surface-2`, `--border`, `--border-strong`, `--text`, `--text-muted`, `--accent`, `--accent-contrast`, `--accent-soft`, `--danger`(`-soft`, `-border`, `-ink`, `-ink-2`), `--warning`(`-soft`), `--success`, `--focus`, `--overlay`, `--streak`, `--gold`(`-soft`, `-faint`, `-border`, `-border-strong`) | roles, no tonos: `:root` tiene el tema oscuro y `:root[data-tema="claro"]` redefine los mismos roles. `body.ctx-*` redefine `--accent`/`--accent-soft`; `body.luz` (modo "luz de planta": legible bajo sol o tubos) sube contraste redefiniendo `--text-muted`, `--border*`, `--surface*` y agranda textos chicos; en claro tiene su propia variante hacia el negro. `--focus` se recalcula en `body` para seguir el acento del contexto |
+| Tipografia | `--font-sans` (pila del sistema) para todo, `--font-mono` solo para cifras cortas en columna (contadores, horas, XP); el resto de las cifras usa `tabular-nums` (`.mono`/`.num`). Minimo 12px en toda la interfaz, rotulos en sans semibold sin mayusculas forzadas, `--fs-xs` 12 · `--fs-sm` 13 · `--fs-md` 15 · `--fs-lg` 17 · `--fs-xl` 20 · `--fs-2xl` 24 · `--fs-3xl` 30, `--lh-tight` 1.2 · `--lh-snug` 1.3 · `--lh-base` 1.45 | |
+| Espaciado | `--sp-1`..`--sp-8` = 4, 8, 12, 16, 20, 24, 32, 40 px | grilla de 4px |
+| Radios | `--r-sm` 6 · `--r-md` 8 · `--r-lg` 12 · `--r-xl` 16 · `--r-pill` 999 px | |
+| Elevacion | `--shadow-1`..`--shadow-3`, `--shadow-bar` (sombra hacia arriba de la captura) | |
+| Movimiento | `--dur-fast` .15s, `--dur` .22s, `--dur-slow` .34s, `--ease`, `--ease-out` | `prefers-reduced-motion` sigue apagando transiciones |
+| Capas | `--z-bar` 22, `--z-toast` 25, `--z-sheet` 30 | `kco-app.js` apila hojas con `30 + n`: `--z-sheet` no se cambia sin tocar el JS |
+| Toque y bordes | `--tap` 44px, `--safe-top/bottom/left/right` (`env(safe-area-inset-*)`) | |
+| App shell | `--appbar-h` 56, `--tabbar-h` 64, `--capbar-h` 64, `--sidebar-w` 240, `--col-max` 760 px | alturas de las barras fijas; `main` deja libre `--tabbar-h + --capbar-h` abajo |
+| Contextos | `--ctx-todo`, `--ctx-trabajo`, `--ctx-hogar`, `--ctx-apps`, `--ctx-contenido`, `--ctx-personal` (clases `.punto.p-<id>`) | punto de color que identifica cada contexto; el claro tiene su propia variante |
+
+### Tema claro / oscuro
+
+| Pieza | Como |
+|---|---|
+| Preferencia | `kibco.tema` = `sistema` (o ausente) / `claro` / `oscuro`; se elige en Ajustes > Pantalla. Es una preferencia como `kibco.luz`: no entra en el backup ni lo exige |
+| Sin destello | `tema.js` es un `<script>` externo y bloqueante en `<head>` (la CSP prohibe JS en linea) que pone `data-tema` antes del primer pintado |
+| Sistema | escucha `matchMedia('(prefers-color-scheme: light)')` y cambia en vivo; sin dato del sistema queda oscuro |
+| Nativo | `color-scheme` sigue a `data-tema`; los dos `<meta name="theme-color">` (media light y dark) toman el color del tema activo |
+| Pestanas | un cambio de `kibco.tema` en otra ventana se aplica en vivo (listener `storage`) y no pone solo lectura |
+| Contraste | texto, texto apagado y acentos (los seis contextos) >= 4.5:1 sobre `--bg`, `--surface`, `--surface-2` y el `--accent-soft` propio en ambos temas |
+
+Reglas de uso: un valor nuevo usa un token; un literal queda solo si no hay equivalente
+exacto (T03 migro sin redisenar: espaciados exactos, radios y tamanos de letra a 1px o menos;
+los textos de 10 a 11px y los espaciados de 6/7/9/10/11px siguen literales hasta el rediseno).
+La CSP mantiene `style-src 'self' 'unsafe-inline'` porque el marcado y `kco-app.js` usan
+atributos `style` para mostrar u ocultar vistas.
+
+## App shell
+
+| Ancho | Estructura |
+|---|---|
+| Movil (< 1024px) | barra superior compacta: chip del contexto actual (`#btnCtx`, punto + nombre + chevron, `aria-haspopup="dialog"`/`aria-expanded`) que abre la hoja `#tapaCtx` con los seis contextos (`#ctxsel`: punto, nombre, abiertos, tilde en el actual); buscar y ajustes como botones de icono con `aria-label`. Abajo, barra de pestañas fija (`nav.tabs`, `role=tablist`, `aria-selected`, icono + rotulo de 12px, pastilla de acento en la activa, `env(safe-area-inset-bottom)`) y la captura justo arriba. Al enfocar la captura, `kco-app.js` pone `data-escribiendo` en `<html>`: la barra de pestañas se oculta y la captura baja al borde, pegada al teclado (`interactive-widget=resizes-content` en el viewport). |
+| Tableta (760-1023px) | igual que movil, con el contenido en una columna centrada de 720px |
+| Escritorio (>= 1024px) | barra lateral fija de 240px (`#lateral`): marca, las cinco vistas con cuenta (`#navLateral`, `aria-current="page"`) y los seis contextos con punto y cuenta (`#ctxLateral`). Sin pestañas abajo. Titulo de la vista, captura y contenido en una columna de hasta 760px centrada en el resto; la captura va arriba de la columna (en pantalla ancha la mirada arranca arriba, como Todoist o Things) |
+
+Las filas de contexto y de vistas se arman una vez y cada `pintar()` solo actualiza estado y
+cuentas, asi el foco de teclado no se pierde. `main` es el que scrollea (las barras quedan
+fuera) y recorta en x la animacion entre vistas: sin eso el desplazamiento de 22px ensancha el
+layout y el navegador movil achica la pagina. Iconos: el marcado estatico usa `data-ico="nombre"`
+(`decorarIconos()` al arrancar); el JS usa `nodo(tag, clase, texto, ico)`, `badge(..., ico)` y
+`rotular(boton, texto, ico)`. El emoji queda solo en contenido: textos que se exportan (reporte
+de turno), diario, rachas, logros y clasificaciones.
+
+## Hojas (dialogos)
+
+Toda `.tapa` es un dialogo modal: `prepararHojas()` (al arrancar) le pone `role="dialog"`,
+`aria-modal="true"` y `aria-labelledby` (su `h2`), y arma la cabecera `.hoja-cab`: asa (movil),
+titulo y una X "Cerrar" arriba a la derecha. La cabecera queda pegada arriba al scrollear.
+
+| Cierre | Como |
+|---|---|
+| X, Escape (hoja de arriba), tocar el fondo, deslizar la cabecera hacia abajo (> 80px o tiron rapido, solo tactil) | `cerrarCapa(id)` -> `cerrarHoja(id)`, el mismo camino que el boton atras: saca la entrada del historial (`history.go(-n)` con `ignorarPop`), asi la pila de capas y el historial nunca se desfasan |
+| Atras de Android | `popstate` -> `alVolverAtras()` cierra la de arriba |
+
+| Foco | Como |
+|---|---|
+| Al abrir | se recuerda el elemento enfocado y el foco va al titulo (`tabindex=-1`; no abre el teclado del telefono). En la ficha, cuyo `h2` es solo para lectores, va a la hoja |
+| Dentro | Tab/Shift+Tab giran entre los controles visibles de la hoja de arriba (se mueve a mano, sin depender del navegador) |
+| Al cerrar | vuelve a quien abrio la hoja; si la lista se repinto, a la tarjeta del mismo item (`li.item[data-id]`) |
+
+En escritorio (>= 1024px) la hoja es un dialogo centrado de hasta 560px (sin asa): las hojas se
+apilan (ficha + confirmar) sin taparse de costado y un panel lateral competiria con la barra
+lateral. En movil y tableta sigue siendo una hoja desde abajo. La ficha del item pone arriba lo mas
+usado: titulo editable en el lugar (Enter o salir del campo guarda por `editarTexto()`, que
+registra `edicion` y ofrece deshacer; Escape descarta), Hecho, Hoy, Mañana, Elegir dia, prioridad
+(control segmentado) y contexto (chips); debajo, por secciones, estado, checklist, comentarios,
+clasificacion, recordatorio y "Mas acciones".
+
+## Tarjetas y gestos
+
+`nodoItem()` arma cada tarjeta (`li.item.fila`) con una fila que se mueve (`.desliza`) sobre una capa
+que revela el gesto (`.rev`):
+
+| Pieza | Como |
+|---|---|
+| Circulo | a la izquierda, 44px de toque y 21px a la vista; el anillo toma el color de la prioridad (urgente, importante). Hace la accion principal de `accionHecho()`: completar o reabrir una tarea, marcar una compra de lista simple. Nombre accesible "Completar: <texto>" por `setAttribute`. El flujo de fabrica no tiene circulo: lleva una pastilla chica para avanzar o seguir |
+| Datos | una sola fila apagada de 12px (punto del contexto, dia, hora, estado, avisos); el color queda solo para lo que avisa |
+| Una accion a la derecha | solo en el inbox de AHORA: "Para hoy" (triaje en un toque). Mover a Compras ya no esta en la tarjeta: esta en la ficha y en el menu rapido |
+| Gesto (solo tactil, pointer events) | los primeros 10px deciden: vertical es scroll (`touch-action: pan-y`), horizontal mueve la fila. Pasado el umbral (80px o un tiron rapido) la derecha completa, con el mismo deshacer que el circulo, y la izquierda abre el menu rapido. Mientras una fila tiene el gesto, `gestoFila` anula el swipe entre vistas; `overscroll-behavior-x: none` evita el atras del navegador |
+| Menu rapido (`#tapaRapido`) | hoja accesible chica: Para hoy, Para mañana, Prioridad (control segmentado), Mover a Compras, Borrar (con confirmacion) y "Mas opciones" (la ficha). Tambien se abre con clic derecho, manteniendo apretado o con la tecla de menu (Shift+F10) sobre la tarjeta |
+| Teclado | la tarjeta tiene `tabindex=0`: Enter o Espacio abre la ficha |
 
 ## Flujo de datos
 
@@ -58,7 +154,8 @@ decidio asi. El uso de la app y el formato de datos estan en `LEEME.md`.
    `textContent`.
 6. **Mutar.** Cada accion modifica el item en memoria, intenta guardar y, si la escritura
    falla, repone la copia previa (`copiaItem` / `reponerItem`). Luego registra el evento y
-   repinta.
+   repinta. Si el evento no se puede guardar, sale de memoria y se avisa; el cambio del
+   item, ya guardado, se queda.
 
 Ademas, cada 30 segundos se revisan recordatorios y, si cambio el dia, se generan las
 ocurrencias nuevas.
@@ -76,7 +173,7 @@ ocurrencias nuevas.
 | Captura | `parsearCaptura` |
 | Rutinas | `normalizarRutina`, `tocaEnDia`, `ultimaFecha`, `proximaFecha`, `describirRutina`, `ocurrenciasDe`, `planificarOcurrencias`, `rachaRutina` |
 | Misiones | `normalizarProyecto`, `tareasDeProyecto`, `progresoProyecto`, `proximaAccion` |
-| Diario | `diario` |
+| Diario | `diario`, `compactarEventos` |
 | XP y niveles | `XP`, `xpItem`, `calcularXP`, `xpMision`, `nivelPorXP`, `xpParaNivel` |
 | Actividad y logros | `diasConAvance`, `rachaGlobal`, `estadisticas`, `LOGROS`, `logrosNuevos` |
 
@@ -86,11 +183,14 @@ ocurrencias nuevas.
 |---|---|
 | Prefijo `kibco.`; nunca se toca `kibo.` ni `kibolab.` | constantes `K_*` en `kco-app.js` |
 | Escrituras con `try/catch`; un fallo avisa y devuelve `false` | `escribir()` |
+| Un evento que no se puede guardar sale de memoria y avisa "No se pudo guardar el registro"; el cambio del item ya guardado se queda | `anotarEventos()`, `guardarEventos()` |
+| Un logro anunciado se guarda primero en el registro y despues en progreso; si el registro falla no se marca como ganado y se vuelve a anunciar en la proxima accion | `revisarLogros()` |
+| Registro acotado solo como ultimo recurso: si la escritura falla (almacenamiento lleno), se compacta lo anterior a 180 dias y se reintenta una vez; nunca de forma preventiva | `guardarEventos()` + `KCOCore.compactarEventos` |
 | En solo lectura no se escribe nada (tampoco catalogos ni progreso) | `guardar*()`, `registrar()` |
 | Cuarentena `<clave>.roto.<ts>`, una copia por valor distinto | `ponerEnCuarentena()` |
 | Progreso ilegible: cuarentena y re-siembra silenciosa | `cargarProgreso()` |
 | Restore todo o nada, rechazado sobre esquema futuro | `procesarImportacion()`, `aplicarBackup()` |
-| Otra ventana cambia claves de datos: solo lectura | listener `storage` al final de `kco-app.js` |
+| Otra ventana cambia claves de datos: solo lectura; si cambia `kibco.tema`, se aplica el tema y nada mas | listener `storage` al final de `kco-app.js` |
 | Ids de rutina, mision y vinculos validados con `^[A-Za-z0-9_-]{1,40}$` | `idSeguro()`, `normalizarRutina`, `normalizarProyecto` |
 | Sin sumideros de HTML (`innerHTML`, `document.write`, `eval`) | control estatico `tests/check-es5.mjs` |
 | CSP: `default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'` | `<meta>` en `index.html` |
@@ -99,7 +199,7 @@ ocurrencias nuevas.
 
 | Nivel | Herramienta | Que protege |
 |---|---|---|
-| Estatico | `tests/check-es5.mjs` | ES5 estricto, sin literales no ASCII en strings, sin sumideros de HTML ni codigo dinamico en `kco-core.js`, `kco-app.js`, `sw.js` |
+| Estatico | `tests/check-es5.mjs` | ES5 estricto, sin literales no ASCII en strings, sin sumideros de HTML ni codigo dinamico en `tema.js`, `iconos.js`, `kco-core.js`, `kco-app.js`, `sw.js` |
 | Unitario | `node:test` sobre `kco-core.js` | reglas de dominio con fechas fijas |
 | E2E | harness propio sin dependencias: servidor estatico + Edge/Chrome headless por CDP | comportamiento real en el navegador: captura, datos, backups, PWA offline, vistas |
 
@@ -110,11 +210,14 @@ Detalle de cada archivo y como agregar pruebas: `docs/TESTING.md`.
 | Decision | Por que |
 |---|---|
 | El esquema sigue en `4` | la 2.0 solo agrega campos con fallback y claves nuevas; subirlo haria que los KCO anteriores rechacen los backups y que un rollback quede en solo lectura |
+| Compactar sin cambiar lo derivado | XP, nivel, logros, rachas y campana salen de items y misiones, no del registro; del registro viejo solo sale ruido (captura, edicion, prioridad...) y cambios de estado que no son el ultimo cierre vigente de su item, asi el diario queda identico. Lo quitado queda como un evento `compactado` de forma comun (las versiones viejas lo leen como "Movimiento"). La vista cruda del Registro en "Todo" pierde ese detalle viejo |
 | XP derivado, no acumulado | reabrir resta, recompletar no duplica, un backup restaurado da el mismo XP; solo se guarda que nivel se celebro y que logros se ganaron |
 | Ocurrencias como items separados | cada dia de una rutina es historial propio (hecha, omitida, delegada, sin registrar); las vistas, el XP y el diario las tratan como cualquier tarea |
 | Solo la ultima ocurrencia se genera | abrir la app despues de varios dias no apila atrasos; lo que quedo abierto se cierra como vencido y la racha lo cuenta |
 | Sin librerias y sin build | el archivo publicado es el archivo probado; cero dependencias que actualizar; funciona en WebViews viejas de Android |
 | Nucleo puro separado | las reglas se prueban en Node sin navegador, con "hoy" por parametro |
+| Actualizacion pedida, no forzada | una version nueva del service worker espera; la pagina muestra "Nueva version disponible · Actualizar" y recarga una sola vez cuando la persona acepta, asi nunca se cambia el codigo a mitad de una edicion. La primera instalacion se activa sola |
+| Una sola version | `VERSION` de `sw.js` = `VERSION_APP` de `kco-app.js` = `version` de `package.json` (`tests/unit/version.test.js`); la cache se llama `kibco-` + `VERSION`, asi subir la version en un release basta para que los usuarios reciban los archivos nuevos |
 | CSP estricta | sin JS en linea ni origenes externos: un texto inyectado no puede ejecutar codigo |
 
 ## Correr los controles
