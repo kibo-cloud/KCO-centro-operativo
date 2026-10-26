@@ -45,6 +45,13 @@ const LEGACY_SECTIONS = JSON.stringify([
   { id: 'personal', nom: 'Personal', ico: 'target', color: 'verde', orden: 4 }
 ]);
 
+// Custom sections, one per purchase mode, none with a legacy id.
+const CUSTOM_SECTIONS = JSON.stringify([
+  { id: 'taller', nom: 'Taller', ico: 'settings', color: 'naranja', orden: 0, compras: 'fabrica' },
+  { id: 'mercado', nom: 'Mercado', ico: 'cart', color: 'verde', orden: 1, compras: 'lista' },
+  { id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', orden: 2, compras: 'no' }
+]);
+
 const CORRUPT_PROGRESO_SEED = (() => {
   const list = [];
   for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
@@ -304,6 +311,93 @@ export const tests = [
       const rows = await page.eval("Array.prototype.map.call(document.querySelectorAll('#destsel [data-ctx]'),function(b){var s=b.querySelector('svg.ctxfila-ico');" +
         "return b.getAttribute('data-ctx')+'|'+b.querySelector('.punto').className+'|'+(s?s.getAttribute('data-ico-nom'):'');})");
       assert.deepEqual(rows, ['estudio|punto pal-azul|book', 'gym|punto pal-lima|trophy']);
+    }
+  },
+  {
+    name: 'sections: a custom fabrica section gets the factory purchase flow, labels, report and catalogs',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'taller', 'kibco.contextoCaptura': 'taller', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      await capture(page, 'rodamiento 6204');
+      await toTasks(page);
+      assert.ok(await page.visible('#segBtnCompras'), 'Compras segment offered');
+      await openQuickMenu(page, '#lista li.item');
+      assert.ok(await page.visible('#btnRapCompras'));
+      await page.click('#tapaRapido [data-rap="compras"]');
+      assert.equal((await items(page))[0].estado, 'cotizando', 'factory flow');
+      await page.click('#segBtnCompras');
+      assert.equal(await page.text('#rotCompras'), 'Material recibido');
+      assert.match(await page.text('#chipsCompra'), /Abiertas/);
+      await page.click('#tabRegistro');
+      await page.click('#btnResumen');
+      assert.match(await page.eval("document.getElementById('txtSalida').value"), /COMPRAS ABIERTAS:\n- rodamiento 6204 \(Cotizando\)/);
+      await page.key('Escape');
+      await page.click('#btnRelevo');
+      const relevo = await page.eval("document.getElementById('txtSalida').value");
+      assert.ok(relevo.indexOf('🔧 RELEVO DE TURNO · Taller') === 0, 'factory header: ' + relevo.split('\n')[0]);
+      assert.match(relevo, /COMPRAS PENDIENTES \(1\)/);
+      await page.key('Escape');
+      await page.click('#btnAjustes');
+      assert.ok(await page.visible('#bloqueCatalogos'), 'catalogs shown with a factory section');
+    }
+  },
+  {
+    name: 'sections: a custom lista section gets the simple purchase list labels and report',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'mercado', 'kibco.contextoCaptura': 'mercado', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      await capture(page, 'yerba');
+      await toTasks(page);
+      await openQuickMenu(page, '#lista li.item');
+      await page.click('#tapaRapido [data-rap="compras"]');
+      assert.equal((await items(page))[0].estado, 'por_comprar', 'simple list');
+      await page.click('#segBtnCompras');
+      assert.equal(await page.text('#rotCompras'), 'Lista de compras');
+      assert.match(await page.text('#chipsCompra'), /Por comprar/);
+      assert.doesNotMatch(await page.text('#chipsCompra'), /Cotizando/);
+      await page.click('#tabRegistro');
+      await page.click('#btnRelevo');
+      const relevo = await page.eval("document.getElementById('txtSalida').value");
+      assert.ok(relevo.indexOf('🛒 RELEVO DE TURNO · Mercado') === 0, 'section emoji header: ' + relevo.split('\n')[0]);
+      assert.match(relevo, /LISTA DE COMPRAS \(1\)/);
+    }
+  },
+  {
+    name: 'sections: a section without purchases hides Compras, never offers moving to it and falls back to Tareas',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'taller', 'kibco.contextoCaptura': 'taller', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      await toTasks(page);
+      await page.click('#segBtnCompras');
+      assert.equal(await page.eval("document.getElementById('vistaCompras').style.display"), 'block');
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="estudio"]');
+      assert.equal(await page.eval("document.getElementById('vistaCompras').style.display"), 'none', 'Compras left');
+      assert.equal(await page.eval("document.getElementById('vistaTablero').style.display"), 'block', 'back to Tareas');
+      assert.equal(await page.visible('#segBtnCompras'), false, 'no Compras segment');
+      await capture(page, 'leer capitulo 3');
+      const [it] = await items(page);
+      assert.equal(it.contexto, 'estudio');
+      assert.equal(it.tipo, 'tarea');
+      await openQuickMenu(page, '#lista li.item');
+      assert.equal(await page.visible('#btnRapCompras'), false, 'no Mover a Compras');
+      await page.key('Escape');
+      await page.click('#lista li.item');
+      assert.equal(await page.visible('#btnAcompra'), false, 'no purchase action in the sheet');
+      await page.key('Escape');
+      // Todo still offers Compras while some section uses purchases.
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="todo"]');
+      assert.ok(await page.visible('#segBtnCompras'));
+    }
+  },
+  {
+    name: 'sections: purchase catalogs are hidden in Ajustes without a factory section',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'estudio',
+      'kibco.apartados': JSON.stringify([{ id: 'estudio', nom: 'Estudio', compras: 'no', orden: 0 }, { id: 'mercado', nom: 'Mercado', compras: 'lista', orden: 1 },
+        { id: 'viejo', nom: 'Viejo', compras: 'fabrica', orden: 2, activo: false }]) },
+    async fn(page) {
+      await page.click('#btnAjustes');
+      assert.ok(await page.visible('#btnExportar'));
+      assert.equal(await page.visible('#bloqueCatalogos'), false, 'catalogs hidden');
+      assert.ok(await page.eval("!!document.getElementById('bloqueCatalogos')"), 'present but hidden');
     }
   },
   {

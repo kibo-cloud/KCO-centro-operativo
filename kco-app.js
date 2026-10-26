@@ -808,6 +808,22 @@
     return id === 'todo' ? '\u2B50' : K.emojiApartado(id);
   }
 
+  /* Compras segun el apartado: uno con modo 'no' no las usa. Todo las
+     muestra si algun apartado activo las usa. */
+  function usaCompras(ctx) {
+    var l = K.apartados(), i;
+    if (ctx !== 'todo') { return K.modoCompras(ctx) !== 'no'; }
+    for (i = 0; i < l.length; i++) { if (l[i].compras !== 'no') { return true; } }
+    return false;
+  }
+
+  /* Los catalogos (solicitantes, destinos) solo sirven al flujo de fabrica. */
+  function hayFabrica() {
+    var l = K.apartados(), i;
+    for (i = 0; i < l.length; i++) { if (l[i].compras === 'fabrica') { return true; } }
+    return false;
+  }
+
   /* Identidad visual de un apartado: su color de paleta (kco.css, --pal-*) y
      su icono de iconos.js. Todo es el agregado: acento neutro y una estrella.
      El emoji queda solo en textos que se exportan. */
@@ -1084,7 +1100,7 @@
 
   /* Cambiar de contexto conserva todo el item. Si cambia el tipo de flujo de
      compras (fabrica <-> lista simple) el estado se traduce al equivalente y la
-     pausa se suelta, porque fuera de Trabajo no existe. Se puede deshacer. */
+     pausa se suelta, porque fuera del flujo de fabrica no existe. Se puede deshacer. */
   function moverDeContexto(id, ctx) {
     var it = buscarItem(id);
     if (!it || soloLectura || it.contexto === ctx || !K.contextoValido(ctx)) { return; }
@@ -1447,7 +1463,7 @@
     $('rapTitulo').textContent = it.texto;
     $('rapNivel').style.display = 'none';
     $('btnRapNivel').setAttribute('aria-expanded', 'false');
-    $('btnRapCompras').style.display = it.tipo === 'tarea' && it.rutinaId === '' ? '' : 'none';
+    $('btnRapCompras').style.display = it.tipo === 'tarea' && it.rutinaId === '' && usaCompras(it.contexto) ? '' : 'none';
     pintarOpciones('rapNivel', K.NIVELES, it.nivel, function (n) { return n.nom; }, function (n) {
       cerrarHoja('tapaRapido');
       fijarNivel(id, n.id);
@@ -1631,7 +1647,8 @@
   }
 
   function pintarCompras() {
-    var esHogar = contexto !== 'trabajo' && contexto !== 'todo';
+    /* Los rotulos siguen el modo del apartado; Todo junta los dos flujos. */
+    var esHogar = contexto !== 'todo' && !K.esFabrica(contexto);
     progreso('compra', '', 'progCompraTxt', 'progCompraBarra');
     $('rotCompras').textContent = esHogar ? 'Lista de compras' : (contexto === 'todo' ? 'Compras cerradas' : 'Material recibido');
     var base = esHogar ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
@@ -2368,7 +2385,9 @@
   }
 
   function pintar() {
-    var v;
+    var v, conCompras = usaCompras(contexto);
+    /* Un apartado sin compras no tiene la vista Compras: vuelve a Tareas. */
+    if (vista === 'compras' && !conCompras) { vista = 'tablero'; }
     for (v in VISTA_DOM) {
       if (VISTA_DOM.hasOwnProperty(v)) { $(VISTA_DOM[v]).style.display = vista === v ? 'block' : 'none'; }
     }
@@ -2385,6 +2404,7 @@
     $('segTareas').style.display = vista === 'tablero' || vista === 'compras' ? 'flex' : 'none';
     $('segBtnTareas').className = vista === 'tablero' ? 'segbtn on' : 'segbtn';
     $('segBtnCompras').className = vista === 'compras' ? 'segbtn on' : 'segbtn';
+    $('segBtnCompras').style.display = conCompras ? '' : 'none';
     if (vista === 'ahora') { pintarAhora(); }
     else if (vista === 'hoy') { pintarHoy(); }
     else if (vista === 'tablero') { pintarTablero(); }
@@ -3059,7 +3079,7 @@
     }
     pintarMisionEnFicha(it);
     $('btnHacerRutina').style.display = it.rutinaId === '' && it.tipo === 'tarea' ? '' : 'none';
-    $('btnAcompra').style.display = it.tipo === 'compra' || it.rutinaId !== '' ? 'none' : '';
+    $('btnAcompra').style.display = it.tipo === 'compra' || it.rutinaId !== '' || !usaCompras(it.contexto) ? 'none' : '';
     $('btnVolverTarea').style.display = it.tipo === 'compra' ? '' : 'none';
   }
 
@@ -3068,7 +3088,7 @@
   function moverACompras(id) {
     var it = buscarItem(id);
     /* Una ocurrencia de rutina no es una compra: se completa o se omite. */
-    if (!it || soloLectura || it.tipo === 'compra' || it.rutinaId !== '') { return; }
+    if (!it || soloLectura || it.tipo === 'compra' || it.rutinaId !== '' || !usaCompras(it.contexto)) { return; }
     var foto = fotoDe(it), antes = copiaItem(it);
     var ahora = new Date().toISOString();
     it.tipo = 'compra';
@@ -3209,6 +3229,7 @@
   /* ---------- catalogos en Ajustes ---------- */
 
   function pintarCatalogos() {
+    $('bloqueCatalogos').style.display = hayFabrica() ? '' : 'none';
     pintarCatalogo('chipsSolic', 'vSolic', solicitantes, K_SOLIC, 'solicitante');
     pintarCatalogo('chipsDest', 'vDest', destinos, K_DEST, 'destino');
   }
@@ -3585,7 +3606,7 @@
       else { pend.push(it.texto); }
     }
     bloque('URGENTE:', urgentes);
-    bloque(contexto === 'trabajo' ? 'COMPRAS ABIERTAS:' : 'LISTA DE COMPRAS:', compras);
+    bloque(K.esFabrica(contexto) ? 'COMPRAS ABIERTAS:' : 'LISTA DE COMPRAS:', compras);
     bloque('ESPERANDO:', esp);
     bloque('QUEDA ABIERTO:', pend);
 
@@ -3600,7 +3621,7 @@
     var ahora = new Date();
     var hoy = claveDia(ahora);
     var lineas = [];
-    lineas.push((contexto === 'trabajo' ? '\uD83D\uDD27' : icoCtx(contexto)) + ' RELEVO DE TURNO \u00B7 ' + nomCtx(contexto));
+    lineas.push((K.esFabrica(contexto) ? '\uD83D\uDD27' : icoCtx(contexto)) + ' RELEVO DE TURNO \u00B7 ' + nomCtx(contexto));
     lineas.push('\uD83D\uDCC5 ' + dosDig(ahora.getDate()) + '/' + dosDig(ahora.getMonth() + 1) + '/' +
       ahora.getFullYear() + ' \u00B7 ' + hhmm(ahora));
 
@@ -3646,7 +3667,7 @@
     }
 
     bloque('\u2705 COMPLETADAS', hechas);
-    bloque(contexto === 'trabajo' ? '\uD83D\uDED2 COMPRAS PENDIENTES' : '\uD83D\uDED2 LISTA DE COMPRAS', compras);
+    bloque(K.esFabrica(contexto) ? '\uD83D\uDED2 COMPRAS PENDIENTES' : '\uD83D\uDED2 LISTA DE COMPRAS', compras);
     bloque('\uD83D\uDCAC NOTAS DEL DIA', notas);
     bloque('\uD83D\uDCCC ANCLADO Y URGENTE', ancladas);
 
