@@ -4,9 +4,9 @@
 
   var K = window.KCOCore;
   var VERSION_APP = '2.1.0';
-  /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
-     Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
-  var ESQUEMA = 4;
+  /* Esquema 5 (2.2.0): los contextos pasan a ser apartados del usuario
+     (kibco.apartados). Subirlo sin motivo rompe la compatibilidad de backups. */
+  var ESQUEMA = 5;
   var HORAS_ALERTA_ENTREGA = 48;
   var DIAS_AVISO_BACKUP = 14;
   var LARGO_CAMPO = 60;
@@ -21,6 +21,8 @@
   var VENTANA_EVENTOS_DIAS = 180;
   var AVISO_REGISTRO = 'No se pudo guardar el registro: almacenamiento lleno. Export\u00E1 un backup.';
   var K_ESQUEMA = 'kibco.esquema';
+  /* Registro de apartados (KCOCore.normalizarApartados). */
+  var K_APARTADOS = 'kibco.apartados';
   var K_FILTRO = 'kibco.filtro';
   var K_FILTROC = 'kibco.filtroCompra';
   var K_FILTROTAG = 'kibco.filtroTag';
@@ -88,9 +90,10 @@
 
   var items = [];
   var eventos = [];
-  var contexto = 'trabajo';
+  /* Se fijan al arrancar, ya con el registro de apartados cargado. */
+  var contexto = 'todo';
   /* Donde cae lo que se captura mirando 'Todo': el ultimo contexto elegido. */
-  var ctxCaptura = 'trabajo';
+  var ctxCaptura = '';
   /* Destino elegido con el chip de la barra para la captura en curso ('' = el
      de la vista). Vale para una sola captura: guardar o cambiar de vista lo limpia. */
   var ctxDestino = '';
@@ -107,6 +110,11 @@
      se restaura, porque pisaria datos que esta version no entiende. */
   var esquemaFuturo = false;
   var migrarComprasHogar = false;
+  /* Desde que esquema se sembraron los apartados de siempre ('' = no se sembro). */
+  var apartadosSembradosDesde = '';
+  /* Instalacion nueva sin apartados guardados: la primera corrida ofrece
+     plantillas (T07). Ver cargarApartados. */
+  var necesitaPlantillas = false;
   var itemAbierto = null;
   var confAccion = null;
 
@@ -469,10 +477,19 @@
     return salida;
   }
 
+  /* Hay datos de antes si alguna lista guardada tiene algo (aunque este rota). */
+  function hayDatos() {
+    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS], i, v;
+    for (i = 0; i < claves.length; i++) {
+      v = leer(claves[i]);
+      if (v !== null && v !== '' && v !== '[]') { return true; }
+    }
+    return false;
+  }
+
   function migrar() {
     var v = leer(K_ESQUEMA);
-    if (v === null) { escribir(K_ESQUEMA, '' + ESQUEMA); return; }
-    var n = parseInt(v, 10);
+    var n = v === null ? ESQUEMA : parseInt(v, 10);
     if (isNaN(n)) {
       soloLectura = true;
       avisar('El esquema de datos guardado no se entiende. No escribo nada.');
@@ -492,9 +509,48 @@
       /* 3 -> 4: Hogar deja de usar el flujo de compras de fabrica. Las compras de hogar
          que quedaron con estados de OC/OT se pasan a la lista simple. Se persiste aca
          porque el estado viejo ya no existe en ese contexto. Nada mas se toca. */
-      escribir(K_ESQUEMA, '' + ESQUEMA);
       migrarComprasHogar = n < 4;
     }
+    /* 4 -> 5: los contextos pasan a ser apartados del usuario. Con datos de
+       antes (o un esquema viejo) y sin kibco.apartados se siembran los cinco
+       de siempre, con los mismos ids, colores, tags y modo de compras: ningun
+       item cambia. Sin datos ni esquema es una instalacion nueva: no se siembra. */
+    if (leer(K_APARTADOS) === null && (n < 5 || hayDatos()) &&
+        escribir(K_APARTADOS, JSON.stringify(K.apartadosLegado()))) {
+      apartadosSembradosDesde = v === null ? 'sin esquema' : 'esquema ' + n;
+    }
+    if (v === null || n < ESQUEMA) { escribir(K_ESQUEMA, '' + ESQUEMA); }
+  }
+
+  /* Registro de apartados. Lectura con cuarentena igual que las listas.
+     Sin apartados activos (instalacion nueva) queda necesitaPlantillas para que
+     la primera corrida ofrezca plantillas (T07).
+     PUENTE TEMPORAL hasta T07: mientras no exista el selector de plantillas, un
+     registro vacio se completa con los apartados de siempre SOLO en memoria (no
+     se guarda nada), asi la app sigue usable. T07 reemplaza este puente. */
+  function cargarApartados() {
+    K.fijarApartados(cargarLista(K_APARTADOS, K.normalizarApartado));
+    necesitaPlantillas = false;
+    if (K.apartados().length === 0) {
+      necesitaPlantillas = !soloLectura;
+      K.fijarApartados(K.apartadosLegado());
+    }
+  }
+
+  function guardarApartados() {
+    if (soloLectura || necesitaPlantillas) { return false; }
+    return escribir(K_APARTADOS, JSON.stringify(K.todosApartados()));
+  }
+
+  /* Deja constancia en el registro de la siembra de apartados (necesita los
+     eventos ya cargados, por eso corre despues de migrar). */
+  function aplicarMigracion5() {
+    if (apartadosSembradosDesde === '' || soloLectura) { return; }
+    anotarEventos([{
+      id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'migracion', itemId: '',
+      texto: 'Apartados creados a partir de los 5 contextos de siempre',
+      contexto: K.normalizarContexto(''), desde: apartadosSembradosDesde, hasta: 'esquema 5'
+    }]);
   }
 
   function aplicarMigracion4() {
@@ -738,7 +794,7 @@
   function nomCtx(id) {
     if (id === 'todo') { return 'Todo'; }
     var c = K.infoContexto(id);
-    return c ? c.nom : 'Trabajo';
+    return c ? c.nom : '' + id;
   }
 
   /* Emoji para textos exportados: el icono de un apartado es un nombre de
@@ -795,9 +851,13 @@
   /* Las filas se arman una vez y despues solo se actualizan: repintar no le
      saca el foco de teclado al boton que se acaba de usar. */
   function filasContexto(cont, defs, n, enHoja) {
-    var i, b, id, on;
-    if (!cont.firstChild) {
+    var i, b, id, on, ids = [];
+    /* Las filas se arman de nuevo solo si cambio el registro de apartados. */
+    for (i = 0; i < defs.length; i++) { ids.push(defs[i].id); }
+    if (cont.getAttribute('data-ids') !== ids.join(',')) {
+      while (cont.firstChild) { cont.removeChild(cont.firstChild); }
       for (i = 0; i < defs.length; i++) { cont.appendChild(filaContexto(defs[i].id, enHoja)); }
+      cont.setAttribute('data-ids', ids.join(','));
     }
     for (b = cont.firstChild; b; b = b.nextSibling) {
       id = b.getAttribute('data-ctx');
@@ -3789,7 +3849,7 @@
   }
 
   function aplicarContexto(nuevo, guardar) {
-    contexto = nuevo === 'todo' || K.contextoValido(nuevo) ? nuevo : 'trabajo';
+    contexto = nuevo === 'todo' ? 'todo' : (K.normalizarContexto(nuevo) || 'todo');
     if (contexto !== 'todo') { ctxCaptura = contexto; }
     ctxDestino = '';
     aplicarLuz(false);
@@ -4680,7 +4740,7 @@
   /* ---------- hoja de mision ---------- */
 
   var misionAbierta = null;
-  var misBorradorCtx = 'trabajo';
+  var misBorradorCtx = '';
 
   function abrirMision(id) {
     var p = id ? buscarProyecto(id) : null;
@@ -5399,6 +5459,8 @@
   }
 
   migrar();
+  /* Antes que las listas: normalizarItem valida el contexto contra el registro. */
+  cargarApartados();
   items = cargarLista(K_ITEMS, normalizarItem);
   eventos = cargarLista(K_EVENTOS, normalizarEvento);
   rutinas = cargarLista(K_RUTINAS, normRutina);
@@ -5409,6 +5471,7 @@
   memProgreso = cargarProgreso();
   cargarCatalogos();
   aplicarMigracion4();
+  aplicarMigracion5();
   generarOcurrencias();
   /* Sin copia posible tambien se siembra, pero solo en memoria (guardarProgreso
      no escribe): asi no se festejan logros y niveles viejos en cada carga. */
@@ -5425,7 +5488,7 @@
      no "en que pestaña me quede". */
   vista = 'ahora';
   var cc = leer(K_CTXCAP);
-  ctxCaptura = K.contextoValido(cc) ? cc : 'trabajo';
+  ctxCaptura = K.normalizarContexto(cc);
   aplicarContexto(leer(K_CTX) || 'todo', false);
   pintarFirma();
 
@@ -5457,13 +5520,20 @@
      catalogos) y copias de cuarentena no pisan nada. key null = se borro todo.
      El tema es la unica preferencia que se sincroniza en vivo: es visual, no
      pisa nada y dos ventanas con temas distintos se ven rotas. */
-  var CLAVES_DATOS = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA];
+  var CLAVES_DATOS = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA, K_APARTADOS];
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('storage', function (ev) {
       var k = ev ? ev.key : null;
       if ((k === K_TEMA || k === null) && window.KCOTema) { window.KCOTema.releer(); pintarTema(); }
       if (k !== null && CLAVES_DATOS.indexOf(k) < 0) { return; }
       soloLectura = true;
+      /* Los apartados se releen en vivo: los selectores muestran los nuevos
+         (igual se deja de escribir hasta recargar). */
+      if (k === K_APARTADOS || k === null) {
+        cargarApartados();
+        ctxCaptura = K.normalizarContexto(ctxCaptura);
+        aplicarContexto(contexto, false);
+      }
       avisar('Los datos cambiaron en otra ventana de KCO. Recarga para seguir sin pisar nada.');
     });
   }

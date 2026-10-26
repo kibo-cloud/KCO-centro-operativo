@@ -35,6 +35,16 @@ async function toTasks(page) {
   await page.click('#segBtnTareas');
 }
 
+// Schema-5 sections registry with the five legacy sections, for fixtures that
+// describe current data (so no 4->5 migration event is logged at boot).
+const LEGACY_SECTIONS = JSON.stringify([
+  { id: 'trabajo', nom: 'Trabajo', ico: 'clipboard', color: 'naranja', orden: 0, compras: 'fabrica' },
+  { id: 'hogar', nom: 'Casa', ico: 'users', color: 'cian', orden: 1, alias: ['casa'] },
+  { id: 'apps', nom: 'Apps', ico: 'layers', color: 'violeta', orden: 2, alias: ['app'] },
+  { id: 'contenido', nom: 'Contenido', ico: 'play', color: 'rosa', orden: 3 },
+  { id: 'personal', nom: 'Personal', ico: 'target', color: 'verde', orden: 4 }
+]);
+
 const CORRUPT_PROGRESO_SEED = (() => {
   const list = [];
   for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
@@ -47,7 +57,7 @@ export const tests = [
     name: 'boot: renders without errors',
     async fn(page) {
       assert.match(await page.eval('document.title'), /KCO/);
-      assert.equal(await page.storage('kibco.esquema'), '4');
+      assert.equal(await page.storage('kibco.esquema'), '5');
     }
   },
   {
@@ -175,8 +185,83 @@ export const tests = [
       const list = await items(page);
       assert.equal(list.find((i) => i.id === 'a1').estado, 'por_comprar');
       assert.equal(list.find((i) => i.id === 'a2').estado, 'esperando_oc');
-      assert.equal(await page.storage('kibco.esquema'), '4');
-      assert.ok((await events(page)).some((e) => e.tipo === 'migracion'));
+      assert.equal(await page.storage('kibco.esquema'), '5');
+      const mig = (await events(page)).filter((e) => e.tipo === 'migracion');
+      assert.ok(mig.some((e) => e.hasta === 'esquema 4'), 'hogar purchases migration logged');
+      assert.ok(mig.some((e) => e.hasta === 'esquema 5'), 'sections migration logged');
+      const secs = JSON.parse(await page.storage('kibco.apartados'));
+      assert.deepEqual(secs.map((a) => a.id), ['trabajo', 'hogar', 'apps', 'contenido', 'personal']);
+    }
+  },
+  {
+    name: 'data: schema 4 migrates to 5 seeding the legacy sections',
+    storage: {
+      'kibco.esquema': '4',
+      'kibco.items': JSON.stringify([
+        { id: 'm1', texto: 'tarea casa', contexto: 'hogar', tipo: 'tarea', estado: 'pendiente', nivel: 'normal', creado: '2026-01-01T10:00:00.000Z' },
+        { id: 'm2', texto: 'filtro', contexto: 'trabajo', tipo: 'compra', estado: 'esperando_oc', creado: '2026-01-01T10:00:00.000Z' }
+      ]),
+      'kibco.eventos': '[]'
+    },
+    async fn(page) {
+      assert.equal(await page.storage('kibco.esquema'), '5');
+      const secs = JSON.parse(await page.storage('kibco.apartados'));
+      assert.deepEqual(secs.map((a) => a.id), ['trabajo', 'hogar', 'apps', 'contenido', 'personal']);
+      assert.equal(secs[0].compras, 'fabrica');
+      assert.equal(secs[1].nom, 'Casa');
+      const mig = (await events(page)).filter((e) => e.tipo === 'migracion');
+      assert.equal(mig.length, 1);
+      assert.equal(mig[0].desde, 'esquema 4');
+      assert.equal(mig[0].hasta, 'esquema 5');
+      const list = await items(page);
+      assert.equal(list.find((i) => i.id === 'm1').contexto, 'hogar');
+      assert.equal(list.find((i) => i.id === 'm2').estado, 'esperando_oc');
+      // A second boot does not migrate again.
+      await page.reload();
+      assert.equal((await events(page)).filter((e) => e.tipo === 'migracion').length, 1);
+    }
+  },
+  {
+    name: 'data: fresh install persists no sections and still works',
+    async fn(page) {
+      assert.equal(await page.storage('kibco.apartados'), null);
+      await capture(page, 'primera cosa');
+      assert.equal((await items(page)).length, 1);
+      assert.equal((await events(page)).filter((e) => e.tipo === 'migracion').length, 0);
+    }
+  },
+  {
+    name: 'data: stored custom sections drive the context selector',
+    storage: {
+      'kibco.esquema': '5',
+      'kibco.contexto': 'trabajo',
+      'kibco.contextoCaptura': 'trabajo',
+      'kibco.apartados': JSON.stringify([{ id: 'estudio', nom: 'Estudio', ico: 'target', color: 'azul', orden: 0, compras: 'no' }])
+    },
+    async fn(page) {
+      assert.equal(await page.eval("document.getElementById('ctxNombre').textContent"), 'Estudio');
+      const filas = await page.eval("document.getElementById('ctxsel').textContent");
+      assert.match(filas, /Estudio/);
+      assert.doesNotMatch(filas, /Trabajo|Casa/);
+      await capture(page, 'leer capitulo 2');
+      assert.equal((await items(page))[0].contexto, 'estudio');
+      assert.equal(JSON.parse(await page.storage('kibco.apartados')).length, 1);
+      assert.equal((await events(page)).filter((e) => e.tipo === 'migracion').length, 0);
+    }
+  },
+  {
+    name: 'data: sections changed in another tab are re-applied and writes stop',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': LEGACY_SECTIONS, 'kibco.contexto': 'hogar' },
+    async fn(page) {
+      assert.equal(await page.eval("document.getElementById('ctxNombre').textContent"), 'Casa');
+      await page.eval("(function(){var v=JSON.stringify([{id:'estudio',nom:'Estudio',color:'azul'}]);" +
+        "localStorage.setItem('kibco.apartados',v);window.dispatchEvent(new StorageEvent('storage',{key:'kibco.apartados',newValue:v}));})()");
+      await sleep(100);
+      assert.equal(await page.eval("document.getElementById('ctxNombre').textContent"), 'Estudio');
+      assert.doesNotMatch(await page.eval("document.getElementById('ctxsel').textContent"), /Casa/);
+      assert.ok(await page.visible('#aviso'));
+      await capture(page, 'no deberia guardarse');
+      assert.equal(await page.storage('kibco.items'), null);
     }
   },
   {
@@ -200,6 +285,18 @@ export const tests = [
     }
   },
   {
+    name: 'data: future schema 6 stays read-only and seeds nothing',
+    storage: { 'kibco.esquema': '6', 'kibco.items': JSON.stringify([{ id: 'f1', texto: 'del futuro', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      assert.ok(await page.visible('#aviso'));
+      await capture(page, 'nada');
+      assert.equal(JSON.parse(await page.storage('kibco.items')).length, 1);
+      assert.equal(await page.storage('kibco.esquema'), '6');
+      assert.equal(await page.storage('kibco.apartados'), null);
+      assert.equal(await page.storage('kibco.eventos'), null);
+    }
+  },
+  {
     name: 'backup: text export + file restore round-trip',
     async fn(page) {
       await capture(page, 'item uno');
@@ -209,7 +306,7 @@ export const tests = [
       const json = await page.eval("document.getElementById('txtSalida').value");
       const data = JSON.parse(json);
       assert.equal(data.app, 'kco');
-      assert.equal(data.schema, 4);
+      assert.equal(data.schema, 5);
       assert.equal(data.items.length, 2);
       const file = path.join(os.tmpdir(), 'kco-e2e-backup.json');
       fs.writeFileSync(file, json);
@@ -845,7 +942,7 @@ export const tests = [
       const ts = new Date(Date.now() - 400 * 86400000).toISOString();
       for (let i = 0; i < 50; i++) old.push({ id: 'old' + i, ts, tipo: 'captura', itemId: 'gone' + i, texto: 'ruido viejo', contexto: 'trabajo', desde: '', hasta: '' });
       old.push({ id: 'keep', ts, tipo: 'hito', itemId: 'p1', texto: 'KCO', contexto: 'apps', desde: '50', hasta: 'Release' });
-      return { 'kibco.esquema': '4', 'kibco.eventos': JSON.stringify(old) };
+      return { 'kibco.esquema': '5', 'kibco.apartados': LEGACY_SECTIONS, 'kibco.eventos': JSON.stringify(old) };
     })(),
     async fn(page) {
       // Quota stand-in: the log only fits once the old noise is gone.
@@ -1593,7 +1690,7 @@ export const tests = [
       const old = [];
       const ts = new Date(Date.now() - 400 * 86400000).toISOString();
       for (let i = 0; i < 20; i++) old.push({ id: 'old' + i, ts, tipo: 'captura', itemId: 'gone' + i, texto: 'ruido viejo', contexto: 'trabajo', desde: '', hasta: '' });
-      return { 'kibco.esquema': '4', 'kibco.eventos': JSON.stringify(old) };
+      return { 'kibco.esquema': '5', 'kibco.apartados': LEGACY_SECTIONS, 'kibco.eventos': JSON.stringify(old) };
     })(),
     async fn(page) {
       const before = await page.storage('kibco.eventos');
@@ -2082,7 +2179,7 @@ export const tests = [
   },
   {
     name: 'empty: missions, diary, an empty campaign and search show an empty state whose action works',
-    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'trabajo' },
     async fn(page) {
       await page.click('#tabMisiones');
       await emptyState(page, '#misionesCuerpo [data-vacio="misiones"]');
