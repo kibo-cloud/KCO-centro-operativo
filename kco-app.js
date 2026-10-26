@@ -1372,7 +1372,8 @@
       $('btnRapNivel').setAttribute('aria-expanded', abierto ? 'false' : 'true');
       return;
     }
-    cerrarHoja('tapaRapido');
+    /* La hoja que siga (ficha, confirmar) ocupa la entrada del menu rapido. */
+    cerrarParaRelevo('tapaRapido');
     if (cual === 'hoy') {
       if (it.estado === 'entrada') { sacarDeInbox(id, true); } else { fijarFecha(id, hoyClave()); }
     } else if (cual === 'manana') {
@@ -1384,6 +1385,7 @@
     } else if (cual === 'ficha') {
       abrirItem(id);
     }
+    soltarRelevo();
   }
 
   /* Filtro por clasificacion: encontrar sin abrir el teclado.
@@ -2198,11 +2200,12 @@
     pintar();
     if (sinHistorial) { return; }
     if (v !== 'ahora') {
-      if (!anclaPuesta && pilaCapas.length === 0) {
-        anclaPuesta = empujarHistorial({ kcoAncla: true });
+      if (anclaSerie === '' && pilaCapas.length === 0) {
+        var s = nuevaSerie();
+        if (empujarHistorial({ kcoAncla: true, kcoNivel: 0, kcoSerie: s })) { anclaSerie = s; }
       }
-    } else if (anclaPuesta && pilaCapas.length === 0) {
-      anclaPuesta = false;
+    } else if (anclaSerie !== '' && pilaCapas.length === 0) {
+      anclaSerie = '';
       retrocederHistorial(1);
     }
   }
@@ -2246,85 +2249,108 @@
      el siguiente "atras" hace lo de siempre. */
 
   var pilaCapas = [];
-  /* Retrocesos propios en vuelo: cada history.go() dispara un solo popstate,
-     sin importar cuantas entradas salte, y ese popstate no es un "atras". */
-  var ignorarPop = 0;
-  /* history.go() es asincrono: si una hoja se abre mientras un retroceso
-     sigue en vuelo (cerrar el menu rapido y abrir la ficha en el mismo
-     toque), su pushState caeria antes del retroceso y el retroceso se
-     llevaria la entrada nueva. Esas hojas esperan aca y empujan su entrada
-     recien cuando llego el popstate del retroceso. */
-  var capasEnEspera = [];
-  var anclaPuesta = false;
-  /* El popstate de un retroceso propio puede no llegar nunca: history.go() en
-     el borde del historial no hace nada, una navegacion externa o volver desde
-     el bfcache se lo comen. Si en VIGIA_POP ms no llego, se da por terminado:
-     si no, ignorarPop quedaria arriba de 0 y toda hoja nueva esperaria para
-     siempre sin entrada en el historial. */
-  var VIGIA_POP = 300;
-  var vigiaPop = null;
+  /* Identidad de la entrada de historial de cada capa abierta, a la par de
+     pilaCapas ('' = la capa no tiene entrada: history no anda). Cada entrada
+     lleva { kcoCapa, kcoNivel, kcoSerie }; la serie es unica en la sesion. */
+  var seriesCapas = [];
+  /* Serie de la entrada "ancla" (pestaña distinta de Ahora); '' = no hay. */
+  var anclaSerie = '';
+  var semillaSerie = (new Date()).getTime().toString(36) + '.' + Math.floor(Math.random() * 1e6).toString(36);
+  var cuentaSerie = 0;
+  /* Relevo: una hoja se cerro para que otra la reemplace en el mismo toque
+     (menu rapido -> ficha). Su entrada no se retrocede: la proxima entrada que
+     se empuje la reemplaza con replaceState. Asi no queda ningun retroceso en
+     vuelo. soltarRelevo() retrocede si al final nadie la reuso. */
+  var relevo = false;
 
-  function pararVigiaPop() {
-    if (vigiaPop !== null) { window.clearTimeout(vigiaPop); vigiaPop = null; }
-  }
-
-  function terminarRetrocesos() {
-    pararVigiaPop();
-    ignorarPop = 0;
-    soltarCapasEnEspera();
-  }
-
-  function vigilarRetroceso() {
-    pararVigiaPop();
-    if (typeof window.setTimeout !== 'function') { return; }
-    vigiaPop = window.setTimeout(function () {
-      vigiaPop = null;
-      if (ignorarPop > 0) { terminarRetrocesos(); }
-    }, VIGIA_POP);
+  function nuevaSerie() {
+    cuentaSerie = cuentaSerie + 1;
+    return semillaSerie + '.' + cuentaSerie;
   }
 
   function empujarHistorial(dato) {
+    var reemplazar = relevo;
+    relevo = false;
     try {
       if (window.history && typeof window.history.pushState === 'function') {
-        window.history.pushState(dato, '');
+        if (reemplazar) { window.history.replaceState(dato, ''); } else { window.history.pushState(dato, ''); }
         return true;
       }
     } catch (e) { /* sin history: la app sigue andando igual */ }
     return false;
   }
 
+  /* Retroceso propio. No se cuenta ni se espera: su popstate, llegue cuando
+     llegue (o nunca), pasa por reconciliarHistorial y ahi no cierra nada. */
   function retrocederHistorial(n) {
     try {
-      if (window.history && typeof window.history.go === 'function') {
-        ignorarPop = ignorarPop + 1;
-        vigilarRetroceso();
-        window.history.go(-n);
-        return;
-      }
-    } catch (e) { terminarRetrocesos(); }
+      if (window.history && typeof window.history.go === 'function') { window.history.go(-n); }
+    } catch (e) { /* nada: el historial queda con una entrada vieja, que se asienta sola */ }
   }
 
-  /* La entrada de historial de una hoja recien abierta: ya, o cuando termine
-     el retroceso en vuelo. */
+  /* La entrada de historial de una hoja recien abierta. */
   function anotarCapa(id) {
-    if (ignorarPop > 0) { capasEnEspera.push(id); return; }
-    empujarHistorial({ kcoCapa: id });
+    var s = nuevaSerie();
+    return empujarHistorial({ kcoCapa: id, kcoNivel: pilaCapas.length, kcoSerie: s }) ? s : '';
   }
 
-  function soltarCapasEnEspera() {
-    var l = capasEnEspera, i;
-    capasEnEspera = [];
-    for (i = 0; i < l.length; i++) {
-      if (pilaCapas.indexOf(l[i]) > -1) { empujarHistorial({ kcoCapa: l[i] }); }
+  /* Cierra (sin tocar el historial) todas las capas por encima de la posicion
+     pos de la pila; -1 = todas. Devuelve cuantas cerro. */
+  function cerrarCapasSobre(pos) {
+    var n = 0;
+    while (pilaCapas.length - 1 > pos) {
+      cerrarDom(pilaCapas[pilaCapas.length - 1]);
+      pilaCapas.pop();
+      seriesCapas.pop();
+      n++;
     }
+    return n;
   }
 
-  /* Saca la capa de la espera; devuelve si ya tenia entrada en el historial. */
-  function tieneEntrada(id) {
-    var pos = capasEnEspera.indexOf(id);
-    if (pos === -1) { return true; }
-    capasEnEspera.splice(pos, 1);
-    return false;
+  /* Reconciliacion: el popstate (o un pageshow restaurado) dice en que entrada
+     esta el historial; las capas se ajustan a eso. Es idempotente y no lleva
+     cuentas ni timers:
+     - entrada de una capa abierta: se cierran las que estan encima (si es la de
+       arriba, fue un retroceso propio y no pasa nada);
+     - el ancla vigente: se cierran todas las capas;
+     - la entrada base (sin datos de KCO): se cierran todas; si no habia
+       ninguna, una pestaña que no es Ahora vuelve a Ahora;
+     - una entrada vieja (capa ya cerrada, ancla abandonada o de antes de
+       recargar): se asienta en silencio. Es donde cae un retroceso propio que
+       llego tarde, despues de que se abrio otra hoja, y esa hoja no se toca.
+       Si en cambio el retroceso se perdio, el primer "atras" del usuario cae
+       en esa entrada y no cierra nada; el siguiente ya anda. */
+  function reconciliarHistorial(st) {
+    var serie = st && typeof st.kcoSerie === 'string' ? st.kcoSerie : '';
+    var pos;
+    if (serie !== '') {
+      pos = seriesCapas.indexOf(serie);
+      if (pos > -1) { cerrarCapasSobre(pos); return; }
+      if (anclaSerie !== '' && serie === anclaSerie) { cerrarCapasSobre(-1); }
+      return;
+    }
+    if (st && (st.kcoCapa || st.kcoAncla)) { return; }
+    anclaSerie = '';
+    if (cerrarCapasSobre(-1) > 0) { return; }
+    if (vista !== 'ahora') { irAVista('ahora', true); }
+    /* Nada abierto y ya estamos en Ahora: se deja salir. */
+  }
+
+  /* Cierra id (la capa de arriba) para que la proxima hoja ocupe su entrada.
+     Si id no esta arriba o no tiene entrada, es un cierre comun. */
+  function cerrarParaRelevo(id) {
+    var top = pilaCapas.length - 1;
+    if (top < 0 || pilaCapas[top] !== id || seriesCapas[top] === '') { cerrarHoja(id); return; }
+    cerrarDom(id);
+    pilaCapas.pop();
+    seriesCapas.pop();
+    relevo = true;
+  }
+
+  function soltarRelevo() {
+    if (!relevo) { return; }
+    relevo = false;
+    retrocederHistorial(1);
   }
 
   /* Foco: al abrir una hoja se recuerda quien la abrio y al cerrarla el foco
@@ -2383,7 +2409,7 @@
     $(id).style.zIndex = '' + (30 + pilaCapas.length);
     $(id).querySelector('.hoja').scrollTop = 0;
     pilaCapas.push(id);
-    anotarCapa(id);
+    seriesCapas.push(anotarCapa(id));
     enfocarHoja(id);
   }
 
@@ -2521,45 +2547,22 @@
     for (i = 0; i < pilaCapas.length; i++) { if (pilaCapas[i] === id) { pos = i; } }
     if (pos === -1) { cerrarDom(id); return; }
     /* Se cierran tambien las capas que quedaron por encima de esta. Solo se
-       retroceden las que ya tienen entrada (no las que siguen en espera). */
+       retroceden las que tienen entrada en el historial. */
     var cuantas = 0;
     for (i = pilaCapas.length - 1; i >= pos; i--) {
-      if (tieneEntrada(pilaCapas[i])) { cuantas++; }
-      cerrarDom(pilaCapas[i]);
-      pilaCapas.pop();
+      if (seriesCapas[i] !== '') { cuantas++; }
     }
+    cerrarCapasSobre(pos - 1);
     if (cuantas > 0) { retrocederHistorial(cuantas); }
   }
 
   function cerrarTodasLasCapas() {
     if (pilaCapas.length === 0) { return; }
-    var i, cuantas = 0;
-    for (i = pilaCapas.length - 1; i >= 0; i--) {
-      if (tieneEntrada(pilaCapas[i])) { cuantas++; }
-      cerrarDom(pilaCapas[i]);
-    }
-    pilaCapas = [];
-    if (cuantas > 0) { retrocederHistorial(cuantas); }
+    cerrarHoja(pilaCapas[0]);
   }
 
-  function alVolverAtras() {
-    if (ignorarPop > 0) {
-      ignorarPop = ignorarPop - 1;
-      if (ignorarPop === 0) { terminarRetrocesos(); }
-      return;
-    }
-    if (pilaCapas.length > 0) {
-      cerrarDom(pilaCapas[pilaCapas.length - 1]);
-      pilaCapas.pop();
-      return;
-    }
-    if (vista !== 'ahora') {
-      irAVista('ahora', true);
-      anclaPuesta = false;
-      return;
-    }
-    anclaPuesta = false;
-    /* Nada abierto y ya estamos en el tablero: se deja salir. */
+  function alVolverAtras(ev) {
+    reconciliarHistorial(ev && ev.state !== undefined ? ev.state : window.history.state);
   }
 
   /* ---------- gestos ----------
@@ -3338,10 +3341,11 @@
         li.appendChild(tx);
         li.appendChild(l2);
         li.onclick = function () {
-          cerrarHoja('tapaBuscar');
+          cerrarParaRelevo('tapaBuscar');
           if (item.contexto !== contexto) { aplicarContexto(item.contexto, true); }
           if (item.tipo === 'compra') { irAVista('compras'); }
           abrirItem(item.id);
+          soltarRelevo();
         };
         cont.appendChild(li);
       })(it);
@@ -5104,7 +5108,7 @@
         f.appendChild(nodo('span', 'mono h', p[2] + '/' + p[1]));
         f.appendChild(nodo('span', 's', simboloOcurrencia(it)));
         f.appendChild(nodo('span', 'd', it.motivo ? textoMotivo(it.motivo) : estadoInfo(it.estado).nom));
-        f.onclick = function () { cerrarHoja('tapaRutina'); abrirItem(it.id); };
+        f.onclick = function () { cerrarParaRelevo('tapaRutina'); abrirItem(it.id); soltarRelevo(); };
         cont.appendChild(f);
       })(occ[i]);
     }
@@ -5320,15 +5324,15 @@
     }, 30000);
   }
 
-  window.onpopstate = function () { alVolverAtras(); };
+  window.onpopstate = function (ev) { alVolverAtras(ev); };
   /* Girar o achicar la ventana cambia cuantas filas ocupan los chips. */
   window.addEventListener('resize', function () {
     if (document.documentElement.hasAttribute('data-capchips')) { ajustarAltoCaptura(); }
   });
-  /* Volver desde el bfcache: un retroceso que quedo en vuelo ya no va a
-     terminar con su popstate. */
+  /* Volver desde el bfcache: las capas se reconcilian contra la entrada en la
+     que quedo el historial (un retroceso propio en vuelo no cambia nada). */
   window.addEventListener('pageshow', function (ev) {
-    if (ev && ev.persisted && ignorarPop > 0) { terminarRetrocesos(); }
+    if (ev && ev.persisted && window.history) { reconciliarHistorial(window.history.state); }
   });
 
   /* Otra pestaña o ventana de KCO cambio los datos: lo que esta en memoria aca

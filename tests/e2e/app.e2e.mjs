@@ -26,6 +26,10 @@ const TABS_PROBE = `(function(){var n=document.querySelector('.tabs'),t=n.queryS
   for(var i=0;i<t.length;i++){var b=t[i].getBoundingClientRect();if(b.left<0||b.right>w+0.5||b.height<44||b.width<44||t[i].scrollWidth>t[i].clientWidth)bad.push(t[i].id);}
   return {n:t.length,bad:bad,over:n.scrollWidth>n.clientWidth,fixed:getComputedStyle(n).position==='fixed',bottom:r.bottom,h:window.innerHeight};})()`;
 
+// Our own history traversals land late: history.go / back really run 600ms after the call.
+const SLOW_HISTORY = "(function(){var h=history,g=h.go,b=h.back;window.__go=g;window.__back=b;" +
+  "h.go=function(n){setTimeout(function(){g.call(h,n);},600);};h.back=function(){setTimeout(function(){b.call(h);},600);};})()";
+
 async function toTasks(page) {
   await page.click('#tabTareas');
   await page.click('#segBtnTareas');
@@ -1735,6 +1739,101 @@ export const tests = [
       await sleep(200);
       assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'back closes the item sheet');
       assert.equal(await page.eval("document.getElementById('tabTareas').getAttribute('aria-selected')"), 'true', 'back only closed the sheet');
+    }
+  },
+  {
+    name: 'sheets: a slow self-initiated history traversal (popstate after 600ms) never closes the sheet opened meanwhile',
+    storage: seed(),
+    async fn(page) {
+      const isOpen = () => page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1");
+      await openFirstItem(page);
+      await sleep(150);
+      // Our own traversal lands late: history.go / back really run 600ms after the call.
+      await page.eval(SLOW_HISTORY);
+      await page.key('Escape');
+      assert.equal(await isOpen(), false, 'the first sheet closed');
+      await page.click('#lista li.item:nth-child(2)');
+      await sleep(900);
+      assert.ok(await isOpen(), 'the sheet opened meanwhile survives the late popstate');
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaItem');
+      await page.eval('history.go=window.__go;history.back=window.__back');
+      await page.eval('history.back()');
+      await sleep(200);
+      assert.equal(await isOpen(), false, 'one back closes it');
+      assert.equal(await page.eval("document.getElementById('tabTareas').getAttribute('aria-selected')"), 'true', 'back only closed the sheet');
+    }
+  },
+  {
+    name: 'sheets: a stale history entry left by a lost traversal never breaks later back presses',
+    storage: seed(),
+    async fn(page) {
+      const isOpen = () => page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1");
+      const tab = (id) => page.eval(`document.getElementById('${id}').getAttribute('aria-selected')`);
+      await openFirstItem(page);
+      await sleep(150);
+      // The traversal that should drop the first sheet's entry never happens: that entry goes stale.
+      await page.eval('window.__go=history.go;window.__back=history.back;history.go=function(){};history.back=function(){}');
+      await page.key('Escape');
+      await sleep(100);
+      await page.click('#lista li.item:nth-child(2)');
+      await sleep(150);
+      assert.ok(await isOpen());
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaItem', 'the new sheet has its own entry');
+      await page.eval('history.go=window.__go;history.back=window.__back');
+      // The stale entry may absorb one back (it is indistinguishable from a late own traversal); never more.
+      let backs = 0;
+      while (await isOpen() && backs < 3) { await page.eval('history.back()'); await sleep(200); backs++; }
+      assert.equal(await isOpen(), false, 'the sheet closes');
+      assert.ok(backs <= 2, 'within two backs, took ' + backs);
+      assert.equal(await tab('tabTareas'), 'true', 'no back leaked to the view');
+      // After that, history is in step again: one back per sheet, then Tareas -> Ahora.
+      await page.click('#lista li.item');
+      await sleep(150);
+      await page.eval('history.back()');
+      await sleep(200);
+      assert.equal(await isOpen(), false, 'one back closes the next sheet');
+      assert.equal(await tab('tabTareas'), 'true');
+      await page.eval('history.back()');
+      await sleep(200);
+      assert.equal(await tab('tabAhora'), 'true', 'the next back returns to Ahora');
+    }
+  },
+  {
+    name: 'sheets: a persisted pageshow while our own back is in flight keeps the next sheet and its history entry',
+    storage: seed(),
+    async fn(page) {
+      const isOpen = () => page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1");
+      await openFirstItem(page);
+      await sleep(150);
+      await page.eval(SLOW_HISTORY);
+      await page.key('Escape');
+      // Restored from the bfcache before the traversal lands.
+      await page.eval("window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}))");
+      await page.click('#lista li.item:nth-child(2)');
+      await sleep(900);
+      assert.ok(await isOpen(), 'the sheet opened after pageshow survives the late popstate');
+      await page.eval('history.go=window.__go;history.back=window.__back');
+      await page.eval('history.back()');
+      await sleep(200);
+      assert.equal(await isOpen(), false, 'one back closes it');
+      assert.equal(await page.eval("document.getElementById('tabTareas').getAttribute('aria-selected')"), 'true');
+    }
+  },
+  {
+    name: 'capture bar: resizing the viewport while chips show re-measures --capbar-h',
+    storage: seed(),
+    width: 320, height: 700,
+    async fn(page) {
+      await page.type('#txtCaptura', 'turno medico @9:30 mañana !! #contenido');
+      await sleep(50);
+      const h = () => page.eval("[document.documentElement.style.getPropertyValue('--capbar-h'),Math.ceil(document.querySelector('.captura').getBoundingClientRect().height)+'px']");
+      const [wide, wideReal] = await h();
+      assert.equal(wide, wideReal, 'measured at 320px');
+      await page.viewport(430, 700);
+      await sleep(150);
+      const [narrow, narrowReal] = await h();
+      assert.equal(narrow, narrowReal, 'measured again after the resize');
+      assert.notEqual(narrow, wide, 'chips wrap at 320px and fit one row at 430px');
     }
   },
   {
