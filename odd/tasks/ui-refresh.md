@@ -58,6 +58,7 @@ spot-checks one command, commits, runs RDD assess.
 - [x] T05 App shell: bottom tab bar (safe-area), capture above it, compact context selector, desktop sidebar ≥1024px, inline SVG icons.
 - [x] T06 Accessible sheets: dialog role, focus trap/return, Escape, backdrop tap, drag handle + top close, editable title on top.
 - [x] T07 Cards: single round checkbox, no cart button, swipe right = complete, swipe left = quick menu.
+- [x] T07b Quick-menu sheet handoff: closing `#tapaRapido` then opening another sheet (`ficha` -> `tapaItem`, `borrar` -> `tapaConfirmar`) must keep layer stack and `history` in sync (async `history.go` must not pop the new sheet's entry); e2e asserts `history.state.kcoCapa` after each handoff and covers the "Para hoy" quick action (inbox + non-inbox).
 - [ ] T08 Capture bar: live parse chips (context/day/priority), tap to change target context, `n` / `/` shortcut.
 - [ ] T09 Empty states + Ajustes reorder (Backup first, Info last) + empty campaign state.
 - [ ] T10 Large lists "Ver más" chunking, j/k/x keyboard nav, `prefers-reduced-motion`.
@@ -86,8 +87,11 @@ spot-checks one command, commits, runs RDD assess.
 - RDD T05 (`731c80f..e4d7c11`): medium, granted, approved + acknowledged. 2 SUGGESTIONs (ctx backdrop close untested -> covered in T06; sidebar positional span).
 - T06 done in `32dc0e9` (delegated, writer-committed): dialog role/aria-modal, focus trap + return, Escape, backdrop, swipe-down via header, inline editable title with undo, quick row Hecho/Hoy/Mañana/Elegir día, desktop centered 560px dialog. RED 8 -> GREEN; es5 ok, 75 unit, 88 e2e.
 - T07 done in `44a0367` (delegated, writer-committed): round checkbox left (completes; inbox keeps 1-tap "Para hoy"), cart button removed, row swipe right=complete / left=quick menu (`#tapaRapido`: Hoy, Mañana, Prioridad, Mover a Compras, Borrar, Más opciones), long-press/right-click/Shift+F10. Behaviour note: inbox circle now completes instead of moving to pendiente. RED 6 -> GREEN; es5 ok, 75 unit, 92 e2e.
+- T07b done in `294fd56` (delegated, writer-committed): sheets opened while a self-initiated `history.go` is in flight wait in `capasEnEspera` and push their entry when that traversal's popstate arrives; `ignorarPop` now counts one per `history.go` (probe: `go(-2)` fires 1 popstate, the old `+n` leaked swallowed backs). RED: 2 handoff specs failed (`history.state.kcoCapa` null instead of `tapaItem` / `tapaConfirmar`); 2 'Para hoy' specs (inbox + non-inbox) passed as regression coverage. GREEN: es5 ok, 75 unit, 96 e2e.
 
-Last reviewed boundary: `e4d7c11`.
+- RDD T06+T07+docs (`e4d7c11..d48e480`, 9 files, 1264 lines): medium, granted, approved + acknowledged (lineage review-f0d59076961b9b1b, 2026-10-26). Untracked `CLAUDE.md` excluded via `--untracked-scope=exclude`; in-process reviewer needed native `claude.exe` dir on PATH. Advisory -> T07b: R3-quick-menu-close-then-open-history (WARNING, `kco-app.js:1284-1294`), R3-quick-menu-hoy-untested (SUGGESTION).
+
+Last reviewed boundary: `d48e480`.
 
 ## Next step
 
