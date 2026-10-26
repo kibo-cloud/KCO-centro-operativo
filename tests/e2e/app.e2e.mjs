@@ -71,7 +71,7 @@ export const tests = [
       // Rules use the tokens: dark background; the focus ring follows the context accent.
       await scheme(page, 'dark');
       assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(13, 15, 18)');
-      await page.eval("document.body.className='ctx-apps'");
+      await page.eval("document.body.className='pal-violeta'");
       assert.equal((await page.eval("getComputedStyle(document.body).getPropertyValue('--focus').trim()")).toUpperCase(), '#A78BFA');
     }
   },
@@ -247,6 +247,63 @@ export const tests = [
       assert.equal((await items(page))[0].contexto, 'estudio');
       assert.equal(JSON.parse(await page.storage('kibco.apartados')).length, 1);
       assert.equal((await events(page)).filter((e) => e.tipo === 'migracion').length, 0);
+    }
+  },
+  {
+    name: 'sections: a custom section paints its palette color and its icon',
+    storage: {
+      'kibco.esquema': '5',
+      'kibco.contexto': 'estudio',
+      'kibco.apartados': JSON.stringify([{ id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', orden: 0 },
+        { id: 'gym', nom: 'Gym', ico: 'trophy', color: 'lima', orden: 1 }])
+    },
+    async fn(page) {
+      const dot = (sel) => page.eval(`document.querySelector(${JSON.stringify(sel)}).className`);
+      // Name of the section icon (iconos.js SVG) and how many shapes it drew.
+      const ico = (sel) => page.eval(`(function(){var s=document.querySelector(${JSON.stringify(sel)});return s?s.getAttribute('data-ico-nom')+':'+s.childNodes.length:'';})()`);
+      assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'estudio');
+      assert.match(await page.eval('document.body.className'), /\bpal-azul\b/, 'body takes the palette class');
+      assert.equal(await page.eval("getComputedStyle(document.body).getPropertyValue('--accent').trim()"),
+        await page.eval("getComputedStyle(document.documentElement).getPropertyValue('--pal-azul').trim()"));
+      assert.equal(await dot('#ctxPunto'), 'punto pal-azul', 'header dot');
+      assert.equal(await dot('#ctxsel [data-ctx="estudio"] .punto'), 'punto pal-azul');
+      assert.equal(await dot('#ctxsel [data-ctx="gym"] .punto'), 'punto pal-lima');
+      assert.match(await ico('#ctxsel [data-ctx="estudio"] svg.ctxfila-ico'), /^book:[1-9]/, 'selector row shows the icon');
+      assert.match(await ico('#ctxsel [data-ctx="gym"] svg.ctxfila-ico'), /^trophy:[1-9]/);
+      assert.match(await ico('#ctxLateral [data-ctx="estudio"] svg.ctxfila-ico'), /^book:[1-9]/, 'sidebar row shows the icon');
+      assert.match(await ico('#btnCtx svg.ctxchip-ico'), /^book:[1-9]/, 'the header chip shows the icon');
+      // Switching section repaints body, dot and header icon.
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="gym"]');
+      assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'gym');
+      assert.match(await page.eval('document.body.className'), /\bpal-lima\b/);
+      assert.match(await ico('#btnCtx svg.ctxchip-ico'), /^trophy:[1-9]/);
+      // Todo is the neutral aggregate.
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="todo"]');
+      assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'todo');
+      assert.match(await page.eval('document.body.className'), /\bpal-gris\b/);
+      // A color change in the registry (same ids) repaints the rows.
+      await page.eval("(function(){var v=JSON.stringify([{id:'estudio',nom:'Estudio',ico:'book',color:'rojo',orden:0},{id:'gym',nom:'Gym',ico:'trophy',color:'lima',orden:1}]);" +
+        "localStorage.setItem('kibco.apartados',v);window.dispatchEvent(new StorageEvent('storage',{key:'kibco.apartados',newValue:v}));})()");
+      await sleep(100);
+      assert.equal(await dot('#ctxsel [data-ctx="estudio"] .punto'), 'punto pal-rojo');
+    }
+  },
+  {
+    name: 'sections: the destination sheet lists the registry sections with icon and color',
+    storage: {
+      'kibco.esquema': '5',
+      'kibco.contexto': 'estudio',
+      'kibco.apartados': JSON.stringify([{ id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', orden: 0 },
+        { id: 'gym', nom: 'Gym', ico: 'trophy', color: 'lima', orden: 1 }])
+    },
+    async fn(page) {
+      await page.type('#txtCaptura', 'algo');
+      await page.click('#capCtx');
+      const rows = await page.eval("Array.prototype.map.call(document.querySelectorAll('#destsel [data-ctx]'),function(b){var s=b.querySelector('svg.ctxfila-ico');" +
+        "return b.getAttribute('data-ctx')+'|'+b.querySelector('.punto').className+'|'+(s?s.getAttribute('data-ico-nom'):'');})");
+      assert.deepEqual(rows, ['estudio|punto pal-azul|book', 'gym|punto pal-lima|trophy']);
     }
   },
   {
@@ -1213,8 +1270,8 @@ export const tests = [
       assert.equal(await page.eval('getComputedStyle(document.body).color'), 'rgb(21, 24, 30)');
       assert.equal(await page.eval('getComputedStyle(document.documentElement).colorScheme'), 'light');
       assert.deepEqual(await themeColors(page), ['#F2F3F6', '#F2F3F6'], 'every theme-color meta follows the active theme');
-      await page.eval("document.body.className='ctx-apps'");
-      assert.equal((await cssVar(page, 'document.body', '--accent')).toUpperCase(), '#6D28D9', 'context accent has a light variant');
+      await page.eval("document.body.className='pal-violeta'");
+      assert.equal((await cssVar(page, 'document.body', '--accent')).toUpperCase(), '#6D28D9', 'palette accent has a light variant');
       await scheme(page, 'dark');
       assert.equal(await page.eval("document.documentElement.getAttribute('data-tema')"), 'oscuro', 'Sistema follows a live OS change');
       assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(13, 15, 18)');
@@ -1346,7 +1403,8 @@ export const tests = [
       assert.deepEqual(rows.map((x) => x[1]), ['true', 'false', 'false', 'false', 'false', 'false'], 'the current context is checked');
       assert.equal(rows.find((x) => x[0] === 'hogar')[2], '2', 'Casa shows its open count');
       await page.click('#ctxsel [data-ctx="hogar"]');
-      assert.match(await page.eval('document.body.className'), /\bctx-hogar\b/);
+      assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'hogar');
+      assert.match(await page.eval('document.body.className'), /\bpal-cian\b/, 'Casa keeps its cyan accent');
       assert.equal(await page.storage('kibco.contexto'), 'hogar');
       assert.equal(await page.eval("document.getElementById('tapaCtx').className"), 'tapa', 'switcher closes after picking');
       assert.equal(await attr('aria-expanded'), 'false');
@@ -1408,7 +1466,8 @@ export const tests = [
       await page.click('#navLateral [data-vista="tablero"]');
       assert.ok(await page.visible('#vistaTablero'));
       await page.click('#ctxLateral [data-ctx="apps"]');
-      assert.match(await page.eval('document.body.className'), /\bctx-apps\b/);
+      assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'apps');
+      assert.match(await page.eval('document.body.className'), /\bpal-violeta\b/);
       assert.equal(await page.eval("document.querySelector('#ctxLateral [data-ctx=\"apps\"]').getAttribute('aria-pressed')"), 'true');
       assert.equal(await page.count('#lista li.item'), 2, 'only Apps tasks');
     }

@@ -16,7 +16,7 @@
 <!-- Bloqueante a proposito: fija data-tema antes del primer pintado (sin destello). -->
 <script src="./tema.js"></script>
 </head>
-<body class="ctx-trabajo">
+<body class="pal-gris" data-ctx="todo">
 
 <!-- Escritorio (>= 1024px): barra lateral con vistas y contextos. En movil no se muestra. -->
 <aside class="lateral" id="lateral" aria-label="Navegaci&oacute;n">
@@ -28,7 +28,7 @@
 
 <header class="appbar">
   <button class="ctxchip" id="btnCtx" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="tapaCtx">
-    <span class="punto" id="ctxPunto" aria-hidden="true"></span><span class="ctxchip-nom" id="ctxNombre">Trabajo</span><span class="ctxchip-chev" data-ico="chevron-down"></span>
+    <span class="punto" id="ctxPunto" aria-hidden="true"></span><span class="ctxchip-nom" id="ctxNombre">Todo</span><span class="ctxchip-chev" data-ico="chevron-down"></span>
   </button>
   <h1 class="appbar-tit" id="tituloVista">Ahora</h1>
   <span class="crece"></span>

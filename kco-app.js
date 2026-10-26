@@ -806,13 +806,43 @@
     return id === 'todo' ? '\u2B50' : K.emojiApartado(id);
   }
 
-  /* Identidad visual de un contexto en la interfaz: un punto de su color
-     (kco.css, --ctx-*). El emoji queda solo en textos que se exportan. */
+  /* Identidad visual de un apartado: su color de paleta (kco.css, --pal-*) y
+     su icono de iconos.js. Todo es el agregado: acento neutro y una estrella.
+     El emoji queda solo en textos que se exportan. */
+  function colorCtx(id) {
+    var c = id === 'todo' ? null : K.infoContexto(id);
+    return c ? c.color : 'gris';
+  }
+
+  function nomIcoCtx(id) {
+    if (id === 'todo') { return 'star'; }
+    var c = K.infoContexto(id);
+    return c ? c.ico : 'layers';
+  }
+
   function punto(id) {
     var s = document.createElement('span');
-    s.className = 'punto p-' + id;
+    s.className = 'punto pal-' + colorCtx(id);
     s.setAttribute('aria-hidden', 'true');
     return s;
+  }
+
+  /* Icono del apartado; data-ico-nom deja ver cual es (pruebas, depuracion). */
+  function icoApartado(id, clase) {
+    var nom = nomIcoCtx(id), e = svgIco(nom, clase);
+    e.setAttribute('data-ico-nom', nom);
+    return e;
+  }
+
+  /* Firma de lo que se ve de cada apartado: si cambia (otro registro, otro
+     color, icono o nombre) las filas de un selector se arman de nuevo. */
+  function firmaApartados(defs) {
+    var r = [], i, id;
+    for (i = 0; i < defs.length; i++) {
+      id = defs[i].id;
+      r.push(id + ':' + colorCtx(id) + ':' + nomIcoCtx(id) + ':' + nomCtx(id));
+    }
+    return r.join('|');
   }
 
   function badgeCtx(id) {
@@ -841,6 +871,7 @@
     b.className = 'ctxfila';
     b.setAttribute('data-ctx', id);
     b.appendChild(punto(id));
+    b.appendChild(icoApartado(id, 'ctxfila-ico'));
     b.appendChild(nodo('span', 'ctxfila-nom', nomCtx(id)));
     b.appendChild(nodo('span', 'ctxfila-n', '0'));
     b.appendChild(svgIco('check', 'ctxfila-ok'));
@@ -854,13 +885,12 @@
   /* Las filas se arman una vez y despues solo se actualizan: repintar no le
      saca el foco de teclado al boton que se acaba de usar. */
   function filasContexto(cont, defs, n, enHoja) {
-    var i, b, id, on, ids = [];
-    /* Las filas se arman de nuevo solo si cambio el registro de apartados. */
-    for (i = 0; i < defs.length; i++) { ids.push(defs[i].id); }
-    if (cont.getAttribute('data-ids') !== ids.join(',')) {
+    var i, b, id, on, firma = firmaApartados(defs);
+    /* Las filas se arman de nuevo solo si cambio lo que muestran los apartados. */
+    if (cont.getAttribute('data-firma') !== firma) {
       while (cont.firstChild) { cont.removeChild(cont.firstChild); }
       for (i = 0; i < defs.length; i++) { cont.appendChild(filaContexto(defs[i].id, enHoja)); }
-      cont.setAttribute('data-ids', ids.join(','));
+      cont.setAttribute('data-firma', firma);
     }
     for (b = cont.firstChild; b; b = b.nextSibling) {
       id = b.getAttribute('data-ctx');
@@ -877,7 +907,18 @@
     var defs = [{ id: 'todo' }].concat(K.CONTEXTOS), n = cuentasPorContexto();
     filasContexto($('ctxsel'), defs, n, true);
     filasContexto($('ctxLateral'), defs, n, false);
-    $('ctxPunto').className = 'punto p-' + contexto;
+    pintarChipContexto();
+    aplicarClaseCuerpo();
+  }
+
+  /* Chip de la barra superior: punto, icono y nombre del apartado actual. */
+  function pintarChipContexto() {
+    var p = $('ctxPunto'), nom = nomIcoCtx(contexto), viejo = p.parentNode.getElementsByClassName('ctxchip-ico')[0];
+    p.className = 'punto pal-' + colorCtx(contexto);
+    if (!viejo || viejo.getAttribute('data-ico-nom') !== nom) {
+      if (viejo) { viejo.parentNode.removeChild(viejo); }
+      p.parentNode.insertBefore(icoApartado(contexto, 'ctxchip-ico'), p.nextSibling);
+    }
     $('ctxNombre').textContent = nomCtx(contexto);
   }
 
@@ -947,18 +988,22 @@
     b.className = 'ctxfila';
     b.setAttribute('data-ctx', id);
     b.appendChild(punto(id));
+    b.appendChild(icoApartado(id, 'ctxfila-ico'));
     b.appendChild(nodo('span', 'ctxfila-nom', nomCtx(id)));
     b.appendChild(svgIco('check', 'ctxfila-ok'));
     b.onclick = function () { elegirDestino(id); };
     return b;
   }
 
-  /* Hoja "Guardar en": los cinco contextos (Todo no es un destino). */
+  /* Hoja "Guardar en": los apartados activos (Todo no es un destino). Se arma
+     de nuevo si cambio lo que muestran. */
   function abrirDestinoCaptura() {
-    var cont = $('destsel'), i, b, on;
+    var cont = $('destsel'), i, b, on, firma = firmaApartados(K.CONTEXTOS);
     var actual = destinoCaptura(K.parsearCaptura($('txtCaptura').value, new Date()));
-    if (!cont.firstChild) {
+    if (cont.getAttribute('data-firma') !== firma) {
+      while (cont.firstChild) { cont.removeChild(cont.firstChild); }
       for (i = 0; i < K.CONTEXTOS.length; i++) { cont.appendChild(filaDestino(K.CONTEXTOS[i].id)); }
+      cont.setAttribute('data-firma', firma);
     }
     for (b = cont.firstChild; b; b = b.nextSibling) {
       on = b.getAttribute('data-ctx') === actual;
@@ -993,7 +1038,10 @@
         b.className = (actual === def.id ? 'gbtn on' : 'gbtn') + (def.id === 'urgente' ? ' rojo' : '');
         b.setAttribute(atributo, def.id);
         b.textContent = rotulo(def);
-        if (atributo === 'data-ctx') { b.insertBefore(punto(def.id), b.firstChild); }
+        if (atributo === 'data-ctx') {
+          b.insertBefore(icoApartado(def.id, 'gbtn-ico'), b.firstChild);
+          b.insertBefore(punto(def.id), b.firstChild);
+        }
         b.onclick = function () { alElegir(def); };
         g.appendChild(b);
       })(defs[i]);
@@ -3867,9 +3915,16 @@
 
   /* ---------- contexto ---------- */
 
-  function aplicarLuz(guardar) {
-    var base = 'ctx-' + contexto;
+  /* body lleva el color de paleta del apartado actual (pal-<clave>, Todo es
+     neutro) y su id en data-ctx, mas 'luz' si el modo luz de planta esta activo. */
+  function aplicarClaseCuerpo() {
+    var base = 'pal-' + colorCtx(contexto);
     document.body.className = modoLuz ? base + ' luz' : base;
+    document.body.setAttribute('data-ctx', contexto);
+  }
+
+  function aplicarLuz(guardar) {
+    aplicarClaseCuerpo();
     var b = $('btnLuz');
     if (b) {
       rotular(b, modoLuz ? 'Modo luz de planta: activado' : 'Modo luz de planta');
@@ -4617,6 +4672,7 @@
       var xp = st.xpPorContexto['#' + c.id] || 0;
       var f = nodo('div', 'ctxbar' + (n === 0 ? ' cero' : ''));
       var cn = nodo('span', 'ctxbar-nom', c.nom);
+      cn.insertBefore(icoApartado(c.id, 'ctxbar-ico'), cn.firstChild);
       cn.insertBefore(punto(c.id), cn.firstChild);
       f.appendChild(cn);
       var pista = nodo('span', 'ctxbar-pista');

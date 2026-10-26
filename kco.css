@@ -96,22 +96,44 @@
   --sidebar-w:240px;
   --col-max:760px;
 
-  /* Identidad de cada contexto (punto de color). En oscuro, los acentos de body.ctx-*. */
-  --ctx-todo:#F5C451;
-  --ctx-trabajo:#FF6B2B;
-  --ctx-hogar:#00E5FF;
-  --ctx-apps:#A78BFA;
-  --ctx-contenido:#FF5FA2;
-  --ctx-personal:#3DDC84;
+  /* Paleta de los apartados (KCOCore.COLORES): cada apartado elige una clave y
+     la app pone body.pal-<clave> (acento) y .punto.pal-<clave> (punto). Cada
+     tono da >= 4.5:1 como texto sobre --bg, --surface, --surface-2 y sobre su
+     propio -soft, en oscuro y en claro (tests/unit/paleta.test.js lo mide).
+     naranja, cian, violeta, rosa y verde son los tonos de los cinco contextos
+     de antes. gris es el acento neutro de la vista Todo. */
+  --pal-azul:#60A5FA;
+  --pal-azul-soft:rgba(96,165,250,.12);
+  --pal-verde:#3DDC84;
+  --pal-verde-soft:rgba(61,220,132,.12);
+  --pal-ambar:#F5C451;
+  --pal-ambar-soft:rgba(245,196,81,.12);
+  --pal-rosa:#FF5FA2;
+  --pal-rosa-soft:rgba(255,95,162,.12);
+  --pal-violeta:#A78BFA;
+  --pal-violeta-soft:rgba(167,139,250,.13);
+  --pal-cian:#00E5FF;
+  --pal-cian-soft:rgba(0,229,255,.12);
+  --pal-naranja:#FF6B2B;
+  --pal-naranja-soft:rgba(255,107,43,.12);
+  --pal-rojo:#FF7A70;
+  --pal-rojo-soft:rgba(255,122,112,.12);
+  --pal-lima:#A3E635;
+  --pal-lima-soft:rgba(163,230,53,.12);
+  --pal-gris:#A3ACB9;
+  --pal-gris-soft:rgba(163,172,185,.12);
 }
-body.ctx-hogar{
-  --accent:#00E5FF;
-  --accent-soft:rgba(0,229,255,.12);
-}
-body.ctx-apps{--accent:#A78BFA;--accent-soft:rgba(167,139,250,.13)}
-body.ctx-contenido{--accent:#FF5FA2;--accent-soft:rgba(255,95,162,.12)}
-body.ctx-personal{--accent:#3DDC84;--accent-soft:rgba(61,220,132,.12)}
-body.ctx-todo{--accent:#F5C451;--accent-soft:rgba(245,196,81,.12)}
+/* El tono sale del tema activo: --pal-* se redefine en :root[data-tema="claro"]. */
+body.pal-azul{--accent:var(--pal-azul);--accent-soft:var(--pal-azul-soft)}
+body.pal-verde{--accent:var(--pal-verde);--accent-soft:var(--pal-verde-soft)}
+body.pal-ambar{--accent:var(--pal-ambar);--accent-soft:var(--pal-ambar-soft)}
+body.pal-rosa{--accent:var(--pal-rosa);--accent-soft:var(--pal-rosa-soft)}
+body.pal-violeta{--accent:var(--pal-violeta);--accent-soft:var(--pal-violeta-soft)}
+body.pal-cian{--accent:var(--pal-cian);--accent-soft:var(--pal-cian-soft)}
+body.pal-naranja{--accent:var(--pal-naranja);--accent-soft:var(--pal-naranja-soft)}
+body.pal-rojo{--accent:var(--pal-rojo);--accent-soft:var(--pal-rojo-soft)}
+body.pal-lima{--accent:var(--pal-lima);--accent-soft:var(--pal-lima-soft)}
+body.pal-gris{--accent:var(--pal-gris);--accent-soft:var(--pal-gris-soft)}
 
 /* ---------- tema claro ----------
    Mismos roles, otra paleta. Los acentos se oscurecen para dar AA (>= 4.5:1)
@@ -147,18 +169,29 @@ body.ctx-todo{--accent:#F5C451;--accent-soft:rgba(245,196,81,.12)}
   --shadow-2:0 4px 12px rgba(16,24,40,.10),0 2px 4px rgba(16,24,40,.06);
   --shadow-3:0 12px 32px rgba(16,24,40,.16);
   --shadow-bar:0 -1px 0 rgba(16,24,40,.06),0 -4px 16px rgba(16,24,40,.06);
-  --ctx-todo:#B7790A;
-  --ctx-trabajo:#D9480F;
-  --ctx-hogar:#0B8AA8;
-  --ctx-apps:#7C3AED;
-  --ctx-contenido:#DB2777;
-  --ctx-personal:#16A34A;
+  /* Paleta en claro: tonos oscurecidos para dar AA; naranja y rosa llevan un
+     -soft mas tenue para seguir en 4.5:1 sobre --surface-2. */
+  --pal-azul:#1D4ED8;
+  --pal-azul-soft:rgba(29,78,216,.10);
+  --pal-verde:#126E37;
+  --pal-verde-soft:rgba(18,110,55,.10);
+  --pal-ambar:#8C5506;
+  --pal-ambar-soft:rgba(140,85,6,.10);
+  --pal-rosa:#BE185D;
+  --pal-rosa-soft:rgba(190,24,93,.08);
+  --pal-violeta:#6D28D9;
+  --pal-violeta-soft:rgba(109,40,217,.10);
+  --pal-cian:#0B6880;
+  --pal-cian-soft:rgba(11,104,128,.10);
+  --pal-naranja:#B53A09;
+  --pal-naranja-soft:rgba(181,58,9,.08);
+  --pal-rojo:#B91C1C;
+  --pal-rojo-soft:rgba(185,28,28,.10);
+  --pal-lima:#3F6212;
+  --pal-lima-soft:rgba(63,98,18,.10);
+  --pal-gris:#4B5563;
+  --pal-gris-soft:rgba(75,85,99,.10);
 }
-:root[data-tema="claro"] body.ctx-hogar{--accent:#0B6880;--accent-soft:rgba(11,104,128,.10)}
-:root[data-tema="claro"] body.ctx-apps{--accent:#6D28D9;--accent-soft:rgba(109,40,217,.10)}
-:root[data-tema="claro"] body.ctx-contenido{--accent:#BE185D;--accent-soft:rgba(190,24,93,.10)}
-:root[data-tema="claro"] body.ctx-personal{--accent:#126E37;--accent-soft:rgba(18,110,55,.10)}
-:root[data-tema="claro"] body.ctx-todo{--accent:#8C5506;--accent-soft:rgba(140,85,6,.10)}
 /* En claro las tarjetas blancas sobre fondo gris se separan con una sombra minima. */
 :root[data-tema="claro"] li.item,:root[data-tema="claro"] .tile,:root[data-tema="claro"] .progxp,:root[data-tema="claro"] .mision,:root[data-tema="claro"] .stat,:root[data-tema="claro"] .logro,:root[data-tema="claro"] .hero{box-shadow:var(--shadow-1)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -169,7 +202,7 @@ html,body{margin:0;padding:0;height:100%}
 /* Un gesto horizontal (filas, vistas) nunca dispara el atras/adelante del navegador. */
 html,body,main{overscroll-behavior-x:none}
 body{
-  /* --focus se recalcula aca para tomar el acento del contexto (body.ctx-*). */
+  /* --focus se recalcula aca para tomar el acento del apartado (body.pal-*). */
   --focus:var(--accent);
   background:var(--bg);color:var(--text);
   font-family:var(--font-sans);
@@ -189,13 +222,18 @@ button:active{transform:scale(.97)}
    cuando hay texto al lado (el rotulo va en su propio span). */
 .ico{display:inline-block;width:1.2em;height:1.2em;flex:0 0 auto;vertical-align:-.24em}
 .ico:not(:last-child){margin-right:.45em}
-.punto{display:inline-block;flex:0 0 auto;width:10px;height:10px;border-radius:50%;background:var(--ctx-trabajo);margin-right:.5em;vertical-align:.05em}
-.p-todo{background:var(--ctx-todo)}
-.p-trabajo{background:var(--ctx-trabajo)}
-.p-hogar{background:var(--ctx-hogar)}
-.p-apps{background:var(--ctx-apps)}
-.p-contenido{background:var(--ctx-contenido)}
-.p-personal{background:var(--ctx-personal)}
+/* Punto de color de un apartado: la clase sale de su color de paleta. */
+.punto{display:inline-block;flex:0 0 auto;width:10px;height:10px;border-radius:50%;background:var(--pal-gris);margin-right:.5em;vertical-align:.05em}
+.punto.pal-azul{background:var(--pal-azul)}
+.punto.pal-verde{background:var(--pal-verde)}
+.punto.pal-ambar{background:var(--pal-ambar)}
+.punto.pal-rosa{background:var(--pal-rosa)}
+.punto.pal-violeta{background:var(--pal-violeta)}
+.punto.pal-cian{background:var(--pal-cian)}
+.punto.pal-naranja{background:var(--pal-naranja)}
+.punto.pal-rojo{background:var(--pal-rojo)}
+.punto.pal-lima{background:var(--pal-lima)}
+.punto.pal-gris{background:var(--pal-gris)}
 
 .lateral{display:none}
 header.appbar{
@@ -216,6 +254,7 @@ header.appbar{
 }
 .ctxchip .punto{margin:0}
 .ctxchip-nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctxchip .ctxchip-ico{width:20px;height:20px;margin:0;color:var(--accent)}
 .ctxchip-chev{display:inline-flex;color:var(--text-muted)}
 .ctxchip-chev .ico{width:18px;height:18px;transition:transform var(--dur) var(--ease-out)}
 .ctxchip[aria-expanded="true"] .ctxchip-chev .ico{transform:rotate(180deg)}
@@ -241,6 +280,9 @@ header.appbar{
   color:var(--text);font-size:var(--fs-md);font-weight:500;text-align:left;cursor:pointer;
 }
 .ctxfila .punto{margin:0}
+/* Icono del apartado (iconos.js), entre el punto y el nombre. */
+.ctxfila .ctxfila-ico{width:20px;height:20px;margin:0;color:var(--text-muted)}
+.ctxfila.on .ctxfila-ico{color:var(--accent)}
 .ctxfila-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ctxfila-n{color:var(--text-muted);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
 .ctxfila-ok{width:20px;height:20px;color:var(--accent);visibility:hidden}
