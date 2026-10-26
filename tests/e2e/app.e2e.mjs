@@ -30,6 +30,15 @@ const TABS_PROBE = `(function(){var n=document.querySelector('.tabs'),t=n.queryS
 const SLOW_HISTORY = "(function(){var h=history,g=h.go,b=h.back;window.__go=g;window.__back=b;" +
   "h.go=function(n){setTimeout(function(){g.call(h,n);},600);};h.back=function(){setTimeout(function(){b.call(h);},600);};})()";
 
+const isOpen = (page, id) => page.eval(`document.getElementById(${JSON.stringify(id)}).className.indexOf('on')>-1`);
+// Section ids in the order the Ajustes "Apartados" list shows them.
+const apRows = (page) => page.eval("Array.prototype.map.call(document.querySelectorAll('#listaApartados [data-ap]'),function(r){return r.getAttribute('data-ap');})");
+
+async function openAjustes(page) {
+  await page.click('#btnAjustes');
+  await sleep(120);
+}
+
 async function toTasks(page) {
   await page.click('#tabTareas');
   await page.click('#segBtnTareas');
@@ -398,6 +407,172 @@ export const tests = [
       assert.ok(await page.visible('#btnExportar'));
       assert.equal(await page.visible('#bloqueCatalogos'), false, 'catalogs hidden');
       assert.ok(await page.eval("!!document.getElementById('bloqueCatalogos')"), 'present but hidden');
+    }
+  },
+  {
+    name: 'sections ui: Ajustes lists every section (active first, archived marked) right after Backup',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': JSON.stringify([
+      { id: 'viejo', nom: 'Viejo', ico: 'flag', color: 'gris', orden: 0, activo: false },
+      { id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', orden: 1 },
+      { id: 'gym', nom: 'Gym', ico: 'trophy', color: 'lima', orden: 2 }]) },
+    async fn(page) {
+      await openAjustes(page);
+      assert.deepEqual(await apRows(page), ['estudio', 'gym', 'viejo']);
+      assert.match(await page.text('#listaApartados [data-ap="viejo"]'), /Archivado/);
+      assert.doesNotMatch(await page.text('#listaApartados [data-ap="gym"]'), /Archivado/);
+      assert.equal(await page.eval("document.querySelector('#listaApartados [data-ap=\"gym\"] .punto').className"), 'punto pal-lima');
+      assert.equal(await page.eval("document.querySelector('#listaApartados [data-ap=\"gym\"] svg').getAttribute('data-ico-nom')"), 'trophy');
+      assert.ok(await page.visible('#btnNuevoApartado'));
+      const order = await page.eval("(function(){var h=document.getElementById('tapaAjustes'),a=h.getElementsByTagName('*'),p={},k;for(k=0;k<a.length;k++){if(a[k].id)p[a[k].id]=k;}return p;})()");
+      assert.ok(order.btnImportar < order.listaApartados && order.listaApartados < order.segTema, 'between Backup and Pantalla');
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal scroll at 390px');
+    }
+  },
+  {
+    name: 'sections ui: a new section shows in the selector and #slug capture saves there',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'todo', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#btnNuevoApartado');
+      assert.ok(await isOpen(page, 'tapaApartado'), 'the editor opens');
+      await page.type('#apNom', 'Diseño 3D');
+      assert.match(await page.text('#apSlug'), /#diseno-3d/, 'shows the capture tag');
+      await page.click('#apIcos [data-ico-ap="star"]');
+      await page.click('#apColores [data-color="rosa"]');
+      await page.type('#apDesc', 'Piezas para imprimir');
+      await page.click('#segMetaAp [data-meta="semana"]');
+      await page.type('#apMetaN', '4');
+      await page.type('#apAlias', 'impresion, 3d');
+      assert.match(await page.text('#apAliasPista'), /#impresion/);
+      await page.click('#segComprasAp [data-compras="no"]');
+      await page.type('#apTagNuevo', 'Filamento');
+      await page.click('#btnApTag');
+      await page.click('#btnApGuardar');
+      assert.equal(await isOpen(page, 'tapaApartado'), false, 'the editor closes');
+      assert.ok(await isOpen(page, 'tapaAjustes'), 'back in Ajustes');
+      const regs = JSON.parse(await page.storage('kibco.apartados'));
+      const a = regs.find((x) => x.id === 'diseno-3d');
+      assert.ok(a, 'saved with the slug id: ' + regs.map((x) => x.id));
+      assert.deepEqual([a.nom, a.ico, a.color, a.desc, a.compras, a.orden], ['Diseño 3D', 'star', 'rosa', 'Piezas para imprimir', 'no', 3]);
+      assert.deepEqual(a.meta, { n: 4, periodo: 'semana' });
+      assert.deepEqual(a.alias, ['impresion', '3d']);
+      assert.deepEqual(a.tags, [{ id: 'filamento', nom: 'Filamento' }]);
+      assert.deepEqual(await apRows(page), ['taller', 'mercado', 'estudio', 'diseno-3d']);
+      await page.key('Escape');
+      assert.ok(await page.eval("!!document.querySelector('#ctxsel [data-ctx=\"diseno-3d\"]')"), 'in the selector');
+      await capture(page, 'soporte de monitor #impresion');
+      assert.equal((await items(page)).find((i) => i.texto === 'soporte de monitor').contexto, 'diseno-3d');
+      await capture(page, 'engranaje #diseno-3d');
+      assert.equal((await items(page)).find((i) => i.texto === 'engranaje').contexto, 'diseno-3d');
+      // A second section with the same name gets a unique id; an empty name is refused.
+      await openAjustes(page);
+      await page.click('#btnNuevoApartado');
+      await page.click('#btnApGuardar');
+      assert.ok(await isOpen(page, 'tapaApartado'), 'an empty name keeps the editor open');
+      assert.match(await page.text('#apError'), /nombre/i);
+      await page.type('#apNom', 'Diseño 3D');
+      await page.click('#btnApGuardar');
+      assert.ok(JSON.parse(await page.storage('kibco.apartados')).some((x) => x.id === 'diseno-3d-2'));
+    }
+  },
+  {
+    name: 'sections ui: editing name, color and icon repaints the header and keeps the id',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'estudio', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'e1', texto: 'leer', contexto: 'estudio', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      assert.equal(await page.eval("document.getElementById('apNom').value"), 'Estudio', 'the editor loads the section');
+      assert.match(await page.eval("document.querySelector('#apColores [data-color=\"azul\"]').className"), /\bon\b/);
+      await page.type('#apNom', 'Facultad');
+      await page.click('#apColores [data-color="violeta"]');
+      await page.click('#apIcos [data-ico-ap="compass"]');
+      await page.click('#btnApGuardar');
+      assert.equal(await page.eval("document.getElementById('ctxNombre').textContent"), 'Facultad');
+      assert.equal(await page.eval("document.getElementById('ctxPunto').className"), 'punto pal-violeta');
+      assert.equal(await page.eval("document.querySelector('#btnCtx svg.ctxchip-ico').getAttribute('data-ico-nom')"), 'compass');
+      assert.match(await page.eval('document.body.className'), /\bpal-violeta\b/);
+      assert.match(await page.text('#listaApartados [data-ap="estudio"]'), /Facultad/, 'the Ajustes list follows');
+      assert.equal((await items(page))[0].contexto, 'estudio', 'records keep the stable id');
+      await page.key('Escape');
+      await capture(page, 'parcial #facultad');
+      assert.equal((await items(page)).find((i) => i.texto === 'parcial').contexto, 'estudio', 'the new name captures');
+    }
+  },
+  {
+    name: 'sections ui: reordering changes the selector order and is saved',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      await openAjustes(page);
+      assert.equal(await page.eval("document.querySelector('#listaApartados [data-ap=\"taller\"] [data-subir]').disabled"), true, 'the first cannot go up');
+      assert.equal(await page.eval("document.querySelector('#listaApartados [data-ap=\"estudio\"] [data-bajar]').disabled"), true, 'the last cannot go down');
+      await page.click('#listaApartados [data-ap="estudio"] [data-subir]');
+      assert.deepEqual(await apRows(page), ['taller', 'estudio', 'mercado']);
+      await page.click('#listaApartados [data-ap="taller"] [data-bajar]');
+      assert.deepEqual(await apRows(page), ['estudio', 'taller', 'mercado']);
+      const sel = await page.eval("Array.prototype.map.call(document.querySelectorAll('#ctxsel [data-ctx]'),function(b){return b.getAttribute('data-ctx');})");
+      assert.deepEqual(sel, ['todo', 'estudio', 'taller', 'mercado']);
+      const saved = JSON.parse(await page.storage('kibco.apartados')).sort((a, b) => a.orden - b.orden).map((a) => a.id);
+      assert.deepEqual(saved, ['estudio', 'taller', 'mercado']);
+    }
+  },
+  {
+    name: 'sections ui: a tag rename keeps its id; removing a used tag clears it from items after confirming the count',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'mercado', 'kibco.apartados': JSON.stringify([
+      { id: 'mercado', nom: 'Mercado', orden: 0, tags: [{ id: 'verduras', nom: 'Verduras' }, { id: 'limpieza', nom: 'Limpieza' }] },
+      { id: 'casa', nom: 'Casa', orden: 1, tags: [{ id: 'limpieza', nom: 'Limpieza' }] }]),
+      'kibco.items': JSON.stringify([
+        { id: 'm1', texto: 'tomates', contexto: 'mercado', tag: 'verduras', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+        { id: 'm2', texto: 'lavandina', contexto: 'mercado', tag: 'limpieza', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+        { id: 'm3', texto: 'detergente', contexto: 'mercado', tag: 'limpieza', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+        { id: 'c1', texto: 'trapear', contexto: 'casa', tag: 'limpieza', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.type('#apTags [data-tag="verduras"] input', 'Verdulería');
+      await page.click('#apTags [data-tag="limpieza"] [data-quitar]');
+      assert.equal(await page.count('#apTags [data-tag="limpieza"]'), 0, 'removed from the draft');
+      await page.click('#btnApGuardar');
+      assert.ok(await isOpen(page, 'tapaConfirmar'), 'removing a used tag asks first');
+      assert.match(await page.text('#confDetalle'), /2 items/);
+      await page.click('#btnConfSi');
+      await sleep(150);
+      const reg = JSON.parse(await page.storage('kibco.apartados'));
+      assert.deepEqual(reg.find((a) => a.id === 'mercado').tags, [{ id: 'verduras', nom: 'Verdulería' }]);
+      const list = await items(page);
+      assert.equal(list.find((i) => i.id === 'm1').tag, 'verduras', 'renamed tag keeps its id on items');
+      assert.equal(list.find((i) => i.id === 'm2').tag, '');
+      assert.equal(list.find((i) => i.id === 'm3').tag, '');
+      assert.equal(list.find((i) => i.id === 'c1').tag, 'limpieza', 'another section using the same tag id is untouched');
+      assert.ok(await isOpen(page, 'tapaAjustes'), 'back in Ajustes after confirming');
+      assert.equal(await isOpen(page, 'tapaApartado'), false);
+    }
+  },
+  {
+    name: 'sections ui: back from the editor returns to Ajustes, a second back closes Ajustes',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await sleep(150);
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaApartado');
+      await page.eval('history.back()');
+      await sleep(250);
+      assert.equal(await isOpen(page, 'tapaApartado'), false, 'back closes the editor');
+      assert.ok(await isOpen(page, 'tapaAjustes'), 'Ajustes stays open');
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaAjustes');
+      await page.eval('history.back()');
+      await sleep(250);
+      assert.equal(await isOpen(page, 'tapaAjustes'), false, 'a second back closes Ajustes');
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), null);
+      // Saving from the editor also lands in Ajustes with its entry on top.
+      await openAjustes(page);
+      await page.click('#btnNuevoApartado');
+      await page.type('#apNom', 'Huerta');
+      await page.click('#btnApGuardar');
+      await sleep(250);
+      assert.ok(await isOpen(page, 'tapaAjustes'));
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaAjustes');
     }
   },
   {
@@ -2599,7 +2774,7 @@ export const tests = [
         var ids=['vBackup','btnExportar','btnBackupTexto','btnImportar','archivoImport','segTema','btnLuz','vNotif','btnPermiso','vSolic','chipsSolic','txtNuevoSolic','btnSumarSolic','vDest','chipsDest','txtNuevoDest','btnSumarDest','vApp','vSw','vEsquema','vTotal','vEventos','pieVersion','pieEsquema'],p={};
         for(i=0;i<ids.length;i++){p[ids[i]]=pos(ids[i]);}
         var pie=h.querySelector('.pie');return {rot:t,p:p,pieLast:!!pie&&pie===h.querySelector('.hoja').lastElementChild};})()`);
-      assert.deepEqual(r.rot, ['Backup', 'Pantalla', 'Recordatorios', 'Cat\u00E1logos de compras', 'Info']);
+      assert.deepEqual(r.rot, ['Backup', 'Apartados', 'Pantalla', 'Recordatorios', 'Cat\u00E1logos de compras', 'Info']);
       for (const [id, k] of Object.entries(r.p)) assert.ok(k > -1, id + ' is still in Ajustes');
       assert.ok(r.p.btnExportar < r.p.segTema && r.p.vBackup < r.p.btnExportar, 'backup comes first, with its last-backup date');
       assert.ok(r.p.vApp > r.p.btnSumarDest, 'version info comes after every setting');

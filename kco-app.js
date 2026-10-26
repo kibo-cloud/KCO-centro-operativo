@@ -3938,6 +3938,354 @@
       function () { aplicarBackup(datos); });
   }
 
+  /* ---------- apartados en Ajustes ----------
+     Lista de todos los apartados (activos primero, despues los archivados),
+     con orden manual y un editor (#tapaApartado) que se abre encima de
+     Ajustes: atras cierra el editor y deja Ajustes; otro atras cierra Ajustes.
+     Lo que cambia datos (quitar etiquetas usadas) pide confirmacion con un
+     relevo: la confirmacion ocupa la entrada del editor y al terminar queda
+     Ajustes. Cada cambio fija el registro, lo guarda y repinta selectores,
+     catalogos y la vista actual; si no se puede guardar vuelve el de antes. */
+
+  /* Iconos que se ofrecen: existen en iconos.js y tienen emoji para los
+     textos exportados (KCOCore.emojiApartado). */
+  var ICONOS_APARTADO = ['layers', 'clipboard', 'users', 'play', 'target', 'book', 'star', 'compass',
+    'cart', 'settings', 'calendar', 'clock', 'flag', 'trophy', 'trending-up', 'zap', 'bell', 'message',
+    'sun', 'pin', 'inbox', 'list', 'tareas', 'repeat', 'search'];
+  var NOMBRES_COLOR = { azul: 'Azul', verde: 'Verde', ambar: '\u00C1mbar', rosa: 'Rosa', violeta: 'Violeta',
+    cian: 'Cian', naranja: 'Naranja', rojo: 'Rojo', lima: 'Lima', gris: 'Gris' };
+  var PISTA_COMPRAS = {
+    no: 'Este apartado no usa compras.',
+    lista: 'Lista simple: por comprar, comprado o cancelado.',
+    fabrica: 'Con seguimiento: cotizaci\u00F3n, OC y entrega (con alerta de +48 hs).'
+  };
+  /* Borrador del editor: copia del apartado que se edita (id '' = nuevo). */
+  var borradorAp = null;
+
+  function copiaApartado(a) { return JSON.parse(JSON.stringify(a)); }
+
+  function iconosApartado() {
+    var r = [], i;
+    for (i = 0; i < ICONOS_APARTADO.length; i++) {
+      if (!window.KCOIconos || window.KCOIconos.existe(ICONOS_APARTADO[i])) { r.push(ICONOS_APARTADO[i]); }
+    }
+    return r;
+  }
+
+  /* Orden de la lista: activos y despues archivados, cada grupo por su orden. */
+  function apartadosEnLista() {
+    var l = K.todosApartados(), act = [], arch = [], i;
+    for (i = 0; i < l.length; i++) { (l[i].activo ? act : arch).push(l[i]); }
+    return act.concat(arch);
+  }
+
+  function pintarApartados() {
+    var cont = $('listaApartados'), l = apartadosEnLista(), i;
+    if (!cont) { return; }
+    vaciar(cont);
+    for (i = 0; i < l.length; i++) { cont.appendChild(filaApartado(l, i)); }
+    $('btnNuevoApartado').disabled = soloLectura;
+  }
+
+  function botonOrden(a, dir, tope) {
+    var b = document.createElement('button'), rot = (dir === 'subir' ? 'Subir ' : 'Bajar ') + a.nom;
+    b.type = 'button';
+    b.className = 'iconobtn apfila-orden';
+    b.setAttribute('data-' + dir, '');
+    b.setAttribute('aria-label', rot);
+    b.setAttribute('title', rot);
+    b.appendChild(svgIco(dir === 'subir' ? 'chevron-up' : 'chevron-down'));
+    b.disabled = tope || soloLectura;
+    b.onclick = function () { moverApartado(a.id, dir === 'subir' ? -1 : 1); };
+    return b;
+  }
+
+  /* Fila: punto, icono y nombre (tocar edita) mas subir y bajar dentro de su
+     grupo (activos o archivados). */
+  function filaApartado(l, i) {
+    var a = l[i], f = nodo('div', a.activo ? 'apfila' : 'apfila archivado'), b = document.createElement('button');
+    var arriba = i > 0 && l[i - 1].activo === a.activo, abajo = i < l.length - 1 && l[i + 1].activo === a.activo;
+    f.setAttribute('role', 'listitem');
+    f.setAttribute('data-ap', a.id);
+    b.type = 'button';
+    b.className = 'apfila-abrir';
+    b.appendChild(punto(a.id));
+    b.appendChild(icoApartado(a.id, 'apfila-ico'));
+    b.appendChild(nodo('span', 'apfila-nom', a.nom));
+    if (!a.activo) { b.appendChild(nodo('span', 'badge apfila-arch', 'Archivado')); }
+    b.setAttribute('aria-label', 'Editar ' + a.nom + (a.activo ? '' : ' (archivado)'));
+    b.onclick = function () { abrirEditorApartado(a.id); };
+    f.appendChild(b);
+    f.appendChild(botonOrden(a, 'subir', !arriba));
+    f.appendChild(botonOrden(a, 'bajar', !abajo));
+    return f;
+  }
+
+  /* Despues de cambiar el registro: el contexto de la vista y el de captura
+     siguen siendo validos (uno que ya no se ofrece pasa a Todo), y se
+     repinta todo lo que muestra apartados. */
+  function refrescarApartados() {
+    ctxCaptura = K.normalizarContexto(ctxCaptura);
+    if (contexto !== 'todo' && !K.contextoValido(contexto)) { contexto = 'todo'; }
+    aplicarContexto(contexto, !soloLectura);
+    pintarCatalogos();
+    pintarApartados();
+  }
+
+  /* Fija y guarda un registro nuevo; si no se puede guardar vuelve el de
+     antes. Guardar a mano tambien cierra el puente de instalacion nueva:
+     la persona ya eligio sus apartados. */
+  function guardarRegistro(lista) {
+    if (soloLectura) { return false; }
+    var antes = K.todosApartados(), plantillas = necesitaPlantillas;
+    K.fijarApartados(lista);
+    necesitaPlantillas = false;
+    if (!guardarApartados()) {
+      K.fijarApartados(antes);
+      necesitaPlantillas = plantillas;
+      refrescarApartados();
+      return false;
+    }
+    refrescarApartados();
+    return true;
+  }
+
+  function moverApartado(id, paso) {
+    if (soloLectura) { return; }
+    var l = apartadosEnLista(), pos = -1, otro, i, x;
+    for (i = 0; i < l.length; i++) { if (l[i].id === id) { pos = i; } }
+    otro = pos + paso;
+    if (pos < 0 || otro < 0 || otro >= l.length || l[otro].activo !== l[pos].activo) { return; }
+    x = l[pos]; l[pos] = l[otro]; l[otro] = x;
+    for (i = 0; i < l.length; i++) { l[i] = copiaApartado(l[i]); l[i].orden = i; }
+    if (guardarRegistro(l)) {
+      x = document.querySelector('#listaApartados [data-ap="' + id + '"] [data-' + (paso < 0 ? 'subir' : 'bajar') + ']');
+      if (x && !x.disabled) { enfocar(x); } else { enfocar(document.querySelector('#listaApartados [data-ap="' + id + '"] .apfila-abrir')); }
+    }
+  }
+
+  function abrirEditorApartado(id) {
+    var a = id ? K.infoContexto(id) : null;
+    borradorAp = a ? copiaApartado(a) : { id: '', nom: '', ico: 'layers', color: colorLibre(), orden: K.todosApartados().length,
+      desc: '', meta: null, alias: [], compras: 'lista', tags: [], activo: true };
+    $('apTitulo').textContent = a ? 'Editar apartado' : 'Nuevo apartado';
+    $('apNom').value = borradorAp.nom;
+    $('apDesc').value = borradorAp.desc;
+    $('apAlias').value = borradorAp.alias.join(', ');
+    $('apMetaN').value = borradorAp.meta ? '' + borradorAp.meta.n : '5';
+    $('apTagNuevo').value = '';
+    $('apError').textContent = '';
+    $('btnApGuardar').disabled = soloLectura;
+    pintarEditorApartado();
+    abrirHoja('tapaApartado');
+  }
+
+  /* Un color que ningun apartado activo use todavia (si hay). */
+  function colorLibre() {
+    var l = K.apartados(), usados = {}, i;
+    for (i = 0; i < l.length; i++) { usados[l[i].color] = true; }
+    for (i = 0; i < K.COLORES.length; i++) { if (!usados[K.COLORES[i]]) { return K.COLORES[i]; } }
+    return 'gris';
+  }
+
+  /* Lo tipeado en el editor pasa al borrador (las grillas lo actualizan al tocar). */
+  function leerBorradorAp() {
+    var filas = $('apTags').querySelectorAll('[data-tag]'), i, j, inp;
+    borradorAp.nom = $('apNom').value;
+    borradorAp.desc = $('apDesc').value;
+    borradorAp.alias = $('apAlias').value.split(',');
+    for (i = 0; i < filas.length; i++) {
+      inp = filas[i].getElementsByTagName('input')[0];
+      for (j = 0; j < borradorAp.tags.length; j++) {
+        if (borradorAp.tags[j].id === filas[i].getAttribute('data-tag') && inp) { borradorAp.tags[j].nom = inp.value; }
+      }
+    }
+    if (borradorAp.meta) { borradorAp.meta.n = parseInt($('apMetaN').value, 10); }
+  }
+
+  function marcar(cont, atributo, valor) {
+    var l = cont.querySelectorAll('[' + atributo + ']'), i, on;
+    for (i = 0; i < l.length; i++) {
+      on = l[i].getAttribute(atributo) === valor;
+      l[i].className = on ? 'gbtn on' : 'gbtn';
+      l[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  function etiquetasCaptura(lista) {
+    var r = [], vistos = {}, i, s;
+    for (i = 0; i < lista.length; i++) {
+      s = K.slug(lista[i]);
+      if (s !== '' && s !== 'todo' && !vistos['#' + s]) { vistos['#' + s] = true; r.push('#' + s); }
+    }
+    return r.join(' ');
+  }
+
+  function pintarPistasAp() {
+    var nom = $('apNom').value, tags = etiquetasCaptura([borradorAp.id, nom]);
+    $('apSlug').textContent = tags === '' ? 'Con un nombre se captura con su #etiqueta.' : 'Se captura con ' + tags;
+    tags = etiquetasCaptura($('apAlias').value.split(','));
+    $('apAliasPista').textContent = tags === '' ? 'Otras #etiquetas que tambi\u00E9n guardan en este apartado.' : 'Tambi\u00E9n con ' + tags;
+  }
+
+  function pintarEditorApartado() {
+    var g = $('apIcos'), c = $('apColores'), l = iconosApartado(), i;
+    vaciar(g);
+    for (i = 0; i < l.length; i++) {
+      (function (nom) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-ico-ap', nom);
+        b.setAttribute('aria-label', 'Icono ' + nom);
+        b.setAttribute('title', nom);
+        b.appendChild(svgIco(nom));
+        b.onclick = function () { borradorAp.ico = nom; marcar(g, 'data-ico-ap', nom); };
+        g.appendChild(b);
+      })(l[i]);
+    }
+    marcar(g, 'data-ico-ap', borradorAp.ico);
+    vaciar(c);
+    for (i = 0; i < K.COLORES.length; i++) {
+      (function (col) {
+        var b = document.createElement('button'), p = nodo('span', 'punto pal-' + col);
+        b.type = 'button';
+        b.setAttribute('data-color', col);
+        b.setAttribute('aria-label', 'Color ' + NOMBRES_COLOR[col]);
+        b.setAttribute('title', NOMBRES_COLOR[col]);
+        p.setAttribute('aria-hidden', 'true');
+        b.appendChild(p);
+        b.onclick = function () { borradorAp.color = col; marcar(c, 'data-color', col); };
+        c.appendChild(b);
+      })(K.COLORES[i]);
+    }
+    marcar(c, 'data-color', borradorAp.color);
+    marcar($('segMetaAp'), 'data-meta', borradorAp.meta ? borradorAp.meta.periodo : 'no');
+    $('cajaMetaN').style.display = borradorAp.meta ? '' : 'none';
+    marcar($('segComprasAp'), 'data-compras', borradorAp.compras);
+    $('apComprasPista').textContent = PISTA_COMPRAS[borradorAp.compras];
+    pintarTagsAp();
+    pintarPistasAp();
+  }
+
+  function pintarTagsAp() {
+    var cont = $('apTags'), i;
+    vaciar(cont);
+    if (borradorAp.tags.length === 0) {
+      cont.appendChild(nodo('div', 'pista aptags-vacio', 'Sin etiquetas. Sirven para clasificar los items de este apartado.'));
+    }
+    for (i = 0; i < borradorAp.tags.length; i++) {
+      (function (t) {
+        var f = nodo('div', 'aptag'), inp = document.createElement('input'), x = document.createElement('button');
+        f.setAttribute('role', 'listitem');
+        f.setAttribute('data-tag', t.id);
+        inp.type = 'text';
+        inp.maxLength = 30;
+        inp.value = t.nom;
+        inp.setAttribute('autocomplete', 'off');
+        inp.setAttribute('aria-label', 'Nombre de la etiqueta ' + t.nom);
+        x.type = 'button';
+        x.className = 'iconobtn';
+        x.setAttribute('data-quitar', '');
+        x.setAttribute('aria-label', 'Quitar la etiqueta ' + t.nom);
+        x.setAttribute('title', 'Quitar');
+        x.appendChild(svgIco('x'));
+        x.onclick = function () { quitarTagAp(t.id); };
+        f.appendChild(inp);
+        f.appendChild(x);
+        cont.appendChild(f);
+      })(borradorAp.tags[i]);
+    }
+  }
+
+  function sumarTagAp() {
+    if (!borradorAp) { return; }
+    leerBorradorAp();
+    var nom = $('apTagNuevo').value.replace(/^\s+|\s+$/g, ''), ids = [], i;
+    if (nom === '') { enfocar($('apTagNuevo')); return; }
+    if (borradorAp.tags.length >= 30) { $('apError').textContent = 'Hasta 30 etiquetas por apartado.'; return; }
+    for (i = 0; i < borradorAp.tags.length; i++) { ids.push(borradorAp.tags[i].id); }
+    borradorAp.tags.push({ id: K.idUnico(nom, ids, 'etiqueta'), nom: nom.slice(0, 30) });
+    $('apTagNuevo').value = '';
+    $('apError').textContent = '';
+    pintarTagsAp();
+    enfocar($('apTagNuevo'));
+  }
+
+  function quitarTagAp(id) {
+    var r = [], i;
+    leerBorradorAp();
+    for (i = 0; i < borradorAp.tags.length; i++) { if (borradorAp.tags[i].id !== id) { r.push(borradorAp.tags[i]); } }
+    borradorAp.tags = r;
+    pintarTagsAp();
+  }
+
+  /* Items del apartado que usan alguno de los tags quitados. */
+  function itemsConTags(ctx, ids) {
+    var r = [], i;
+    for (i = 0; i < items.length; i++) {
+      if (items[i].contexto === ctx && items[i].tag !== '' && ids['#' + items[i].tag]) { r.push(items[i]); }
+    }
+    return r;
+  }
+
+  function guardarEditorApartado() {
+    if (soloLectura || !borradorAp) { return; }
+    leerBorradorAp();
+    var todos = K.todosApartados(), ids = [], lista = [], quitados = {}, hayQuitados = false, previo, cand, i, n;
+    var nom = borradorAp.nom.replace(/^\s+|\s+$/g, '');
+    if (nom === '') {
+      $('apError').textContent = 'Falta el nombre del apartado.';
+      enfocar($('apNom'));
+      return;
+    }
+    if (borradorAp.meta && !(borradorAp.meta.n >= 1)) {
+      $('apError').textContent = 'El objetivo necesita un n\u00FAmero de completadas (1 o m\u00E1s).';
+      enfocar($('apMetaN'));
+      return;
+    }
+    for (i = 0; i < todos.length; i++) { ids.push(todos[i].id); }
+    cand = copiaApartado(borradorAp);
+    if (cand.id === '') { cand.id = K.idUnico(nom, ids, 'apartado'); }
+    cand = K.normalizarApartado(cand);
+    if (!cand) { $('apError').textContent = 'No se pudo guardar ese apartado.'; return; }
+    previo = K.infoContexto(cand.id);
+    for (i = 0; i < todos.length; i++) { lista.push(todos[i].id === cand.id ? cand : todos[i]); }
+    if (!previo) { lista.push(cand); }
+    if (previo) {
+      for (i = 0; i < previo.tags.length; i++) { quitados['#' + previo.tags[i].id] = true; }
+      for (i = 0; i < cand.tags.length; i++) { delete quitados['#' + cand.tags[i].id]; }
+      for (i in quitados) { if (quitados.hasOwnProperty(i)) { hayQuitados = true; } }
+    }
+    n = hayQuitados ? itemsConTags(cand.id, quitados).length : 0;
+    function aplicar() { return aplicarEdicionApartado(cand, lista, quitados); }
+    if (n > 0) {
+      cerrarParaRelevo('tapaApartado');
+      pedirConfirmacion('Quitar etiquetas',
+        n + (n === 1 ? ' item usa' : ' items usan') + ' una etiqueta que se quita de ' + cand.nom +
+        '. Esos items se quedan sin etiqueta.', aplicar);
+      soltarRelevo();
+      return;
+    }
+    if (aplicar()) { cerrarHoja('tapaApartado'); }
+  }
+
+  /* Guarda el apartado editado y saca de sus items las etiquetas quitadas.
+     Si algo no se puede guardar, todo vuelve como estaba. */
+  function aplicarEdicionApartado(cand, lista, quitados) {
+    if (soloLectura) { return false; }
+    var tocados = itemsConTags(cand.id, quitados), previos = [], i;
+    for (i = 0; i < tocados.length; i++) { previos.push(tocados[i].tag); tocados[i].tag = ''; }
+    function reponer() { for (i = 0; i < tocados.length; i++) { tocados[i].tag = previos[i]; } }
+    if (tocados.length && !guardarItems()) { reponer(); return false; }
+    if (!guardarRegistro(lista)) {
+      if (tocados.length) { reponer(); guardarItems(); }
+      return false;
+    }
+    for (i = 0; i < tocados.length; i++) { registrar('tag', tocados[i], previos[i], ''); }
+    borradorAp = null;
+    return true;
+  }
+
   /* ---------- contexto ---------- */
 
   /* body lleva el color de paleta del apartado actual (pal-<clave>, Todo es
@@ -4354,8 +4702,39 @@
     $('vEventos').textContent = '' + eventos.length;
     $('vNotif').textContent = estadoNotif();
     pintarTema();
+    pintarApartados();
     abrirHoja('tapaAjustes');
   };
+
+  $('btnNuevoApartado').onclick = function () { if (!soloLectura) { abrirEditorApartado(''); } };
+  $('btnApGuardar').onclick = function () { guardarEditorApartado(); };
+  $('btnApTag').onclick = function () { sumarTagAp(); };
+  $('apTagNuevo').onkeydown = function (ev) {
+    var k = ev.key || ev.keyCode;
+    if (k === 'Enter' || k === 13) { ev.preventDefault(); sumarTagAp(); }
+  };
+  $('apNom').oninput = function () { if (borradorAp) { $('apError').textContent = ''; pintarPistasAp(); } };
+  $('apAlias').oninput = function () { if (borradorAp) { pintarPistasAp(); } };
+  (function () {
+    var l = $('segMetaAp').querySelectorAll('[data-meta]'), m = $('segComprasAp').querySelectorAll('[data-compras]'), i;
+    for (i = 0; i < l.length; i++) {
+      l[i].onclick = function () {
+        var p = this.getAttribute('data-meta');
+        if (!borradorAp) { return; }
+        leerBorradorAp();
+        borradorAp.meta = p === 'no' ? null : { n: parseInt($('apMetaN').value, 10) || 5, periodo: p };
+        pintarEditorApartado();
+      };
+    }
+    for (i = 0; i < m.length; i++) {
+      m[i].onclick = function () {
+        if (!borradorAp) { return; }
+        leerBorradorAp();
+        borradorAp.compras = this.getAttribute('data-compras');
+        pintarEditorApartado();
+      };
+    }
+  })();
 
   $('btnPermiso').onclick = function () {
     if (!hayNotificacion()) { avisar('Este navegador no tiene notificaciones.'); return; }
@@ -5663,7 +6042,11 @@
         cargarApartados();
         ctxCaptura = K.normalizarContexto(ctxCaptura);
         aplicarContexto(contexto, false);
+        pintarCatalogos();
       }
+      /* Ajustes muestra el registro nuevo; el editor ya no guarda. */
+      pintarApartados();
+      if ($('btnApGuardar')) { $('btnApGuardar').disabled = true; }
       avisar('Los datos cambiaron en otra ventana de KCO. Recarga para seguir sin pisar nada.');
     });
   }

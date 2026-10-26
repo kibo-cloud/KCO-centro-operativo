@@ -229,3 +229,25 @@ test('records keep an archived section id; unknown ids fall back to the first ac
     assert.equal(C.normalizarProyecto({ id: 'p1', nombre: 'Mision', contexto: 'viejo' }).contexto, 'viejo');
   } finally { restaurar(); }
 });
+
+test('idUnico: slug of the name, unique among the used ids, never "todo"', () => {
+  assert.equal(C.idUnico('Taller', [], 'apartado'), 'taller');
+  assert.equal(C.idUnico('Taller', ['taller'], 'apartado'), 'taller-2');
+  assert.equal(C.idUnico('Taller', ['taller', 'taller-2'], 'apartado'), 'taller-3');
+  assert.equal(C.idUnico('Todo', [], 'apartado'), 'todo-2', 'todo is reserved for the aggregate view');
+  assert.equal(C.idUnico('!!!', [], 'apartado'), 'apartado', 'a name without letters falls back');
+  assert.equal(C.idUnico('', ['apartado'], 'apartado'), 'apartado-2');
+  const largo = C.idUnico('a'.repeat(60), ['a'.repeat(30)], 'apartado');
+  assert.ok(/^[a-z0-9-]{1,40}$/.test(largo), 'a valid id: ' + largo);
+  assert.notEqual(largo, 'a'.repeat(30));
+  assert.ok(C.normalizarApartado({ id: C.idUnico('Diseño 3D', [], 'apartado'), nom: 'x' }), 'accepted by the registry');
+});
+
+test('estadoTareaDeCompra: open purchases become pending, bought ones completed, cancelled stays cancelled', () => {
+  for (const e of ['cotizando', 'esperando_oc', 'esperando_aprob', 'oc_enviada', 'esperando_entrega', 'por_comprar', 'raro']) {
+    assert.equal(C.estadoTareaDeCompra(e), 'pendiente', e);
+  }
+  assert.equal(C.estadoTareaDeCompra('recibido'), 'completado');
+  assert.equal(C.estadoTareaDeCompra('comprado'), 'completado');
+  assert.equal(C.estadoTareaDeCompra('cancelado'), 'cancelado');
+});

@@ -411,6 +411,9 @@
     <button class="bloque" id="btnBackupTexto" type="button" data-ico="share">Compartir backup como texto</button>
     <button class="bloque" id="btnImportar" type="button" data-ico="upload">Restaurar backup</button>
     <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
+    <div class="rot" id="rotApartados">Apartados</div>
+    <div class="aplista" id="listaApartados" role="list" aria-labelledby="rotApartados"></div>
+    <button class="bloque" id="btnNuevoApartado" type="button" data-ico="plus">Nuevo apartado</button>
     <div class="rot">Pantalla</div>
     <div class="seg" id="segTema" role="group" aria-label="Tema">
       <button class="segbtn" type="button" data-tema="sistema">Sistema</button>
@@ -446,6 +449,49 @@
     <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
     <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
     <div class="pie">KCO v<span id="pieVersion">-</span> &middot; esquema <span id="pieEsquema">-</span><br>Desarrollado por Kevin V&aacute;squez</div>
+  </div>
+</div>
+
+<div class="tapa" id="tapaApartado">
+  <div class="hoja">
+    <h2 id="apTitulo">Apartado</h2>
+    <label class="rot" for="apNom">Nombre</label>
+    <input id="apNom" type="text" autocomplete="off" autocapitalize="sentences" maxlength="40" placeholder="Ej: Taller">
+    <div class="pista" id="apSlug"></div>
+    <div class="rot" id="rotApIco">&Iacute;cono</div>
+    <div class="apicos" id="apIcos" role="group" aria-labelledby="rotApIco"></div>
+    <div class="rot" id="rotApColor">Color</div>
+    <div class="apcolores" id="apColores" role="group" aria-labelledby="rotApColor"></div>
+    <label class="rot" for="apDesc">Descripci&oacute;n</label>
+    <textarea id="apDesc" rows="2" maxlength="280" placeholder="Para qu&eacute; es este apartado (opcional)"></textarea>
+    <div class="rot" id="rotApMeta">Objetivo</div>
+    <div class="segctl" id="segMetaAp" role="group" aria-labelledby="rotApMeta">
+      <button class="gbtn" type="button" data-meta="no">Sin objetivo</button>
+      <button class="gbtn" type="button" data-meta="semana">Por semana</button>
+      <button class="gbtn" type="button" data-meta="mes">Por mes</button>
+    </div>
+    <div id="cajaMetaN" style="display:none">
+      <label class="pista" for="apMetaN">Completadas por per&iacute;odo</label>
+      <input id="apMetaN" type="number" inputmode="numeric" min="1" max="999" value="5">
+    </div>
+    <label class="rot" for="apAlias">Alias de captura</label>
+    <input id="apAlias" type="text" autocomplete="off" autocapitalize="none" placeholder="Separados por coma (opcional)">
+    <div class="pista" id="apAliasPista"></div>
+    <div class="rot" id="rotApCompras">Compras</div>
+    <div class="segctl" id="segComprasAp" role="group" aria-labelledby="rotApCompras">
+      <button class="gbtn" type="button" data-compras="no">No</button>
+      <button class="gbtn" type="button" data-compras="lista">Lista simple</button>
+      <button class="gbtn" type="button" data-compras="fabrica">Con seguimiento</button>
+    </div>
+    <div class="pista" id="apComprasPista"></div>
+    <div class="rot" id="rotApTags">Etiquetas</div>
+    <div class="aptags" id="apTags" role="list" aria-labelledby="rotApTags"></div>
+    <div class="aplinea">
+      <input id="apTagNuevo" type="text" autocomplete="off" maxlength="30" placeholder="Nueva etiqueta" aria-label="Nueva etiqueta">
+      <button class="gbtn" id="btnApTag" type="button" data-ico="plus">Sumar</button>
+    </div>
+    <div class="pista aperror" id="apError" role="alert"></div>
+    <button class="bloque pri" id="btnApGuardar" type="button">Guardar apartado</button>
   </div>
 </div>
 

@@ -191,6 +191,26 @@
     return r;
   }
 
+  /* Id nuevo para un apartado o un tag: el slug del nombre (o defecto si no
+     queda nada), unico entre usados con -2, -3... 'todo' nunca: es la vista
+     que junta todos los apartados. */
+  function idUnico(nom, usados, defecto) {
+    var base = slug(nom) || defecto, id = base, n = 1, tomado = { '#todo': true }, i;
+    for (i = 0; i < (usados || []).length; i++) { tomado['#' + usados[i]] = true; }
+    while (tomado['#' + id]) {
+      n++;
+      id = base.slice(0, 36).replace(/-+$/, '') + '-' + n;
+    }
+    return id;
+  }
+
+  /* Una compra que pasa a un apartado sin compras se vuelve tarea: abierta
+     -> pendiente, comprada o recibida -> completada, cancelada sigue igual. */
+  function estadoTareaDeCompra(estado) {
+    if (estado === 'cancelado') { return 'cancelado'; }
+    return HECHOS[estado] === 1 ? 'completado' : 'pendiente';
+  }
+
   function tagsLegado(ids) {
     var r = [], i, j;
     for (i = 0; i < ids.length; i++) {
@@ -1387,6 +1407,8 @@
     COLORES: COLORES,
     TAGS_LEGADO: TAGS_LEGADO,
     slug: slug,
+    idUnico: idUnico,
+    estadoTareaDeCompra: estadoTareaDeCompra,
     normalizarApartado: normalizarApartado,
     normalizarApartados: normalizarApartados,
     apartadosLegado: apartadosLegado,

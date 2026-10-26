@@ -328,6 +328,31 @@ html[data-capchips]{--capbar-h:104px}
 /* Catalogos en Ajustes: lo que la app fue aprendiendo sola. */
 .catalogo{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
 .catalogo .vacio{color:var(--text-muted);font-size:var(--fs-xs)}
+/* Apartados en Ajustes: fila con punto, icono y nombre (tocar edita) mas
+   subir y bajar; el editor (#tapaApartado) con grillas de icono y color. */
+.aplista{display:flex;flex-direction:column}
+.apfila{display:flex;align-items:center;gap:var(--sp-1);border-bottom:1px solid var(--border)}
+.apfila-abrir{
+  flex:1;min-width:0;display:flex;align-items:center;gap:var(--sp-3);min-height:52px;padding:0 var(--sp-2);
+  border:0;border-radius:var(--r-md);background:none;color:var(--text);font-size:var(--fs-md);font-weight:500;text-align:left;cursor:pointer;
+}
+.apfila .punto{margin:0}
+.apfila .apfila-ico{flex:0 0 auto;width:20px;height:20px;margin:0;color:var(--text-muted)}
+.apfila-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.apfila.archivado .apfila-nom{color:var(--text-muted)}
+.apfila-orden:disabled{opacity:.35;cursor:default}
+@media (hover:hover){.apfila-abrir:hover{background:var(--surface-2)}}
+.apicos,.apcolores{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.apicos .gbtn,.apcolores .gbtn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0}
+.apicos .ico{width:22px;height:22px;margin:0}
+.apcolores .punto{width:20px;height:20px;margin:0}
+.aptags{display:flex;flex-direction:column;gap:var(--sp-1)}
+.aptag,.aplinea{display:flex;align-items:center;gap:var(--sp-2)}
+.aplinea{margin-top:var(--sp-2)}
+.aptag input,.aplinea input{flex:1;min-width:0}
+.aplinea .gbtn{flex:0 0 auto;display:inline-flex;align-items:center}
+.aperror{color:var(--danger)}
+.aperror:empty{display:none}
 .cat{display:flex;align-items:center;gap:7px;border:1px solid var(--border-strong);border-radius:var(--r-md);padding:7px 9px;font-size:var(--fs-xs);color:var(--text-muted);max-width:100%}
 .cat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cat button{flex:0 0 auto;background:none;border:0;color:var(--text-muted);font-size:14px;line-height:1;padding:2px 3px;cursor:pointer}
