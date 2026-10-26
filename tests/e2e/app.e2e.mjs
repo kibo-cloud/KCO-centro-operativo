@@ -1858,6 +1858,131 @@ export const tests = [
     }
   },
   {
+    name: 'lists: long task lists render 50 rows plus "Ver más"; scroll stays, an edit keeps the chunk, a filter change resets it',
+    storage: bigSeed(120),
+    async fn(page) {
+      const rows = () => page.count('#lista li.item');
+      const more = '#lista [data-vermas]';
+      await toTasks(page);
+      assert.equal(await rows(), 50, 'first chunk');
+      assert.match(await page.text(more), /Ver más/);
+      assert.match(await page.text(more), /70/, 'says how many are left');
+      await page.eval('window.scrollTo(0, 1500)');
+      await sleep(50);
+      const y0 = await page.eval('Math.round(window.scrollY)');
+      await page.click(more);
+      assert.equal(await rows(), 100, 'second chunk appended');
+      assert.ok(Math.abs((await page.eval('Math.round(window.scrollY)')) - y0) <= 2, 'scroll position kept');
+      // Completing a row re-renders the view: the chunk stays at 100.
+      await page.click('#lista li.item .chk');
+      await sleep(80);
+      assert.equal(await rows(), 100, 'chunk kept after an edit');
+      await page.click(more);
+      assert.equal(await rows(), 119, 'the rest');
+      assert.equal(await page.count(more), 0, 'no button once everything shows');
+      // A different filter starts again at 50.
+      await page.click('#chips [data-filtro="pendiente"]');
+      assert.equal(await rows(), 50, 'filter change resets the chunk');
+      await page.click(more);
+      await page.click('#tabHoy');
+      await toTasks(page);
+      assert.equal(await rows(), 50, 'view change resets the chunk');
+    }
+  },
+  {
+    name: 'lists: Compras, Diario, Registro and search results are chunked as well',
+    storage: bigSeed(60, { compras: 60, eventos: 70 }),
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      assert.equal(await page.count('#listaCompras li.item'), 50, 'compras first chunk');
+      await page.click('#listaCompras [data-vermas]');
+      assert.equal(await page.count('#listaCompras li.item'), 60, 'compras all');
+      await page.click('#tabRegistro');
+      assert.equal(await page.count('#diarioCuerpo .diario-ev'), 50, 'diario first chunk');
+      await page.click('#diarioCuerpo [data-vermas]');
+      assert.equal(await page.count('#diarioCuerpo .diario-ev'), 70, 'diario all');
+      await page.click('#btnModoRegistro');
+      assert.equal(await page.count('#timeline .ev'), 50, 'registro first chunk');
+      await page.click('#timeline [data-vermas]');
+      assert.ok(await page.count('#timeline .ev') > 50, 'registro grows');
+      await page.click('#btnBuscar');
+      await page.type('#txtBusca', 'tarea');
+      await page.eval("document.getElementById('txtBusca').dispatchEvent(new Event('input'))");
+      await sleep(80);
+      assert.equal(await page.count('#resultados li.item'), 50, 'search first chunk');
+      await page.click('#resultados [data-vermas]');
+      assert.equal(await page.count('#resultados li.item'), 60, 'search all');
+    }
+  },
+  {
+    name: 'keyboard: j and k move a visible selection across rows, x toggles completion with undo, Enter opens the sheet',
+    storage: seed(),
+    width: 1366, height: 900, mobile: false,
+    async fn(page) {
+      await page.emulateFocus();
+      const sel = () => page.eval("(function(){var a=document.activeElement;return a&&a.matches('li.item')?a.getAttribute('data-id'):null;})()");
+      const ids = () => page.eval("Array.prototype.map.call(document.querySelectorAll('#lista li.item'),function(l){return l.getAttribute('data-id');})");
+      await toTasks(page);
+      await page.eval('document.activeElement&&document.activeElement.blur()');
+      const list = await ids();
+      await page.press('j');
+      assert.equal(await sel(), list[0], 'j selects the first row');
+      assert.equal(await page.eval("document.activeElement.className.indexOf('kbsel')>-1"), true, 'marked as selected');
+      assert.notEqual(await page.eval('getComputedStyle(document.activeElement).outlineStyle'), 'none', 'visible focus ring');
+      await page.press('j');
+      await page.press('j');
+      assert.equal(await sel(), list[2]);
+      await page.press('k');
+      assert.equal(await sel(), list[1], 'k goes back up');
+      await page.press('x');
+      await sleep(80);
+      assert.equal((await items(page)).find((i) => i.id === list[1]).estado, 'completado', 'x completes the selected row');
+      assert.equal(await sel(), (await ids())[1], 'the selection stays in place on the next row');
+      await page.click('#btnDeshacer');
+      await sleep(80);
+      assert.notEqual((await items(page)).find((i) => i.id === list[1]).estado, 'completado', 'undo restores');
+      await page.eval(`document.querySelector('#lista li.item[data-id="${list[0]}"]').focus()`);
+      await page.key('Enter');
+      await sleep(120);
+      assert.ok(await page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1"), 'Enter opens the sheet');
+      // Never hijacked: with a sheet open, j does nothing to the list.
+      await page.press('j');
+      assert.equal(await page.eval("document.getElementById('tapaItem').contains(document.activeElement)"), true, 'focus stays in the sheet');
+      await page.key('Escape');
+      await sleep(120);
+      // Inside a field j, k and x are just letters.
+      await page.eval("document.getElementById('txtCaptura').focus()");
+      await page.press('j');
+      await page.press('x');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'jx', 'typed, not hijacked');
+      assert.equal(await page.eval('document.activeElement.id'), 'txtCaptura');
+      assert.equal((await items(page)).filter((i) => i.estado === 'completado').length, 1, 'nothing else completed');
+    }
+  },
+  {
+    name: 'motion: prefers-reduced-motion reduce brings every transition and animation to about 0',
+    storage: seed(),
+    async fn(page) {
+      const PROBE = `(function(){var max=0,who='',l=document.querySelectorAll('*'),i,s,t;
+        function secs(v){return Math.max.apply(null,v.split(',').map(function(x){x=x.trim();return x.indexOf('ms')>-1?parseFloat(x)/1000:parseFloat(x);}));}
+        for(i=0;i<l.length;i++){s=getComputedStyle(l[i]);t=secs(s.transitionDuration);
+          if(s.animationName!=='none'){t=Math.max(t,secs(s.animationDuration));}
+          if(t>max){max=t;who=l[i].tagName+'#'+l[i].id+'.'+l[i].className;}}
+        return {max:max,who:who};})()`;
+      await toTasks(page);
+      const normal = await page.eval(PROBE);
+      assert.ok(normal.max > 0.1, 'motion exists by default: ' + normal.max);
+      await page.emulateMedia([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+      await sleep(80);
+      await page.click('#lista li.item');
+      await sleep(80);
+      const r = await page.eval(PROBE);
+      assert.ok(r.max <= 0.01, 'longest transition/animation ' + r.max + 's on ' + r.who);
+      assert.ok(parseFloat(await page.eval("getComputedStyle(document.querySelector('#tapaItem .hoja')).transitionDuration")) <= 0.01, 'the sheet does not slide');
+    }
+  },
+  {
     name: 'empty: with no data Ahora, Hoy, Tareas, inbox, a filter and Compras show an icon, a short line and a working action',
     storage: { 'kibco.esquema': '4', 'kibco.contexto': 'apps' },
     async fn(page) {
@@ -2006,6 +2131,25 @@ function seed() {
     ]),
     'kibco.eventos': '[]'
   };
+}
+
+// A long list: n pending tasks in Trabajo; optional compras (Casa) and completion events (diary/log).
+function bigSeed(n, extra = {}) {
+  const now = Date.now();
+  const iso = (ms) => new Date(ms).toISOString();
+  const list = [];
+  for (let i = 0; i < n; i++) list.push({ id: 't' + i, texto: 'tarea larga ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente',
+    nivel: 'normal', creado: iso(now - 86400000 - i * 1000), estadoDesde: iso(now - 86400000 - i * 1000) });
+  for (let i = 0; i < (extra.compras || 0); i++) list.push({ id: 'c' + i, texto: 'compra ' + i, contexto: 'hogar', tipo: 'compra',
+    estado: 'pendiente', nivel: 'normal', creado: iso(now - i * 1000), estadoDesde: iso(now - i * 1000) });
+  const ev = [];
+  for (let i = 0; i < (extra.eventos || 0); i++) {
+    const id = 'e' + i, ts = iso(now - 3600000 - i * 60000);
+    list.push({ id, texto: 'hecha ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'normal', creado: ts, estadoDesde: ts });
+    ev.push({ ts, tipo: 'estado', itemId: id, texto: 'hecha ' + i, contexto: 'trabajo', desde: 'pendiente', hasta: 'completado' });
+  }
+  ev.sort((a, b) => (a.ts < b.ts ? -1 : 1));
+  return { 'kibco.esquema': '4', 'kibco.contexto': 'todo', 'kibco.items': JSON.stringify(list), 'kibco.eventos': JSON.stringify(ev) };
 }
 
 function rutinaSeed(history, extra) {

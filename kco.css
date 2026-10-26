@@ -424,7 +424,11 @@ li.item.imp .chk-c{border-color:var(--warning)}
 .acc2 .ico{width:16px;height:16px}
 .acc2.on{color:var(--success)}
 @media (hover:hover){.acc2:hover,.iconobtn.mini:hover{background:var(--surface-2)}}
-li.item.fila:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+li.item.fila:focus-visible,li.item.kbsel:focus{outline:2px solid var(--focus);outline-offset:2px}
+/* "Ver mas" al pie de una lista larga. */
+.vermas-fila{list-style:none;display:flex;justify-content:center;margin:var(--sp-2) 0 var(--sp-3)}
+.vermas{min-height:var(--tap);padding:0 var(--sp-5);border-radius:var(--r-pill);border:1px solid var(--border-strong);
+  background:var(--surface);color:var(--text);font-size:var(--fs-sm);cursor:pointer}
 /* Menu rapido. */
 .hoja-rapido h2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rap-nivel{margin:var(--sp-2) var(--sp-3);flex:0 0 auto}
@@ -515,10 +519,15 @@ body.luz li.item{border-width:1px}
   min-height:var(--tap);
 }
 .chipsTag{margin-top:-4px}
+/* Movimiento reducido: los tokens de duracion bajan a casi 0 y ninguna
+   transicion o animacion (hojas, deslizar, avisos, cambio de vista) dura mas,
+   aunque use una duracion fija. 0.01ms y no 0: los eventos de fin siguen. */
 @media (prefers-reduced-motion: reduce){
+  :root{--dur-fast:.01ms;--dur:.01ms;--dur-slow:.01ms}
   .hoja,.tapa{transition:none}
   li.item.nuevo,main.hacia-der > div,main.hacia-izq > div,.deshacer.on{animation:none}
-  button,.barra i,#txtCaptura,.desliza,.rev .ico,.chk-c,.chk-c .ico{transition:none}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
 }
 .hoja h2{margin:0 0 10px 0;font-size:var(--fs-lg);font-weight:700;letter-spacing:-.2px}
 .hoja .sub{color:var(--text-muted);font-size:var(--fs-sm);margin:-4px 0 14px 0}

@@ -1,7 +1,7 @@
 # Pruebas — KCO 2.0
 
 Tres controles, cero dependencias. `npm run verify` los corre en orden y falla al primero que
-no pasa. Conteo actual: **80 pruebas unitarias** y **109 specs E2E**, todas en verde.
+no pasa. Conteo actual: **80 pruebas unitarias** y **113 specs E2E**, todas en verde.
 
 ## Correr
 
@@ -117,6 +117,9 @@ a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `camp
 | `capture bar` | 5 | chips en vivo de contexto, dia y prioridad (ocultos con la barra vacia, dentro de 390px, guardar guarda lo mismo y los limpia; recordatorio "Mañana 09:30"); el chip de contexto abre "Guardar en" (`#tapaDestino`, `role=dialog`, entrada en `history`, sin Todo), elegir cierra la hoja, vuelve el foco a la barra y guarda ahi sin cambiar la vista, vale para una captura y reemplaza una #etiqueta tipeada; `n` y `/` enfocan la barra a 1366px sin escribirse, pero no adentro de un campo ni con una hoja abierta; a 320px con "Mañana 09:30" + prioridad + Contenido los chips pueden ocupar dos filas y el contenido igual despeja la barra (alto medido); cambiar el ancho de la ventana con chips vuelve a medir `--capbar-h` |
 | `empty` | 3 | sin datos, Ahora (nombra el contexto), Hoy, Tareas, inbox, un filtro, Compras, Misiones, Diario, Registro, la campaña y la busqueda muestran icono SVG + titulo (+ accion): Capturar enfoca la barra, Ver activos vuelve el filtro, Nueva mision abre la hoja, Ver todo abre el rango, Ir a Ahora cambia de vista, Borrar busqueda limpia; campaña vacia sin `.stats`; a 1366px el estado queda centrado en la columna |
 | `settings` | 1 | Ajustes abre con Backup primero e Info al final (rotulos en orden), ningun ajuste se perdio (ids presentes), el pie cierra la hoja y Descargar backup se ve sin scroll a 390x844 |
+| `lists` | 2 | 120 tareas: 50 filas + "Ver más (70)", sumar un trozo conserva el scroll, completar una fila conserva el trozo, cambiar de filtro o de vista vuelve a 50; Compras, Diario, Registro y resultados de busqueda tambien van de a 50 |
+| `keyboard` | 1 | a 1366px `j`/`k` mueven la seleccion (foco, `kbsel`, anillo visible), `x` completa la elegida y deshacer restaura, Enter abre la ficha; con una hoja abierta o adentro de la captura `j`/`x` no se roban |
+| `motion` | 1 | con `prefers-reduced-motion: reduce` (`Emulation.setEmulatedMedia`) ninguna transicion ni animacion de la pagina dura mas de .01s; sin la preferencia hay movimiento |
 | `harness` | 1 | `teardown()` quita los scripts inyectados y devuelve el esquema de color real |
 
 ## Agregar una spec E2E

@@ -1431,10 +1431,65 @@
     }
   }
 
+  /* ---------- listas largas ----------
+     Una lista larga pinta de a TROZO filas; "Ver mas" al pie suma el trozo
+     siguiente. Cada lista recuerda su trozo mientras no cambie su clave
+     (contexto + filtro, o la busqueda): repintar despues de una edicion lo
+     conserva; cambiar de filtro o de vista (irAVista) vuelve a TROZO. */
+  var TROZO = 50;
+  var trozos = {};
+
+  function limiteTrozo(lista, clave) {
+    var t = trozos[lista];
+    if (!t || t.clave !== clave) {
+      t = { clave: clave, n: TROZO };
+      trozos[lista] = t;
+    }
+    return t.n;
+  }
+
+  /* La hoja (.hoja) que contiene a el, si hay: su scroll tambien se conserva. */
+  function hojaDe(el) {
+    while (el && el.nodeType === 1) {
+      if (el.classList && el.classList.contains('hoja')) { return el; }
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  /* El boton va al final de cont (un <li> si cont es una lista). Al tocarlo se
+     repinta con un trozo mas, se conserva el scroll (de la pagina y de la hoja
+     que lo contenga) y el foco pasa a la primera fila nueva. */
+  function botonVerMas(cont, lista, quedan, repintar) {
+    var pie = document.createElement(cont.tagName === 'UL' ? 'li' : 'div');
+    pie.className = 'vermas-fila';
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'vermas';
+    b.setAttribute('data-vermas', lista);
+    b.textContent = 'Ver m\u00E1s (' + quedan + ')';
+    b.onclick = function () {
+      var y = window.pageYOffset || 0, hoja = hojaDe(cont), sy = hoja ? hoja.scrollTop : 0;
+      var antes = trozos[lista] ? trozos[lista].n : TROZO;
+      if (trozos[lista]) { trozos[lista].n = antes + TROZO; }
+      repintar();
+      if (typeof window.scrollTo === 'function') { window.scrollTo(0, y); }
+      if (hoja) { hoja.scrollTop = sy; }
+      var filas = cont.querySelectorAll('li.item, .ev');
+      if (filas[antes]) {
+        if (!filas[antes].hasAttribute('tabindex')) { filas[antes].setAttribute('tabindex', '-1'); }
+        enfocar(filas[antes]);
+      }
+    };
+    pie.appendChild(b);
+    cont.appendChild(pie);
+  }
+
   function pintarLista(tipo, filtroActual, listaId, vacioId) {
     var lista = $(listaId);
     while (lista.firstChild) { lista.removeChild(lista.firstChild); }
     var arr = ordenar(delContexto(tipo));
+    var lim = limiteTrozo(listaId, tipo + '|' + contexto + '|' + filtroActual + '|' + (tipo === 'tarea' ? filtroTag : ''));
     var i, visibles = 0;
     for (i = 0; i < arr.length; i++) {
       var it = arr[i];
@@ -1443,8 +1498,9 @@
       } else if (it.estado !== filtroActual) { continue; }
       if (tipo === 'tarea' && filtroTag !== '' && it.tag !== filtroTag) { continue; }
       visibles++;
-      lista.appendChild(nodoItem(it));
+      if (visibles <= lim) { lista.appendChild(nodoItem(it)); }
     }
+    if (visibles > lim) { botonVerMas(lista, listaId, visibles - lim, pintar); }
     $(vacioId).style.display = visibles === 0 ? 'block' : 'none';
     return visibles;
   }
@@ -1601,14 +1657,17 @@
     if (dias.length === 0) {
       vacioRango('diario', 'book', 'Nada en el diario', 'Lo que completes, los hitos y las misiones quedan ac\u00E1 solos, d\u00EDa por d\u00EDa.');
     }
-    var i, j;
-    for (i = 0; i < dias.length; i++) {
+    var i, j, total = 0, pintadas = 0;
+    var lim = limiteTrozo('diarioCuerpo', contexto + '|' + rango);
+    for (i = 0; i < dias.length; i++) { total = total + dias[i].entradas.length; }
+    for (i = 0; i < dias.length && pintadas < lim; i++) {
       var g = dias[i];
       var cab = nodo('div', 'dia diario-dia');
       cab.appendChild(nodo('span', '', cabeceraDiaDiario(g.dia)));
       cab.appendChild(nodo('span', 'mono diario-cuenta', resumenDia(g.cuenta)));
       cont.appendChild(cab);
-      for (j = 0; j < g.entradas.length; j++) {
+      for (j = 0; j < g.entradas.length && pintadas < lim; j++) {
+        pintadas++;
         (function (e) {
           var f = nodo('div', 'ev diario-ev ' + e.clase);
           f.appendChild(nodo('div', 'ico', e.ico));
@@ -1626,6 +1685,7 @@
         })(g.entradas[j]);
       }
     }
+    if (total > lim) { botonVerMas(cont, 'diarioCuerpo', total - lim, pintar); }
   }
 
   /* Diario o registro sin nada en el rango: si el rango es corto, la accion
@@ -1657,7 +1717,9 @@
     }
     $('vacioRegistro').style.display = 'none';
     var diaActual = '', i;
-    for (i = lista.length - 1; i >= 0; i--) {
+    var lim = limiteTrozo('timeline', contexto + '|' + rango);
+    var hasta = Math.max(0, lista.length - lim);
+    for (i = lista.length - 1; i >= hasta; i--) {
       var ev = lista[i];
       var d = fechaObj(ev.ts);
       var cl = claveDia(d);
@@ -1685,6 +1747,7 @@
       fila.appendChild(cd);
       cont.appendChild(fila);
     }
+    if (hasta > 0) { botonVerMas(cont, 'timeline', hasta, pintar); }
   }
 
   /* ---------- centro de control: AHORA y HOY ---------- */
@@ -2196,6 +2259,7 @@
     if (v === vista) { return; }
     var dir = posVista(v) > posVista(vista) ? 'der' : 'izq';
     vista = v;
+    trozos = {};
     animarMain(dir);
     pintar();
     if (sinHistorial) { return; }
@@ -3315,13 +3379,14 @@
         txt: 'Tareas y compras de todos los contextos, por texto o etiqueta.' });
       return;
     }
-    var i, n = 0;
+    var i, n = 0, lim = limiteTrozo('resultados', q);
     for (i = items.length - 1; i >= 0; i--) {
       var it = items[i];
       var t = tagInfo(it.tag);
       var heno = it.texto.toLowerCase() + ' ' + (t ? t.nom.toLowerCase() : '');
       if (heno.indexOf(q) === -1) { continue; }
       n++;
+      if (n > lim) { continue; }
       (function (item) {
         var li = document.createElement('li');
         li.className = 'item st-' + item.estado + claseNivel(item);
@@ -3350,6 +3415,7 @@
         cont.appendChild(li);
       })(it);
     }
+    if (n > lim) { botonVerMas(cont, 'resultados', n - lim, pintarBusqueda); }
     $('vacioBusca').style.display = n === 0 ? 'block' : 'none';
     if (n === 0) {
       estadoVacio($('vacioBusca'), { id: 'sin-resultados', ico: 'search', tit: 'Sin resultados',
@@ -3767,11 +3833,60 @@
     return t === 'input' || t === 'textarea' || t === 'select' || el.isContentEditable === true;
   }
 
+  /* Filas de la vista actual que se ven (las de una hoja no cuentan: con una
+     hoja abierta no hay atajos). */
+  function filasVisibles() {
+    var l = document.querySelectorAll('main li.item'), r = [], i;
+    for (i = 0; i < l.length; i++) { if (l[i].offsetParent !== null) { r.push(l[i]); } }
+    return r;
+  }
+
+  /* Seleccion de teclado: la fila elegida recibe el foco (todas son
+     tabbables) y la clase kbsel, que le da el anillo de foco visible. */
+  function seleccionarFila(li) {
+    var l = document.querySelectorAll('li.item.kbsel'), i;
+    for (i = 0; i < l.length; i++) { l[i].classList.remove('kbsel'); }
+    if (!li) { return; }
+    li.classList.add('kbsel');
+    enfocar(li);
+    try { li.scrollIntoView({ block: 'nearest' }); } catch (e) { /* sin scroll */ }
+  }
+
+  /* j / k bajan y suben por las filas, x completa o reabre la elegida (con
+     deshacer, como el circulo), Enter la abre (onkeydown de la fila). */
+  function atajoLista(k) {
+    var filas = filasVisibles(), pos = -1, i, it, ah;
+    if (filas.length === 0) { return false; }
+    for (i = 0; i < filas.length; i++) { if (filas[i] === document.activeElement) { pos = i; } }
+    if (pos === -1) {
+      for (i = 0; i < filas.length; i++) { if (filas[i].classList.contains('kbsel')) { pos = i; } }
+    }
+    if (k === 'x') {
+      if (pos === -1) { return false; }
+      it = buscarItem(filas[pos].getAttribute('data-id'));
+      ah = it ? accionHecho(it) : null;
+      if (!ah) { return false; }
+      ah.fn();
+      filas = filasVisibles();
+      if (filas.length > 0) { seleccionarFila(filas[Math.min(pos, filas.length - 1)]); }
+      return true;
+    }
+    if (pos === -1) { pos = 0; } else if (k === 'j') { pos = Math.min(pos + 1, filas.length - 1); } else { pos = Math.max(pos - 1, 0); }
+    seleccionarFila(filas[pos]);
+    return true;
+  }
+
+  /* n, /, j, k, x: nunca con modificadores, con una hoja abierta ni adentro
+     de un campo editable. */
   document.addEventListener('keydown', function (ev) {
     var k = ev.key || '';
-    if (k !== 'n' && k !== '/') { return; }
+    if (k !== 'n' && k !== '/' && k !== 'j' && k !== 'k' && k !== 'x') { return; }
     if (ev.defaultPrevented || ev.ctrlKey || ev.metaKey || ev.altKey) { return; }
     if (capaArriba() || esEditable(ev.target) || esEditable(document.activeElement)) { return; }
+    if (k === 'j' || k === 'k' || k === 'x') {
+      if (atajoLista(k)) { ev.preventDefault(); }
+      return;
+    }
     ev.preventDefault();
     enfocar($('txtCaptura'));
   });

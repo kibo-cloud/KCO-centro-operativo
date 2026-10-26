@@ -59,7 +59,7 @@ declara la capa de tokens; las reglas los usan con `var(--...)`.
 | Espaciado | `--sp-1`..`--sp-8` = 4, 8, 12, 16, 20, 24, 32, 40 px | grilla de 4px |
 | Radios | `--r-sm` 6 · `--r-md` 8 · `--r-lg` 12 · `--r-xl` 16 · `--r-pill` 999 px | |
 | Elevacion | `--shadow-1`..`--shadow-3`, `--shadow-bar` (sombra hacia arriba de la captura) | |
-| Movimiento | `--dur-fast` .15s, `--dur` .22s, `--dur-slow` .34s, `--ease`, `--ease-out` | `prefers-reduced-motion` sigue apagando transiciones |
+| Movimiento | `--dur-fast` .15s, `--dur` .22s, `--dur-slow` .34s, `--ease`, `--ease-out` | con `prefers-reduced-motion: reduce` los tres tokens bajan a .01ms y una regla general lleva toda transicion y animacion (hojas, deslizar, avisos, cambio de vista) a .01ms, aunque use una duracion fija; no hay animaciones por JS |
 | Capas | `--z-bar` 22, `--z-toast` 25, `--z-sheet` 30 | `kco-app.js` apila hojas con `30 + n`: `--z-sheet` no se cambia sin tocar el JS |
 | Toque y bordes | `--tap` 44px, `--safe-top/bottom/left/right` (`env(safe-area-inset-*)`) | |
 | App shell | `--appbar-h` 56, `--tabbar-h` 64, `--capbar-h` 64, `--sidebar-w` 240, `--col-max` 760 px | alturas de las barras fijas; `main` deja libre `--tabbar-h + --capbar-h` abajo |
@@ -164,7 +164,8 @@ que revela el gesto (`.rev`):
 | Una accion a la derecha | solo en el inbox de AHORA: "Para hoy" (triaje en un toque). Mover a Compras ya no esta en la tarjeta: esta en la ficha y en el menu rapido |
 | Gesto (solo tactil, pointer events) | los primeros 10px deciden: vertical es scroll (`touch-action: pan-y`), horizontal mueve la fila. Pasado el umbral (80px o un tiron rapido) la derecha completa, con el mismo deshacer que el circulo, y la izquierda abre el menu rapido. Mientras una fila tiene el gesto, `gestoFila` anula el swipe entre vistas; `overscroll-behavior-x: none` evita el atras del navegador |
 | Menu rapido (`#tapaRapido`) | hoja accesible chica: Para hoy, Para mañana, Prioridad (control segmentado), Mover a Compras, Borrar (con confirmacion) y "Mas opciones" (la ficha). Tambien se abre con clic derecho, manteniendo apretado o con la tecla de menu (Shift+F10) sobre la tarjeta |
-| Teclado | la tarjeta tiene `tabindex=0`: Enter o Espacio abre la ficha |
+| Teclado | la tarjeta tiene `tabindex=0`: Enter o Espacio abre la ficha. `j` / `k` mueven una seleccion por las filas visibles de la vista (foco + clase `kbsel` con anillo de foco), `x` completa o reabre la elegida con `accionHecho()` (mismo deshacer) y la seleccion queda en la misma posicion. Como `n` y `/`: nunca con Ctrl/Alt/Meta, con una hoja abierta ni adentro de un campo editable |
+| Listas largas | `pintarLista` (Tareas, Compras), el Diario, el Registro y los resultados de busqueda pintan de a 50 (`TROZO`) y un boton "Ver más (N)" (`data-vermas`) suma 50 mas, conserva el scroll (pagina y hoja) y enfoca la primera fila nueva. `trozos[lista]` guarda el trozo con una clave (contexto + filtro, rango o la busqueda): repintar despues de una edicion lo conserva, cambiar de filtro o de vista (`irAVista` vacia `trozos`) vuelve a 50 |
 
 ## Flujo de datos
 
