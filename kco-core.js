@@ -62,28 +62,271 @@
     return isNaN(d.getTime()) ? '' : claveDia(d);
   }
 
-  /* ---------- contextos ----------
-     Trabajo sigue siendo el unico con el flujo de compras de fabrica (OC, OT,
-     +48 hs). Todos los demas usan la lista simple de compras: por comprar,
-     comprado, cancelado. El id 'hogar' se conserva y se muestra como Casa. */
+  /* ---------- apartados (contextos definidos por el usuario) ----------
+     Los contextos ya no son una constante: son datos del usuario. Cada
+     apartado trae nombre, icono (nombre de iconos.js), color (clave de la
+     paleta), orden, descripcion, meta medible opcional, alias de captura,
+     modo de compras y sus propios tags. El registro vive en este modulo y la
+     app lo fija con fijarApartados. K.CONTEXTOS es el MISMO arreglo de
+     siempre, vaciado y rellenado en el lugar con los apartados activos, asi
+     el codigo que lo recorre sigue andando sin cambios.
+     El modo de compras reemplaza al viejo "solo Trabajo es fabrica":
+       no      -> el apartado no usa compras
+       lista   -> lista simple: por comprar, comprado, cancelado
+       fabrica -> flujo de fabrica con OC, OT y alerta de +48 hs */
 
-  var CONTEXTOS = [
-    { id: 'trabajo', ico: '\uD83C\uDFED', nom: 'Trabajo' },
-    { id: 'hogar', ico: '\uD83C\uDFE0', nom: 'Casa' },
-    { id: 'apps', ico: '\uD83D\uDCBB', nom: 'Apps' },
-    { id: 'contenido', ico: '\uD83C\uDFAC', nom: 'Contenido' },
-    { id: 'personal', ico: '\uD83C\uDFCB', nom: 'Personal' }
+  /* Paleta curada: el nucleo solo valida la clave; los tonos claro y oscuro
+     (con contraste 4.5:1) viven en kco.css. */
+  var COLORES = ['azul', 'verde', 'ambar', 'rosa', 'violeta', 'cian', 'naranja', 'rojo', 'lima', 'gris'];
+  var MODOS_COMPRAS = { no: 1, lista: 1, fabrica: 1 };
+  var PERIODOS_META = { semana: 1, mes: 1 };
+  var ICO_APARTADO = 'layers';
+  var ICO_TAG = '\uD83C\uDFF7';
+
+  /* Catalogo de tags heredado (antes TAGS en kco-app.js). Se usa para sembrar
+     los apartados viejos y para seguir mostrando su emoji. */
+  var TAGS_LEGADO = [
+    { id: 'relevamiento', ico: '\uD83D\uDCCF', nom: 'Relevamiento' },
+    { id: 'limpieza', ico: '\uD83E\uDDF9', nom: 'Limpieza' },
+    { id: 'adm', ico: '\uD83D\uDCC4', nom: 'Adm / Legajos' },
+    { id: 'proveedor', ico: '\uD83C\uDFE2', nom: 'Alta Proveedor' },
+    { id: 'panol', ico: '\uD83E\uDDF0', nom: 'Pa\u00F1ol' },
+    { id: 'gestion', ico: '\uD83D\uDCCB', nom: 'Gestion' },
+    { id: 'comida', ico: '\uD83C\uDF7D', nom: 'Comida' },
+    { id: 'higiene', ico: '\uD83E\uDDFC', nom: 'Higiene' },
+    { id: 'mantenimiento', ico: '\uD83D\uDD27', nom: 'Mantenimiento' },
+    { id: 'hogar', ico: '\uD83C\uDFE0', nom: 'Hogar' }
   ];
 
+  /* Sin String.prototype.normalize (ES5): mapa manual de acentos. */
+  var ACENTOS = { '\u00E1': 'a', '\u00E0': 'a', '\u00E4': 'a', '\u00E2': 'a', '\u00E3': 'a',
+    '\u00E9': 'e', '\u00E8': 'e', '\u00EB': 'e', '\u00EA': 'e',
+    '\u00ED': 'i', '\u00EC': 'i', '\u00EF': 'i', '\u00EE': 'i',
+    '\u00F3': 'o', '\u00F2': 'o', '\u00F6': 'o', '\u00F4': 'o', '\u00F5': 'o',
+    '\u00FA': 'u', '\u00F9': 'u', '\u00FC': 'u', '\u00FB': 'u',
+    '\u00F1': 'n', '\u00E7': 'c' };
+
+  /* Nombre a clave de captura: minusculas, sin acentos, guiones entre
+     palabras (ejemplo: Diseno 3D -> diseno-3d). Vacio si no queda nada. */
+  function slug(x) {
+    if (typeof x !== 'string') { return ''; }
+    var s = x.toLowerCase().replace(/[^\x00-\x7F]/g, function (c) { return ACENTOS[c] || '-'; });
+    return s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30).replace(/-+$/, '');
+  }
+
+  function textoAcotado(x, max) {
+    return typeof x === 'string' ? limpio(x).slice(0, max).replace(/\s+$/, '') : '';
+  }
+
+  function normalizarMeta(m) {
+    if (!m || typeof m !== 'object' || PERIODOS_META[m.periodo] !== 1) { return null; }
+    var n = parseInt(m.n, 10);
+    if (isNaN(n) || n < 1) { return null; }
+    return { n: n > 999 ? 999 : n, periodo: m.periodo };
+  }
+
+  function normalizarTags(lista) {
+    var r = [], vistos = {}, i, t, nom, id;
+    if (!(lista instanceof Array)) { return r; }
+    for (i = 0; i < lista.length && r.length < 30; i++) {
+      t = lista[i];
+      if (!t || typeof t !== 'object') { continue; }
+      nom = textoAcotado(t.nom, 30);
+      id = slug(typeof t.id === 'string' && t.id !== '' ? t.id : nom);
+      if (nom === '' || id === '' || vistos['#' + id]) { continue; }
+      vistos['#' + id] = true;
+      r.push({ id: id, nom: nom });
+    }
+    return r;
+  }
+
+  function normalizarAlias(lista) {
+    var r = [], vistos = {}, i, a;
+    if (!(lista instanceof Array)) { return r; }
+    for (i = 0; i < lista.length && r.length < 10; i++) {
+      a = slug(lista[i]);
+      if (a === '' || a === 'todo' || vistos['#' + a]) { continue; }
+      vistos['#' + a] = true;
+      r.push(a);
+    }
+    return r;
+  }
+
+  /* Un apartado saneado, o null si no tiene id o nombre usables. 'todo' esta
+     reservado para la vista que junta todos los apartados. */
+  function normalizarApartado(a) {
+    if (!a || typeof a !== 'object') { return null; }
+    var id = typeof a.id === 'string' ? a.id.replace(/^\s+|\s+$/g, '') : '';
+    if (!/^[A-Za-z0-9_-]{1,40}$/.test(id) || id === 'todo') { return null; }
+    var nom = textoAcotado(a.nom, 40);
+    if (nom === '') { return null; }
+    return {
+      id: id,
+      nom: nom,
+      ico: typeof a.ico === 'string' && /^[a-z][a-z0-9-]{0,30}$/.test(a.ico) ? a.ico : ICO_APARTADO,
+      color: COLORES.indexOf(a.color) >= 0 ? a.color : 'gris',
+      orden: entero(a.orden, 0, 9999, 0),
+      desc: textoAcotado(a.desc, 280),
+      meta: normalizarMeta(a.meta),
+      alias: normalizarAlias(a.alias),
+      compras: MODOS_COMPRAS[a.compras] === 1 ? a.compras : 'lista',
+      tags: normalizarTags(a.tags),
+      activo: a.activo !== false
+    };
+  }
+
+  /* Lista saneada: sin invalidos ni ids repetidos (gana el primero), ordenada
+     por orden (estable) y renumerada 0..n-1. */
+  function normalizarApartados(lista) {
+    var r = [], pos = [], vistos = {}, i, a;
+    if (!(lista instanceof Array)) { return r; }
+    for (i = 0; i < lista.length; i++) {
+      a = normalizarApartado(lista[i]);
+      if (!a || vistos['#' + a.id]) { continue; }
+      vistos['#' + a.id] = true;
+      pos.push({ a: a, i: i });
+    }
+    pos.sort(function (x, y) { return x.a.orden !== y.a.orden ? x.a.orden - y.a.orden : x.i - y.i; });
+    for (i = 0; i < pos.length; i++) { pos[i].a.orden = i; r.push(pos[i].a); }
+    return r;
+  }
+
+  function tagsLegado(ids) {
+    var r = [], i, j;
+    for (i = 0; i < ids.length; i++) {
+      for (j = 0; j < TAGS_LEGADO.length; j++) {
+        if (TAGS_LEGADO[j].id === ids[i]) { r.push({ id: TAGS_LEGADO[j].id, nom: TAGS_LEGADO[j].nom }); }
+      }
+    }
+    return r;
+  }
+
+  /* Los cinco contextos de siempre como apartados, con los mismos ids, colores
+     (paleta) y tags. Sirve para migrar datos viejos. Copias nuevas en cada
+     llamada: nadie comparte objetos con el registro. */
+  function apartadosLegado() {
+    return normalizarApartados([
+      { id: 'trabajo', nom: 'Trabajo', ico: 'clipboard', color: 'naranja', compras: 'fabrica',
+        tags: tagsLegado(['relevamiento', 'limpieza', 'adm', 'proveedor', 'panol', 'gestion']) },
+      { id: 'hogar', nom: 'Casa', ico: 'users', color: 'cian', alias: ['casa'],
+        tags: tagsLegado(['comida', 'limpieza', 'higiene', 'mantenimiento', 'hogar']) },
+      { id: 'apps', nom: 'Apps', ico: 'layers', color: 'violeta', alias: ['app'] },
+      { id: 'contenido', nom: 'Contenido', ico: 'play', color: 'rosa' },
+      { id: 'personal', nom: 'Personal', ico: 'target', color: 'verde' }
+    ]);
+  }
+
+  /* ---------- registro ---------- */
+
+  var CONTEXTOS = [];
+  var todos = [];
+  var aliasCtx = {};
+
+  function sumarAlias(clave, id) {
+    var k = slug(clave);
+    if (k !== '' && !aliasCtx.hasOwnProperty('#' + k)) { aliasCtx['#' + k] = id; }
+  }
+
+  /* Reemplaza el registro. Los alias se arman en tres pasadas para que un id
+     le gane a un nombre y un nombre a un alias de otro apartado. Solo los
+     apartados activos reciben capturas. */
+  function fijarApartados(lista) {
+    var i, j;
+    todos = normalizarApartados(lista);
+    CONTEXTOS.length = 0;
+    for (i = 0; i < todos.length; i++) { if (todos[i].activo) { CONTEXTOS.push(todos[i]); } }
+    aliasCtx = {};
+    for (i = 0; i < CONTEXTOS.length; i++) { sumarAlias(CONTEXTOS[i].id, CONTEXTOS[i].id); }
+    for (i = 0; i < CONTEXTOS.length; i++) { sumarAlias(CONTEXTOS[i].nom, CONTEXTOS[i].id); }
+    for (i = 0; i < CONTEXTOS.length; i++) {
+      for (j = 0; j < CONTEXTOS[i].alias.length; j++) { sumarAlias(CONTEXTOS[i].alias[j], CONTEXTOS[i].id); }
+    }
+    return todos.slice(0);
+  }
+
+  function apartados() { return CONTEXTOS.slice(0); }
+  function todosApartados() { return todos.slice(0); }
+
+  /* Busca en todos (tambien archivados): un item viejo sigue mostrando el
+     nombre de su apartado aunque ya no se ofrezca. */
   function infoContexto(id) {
     var i;
-    for (i = 0; i < CONTEXTOS.length; i++) { if (CONTEXTOS[i].id === id) { return CONTEXTOS[i]; } }
+    for (i = 0; i < todos.length; i++) { if (todos[i].id === id) { return todos[i]; } }
     return null;
   }
 
-  function contextoValido(id) { return infoContexto(id) !== null; }
-  function normalizarContexto(id) { return contextoValido(id) ? id : 'trabajo'; }
-  function esFabrica(ctx) { return ctx === 'trabajo'; }
+  function contextoValido(id) {
+    var a = infoContexto(id);
+    return a !== null && a.activo;
+  }
+
+  /* El id si es un apartado activo; si no, el primero; vacio sin apartados. */
+  function normalizarContexto(id) {
+    if (contextoValido(id)) { return id; }
+    return CONTEXTOS.length ? CONTEXTOS[0].id : '';
+  }
+
+  function modoCompras(ctx) {
+    var a = infoContexto(ctx);
+    return a ? a.compras : 'lista';
+  }
+
+  function esFabrica(ctx) { return modoCompras(ctx) === 'fabrica'; }
+
+  function tagsDe(ctx) {
+    var a = infoContexto(ctx), r = [], i;
+    if (!a) { return r; }
+    for (i = 0; i < a.tags.length; i++) { r.push({ id: a.tags[i].id, nom: a.tags[i].nom }); }
+    return r;
+  }
+
+  /* Un tag con su emoji: el heredado si existia, uno generico si no. */
+  function conIco(t) {
+    var i;
+    for (i = 0; i < TAGS_LEGADO.length; i++) {
+      if (TAGS_LEGADO[i].id === t.id) { return { id: t.id, ico: TAGS_LEGADO[i].ico, nom: t.nom }; }
+    }
+    return { id: t.id, ico: ICO_TAG, nom: t.nom };
+  }
+
+  /* Todos los tags de todos los apartados (tambien archivados), sin repetir,
+     con emoji. Asi un tag viejo se sigue mostrando aunque ya no se ofrezca. */
+  function todosTags() {
+    var r = [], vistos = {}, i, j, t;
+    for (i = 0; i < todos.length; i++) {
+      for (j = 0; j < todos[i].tags.length; j++) {
+        t = todos[i].tags[j];
+        if (vistos['#' + t.id]) { continue; }
+        vistos['#' + t.id] = true;
+        r.push(conIco(t));
+      }
+    }
+    return r;
+  }
+
+  function infoTag(id) {
+    var l = todosTags(), i;
+    for (i = 0; i < l.length; i++) { if (l[i].id === id) { return l[i]; } }
+    return null;
+  }
+
+  /* Progreso de la meta del apartado: completadas (estado hecho, dia de
+     estadoDesde) desde el lunes de esta semana o el 1 del mes, hasta hoy.
+     null si el apartado no tiene meta. */
+  function progresoMeta(a, items, hoy) {
+    if (!a || !a.meta) { return null; }
+    var desde = a.meta.periodo === 'mes' ? hoy.slice(0, 8) + '01' : sumarDias(hoy, -((diaSemana(hoy) + 6) % 7));
+    var hechas = 0, i, it, dia;
+    for (i = 0; i < (items || []).length; i++) {
+      it = items[i];
+      if (!it || it.contexto !== a.id || !esHecho(it.estado)) { continue; }
+      dia = claveDeIso(it.estadoDesde);
+      if (dia !== '' && dia >= desde && dia <= hoy) { hechas++; }
+    }
+    return { hechas: hechas, meta: a.meta.n, periodo: a.meta.periodo, desde: desde };
+  }
+
+  fijarApartados(apartadosLegado());
 
   /* ---------- prioridad en cuatro niveles ----------
      El booleano viejo 'prioridad' se sigue escribiendo (true solo en urgente),
@@ -237,11 +480,10 @@
        B) HH:MM con dos digitos -> solo al final del texto, o si dice hoy/mañana.
      Agregados en 2.0, todos opcionales y solo como palabra suelta:
        'hoy' o 'mañana' al final, sin hora -> fecha del dia.
-       #trabajo #casa #hogar #apps #contenido #personal -> contexto.
+       #apartado -> contexto: su id, su nombre sin acentos y con guiones, o
+         uno de sus alias (fijarApartados arma el mapa; mayusculas y acentos
+         no importan).
        !! -> urgente, ! -> importante. */
-
-  var ALIAS_CTX = { trabajo: 'trabajo', casa: 'hogar', hogar: 'hogar', apps: 'apps', app: 'apps',
-    contenido: 'contenido', personal: 'personal' };
 
   function quitar(texto, m) {
     return texto.slice(0, m.index) + ' ' + texto.slice(m.index + m[0].length);
@@ -252,9 +494,9 @@
   /* La primera #etiqueta que es un contexto conocido, este donde este: una
      #etiqueta cualquiera antes (#idea, #hashtag) no la tapa. null si no hay. */
   function etiquetaContexto(texto) {
-    var re = /\s#([a-z\u00F1]+)(?=\s)/gi, m;
+    var re = /\s#([0-9a-z\u00C0-\u024F_-]+)(?=\s)/gi, m;
     while ((m = re.exec(texto)) !== null) {
-      if (ALIAS_CTX.hasOwnProperty(m[1].toLowerCase())) { return m; }
+      if (aliasCtx.hasOwnProperty('#' + slug(m[1]))) { return m; }
     }
     return null;
   }
@@ -264,7 +506,7 @@
     var r = { texto: '', recordatorio: '', fecha: '', contexto: '', nivel: '' };
     var mc = etiquetaContexto(texto);
     if (mc) {
-      r.contexto = ALIAS_CTX[mc[1].toLowerCase()];
+      r.contexto = aliasCtx['#' + slug(mc[1])];
       texto = quitar(texto, mc);
     }
     var mn = texto.match(/\s(!!?)(?=\s)/);
@@ -749,7 +991,7 @@
         salida.push({
           id: 'ecomp' + ultimoTs.replace(/[^0-9]/g, '') + '-' + n,
           ts: ultimoTs, tipo: 'compactado', itemId: '',
-          texto: n + ' movimientos viejos resumidos', contexto: 'trabajo',
+          texto: n + ' movimientos viejos resumidos', contexto: normalizarContexto(''),
           desde: claveDeIso(primero), hasta: claveDeIso(ultimoTs)
         });
       }
@@ -968,6 +1210,9 @@
       s.porContexto[CONTEXTOS[i].id] = n;
       if (n >= 5) { s.contextosEquilibrio++; }
     }
+    /* Equilibrio pide 3 apartados, o todos si hay menos. Con uno solo no hay
+       equilibrio posible: la meta queda en 3 y no se alcanza. */
+    s.metaEquilibrio = CONTEXTOS.length >= 2 ? Math.min(3, CONTEXTOS.length) : 3;
     for (i = 0; i < (proyectos || []).length; i++) {
       var p = proyectos[i], hh = 0;
       for (j = 0; j < p.hitos.length; j++) {
@@ -1031,7 +1276,7 @@
     { id: 'dias_100', ico: '\uD83D\uDCC5', nom: '100 dias activos', desc: '100 dias con algun avance, seguidos o no', campo: 'diasActivos', meta: 100 },
     { id: 'constancia', ico: '\uD83D\uDD04', nom: 'Constancia', desc: 'Una rutina 14 veces seguidas', campo: 'rachaRutinaMejor', meta: 14 },
     { id: 'rutina_100', ico: '\u267B', nom: 'Habito de hierro', desc: '100 rutinas cumplidas', campo: 'rutinasHechas', meta: 100 },
-    { id: 'equilibrio', ico: '\u2696', nom: 'Equilibrio', desc: '5 o mas completadas en 3 contextos de tu vida', campo: 'contextosEquilibrio', meta: 3 },
+    { id: 'equilibrio', ico: '\u2696', nom: 'Equilibrio', desc: '5 o mas completadas en 3 apartados de tu vida (o en todos, si tenes menos)', campo: 'contextosEquilibrio', meta: 3, metaCampo: 'metaEquilibrio' },
     { id: 'inbox_cero', ico: '\uD83D\uDCED', nom: 'Inbox cero', desc: 'Inbox vacio con 20 o mas cosas hechas', campo: 'inboxCero', meta: 1 },
     { id: 'nivel_5', ico: '\u2B50', nom: 'Nivel 5', desc: 'Llegaste a nivel 5', campo: 'nivel', meta: 5 },
     { id: 'nivel_10', ico: '\uD83C\uDF1F', nom: 'Nivel 10', desc: 'Llegaste a nivel 10', campo: 'nivel', meta: 10 },
@@ -1040,13 +1285,20 @@
     { id: 'madrugador', ico: '\uD83C\uDF05', nom: 'Madrugador', desc: 'Completaste algo antes de las 7', campo: 'madrugadas', meta: 1, secreto: true }
   ];
 
+  /* La meta de un logro: fija, o leida de las estadisticas cuando depende de
+     cuantos apartados hay (metaCampo). */
+  function metaLogro(l, stats) {
+    var m = l.metaCampo && stats ? stats[l.metaCampo] : 0;
+    return typeof m === 'number' && m > 0 ? m : l.meta;
+  }
+
   /* Ids de logros que cumplen y todavia no estaban desbloqueados. */
   function logrosNuevos(stats, desbloqueados) {
     var r = [], i;
     for (i = 0; i < LOGROS.length; i++) {
       var l = LOGROS[i];
       if (desbloqueados && desbloqueados.hasOwnProperty(l.id)) { continue; }
-      if ((stats[l.campo] || 0) >= l.meta) { r.push(l); }
+      if ((stats[l.campo] || 0) >= metaLogro(l, stats)) { r.push(l); }
     }
     return r;
   }
@@ -1057,6 +1309,7 @@
     estadisticas: estadisticas,
     LOGROS: LOGROS,
     logrosNuevos: logrosNuevos,
+    metaLogro: metaLogro,
     XP: XP,
     xpItem: xpItem,
     calcularXP: calcularXP,
@@ -1082,6 +1335,20 @@
     contextoValido: contextoValido,
     normalizarContexto: normalizarContexto,
     esFabrica: esFabrica,
+    modoCompras: modoCompras,
+    COLORES: COLORES,
+    TAGS_LEGADO: TAGS_LEGADO,
+    slug: slug,
+    normalizarApartado: normalizarApartado,
+    normalizarApartados: normalizarApartados,
+    apartadosLegado: apartadosLegado,
+    fijarApartados: fijarApartados,
+    apartados: apartados,
+    todosApartados: todosApartados,
+    tagsDe: tagsDe,
+    todosTags: todosTags,
+    infoTag: infoTag,
+    progresoMeta: progresoMeta,
     NIVELES: NIVELES,
     infoNivel: infoNivel,
     nivelDe: nivelDe,

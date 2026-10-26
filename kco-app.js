@@ -73,26 +73,9 @@
     { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
   ];
 
-  /* Catalogo completo de tags. tagInfo busca aca, asi un tag viejo
-     sigue mostrandose aunque ya no se ofrezca en ese contexto. */
-  var TAGS = [
-    { id: 'relevamiento', ico: '\uD83D\uDCCF', nom: 'Relevamiento' },
-    { id: 'limpieza', ico: '\uD83E\uDDF9', nom: 'Limpieza' },
-    { id: 'adm', ico: '\uD83D\uDCC4', nom: 'Adm / Legajos' },
-    { id: 'proveedor', ico: '\uD83C\uDFE2', nom: 'Alta Proveedor' },
-    { id: 'panol', ico: '\uD83E\uDDF0', nom: 'Pa\u00F1ol' },
-    { id: 'gestion', ico: '\uD83D\uDCCB', nom: 'Gestion' },
-    { id: 'comida', ico: '\uD83C\uDF7D', nom: 'Comida' },
-    { id: 'higiene', ico: '\uD83E\uDDFC', nom: 'Higiene' },
-    { id: 'mantenimiento', ico: '\uD83D\uDD27', nom: 'Mantenimiento' },
-    { id: 'hogar', ico: '\uD83C\uDFE0', nom: 'Hogar' }
-  ];
-
-  var TAGS_TRABAJO = ['relevamiento', 'limpieza', 'adm', 'proveedor', 'panol', 'gestion'];
-  var TAGS_HOGAR = ['comida', 'limpieza', 'higiene', 'mantenimiento', 'hogar'];
-  /* Apps, Contenido y Personal no traen clasificaciones propias: se ordenan por
-     prioridad, dia y mision. Si un item llega con un tag de otro contexto se
-     sigue viendo para poder sacarlo, igual que siempre. */
+  /* Los tags son de cada apartado (KCOCore.tagsDe). tagInfo busca en todos
+     los apartados, asi un tag viejo sigue mostrandose aunque ya no se ofrezca
+     en ese contexto y se puede sacar, igual que siempre. */
 
   var RANGOS = [
     { id: 'hoy', nom: 'Hoy', dias: 1 },
@@ -182,10 +165,10 @@
 
   function listaTags(ctx) {
     var r = [], i;
-    if (ctx === 'todo') { return TAGS.slice(0); }
-    var ids = ctx === 'hogar' ? TAGS_HOGAR : (ctx === 'trabajo' ? TAGS_TRABAJO : []);
-    for (i = 0; i < ids.length; i++) {
-      var t = tagInfo(ids[i]);
+    if (ctx === 'todo') { return K.todosTags(); }
+    var propios = K.tagsDe(ctx);
+    for (i = 0; i < propios.length; i++) {
+      var t = tagInfo(propios[i].id);
       if (t) { r.push(t); }
     }
     return r;
@@ -220,11 +203,7 @@
     return 'cotizando';
   }
 
-  function tagInfo(id) {
-    var i;
-    for (i = 0; i < TAGS.length; i++) { if (TAGS[i].id === id) { return TAGS[i]; } }
-    return null;
-  }
+  function tagInfo(id) { return K.infoTag(id); }
 
   /* Los ids de estado de un evento vienen de datos importados: se consulta el
      mapa sin pasar por el prototipo ('constructor' no es un estado cerrado). */
@@ -762,10 +741,10 @@
     return c ? c.nom : 'Trabajo';
   }
 
+  /* Emoji para textos exportados: el icono de un apartado es un nombre de
+     iconos.js (SVG), que no sirve en texto plano. */
   function icoCtx(id) {
-    if (id === 'todo') { return '\u2B50'; }
-    var c = K.infoContexto(id);
-    return c ? c.ico : '';
+    return id === 'todo' ? '\u2B50' : '\uD83D\uDCCB';
   }
 
   /* Identidad visual de un contexto en la interfaz: un punto de su color
@@ -4566,10 +4545,10 @@
         c.appendChild(nodo('div', 'logro-ico', l.ico));
         c.appendChild(nodo('b', '', l.nom));
         c.appendChild(nodo('small', '', l.desc));
-        var v = Math.min(st[l.campo] || 0, l.meta);
+        var meta = K.metaLogro(l, st), v = Math.min(st[l.campo] || 0, meta);
         c.appendChild(nodo('small', 'mono logro-est', gano
           ? '\u2714 ' + fechaNota(memProgreso.logros[l.id])
-          : (l.meta > 1 ? v + '/' + l.meta : 'pendiente')));
+          : (meta > 1 ? v + '/' + meta : 'pendiente')));
       }
       g.appendChild(c);
     }

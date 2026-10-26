@@ -8,9 +8,14 @@ const AHORA = new Date(2026, 9, 7, 10, 0).getTime();
 const item = (o) => Object.assign({ id: 'x', texto: 't', contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente',
   creado: new Date(2026, 9, 7, 9, 0).toISOString(), recordatorio: '', fecha: '' }, o);
 
-test('contexts: only Trabajo runs the factory purchase flow', () => {
+test('contexts: in the legacy seed only Trabajo runs the factory purchase flow', () => {
   assert.equal(C.esFabrica('trabajo'), true);
-  for (const c of ['hogar', 'apps', 'contenido', 'personal']) assert.equal(C.esFabrica(c), false);
+  assert.equal(C.modoCompras('trabajo'), 'fabrica');
+  for (const c of ['hogar', 'apps', 'contenido', 'personal']) {
+    assert.equal(C.esFabrica(c), false);
+    assert.equal(C.modoCompras(c), 'lista');
+  }
+  // 'trabajo' only because it is the first legacy section.
   assert.equal(C.normalizarContexto('marte'), 'trabajo');
   assert.equal(C.infoContexto('hogar').nom, 'Casa');
 });
