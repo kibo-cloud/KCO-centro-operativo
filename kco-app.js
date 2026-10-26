@@ -388,6 +388,10 @@
     var tipo = it.tipo === 'compra' ? 'compra' : 'tarea';
     var est = it.estado ? '' + it.estado : (tipo === 'compra' ? (K.esFabrica(ctx) ? 'cotizando' : 'por_comprar') : 'entrada');
     var nivel = K.nivelDe(it);
+    /* Una compra en un apartado sin compras (modo cambiado, backup, otra
+       pestana) se lee como tarea: nunca queda una compra sin vista. */
+    var aTarea = tipo === 'compra' && K.modoCompras(ctx) === 'no';
+    if (aTarea) { tipo = 'tarea'; est = K.estadoTareaDeCompra(est); }
     est = estadoEquivalente(tipo, ctx, est);
     var act = it.actualizado ? '' + it.actualizado : creado;
     var tag = it.tag ? '' + it.tag : '';
@@ -407,8 +411,8 @@
       actualizado: act,
       estadoDesde: it.estadoDesde ? '' + it.estadoDesde : act,
       comentarios: normalizarNotas(it.comentarios),
-      pausado: it.pausado === true,
-      pausadoDesde: it.pausadoDesde ? '' + it.pausadoDesde : '',
+      pausado: !aTarea && it.pausado === true,
+      pausadoDesde: !aTarea && it.pausadoDesde ? '' + it.pausadoDesde : '',
       pasos: normalizarPasos(it.pasos),
       anclado: it.anclado === true,
       solicitante: limpiarTexto(it.solicitante, LARGO_CAMPO),
@@ -1107,6 +1111,8 @@
     var foto = fotoDe(it), antes = copiaItem(it);
     var previo = it.contexto;
     it.contexto = ctx;
+    /* A un apartado sin compras una compra llega como tarea. */
+    if (it.tipo === 'compra' && K.modoCompras(ctx) === 'no') { compraATarea(it); }
     var est = estadoEquivalente(it.tipo, ctx, it.estado);
     /* Una compra ya hecha solo cambia de nombre de casillero (comprado <->
        recibido): no se la vuelve a fechar como si se hubiera hecho ahora. */
@@ -1126,6 +1132,17 @@
     } else {
       reponerItem(it, antes);
     }
+  }
+
+  /* Compra -> tarea (apartado sin compras): abierta pasa a pendiente,
+     comprada o recibida a completada, cancelada sigue cancelada. Texto,
+     fechas, comentarios y pasos quedan; la pausa es del flujo de compras. */
+  function compraATarea(it) {
+    it.tipo = 'tarea';
+    it.estado = K.estadoTareaDeCompra(it.estado);
+    it.espera = '';
+    it.pausado = false;
+    it.pausadoDesde = '';
   }
 
   /* Lo anclado va primero, por encima incluso de la prioridad alta. El filtro
@@ -1729,6 +1746,7 @@
     if (ev.tipo === 'recordatorio') { return ev.hasta === '' ? 'Sacaste el recordatorio' : 'Recordatorio ' + ev.hasta; }
     if (ev.tipo === 'compra') { return 'Moviste a Compras'; }
     if (ev.tipo === 'vuelta') { return 'Volviste a tarea'; }
+    if (ev.tipo === 'conversion') { return 'Pas\u00F3 de compra a tarea'; }
     if (ev.tipo === 'pausa') { return ev.hasta === 'reanudada' ? 'Reanudaste la compra' : 'Pusiste la compra en espera'; }
     if (ev.tipo === 'comentario') { return 'Comentaste'; }
     if (ev.tipo === 'anclado') { return ev.hasta === 'anclado' ? 'Anclaste arriba' : 'Sacaste el ancla'; }
@@ -4162,9 +4180,30 @@
     marcar($('segMetaAp'), 'data-meta', borradorAp.meta ? borradorAp.meta.periodo : 'no');
     $('cajaMetaN').style.display = borradorAp.meta ? '' : 'none';
     marcar($('segComprasAp'), 'data-compras', borradorAp.compras);
-    $('apComprasPista').textContent = PISTA_COMPRAS[borradorAp.compras];
+    pintarAccionesAp();
     pintarTagsAp();
     pintarPistasAp();
+  }
+
+  /* Pista de compras (cuantas pasan a tareas si queda en 'no') y acciones
+     de un apartado ya guardado: archivar o desarchivar y borrar. El ultimo
+     apartado activo no se archiva ni se borra. */
+  function pintarAccionesAp() {
+    var a = borradorAp.id !== '' ? K.infoContexto(borradorAp.id) : null, nc = 0, ultimo;
+    if (a && a.compras !== 'no' && borradorAp.compras === 'no') { nc = comprasDe(a.id).length; }
+    $('apComprasPista').textContent = PISTA_COMPRAS[borradorAp.compras] + (nc > 0 ? ' Al guardar, sus ' +
+      (nc === 1 ? 'compra pasa a tarea' : nc + ' compras pasan a tareas') + '.' : '');
+    $('cajaApExistente').style.display = a ? '' : 'none';
+    $('cajaApMover').style.display = 'none';
+    if (!a) { return; }
+    ultimo = a.activo && K.apartados().length <= 1;
+    $('btnApArchivar').textContent = a.activo ? 'Archivar' : 'Desarchivar';
+    $('btnApArchivar').disabled = ultimo || soloLectura;
+    $('btnApBorrar').disabled = ultimo || soloLectura;
+    $('apUltimo').textContent = ultimo
+      ? 'Es el \u00FAnico apartado activo: no se puede archivar ni borrar. Cre\u00E1 otro primero.'
+      : (a.activo ? 'Archivado deja de ofrecerse para capturar y elegir; sus registros se quedan.'
+        : 'Archivado: sus registros se quedan, pero no se ofrece para capturar ni elegir.');
   }
 
   function pintarTagsAp() {
@@ -4231,7 +4270,7 @@
   function guardarEditorApartado() {
     if (soloLectura || !borradorAp) { return; }
     leerBorradorAp();
-    var todos = K.todosApartados(), ids = [], lista = [], quitados = {}, hayQuitados = false, previo, cand, i, n;
+    var todos = K.todosApartados(), ids = [], lista = [], quitados = {}, hayQuitados = false, detalle = [], previo, cand, i, n, nc;
     var nom = borradorAp.nom.replace(/^\s+|\s+$/g, '');
     if (nom === '') {
       $('apError').textContent = 'Falta el nombre del apartado.';
@@ -4257,33 +4296,210 @@
       for (i in quitados) { if (quitados.hasOwnProperty(i)) { hayQuitados = true; } }
     }
     n = hayQuitados ? itemsConTags(cand.id, quitados).length : 0;
+    nc = previo && previo.compras !== 'no' && cand.compras === 'no' ? comprasDe(cand.id).length : 0;
     function aplicar() { return aplicarEdicionApartado(cand, lista, quitados); }
-    if (n > 0) {
+    if (n > 0 || nc > 0) {
+      if (n > 0) {
+        detalle.push(n + (n === 1 ? ' item usa una etiqueta que se quita: se queda' : ' items usan etiquetas que se quitan: se quedan') +
+          ' sin etiqueta.');
+      }
+      if (nc > 0) {
+        detalle.push(nc + (nc === 1 ? ' compra' : ' compras') + ' de ' + cand.nom + (nc === 1 ? ' pasa' : ' pasan') +
+          ' a tareas: las abiertas quedan pendientes, las compradas completadas y las canceladas, canceladas.');
+      }
       cerrarParaRelevo('tapaApartado');
-      pedirConfirmacion('Quitar etiquetas',
-        n + (n === 1 ? ' item usa' : ' items usan') + ' una etiqueta que se quita de ' + cand.nom +
-        '. Esos items se quedan sin etiqueta.', aplicar);
+      pedirConfirmacion('Guardar ' + cand.nom, detalle.join(' '), aplicar);
       soltarRelevo();
       return;
     }
     if (aplicar()) { cerrarHoja('tapaApartado'); }
   }
 
-  /* Guarda el apartado editado y saca de sus items las etiquetas quitadas.
-     Si algo no se puede guardar, todo vuelve como estaba. */
+  function comprasDe(ctx) {
+    var r = [], i;
+    for (i = 0; i < items.length; i++) { if (items[i].contexto === ctx && items[i].tipo === 'compra') { r.push(items[i]); } }
+    return r;
+  }
+
+  /* Guarda el apartado editado y ajusta sus items: saca las etiquetas
+     quitadas, pasa sus compras a tareas si el modo quedo en 'no' y traduce
+     los estados si cambio entre lista simple y seguimiento. Si algo no se
+     puede guardar, todo vuelve como estaba. */
   function aplicarEdicionApartado(cand, lista, quitados) {
     if (soloLectura) { return false; }
-    var tocados = itemsConTags(cand.id, quitados), previos = [], i;
-    for (i = 0; i < tocados.length; i++) { previos.push(tocados[i].tag); tocados[i].tag = ''; }
-    function reponer() { for (i = 0; i < tocados.length; i++) { tocados[i].tag = previos[i]; } }
-    if (tocados.length && !guardarItems()) { reponer(); return false; }
-    if (!guardarRegistro(lista)) {
-      if (tocados.length) { reponer(); guardarItems(); }
+    var antes = K.todosApartados(), tocados = [], copias = [], ahora = new Date().toISOString(), i, it, copia, cambio;
+    if (!guardarRegistro(lista)) { return false; }
+    for (i = 0; i < items.length; i++) {
+      it = items[i];
+      if (it.contexto !== cand.id) { continue; }
+      copia = copiaItem(it);
+      cambio = false;
+      if (it.tag !== '' && quitados['#' + it.tag]) { it.tag = ''; cambio = true; }
+      if (it.tipo === 'compra' && cand.compras === 'no') {
+        compraATarea(it);
+        cambio = true;
+      } else if (it.tipo === 'compra' && !estadoValido('compra', cand.id, it.estado)) {
+        it.estado = estadoEquivalente('compra', cand.id, it.estado);
+        if (!K.esFabrica(cand.id)) { it.pausado = false; it.pausadoDesde = ''; }
+        cambio = true;
+      }
+      if (cambio) { it.actualizado = ahora; tocados.push(it); copias.push(copia); }
+    }
+    if (tocados.length && !guardarItems()) {
+      for (i = 0; i < tocados.length; i++) { reponerItem(tocados[i], copias[i]); }
+      guardarRegistro(antes);
       return false;
     }
-    for (i = 0; i < tocados.length; i++) { registrar('tag', tocados[i], previos[i], ''); }
+    for (i = 0; i < tocados.length; i++) {
+      if (copias[i].tag !== tocados[i].tag) { registrar('tag', tocados[i], copias[i].tag, ''); }
+      if (copias[i].tipo !== tocados[i].tipo) { registrar('conversion', tocados[i], 'compra', tocados[i].estado); }
+    }
+    if (tocados.length) { pintar(); }
     borradorAp = null;
     return true;
+  }
+
+  /* Archivar (o desarchivar) el apartado del editor. Sus registros se quedan
+     con su id (KCOCore.contextoDeRegistro); deja de ofrecerse para capturar,
+     en los selectores y en las grillas. El ultimo activo no se archiva. */
+  function archivarApartado() {
+    if (soloLectura || !borradorAp || borradorAp.id === '') { return; }
+    var a = K.infoContexto(borradorAp.id), l = K.todosApartados(), lista = [], i, c;
+    if (!a || (a.activo && K.apartados().length <= 1)) { return; }
+    for (i = 0; i < l.length; i++) {
+      c = l[i];
+      if (c.id === a.id) { c = copiaApartado(c); c.activo = !a.activo; }
+      lista.push(c);
+    }
+    if (guardarRegistro(lista)) {
+      borradorAp = null;
+      cerrarHoja('tapaApartado');
+    }
+  }
+
+  /* Registros que viven en un apartado. Los eventos (historial) cuentan
+     aparte: no se pierden, pasan al mismo destino. */
+  function registrosDe(ctx) {
+    var r = { items: 0, rutinas: 0, proyectos: 0, eventos: 0 }, i;
+    for (i = 0; i < items.length; i++) { if (items[i].contexto === ctx) { r.items++; } }
+    for (i = 0; i < rutinas.length; i++) { if (rutinas[i].contexto === ctx) { r.rutinas++; } }
+    for (i = 0; i < proyectos.length; i++) { if (proyectos[i].contexto === ctx) { r.proyectos++; } }
+    for (i = 0; i < eventos.length; i++) { if (eventos[i].contexto === ctx) { r.eventos++; } }
+    r.total = r.items + r.rutinas + r.proyectos + r.eventos;
+    return r;
+  }
+
+  function textoRegistros(r) {
+    var p = [];
+    if (r.items) { p.push(r.items + (r.items === 1 ? ' item' : ' items')); }
+    if (r.rutinas) { p.push(r.rutinas + (r.rutinas === 1 ? ' rutina' : ' rutinas')); }
+    if (r.proyectos) { p.push(r.proyectos + (r.proyectos === 1 ? ' misi\u00F3n' : ' misiones')); }
+    if (p.length === 0) { return 'historial'; }
+    return p.length > 1 ? p.slice(0, -1).join(', ') + ' y ' + p[p.length - 1] : p[0];
+  }
+
+  /* Borrar: sin registros, solo se confirma. Con registros (o historial) hay
+     que elegir a que apartado activo pasan; despues se confirma. */
+  function pedirBorrarApartado() {
+    if (soloLectura || !borradorAp || borradorAp.id === '') { return; }
+    var a = K.infoContexto(borradorAp.id), l = K.apartados(), cont = $('apDestinos'), r, i;
+    if (!a || (a.activo && l.length <= 1)) { return; }
+    r = registrosDe(a.id);
+    if (r.total === 0) { confirmarBorradoApartado(a, ''); return; }
+    vaciar(cont);
+    for (i = 0; i < l.length; i++) { if (l[i].id !== a.id) { cont.appendChild(botonDestinoAp(a, l[i].id)); } }
+    $('apMoverPista').textContent = a.nom + ' tiene ' + textoRegistros(r) + '.' +
+      (r.eventos ? ' Su historial tambi\u00E9n pasa.' : '') + ' Eleg\u00ED a qu\u00E9 apartado van antes de borrarlo.';
+    $('cajaApMover').style.display = '';
+    enfocar(cont.firstChild);
+  }
+
+  function botonDestinoAp(a, id) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'gbtn';
+    b.setAttribute('data-ctx', id);
+    b.appendChild(punto(id));
+    b.appendChild(icoApartado(id, 'gbtn-ico'));
+    b.appendChild(document.createTextNode(nomCtx(id)));
+    b.onclick = function () { confirmarBorradoApartado(a, id); };
+    return b;
+  }
+
+  function confirmarBorradoApartado(a, destino) {
+    var r = registrosDe(a.id);
+    cerrarParaRelevo('tapaApartado');
+    pedirConfirmacion('Borrar ' + a.nom, destino === ''
+      ? 'Se borra el apartado ' + a.nom + '. No tiene registros. No se puede deshacer.'
+      : 'Se borra el apartado ' + a.nom + ' y sus ' + textoRegistros(r) + ' pasan a ' + nomCtx(destino) +
+        (r.eventos ? ', con su historial' : '') + '. No se puede deshacer.',
+      function () { borrarApartado(a.id, destino); });
+    soltarRelevo();
+  }
+
+  /* Pasa un item a otro apartado: estado equivalente en el modo de compras
+     del destino (o tarea, si no usa compras) y sin etiqueta que el destino
+     no conozca. */
+  function pasarItemA(it, ctx) {
+    it.contexto = ctx;
+    if (it.tipo === 'compra' && K.modoCompras(ctx) === 'no') { compraATarea(it); }
+    var est = estadoEquivalente(it.tipo, ctx, it.estado);
+    if (est !== it.estado) {
+      if (!K.esHecho(it.estado)) { it.estadoDesde = new Date().toISOString(); }
+      it.estado = est;
+    }
+    if (!K.esFabrica(ctx)) { it.pausado = false; it.pausadoDesde = ''; }
+    if (it.tag !== '' && !tagInfo(it.tag, ctx)) { it.tag = ''; }
+  }
+
+  /* Borra el apartado y pasa sus items, rutinas, misiones y eventos al
+     destino. Todo o nada: si una escritura falla, cada clave vuelve a su
+     valor crudo y la memoria a como estaba. */
+  function borrarApartado(id, destino) {
+    if (soloLectura) { return; }
+    var antes = K.todosApartados(), lista = [], activos = 0, i, it;
+    var claves = [K_ITEMS, K_RUTINAS, K_PROYECTOS, K_EVENTOS, K_APARTADOS], crudos = [];
+    var movidos = [], copias = [], otros = [], eventosAntes = eventos, plantillas = necesitaPlantillas, ok;
+    if (destino !== '' && (destino === id || !K.contextoValido(destino))) { return; }
+    for (i = 0; i < antes.length; i++) {
+      if (antes[i].id !== id) { lista.push(antes[i]); if (antes[i].activo) { activos++; } }
+    }
+    if (activos === 0 || lista.length === antes.length) { return; }
+    if (destino === '' && registrosDe(id).total > 0) { return; }
+    for (i = 0; i < claves.length; i++) { crudos.push(leer(claves[i])); }
+    K.fijarApartados(lista);
+    necesitaPlantillas = false;
+    for (i = 0; i < items.length; i++) {
+      it = items[i];
+      if (it.contexto !== id) { continue; }
+      copias.push(copiaItem(it));
+      pasarItemA(it, destino);
+      movidos.push(it);
+    }
+    function sumarOtros(l) {
+      var j;
+      for (j = 0; j < l.length; j++) { if (l[j].contexto === id) { otros.push(l[j]); l[j].contexto = destino; } }
+    }
+    sumarOtros(rutinas);
+    sumarOtros(proyectos);
+    sumarOtros(eventos);
+    ok = guardarItems() && guardarRutinas() && guardarProyectos() && guardarEventos() && guardarApartados();
+    if (!ok) {
+      for (i = 0; i < claves.length; i++) { if (leer(claves[i]) !== crudos[i]) { reponerCrudo(claves[i], crudos[i]); } }
+      for (i = 0; i < movidos.length; i++) { reponerItem(movidos[i], copias[i]); }
+      for (i = 0; i < otros.length; i++) { otros[i].contexto = id; }
+      eventos = eventosAntes;
+      K.fijarApartados(antes);
+      necesitaPlantillas = plantillas;
+      avisar('No se pudo borrar el apartado (fallo al guardar). No se cambi\u00F3 nada.');
+      refrescarApartados();
+      return;
+    }
+    for (i = 0; i < movidos.length; i++) {
+      if (copias[i].tipo !== movidos[i].tipo) { registrar('conversion', movidos[i], 'compra', movidos[i].estado); }
+    }
+    borradorAp = null;
+    refrescarApartados();
   }
 
   /* ---------- contexto ---------- */
@@ -4709,6 +4925,8 @@
   $('btnNuevoApartado').onclick = function () { if (!soloLectura) { abrirEditorApartado(''); } };
   $('btnApGuardar').onclick = function () { guardarEditorApartado(); };
   $('btnApTag').onclick = function () { sumarTagAp(); };
+  $('btnApArchivar').onclick = function () { archivarApartado(); };
+  $('btnApBorrar').onclick = function () { pedirBorrarApartado(); };
   $('apTagNuevo').onkeydown = function (ev) {
     var k = ev.key || ev.keyCode;
     if (k === 'Enter' || k === 13) { ev.preventDefault(); sumarTagAp(); }
@@ -6040,6 +6258,11 @@
          (igual se deja de escribir hasta recargar). */
       if (k === K_APARTADOS || k === null) {
         cargarApartados();
+        /* Una compra que quedo en un apartado sin compras se ve como tarea
+           (solo en memoria: aca ya no se escribe). */
+        for (var ic = 0; ic < items.length; ic++) {
+          if (items[ic].tipo === 'compra' && K.modoCompras(items[ic].contexto) === 'no') { compraATarea(items[ic]); }
+        }
         ctxCaptura = K.normalizarContexto(ctxCaptura);
         aplicarContexto(contexto, false);
         pintarCatalogos();

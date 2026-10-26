@@ -435,6 +435,9 @@ export const tests = [
       await openAjustes(page);
       await page.click('#btnNuevoApartado');
       assert.ok(await isOpen(page, 'tapaApartado'), 'the editor opens');
+      assert.ok(await page.eval("(function(){var h=document.querySelector('#tapaApartado .hoja');return h.scrollWidth<=h.clientWidth;})()"), 'the editor fits 390px');
+      await sleep(400);
+      await page.screenshot(path.join(OUT, 'apartado-editor-mobile.png'));
       await page.type('#apNom', 'Diseño 3D');
       assert.match(await page.text('#apSlug'), /#diseno-3d/, 'shows the capture tag');
       await page.click('#apIcos [data-ico-ap="star"]');
@@ -573,6 +576,226 @@ export const tests = [
       await sleep(250);
       assert.ok(await isOpen(page, 'tapaAjustes'));
       assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaAjustes');
+    }
+  },
+  {
+    name: 'sections ui: archiving keeps the items, hides the section from pickers and moves the view to Todo; unarchive brings it back',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'estudio', 'kibco.contextoCaptura': 'estudio', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'e1', texto: 'leer', contexto: 'estudio', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+        { id: 't1', texto: 'torno', contexto: 'taller', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      assert.equal(await page.text('#btnApArchivar'), 'Archivar');
+      await page.click('#btnApArchivar');
+      assert.equal(await isOpen(page, 'tapaApartado'), false, 'the editor closes');
+      assert.deepEqual(await apRows(page), ['taller', 'mercado', 'estudio']);
+      assert.match(await page.text('#listaApartados [data-ap="estudio"]'), /Archivado/);
+      assert.equal(JSON.parse(await page.storage('kibco.apartados')).find((a) => a.id === 'estudio').activo, false);
+      assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'todo', 'the archived current section falls back to Todo');
+      assert.equal(await page.eval("!!document.querySelector('#ctxsel [data-ctx=\"estudio\"]')"), false, 'gone from the selector');
+      await page.key('Escape');
+      await page.type('#txtCaptura', 'algo');
+      await page.click('#capCtx');
+      assert.equal(await page.eval("!!document.querySelector('#destsel [data-ctx=\"estudio\"]')"), false, 'gone from the destination sheet');
+      await page.key('Escape');
+      await page.type('#txtCaptura', '');
+      await capture(page, 'resumen #estudio');
+      assert.notEqual((await items(page)).find((i) => i.texto.indexOf('resumen') === 0).contexto, 'estudio', 'capture never routes to it');
+      assert.equal((await items(page)).find((i) => i.id === 'e1').contexto, 'estudio', 'its items keep the section id');
+      await toTasks(page);
+      await page.click('#lista li.item[data-id="t1"]');
+      assert.equal(await page.eval("!!document.querySelector('#gridCtx [data-ctx=\"estudio\"]')"), false, 'not offered in the item sheet');
+      await page.key('Escape');
+      await page.reload();
+      assert.equal((await items(page)).find((i) => i.id === 'e1').contexto, 'estudio', 'survives a reload');
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      assert.equal(await page.text('#btnApArchivar'), 'Desarchivar');
+      await page.click('#btnApArchivar');
+      assert.deepEqual(await apRows(page), ['taller', 'mercado', 'estudio']);
+      assert.doesNotMatch(await page.text('#listaApartados [data-ap="estudio"]'), /Archivado/);
+      assert.ok(await page.eval("!!document.querySelector('#ctxsel [data-ctx=\"estudio\"]')"), 'back in the selector');
+    }
+  },
+  {
+    name: 'sections ui: deleting a section with records asks for a target, moves items, routines and missions, then confirms',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'mercado', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([
+        { id: 'm1', texto: 'yerba', contexto: 'mercado', tipo: 'compra', estado: 'por_comprar', comentarios: [{ cuando: '2026-01-02T10:00:00.000Z', texto: 'la de siempre' }], creado: '2026-01-01T10:00:00.000Z' },
+        { id: 'm2', texto: 'ordenar alacena', contexto: 'mercado', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+        { id: 't1', texto: 'torno', contexto: 'taller', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]),
+      'kibco.rutinas': JSON.stringify([{ id: 'r1', texto: 'lista semanal', contexto: 'mercado', tipo: 'dias', cada: 7, inicio: '2026-01-01' }]),
+      'kibco.proyectos': JSON.stringify([{ id: 'p1', nombre: 'Despensa', contexto: 'mercado', estado: 'activo', hitos: [] }]),
+      'kibco.eventos': JSON.stringify([{ id: 'ev1', ts: '2026-01-01T10:00:00.000Z', tipo: 'captura', itemId: 'm2', texto: 'ordenar alacena', contexto: 'mercado' }]) },
+    async fn(page) {
+      const enMercado = (await items(page)).filter((i) => i.contexto === 'mercado').length;
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.click('#btnApBorrar');
+      assert.ok(await page.visible('#cajaApMover'), 'asks where the records go');
+      assert.match(await page.text('#apMoverPista'), new RegExp(enMercado + ' items, 1 rutina y 1 misi'));
+      const dest = await page.eval("Array.prototype.map.call(document.querySelectorAll('#apDestinos [data-ctx]'),function(b){return b.getAttribute('data-ctx');})");
+      assert.deepEqual(dest, ['taller', 'estudio'], 'only other active sections');
+      await page.click('#apDestinos [data-ctx="estudio"]');
+      assert.ok(await isOpen(page, 'tapaConfirmar'));
+      assert.match(await page.text('#confDetalle'), /Estudio/);
+      await page.click('#btnConfSi');
+      await sleep(150);
+      assert.deepEqual(JSON.parse(await page.storage('kibco.apartados')).map((a) => a.id), ['taller', 'estudio']);
+      const list = await items(page);
+      const m1 = list.find((i) => i.id === 'm1');
+      assert.deepEqual([m1.contexto, m1.tipo, m1.estado, m1.texto], ['estudio', 'tarea', 'pendiente', 'yerba'], 'a purchase moved into a section without purchases becomes a task');
+      assert.equal(m1.comentarios[0].texto, 'la de siempre', 'comments kept');
+      assert.equal(list.find((i) => i.id === 'm2').contexto, 'estudio');
+      assert.equal(list.filter((i) => i.contexto === 'mercado').length, 0, 'nothing left behind');
+      assert.equal(list.find((i) => i.id === 't1').contexto, 'taller', 'other sections untouched');
+      assert.equal(JSON.parse(await page.storage('kibco.rutinas'))[0].contexto, 'estudio');
+      assert.equal(JSON.parse(await page.storage('kibco.proyectos'))[0].contexto, 'estudio');
+      assert.equal((await events(page)).find((e) => e.id === 'ev1').contexto, 'estudio', 'history follows the records');
+      assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'todo', 'the deleted current section falls back to Todo');
+      assert.deepEqual(await apRows(page), ['taller', 'estudio']);
+      assert.ok(await isOpen(page, 'tapaAjustes'));
+    }
+  },
+  {
+    name: 'sections ui: deleting an empty section only confirms; the last active section cannot be archived or deleted',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': JSON.stringify([
+      { id: 'solo', nom: 'Solo', orden: 0 }, { id: 'vacio', nom: 'Vacio', orden: 1 }, { id: 'viejo', nom: 'Viejo', orden: 2, activo: false }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="vacio"] .apfila-abrir');
+      await page.click('#btnApBorrar');
+      assert.ok(await isOpen(page, 'tapaConfirmar'), 'no records: straight to the confirmation');
+      await page.click('#btnConfNo');
+      await sleep(150);
+      assert.equal(JSON.parse(await page.storage('kibco.apartados')).length, 3, 'cancel keeps it');
+      await page.click('#listaApartados [data-ap="vacio"] .apfila-abrir');
+      await page.click('#btnApBorrar');
+      await page.click('#btnConfSi');
+      await sleep(150);
+      assert.deepEqual(await apRows(page), ['solo', 'viejo']);
+      await page.click('#listaApartados [data-ap="solo"] .apfila-abrir');
+      assert.equal(await page.eval("document.getElementById('btnApArchivar').disabled"), true);
+      assert.equal(await page.eval("document.getElementById('btnApBorrar').disabled"), true);
+      assert.match(await page.text('#apUltimo'), /único apartado activo/);
+      await page.key('Escape');
+      // An archived section can still be deleted while another one stays active.
+      await page.click('#listaApartados [data-ap="viejo"] .apfila-abrir');
+      assert.equal(await page.eval("document.getElementById('btnApBorrar').disabled"), false);
+      assert.equal(await page.eval("document.getElementById('btnApArchivar').disabled"), false, 'it can be unarchived');
+    }
+  },
+  {
+    name: 'sections ui: switching purchases to "No" converts the section purchases to tasks after confirming',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'taller', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([
+        { id: 'c1', texto: 'rodamiento', contexto: 'taller', tipo: 'compra', estado: 'oc_enviada', pausado: true, fecha: ymd(2), creado: '2026-01-01T10:00:00.000Z' },
+        { id: 'c2', texto: 'aceite', contexto: 'taller', tipo: 'compra', estado: 'recibido', estadoDesde: '2026-01-03T10:00:00.000Z', creado: '2026-01-01T10:00:00.000Z' },
+        { id: 'c3', texto: 'correa', contexto: 'taller', tipo: 'compra', estado: 'cancelado', creado: '2026-01-01T10:00:00.000Z' },
+        { id: 'c4', texto: 'yerba', contexto: 'mercado', tipo: 'compra', estado: 'por_comprar', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="taller"] .apfila-abrir');
+      await page.click('#segComprasAp [data-compras="no"]');
+      assert.match(await page.text('#apComprasPista'), /3 compras/);
+      await page.click('#btnApGuardar');
+      assert.ok(await isOpen(page, 'tapaConfirmar'));
+      assert.match(await page.text('#confDetalle'), /3 compras/);
+      await page.click('#btnConfSi');
+      await sleep(150);
+      const list = await items(page);
+      const by = (id) => list.find((i) => i.id === id);
+      assert.deepEqual([by('c1').tipo, by('c1').estado, by('c1').pausado, by('c1').fecha], ['tarea', 'pendiente', false, ymd(2)]);
+      assert.deepEqual([by('c2').tipo, by('c2').estado, by('c2').estadoDesde], ['tarea', 'completado', '2026-01-03T10:00:00.000Z']);
+      assert.deepEqual([by('c3').tipo, by('c3').estado], ['tarea', 'cancelado']);
+      assert.deepEqual([by('c4').tipo, by('c4').contexto], ['compra', 'mercado'], 'other sections keep their purchases');
+      assert.equal(JSON.parse(await page.storage('kibco.apartados')).find((a) => a.id === 'taller').compras, 'no');
+      await page.key('Escape');
+      await toTasks(page);
+      assert.match(await page.text('#lista'), /rodamiento/, 'the open one is reachable as a task');
+      assert.equal(await page.visible('#segBtnCompras'), false);
+    }
+  },
+  {
+    name: 'sections ui: moving a purchase into a section without purchases makes it a task; undo restores the purchase',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'mercado', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'c1', texto: 'yerba', contexto: 'mercado', tipo: 'compra', estado: 'por_comprar', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      await page.click('#listaCompras li.item');
+      assert.ok(await isOpen(page, 'tapaItem'), 'item sheet open');
+      await page.click('#gridCtx [data-ctx="estudio"]');
+      const [it] = await items(page);
+      assert.deepEqual([it.contexto, it.tipo, it.estado], ['estudio', 'tarea', 'pendiente']);
+      await page.key('Escape');
+      await page.click('#btnDeshacer');
+      const [back] = await items(page);
+      assert.deepEqual([back.contexto, back.tipo, back.estado], ['mercado', 'compra', 'por_comprar']);
+    }
+  },
+  {
+    name: 'sections ui: a restored backup with a purchase inside a section without purchases shows it as a task',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      const file = path.join(os.tmpdir(), 'kco-e2e-compra-sin-compras.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 5,
+        apartados: [{ id: 'estudio', nom: 'Estudio', orden: 0, compras: 'no' }],
+        items: [{ id: 'b1', texto: 'calculadora', contexto: 'estudio', tipo: 'compra', estado: 'esperando_entrega', creado: '2026-01-01T10:00:00.000Z' }] }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      await sleep(150);
+      const [it] = await items(page);
+      assert.deepEqual([it.contexto, it.tipo, it.estado], ['estudio', 'tarea', 'pendiente']);
+      await toTasks(page);
+      assert.match(await page.text('#lista'), /calculadora/);
+      await page.reload();
+      await toTasks(page);
+      assert.match(await page.text('#lista'), /calculadora/, 'still a task after a reload');
+    }
+  },
+  {
+    name: 'sections ui: another tab switching a section to "No" shows its purchases as tasks and Ajustes turns read-only',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'mercado', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'c1', texto: 'yerba', contexto: 'mercado', tipo: 'compra', estado: 'por_comprar', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      const otra = JSON.parse(CUSTOM_SECTIONS).map((a) => (a.id === 'mercado' ? Object.assign({}, a, { compras: 'no' }) : a));
+      await page.eval(`(function(){var v=${JSON.stringify(JSON.stringify(otra))};localStorage.setItem('kibco.apartados',v);window.dispatchEvent(new StorageEvent('storage',{key:'kibco.apartados',newValue:v}));})()`);
+      await sleep(120);
+      assert.equal(await page.eval("document.getElementById('btnApGuardar').disabled"), true, 'the open editor can no longer save');
+      await page.key('Escape');
+      assert.equal(await page.eval("document.getElementById('btnNuevoApartado').disabled"), true);
+      assert.equal(await page.eval("document.querySelector('#listaApartados [data-ap=\"mercado\"] [data-bajar]').disabled"), true, 'no reordering');
+      await page.key('Escape');
+      await toTasks(page);
+      assert.match(await page.text('#lista'), /yerba/, 'the purchase is reachable as a task');
+    }
+  },
+  {
+    name: 'sections ui: the destination sheet rebuilds after the sections change',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'todo', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      const rows = () => page.eval("Array.prototype.map.call(document.querySelectorAll('#destsel [data-ctx]'),function(b){return b.getAttribute('data-ctx')+':'+b.textContent;})");
+      await page.type('#txtCaptura', 'algo');
+      await page.click('#capCtx');
+      assert.deepEqual(await rows(), ['taller:Taller', 'mercado:Mercado', 'estudio:Estudio']);
+      await page.key('Escape');
+      await openAjustes(page);
+      await page.click('#btnNuevoApartado');
+      await page.type('#apNom', 'Huerta');
+      await page.click('#btnApGuardar');
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      await page.type('#apNom', 'Facultad');
+      await page.click('#btnApGuardar');
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.click('#btnApArchivar');
+      await page.key('Escape');
+      await page.type('#txtCaptura', 'otra cosa');
+      await page.click('#capCtx');
+      assert.deepEqual(await rows(), ['taller:Taller', 'estudio:Facultad', 'huerta:Huerta']);
     }
   },
   {
