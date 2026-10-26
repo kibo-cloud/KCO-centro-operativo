@@ -1430,6 +1430,70 @@ export const tests = [
     }
   },
   {
+    name: 'quick menu: "Más opciones" hands off to the item sheet with its own history entry; back closes it',
+    storage: seed(),
+    async fn(page) {
+      await toTasks(page);
+      await openQuickMenu(page, '#lista li.item');
+      await page.click('#btnRapFicha');
+      await sleep(200);
+      assert.ok(await page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1"), 'the item sheet is open');
+      assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa', 'the quick menu is closed');
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaItem', 'history entry matches the open sheet');
+      await page.eval('history.back()');
+      await sleep(200);
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'back closes the item sheet');
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), null);
+      assert.equal(await page.eval("document.getElementById('tabTareas').getAttribute('aria-selected')"), 'true', 'back only closed the sheet');
+    }
+  },
+  {
+    name: 'quick menu: "Borrar" hands off to the confirm sheet with its own history entry; back cancels it',
+    storage: seed(),
+    async fn(page) {
+      await toTasks(page);
+      const id = await page.eval("document.querySelector('#lista li.item').getAttribute('data-id')");
+      await openQuickMenu(page, `#lista li.item[data-id="${id}"]`);
+      await page.click('#tapaRapido [data-rap="borrar"]');
+      await sleep(200);
+      assert.ok(await page.eval("document.getElementById('tapaConfirmar').className.indexOf('on')>-1"), 'the confirm sheet is open');
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaConfirmar', 'history entry matches the open sheet');
+      await page.eval('history.back()');
+      await sleep(200);
+      assert.equal(await page.eval("document.getElementById('tapaConfirmar').className"), 'tapa', 'back closes the confirm sheet');
+      assert.ok((await items(page)).some((i) => i.id === id), 'back cancels the delete');
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), null);
+      assert.equal(await page.eval("document.getElementById('tabTareas').getAttribute('aria-selected')"), 'true', 'back only closed the sheet');
+    }
+  },
+  {
+    name: 'quick menu: "Para hoy" takes an inbox item out of the inbox for today',
+    storage: seed(),
+    async fn(page) {
+      const id = (await items(page)).find((i) => i.texto === 'comprar lija').id;
+      await openQuickMenu(page, `li.item[data-id="${id}"]`);
+      await page.click('#tapaRapido [data-rap="hoy"]');
+      const it = (await items(page)).find((i) => i.id === id);
+      assert.equal(it.estado, 'pendiente', 'out of the inbox');
+      assert.equal(it.fecha, ymd(0), 'scheduled for today');
+      assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa');
+    }
+  },
+  {
+    name: 'quick menu: "Para hoy" moves a non-inbox item to today',
+    storage: seed(),
+    async fn(page) {
+      await toTasks(page);
+      const id = (await items(page)).find((i) => i.texto === 'Grabar video tutorial').id;
+      await openQuickMenu(page, `#lista li.item[data-id="${id}"]`);
+      await page.click('#tapaRapido [data-rap="hoy"]');
+      const it = (await items(page)).find((i) => i.id === id);
+      assert.equal(it.fecha, ymd(0), 'scheduled for today');
+      assert.equal(it.estado, 'pendiente', 'state unchanged');
+      assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa');
+    }
+  },
+  {
     name: 'harness: per-spec teardown removes init scripts and resets emulated media',
     async fn(page) {
       const dark = "matchMedia('(prefers-color-scheme: dark)').matches";

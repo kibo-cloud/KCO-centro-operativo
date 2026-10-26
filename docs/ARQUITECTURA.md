@@ -108,6 +108,7 @@ titulo y una X "Cerrar" arriba a la derecha. La cabecera queda pegada arriba al 
 |---|---|
 | X, Escape (hoja de arriba), tocar el fondo, deslizar la cabecera hacia abajo (> 80px o tiron rapido, solo tactil) | `cerrarCapa(id)` -> `cerrarHoja(id)`, el mismo camino que el boton atras: saca la entrada del historial (`history.go(-n)` con `ignorarPop`), asi la pila de capas y el historial nunca se desfasan |
 | Atras de Android | `popstate` -> `alVolverAtras()` cierra la de arriba |
+| Cerrar una hoja y abrir otra en el mismo toque (menu rapido -> ficha o confirmar, buscar -> ficha) | `history.go` es asincrono: mientras un retroceso propio esta en vuelo (`ignorarPop` cuenta retrocesos, uno por `history.go`, que dispara un solo `popstate`), `abrirHoja` deja la hoja nueva en `capasEnEspera` y su `pushState` sale recien al llegar ese `popstate`; asi el retroceso no se lleva la entrada nueva. Cerrar una hoja en espera no retrocede nada |
 
 | Foco | Como |
 |---|---|

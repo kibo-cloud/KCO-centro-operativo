@@ -2087,7 +2087,15 @@
      el siguiente "atras" hace lo de siempre. */
 
   var pilaCapas = [];
+  /* Retrocesos propios en vuelo: cada history.go() dispara un solo popstate,
+     sin importar cuantas entradas salte, y ese popstate no es un "atras". */
   var ignorarPop = 0;
+  /* history.go() es asincrono: si una hoja se abre mientras un retroceso
+     sigue en vuelo (cerrar el menu rapido y abrir la ficha en el mismo
+     toque), su pushState caeria antes del retroceso y el retroceso se
+     llevaria la entrada nueva. Esas hojas esperan aca y empujan su entrada
+     recien cuando llego el popstate del retroceso. */
+  var capasEnEspera = [];
   var anclaPuesta = false;
 
   function empujarHistorial(dato) {
@@ -2103,11 +2111,34 @@
   function retrocederHistorial(n) {
     try {
       if (window.history && typeof window.history.go === 'function') {
-        ignorarPop = ignorarPop + n;
+        ignorarPop = ignorarPop + 1;
         window.history.go(-n);
         return;
       }
-    } catch (e) { ignorarPop = 0; }
+    } catch (e) { ignorarPop = 0; soltarCapasEnEspera(); }
+  }
+
+  /* La entrada de historial de una hoja recien abierta: ya, o cuando termine
+     el retroceso en vuelo. */
+  function anotarCapa(id) {
+    if (ignorarPop > 0) { capasEnEspera.push(id); return; }
+    empujarHistorial({ kcoCapa: id });
+  }
+
+  function soltarCapasEnEspera() {
+    var l = capasEnEspera, i;
+    capasEnEspera = [];
+    for (i = 0; i < l.length; i++) {
+      if (pilaCapas.indexOf(l[i]) > -1) { empujarHistorial({ kcoCapa: l[i] }); }
+    }
+  }
+
+  /* Saca la capa de la espera; devuelve si ya tenia entrada en el historial. */
+  function tieneEntrada(id) {
+    var pos = capasEnEspera.indexOf(id);
+    if (pos === -1) { return true; }
+    capasEnEspera.splice(pos, 1);
+    return false;
   }
 
   /* Foco: al abrir una hoja se recuerda quien la abrio y al cerrarla el foco
@@ -2164,7 +2195,7 @@
     $(id).style.zIndex = '' + (30 + pilaCapas.length);
     $(id).querySelector('.hoja').scrollTop = 0;
     pilaCapas.push(id);
-    empujarHistorial({ kcoCapa: id });
+    anotarCapa(id);
     enfocarHoja(id);
   }
 
@@ -2301,26 +2332,34 @@
     var pos = -1, i;
     for (i = 0; i < pilaCapas.length; i++) { if (pilaCapas[i] === id) { pos = i; } }
     if (pos === -1) { cerrarDom(id); return; }
-    /* Se cierran tambien las capas que quedaron por encima de esta. */
-    var cuantas = pilaCapas.length - pos;
+    /* Se cierran tambien las capas que quedaron por encima de esta. Solo se
+       retroceden las que ya tienen entrada (no las que siguen en espera). */
+    var cuantas = 0;
     for (i = pilaCapas.length - 1; i >= pos; i--) {
+      if (tieneEntrada(pilaCapas[i])) { cuantas++; }
       cerrarDom(pilaCapas[i]);
       pilaCapas.pop();
     }
-    retrocederHistorial(cuantas);
+    if (cuantas > 0) { retrocederHistorial(cuantas); }
   }
 
   function cerrarTodasLasCapas() {
-    var cuantas = pilaCapas.length;
-    if (cuantas === 0) { return; }
-    var i;
-    for (i = pilaCapas.length - 1; i >= 0; i--) { cerrarDom(pilaCapas[i]); }
+    if (pilaCapas.length === 0) { return; }
+    var i, cuantas = 0;
+    for (i = pilaCapas.length - 1; i >= 0; i--) {
+      if (tieneEntrada(pilaCapas[i])) { cuantas++; }
+      cerrarDom(pilaCapas[i]);
+    }
     pilaCapas = [];
-    retrocederHistorial(cuantas);
+    if (cuantas > 0) { retrocederHistorial(cuantas); }
   }
 
   function alVolverAtras() {
-    if (ignorarPop > 0) { ignorarPop = ignorarPop - 1; return; }
+    if (ignorarPop > 0) {
+      ignorarPop = ignorarPop - 1;
+      if (ignorarPop === 0) { soltarCapasEnEspera(); }
+      return;
+    }
     if (pilaCapas.length > 0) {
       cerrarDom(pilaCapas[pilaCapas.length - 1]);
       pilaCapas.pop();
