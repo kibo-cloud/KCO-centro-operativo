@@ -59,15 +59,22 @@ Full check at task closure: `npm run verify`.
   `esFabrica`, capture aliases built from the registry (slugged, accent-insensitive),
   `estadisticas` from the registry, `equilibrio` threshold `min(3, n)`, legacy seed
   `apartadosLegado()`, `progresoMeta`. Unit tests first.
-- [ ] **T01b Review follow-ups (review-34241d99cef28d59)** — (a) `listaTags(ctx)` must show the
+- [x] **T01b Review follow-ups (review-34241d99cef28d59)** — (a) `listaTags(ctx)` must show the
   section's own tag names when two sections share a tag id (no global `infoTag` lookup for a
   section list); (b) `icoCtx` must keep a per-section emoji in exported text (emoji derived from
   the section icon, legacy sections keep their previous emoji); (c) unit tests: archived section
   is not `contextoValido` and `#alias` capture does not route to it.
 - [x] **T02 Persistence + migration 4→5** — `ESQUEMA=5`, load/save/quarantine of
   `kibco.apartados`, legacy seed, `CLAVES_DATOS`, migration event; app reads the registry.
-- [ ] **T03 Backup/import** — include `apartados`, seed when absent, validate, all-or-nothing.
-- [ ] **T04 Generic visual identity** — palette tokens + `pal-<key>` classes instead of
+- [x] **T03 Backup/import** — include `apartados`, seed when absent, validate, all-or-nothing.
+- [ ] **T03b Review follow-ups (review of `1ed8a10..6a387c4`)** — (a) R3-002 + T06 gap: records
+  keep archived section ids (normalize records against all sections; capture/pickers use active
+  ones) and a schema-5 backup that references ids missing from its `apartados` gets generated
+  sections, like the legacy path; round-trip tests. (b) R3-003: do not bump the schema when the
+  4→5 seed write fails; test. (c) R3-001 (fresh install seeded with legacy sections on second
+  boot, misleading `esquema 5→5` event) is resolved by T07 — T07 acceptance: a fresh user who
+  captures before choosing a template never gets legacy sections or a migration event.
+- [x] **T04 Generic visual identity** — palette tokens + `pal-<key>` classes instead of
   `ctx-<id>`/`p-<id>`/`--ctx-<id>`; icons per section; selectors (`#ctxsel`, `#ctxLateral`,
   `#destsel`, grids) rebuilt from the registry; `index.html` defaults neutral.
 - [ ] **T05 Generic per-section features** — purchases mode, tags, report branches, catalogs
@@ -110,6 +117,23 @@ Full check at task closure: `npm run verify`.
   install; fresh install keeps an in-memory legacy bridge with `necesitaPlantillas=true` (T07
   replaces it); boot context defaults to `todo`. RDD: medium, `under_budget` (211) — pending
   in slice. Gaps for T03: restore does not write/snapshot `apartados`.
+- T01b (delegated) — commit `d483306`. RED: `infoTag` naming, `emojiApartado` missing. GREEN:
+  92 unit, 120 e2e. Section-first tag lookup; per-section export emoji (legacy kept).
+- T03 (delegated) — commit `6a387c4`. RED: 6/7 new backup specs. GREEN: 92 unit, 127 e2e.
+  Backups carry `apartados`; legacy backups seed legacy + generic sections for unknown ids;
+  unusable `apartados` rejected before confirmation; registry rolled back on failure.
+  **Open gap → T06**: `normalizarContexto` only accepts active sections, so records of an
+  archived section would be remapped on load. T06 must let records keep archived section ids
+  (normalize against all sections; only capture/pickers use active ones).
+  RDD slice `1ed8a10..6a387c4`: medium, `slice_budget_reached` (537) → review **approved**,
+  acknowledged/burned. Last reviewed boundary: `6a387c4`. Warnings → T03b.
+- T04 (delegated) — commit `32aa66c`. RED: `--pal-azul declared`, `data-ctx` null. GREEN: es5
+  ok, 96 unit, 129 e2e. Palette tokens `--pal-<key>` (+ `-soft`) both themes, WCAG unit test
+  (`tests/unit/paleta.test.js`); body `pal-<key>` + `data-ctx`; section SVG icons in selectors,
+  header chip, grids, activity bars; selectors rebuild on id:color:icon:name signature.
+  Remaining legacy ids: purchases `esHogar` and report branches (T05). ARQUITECTURA still
+  describes `body.ctx-*` (T09). T06 needs icon picker restricted to `KCOIconos.existe`.
+  RDD: medium, `under_budget` (342) — pending in slice.
 
 ## Next step
 

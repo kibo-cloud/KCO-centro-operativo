@@ -454,6 +454,71 @@ export const tests = [
     }
   },
   {
+    name: 'backup: records of an archived section survive load, round-trip and reload',
+    storage: { 'kibco.esquema': '5', 'kibco.eventos': '[]',
+      'kibco.apartados': JSON.stringify([{ id: 'estudio', nom: 'Estudio', color: 'azul', orden: 0 },
+        { id: 'viejo', nom: 'Viejo', orden: 1, activo: false }]),
+      'kibco.items': JSON.stringify([{ id: 'a1', texto: 'archivado', contexto: 'viejo', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]),
+      'kibco.rutinas': JSON.stringify([{ id: 'r1', texto: 'regar', contexto: 'viejo', tipo: 'dias', cada: 1, inicio: '2026-01-01' }]) },
+    async fn(page) {
+      // A write after boot persists the in-memory lists: the archived id must still be there.
+      await capture(page, 'nueva');
+      assert.equal((await items(page)).find((i) => i.id === 'a1').contexto, 'viejo', 'kept on load');
+      assert.equal((await items(page)).find((i) => i.texto === 'nueva').contexto, 'estudio', 'capture uses an active section');
+      assert.doesNotMatch(await page.eval("document.getElementById('ctxsel').textContent"), /Viejo/, 'archived not offered');
+      await page.click('#btnAjustes');
+      await page.click('#btnBackupTexto');
+      const texto = await page.eval("document.getElementById('txtSalida').value");
+      assert.equal(JSON.parse(texto).items.find((i) => i.id === 'a1').contexto, 'viejo', 'exported in its section');
+      const file = path.join(os.tmpdir(), 'kco-e2e-apartados-archivado.json');
+      fs.writeFileSync(file, texto);
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      assert.equal((await items(page)).find((i) => i.id === 'a1').contexto, 'viejo', 'restored in its section');
+      await page.reload();
+      await capture(page, 'otra');
+      assert.equal((await items(page)).find((i) => i.id === 'a1').contexto, 'viejo', 'survives a reload');
+      assert.equal(JSON.parse(await page.storage('kibco.rutinas'))[0].contexto, 'viejo', 'routine kept too');
+    }
+  },
+  {
+    name: 'backup: a schema-5 backup with a record id missing from its apartados gets a generated section',
+    async fn(page) {
+      const file = path.join(os.tmpdir(), 'kco-e2e-apartados5-extra.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 5, apartados: [{ id: 'estudio', nom: 'Estudio', color: 'azul' }],
+        items: [{ id: 'k1', texto: 'tornear eje', contexto: 'taller', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+          { id: 'k2', texto: 'leer', contexto: 'estudio', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }] }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      const secs = JSON.parse(await page.storage('kibco.apartados'));
+      assert.deepEqual(secs.map((a) => a.id), ['estudio', 'taller']);
+      assert.equal(secs[1].nom, 'taller');
+      assert.equal(secs[1].color, 'gris');
+      const list = await items(page);
+      assert.equal(list.find((i) => i.id === 'k1').contexto, 'taller');
+      assert.equal(list.find((i) => i.id === 'k2').contexto, 'estudio');
+    }
+  },
+  {
+    name: 'data: a failed 4-to-5 section seed keeps the stored schema and retries next boot',
+    async fn(page) {
+      await page.addInitScript("(function(){var o=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){" +
+        "if(k==='kibco.apartados'&&localStorage.getItem('e2e.failSeed')==='1'){throw new Error('quota');}return o.call(this,k,v);};})()");
+      await page.setStorage({ 'e2e.failSeed': '1', 'kibco.esquema': '4', 'kibco.eventos': '[]',
+        'kibco.items': JSON.stringify([{ id: 'm1', texto: 'tarea casa', contexto: 'hogar', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) });
+      await page.reload();
+      assert.equal(await page.storage('kibco.apartados'), null);
+      assert.equal(await page.storage('kibco.esquema'), '4', 'schema not bumped without sections');
+      assert.equal((await events(page)).filter((e) => e.tipo === 'migracion').length, 0);
+      await page.eval("localStorage.removeItem('e2e.failSeed')");
+      await page.reload();
+      assert.equal(await page.storage('kibco.esquema'), '5');
+      assert.deepEqual(JSON.parse(await page.storage('kibco.apartados')).map((a) => a.id), ['trabajo', 'hogar', 'apps', 'contenido', 'personal']);
+      assert.equal((await events(page)).filter((e) => e.tipo === 'migracion').length, 1);
+      assert.equal((await items(page))[0].contexto, 'hogar');
+    }
+  },
+  {
     name: 'backup: an unusable apartados field is rejected without writing anything',
     storage: { 'kibco.esquema': '5', 'kibco.apartados': LEGACY_SECTIONS,
       'kibco.items': JSON.stringify([{ id: 'v1', texto: 'viejo', contexto: 'hogar', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },

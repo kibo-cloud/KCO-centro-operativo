@@ -384,7 +384,7 @@
   function normalizarItem(it) {
     if (!it || typeof it !== 'object') { return null; }
     var creado = it.creado ? '' + it.creado : new Date().toISOString();
-    var ctx = K.normalizarContexto(it.contexto);
+    var ctx = K.contextoDeRegistro(it.contexto);
     var tipo = it.tipo === 'compra' ? 'compra' : 'tarea';
     var est = it.estado ? '' + it.estado : (tipo === 'compra' ? (K.esFabrica(ctx) ? 'cotizando' : 'por_comprar') : 'entrada');
     var nivel = K.nivelDe(it);
@@ -440,7 +440,7 @@
       tipo: ev.tipo ? '' + ev.tipo : 'nota',
       itemId: ev.itemId ? '' + ev.itemId : '',
       texto: ev.texto ? '' + ev.texto : '',
-      contexto: K.normalizarContexto(ev.contexto),
+      contexto: K.contextoDeRegistro(ev.contexto),
       desde: ev.desde ? '' + ev.desde : '',
       hasta: ev.hasta ? '' + ev.hasta : ''
     };
@@ -518,8 +518,10 @@
        antes (o un esquema viejo) y sin kibco.apartados se siembran los cinco
        de siempre, con los mismos ids, colores, tags y modo de compras: ningun
        item cambia. Sin datos ni esquema es una instalacion nueva: no se siembra. */
-    if (leer(K_APARTADOS) === null && (n < 5 || hayDatos()) &&
-        escribir(K_APARTADOS, JSON.stringify(K.apartadosLegado()))) {
+    if (leer(K_APARTADOS) === null && (n < 5 || hayDatos())) {
+      /* Si la siembra no se pudo guardar, el esquema queda como estaba: el
+         proximo arranque la vuelve a intentar. */
+      if (!escribir(K_APARTADOS, JSON.stringify(K.apartadosLegado()))) { return; }
       apartadosSembradosDesde = v === null ? 'sin esquema' : 'esquema ' + n;
     }
     if (v === null || n < ESQUEMA) { escribir(K_ESQUEMA, '' + ESQUEMA); }
@@ -3756,16 +3758,18 @@
 
   /* Apartados que deja un backup, o null si trae el campo pero no sirve
      (ningun apartado activo valido). Sin el campo (esquema 4 o anterior) se
-     siembran los cinco de siempre mas uno generico (nombre = id, color gris)
-     por cada otro contexto que usen sus registros: ninguno se reasigna. */
+     siembran los cinco de siempre. En los dos casos se suma uno generico
+     (nombre = id, color gris) por cada otro contexto que usen sus registros:
+     ninguno se reasigna. */
   function apartadosDeBackup(datos) {
-    var l, extra = [], vistos = {}, listas, i, j, x, a;
+    var l, extra = [], vistos = {}, listas, activo = false, i, j, x, a;
     if (datos.apartados !== undefined) {
       l = K.normalizarApartados(datos.apartados);
-      for (i = 0; i < l.length; i++) { if (l[i].activo) { return l; } }
-      return null;
+      for (i = 0; i < l.length; i++) { if (l[i].activo) { activo = true; } }
+      if (!activo) { return null; }
+    } else {
+      l = K.apartadosLegado();
     }
-    l = K.apartadosLegado();
     for (i = 0; i < l.length; i++) { vistos['#' + l[i].id] = true; }
     listas = [datos.items, datos.rutinas, datos.proyectos, datos.eventos];
     for (j = 0; j < listas.length; j++) {

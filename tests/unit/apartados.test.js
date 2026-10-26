@@ -216,3 +216,16 @@ test('emojiApartado: legacy sections keep their emoji, others derive it from the
     assert.equal(C.emojiApartado('nada'), '📋');
   } finally { restaurar(); }
 });
+
+test('records keep an archived section id; unknown ids fall back to the first active section', () => {
+  try {
+    C.fijarApartados([{ id: 'taller', nom: 'Taller' }, { id: 'viejo', nom: 'Viejo', activo: false }]);
+    assert.equal(C.contextoDeRegistro('viejo'), 'viejo', 'archived id kept for records');
+    assert.equal(C.contextoDeRegistro('taller'), 'taller');
+    assert.equal(C.contextoDeRegistro('nada'), 'taller', 'unknown id -> first active');
+    assert.equal(C.contextoDeRegistro('todo'), 'taller', 'todo is never a record section');
+    assert.equal(C.normalizarContexto('viejo'), 'taller', 'capture/pickers still use active ones');
+    assert.equal(C.normalizarRutina({ id: 'r1', texto: 'regar', contexto: 'viejo' }, HOY).contexto, 'viejo');
+    assert.equal(C.normalizarProyecto({ id: 'p1', nombre: 'Mision', contexto: 'viejo' }).contexto, 'viejo');
+  } finally { restaurar(); }
+});

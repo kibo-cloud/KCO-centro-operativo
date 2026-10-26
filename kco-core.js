@@ -276,6 +276,13 @@
     return CONTEXTOS.length ? CONTEXTOS[0].id : '';
   }
 
+  /* Para registros (items, eventos, rutinas, misiones): conservan su apartado
+     aunque este archivado; un id desconocido cae en el primero activo. La
+     captura, los selectores y las grillas usan normalizarContexto. */
+  function contextoDeRegistro(id) {
+    return infoContexto(id) ? id : normalizarContexto(id);
+  }
+
   function modoCompras(ctx) {
     var a = infoContexto(ctx);
     return a ? a.compras : 'lista';
@@ -662,7 +669,7 @@
     return {
       id: r.id,
       texto: texto,
-      contexto: normalizarContexto(r.contexto),
+      contexto: contextoDeRegistro(r.contexto),
       nivel: nivelDe(r),
       tipo: tipo,
       cada: entero(r.cada, 1, 365, 1),
@@ -834,7 +841,7 @@
       id: p.id,
       nombre: nombre,
       objetivo: typeof p.objetivo === 'string' ? p.objetivo.replace(/^\s+|\s+$/g, '').slice(0, 600) : '',
-      contexto: normalizarContexto(p.contexto),
+      contexto: contextoDeRegistro(p.contexto),
       estado: estado,
       hitos: hitos,
       creado: typeof p.creado === 'string' ? p.creado : '',
@@ -1374,6 +1381,7 @@
     infoContexto: infoContexto,
     contextoValido: contextoValido,
     normalizarContexto: normalizarContexto,
+    contextoDeRegistro: contextoDeRegistro,
     esFabrica: esFabrica,
     modoCompras: modoCompras,
     COLORES: COLORES,
