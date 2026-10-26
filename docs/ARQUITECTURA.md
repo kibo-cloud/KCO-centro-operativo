@@ -1,4 +1,4 @@
-# Arquitectura — KCO 2.0
+# Arquitectura — KCO 2.1
 
 KCO es una PWA estatica sin build ni librerias. La logica de dominio vive en un modulo puro
 (`kco-core.js`) que se prueba en Node; la interfaz y la persistencia viven en `kco-app.js`.

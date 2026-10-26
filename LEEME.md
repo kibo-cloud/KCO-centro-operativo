@@ -3,7 +3,9 @@
 Abris KCO y en un vistazo sabes como esta todo, que conviene hacer ahora, lo haces con un
 toque, queda registrado y despues podes mirar hacia atras y ver cuanto avanzaste. Nacio como
 memoria externa de captura rapida para **Trabajo** y **Hogar** (v1); la 2.0 la convierte en
-un centro de control de cinco contextos de vida, con rutinas, misiones, diario y progreso.
+un centro de control de cinco contextos de vida, con rutinas, misiones, diario y progreso. La
+2.1 renueva la interfaz (tema claro y oscuro, pestañas abajo, hojas accesibles, gestos y
+atajos de teclado) para que capturar, decidir y editar cueste menos toques.
 
 Ciclo: capturar -> decidir -> ejecutar -> registrar -> mirar hacia atras.
 
@@ -17,7 +19,9 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 | Como funcionan rutinas, misiones, diario y XP | [Rutinas](#rutinas-tareas-recurrentes), [Misiones](#misiones), [Diario](#diario-registro-y-campaña), [Progreso](#progreso-xp-niveles-logros-y-racha) |
 | Que se guarda y como se protege | [Datos guardados](#datos-guardados), [Backups](#backups) |
 | Que no hace (todavia) | [Limites conocidos](#limites-conocidos), [Backlog](#backlog) |
+| Como se ve y se maneja (2.1) | [Interfaz y atajos](#interfaz-y-atajos) |
 | Como esta construida y probada | `docs/ARQUITECTURA.md`, `docs/TESTING.md` |
+| Que cambio en cada version | `CHANGELOG.md` (2.1.0 en adelante) y [CHANGELOG](#changelog) (hasta 2.0.0) |
 
 ## Identidad tecnica (no negociable)
 
@@ -25,13 +29,13 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-v16` |
+| Nombre de cache | `kibco-2.1.0` (`'kibco-' + VERSION` en `sw.js`) |
 | Esquema de datos | `4` (sin cambios desde v0.7) |
-| Version de la app | `2.0.0` (`VERSION_APP` en `kco-app.js`, `VERSION` en `sw.js`) |
-| Fondo / tarjetas / bordes | `#0D0F12` / `#161920` / `rgba(255,255,255,.07)` |
+| Version de la app | `2.1.0` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
+| Tema | Sistema (sigue `prefers-color-scheme`), Claro u Oscuro; colores como tokens en `kco.css`. Oscuro: fondo `#0D0F12`, tarjetas `#161920`, bordes `rgba(255,255,255,.07)` |
 | Acentos por contexto | Trabajo `#FF6B2B`, Casa `#00E5FF`, Apps `#A78BFA`, Contenido `#FF5FA2`, Personal `#3DDC84`, Todo `#F5C451` |
-| Tipografia | sistema para texto, `ui-monospace` para estados, horas, contadores y tags |
-| Stack | PWA estatica, HTML/CSS/JS plano, sin build tools, sin librerias. Tres scripts: `kco-core.js`, `kco-app.js`, `sw.js` |
+| Tipografia | sans del sistema para todo el texto, minimo 12 px; `ui-monospace` solo para numeros |
+| Stack | PWA estatica, HTML/CSS/JS plano, sin build tools, sin librerias. Estilos en `kco.css`; scripts `tema.js`, `iconos.js`, `kco-core.js`, `kco-app.js` y `sw.js` |
 | Seguridad | CSP en `index.html` (`script-src 'self'`, `object-src 'none'`, `base-uri 'none'`, `form-action 'none'`); todo texto del usuario se pinta con `textContent` |
 | Rutas | siempre relativas (`./`) |
 | JS | ES5 estricto: `var` y `function`, sin arrow, sin template literals, sin `?.`, sin `??`. Lo controla `tests/check-es5.mjs` |
@@ -43,12 +47,16 @@ El service worker solo borra caches que empiezan con `kibco-`.
 
 | Archivo | Para que |
 |---|---|
-| `index.html` | marcado y CSS de toda la app, CSP, carga de los dos scripts |
+| `index.html` | marcado, CSP, carga de estilos y scripts; sin CSS ni JS en linea |
+| `kco.css` | tokens de diseño (color, espacio, radios, tipo, sombras, movimiento) y todas las reglas de estilo |
+| `tema.js` | aplica el tema (`kibco.tema`) antes del primer pintado |
+| `iconos.js` | iconos SVG de trazo armados con `createElementNS` |
 | `kco-core.js` | dominio puro: contextos, prioridad, situaciones, puntaje, captura, rutinas, misiones, diario, XP, logros. Sin DOM ni localStorage; se prueba en Node |
 | `kco-app.js` | interfaz y persistencia: lee y escribe localStorage, pinta las vistas, maneja hojas, gestos, deshacer y backups |
 | `sw.js` | service worker. `VERSION` tiene que coincidir con `VERSION_APP` |
-| `manifest.webmanifest`, `icono-192.png`, `icono-512.png` | instalacion como PWA |
+| `manifest.webmanifest`, `icono-180.png`, `icono-192.png`, `icono-512.png`, `icono-maskable-512.png` | instalacion como PWA (icono de iOS de 180, maskable con zona segura, atajo "Capturar") |
 | `tests/` | pruebas unitarias, E2E y control ES5 (ver `docs/TESTING.md`) |
+| `CHANGELOG.md` | cambios por version desde 2.1.0 |
 | `docs/` | auditoria de v1.1.1, arquitectura y pruebas |
 | `LEEME.md` | este archivo |
 
@@ -148,8 +156,9 @@ tampoco, el dia de su recordatorio.
 
 ## Vistas y navegacion
 
-Cinco pestañas abajo: **AHORA**, **HOY**, **TAREAS** (con Tareas / Compras), **MISIONES** y
-**DIARIO** (con Diario / Campaña / Registro). KCO **siempre abre en AHORA**: la pregunta al
+Cinco pestañas abajo (en escritorio, desde 1024 px, una barra lateral): **AHORA**, **HOY**,
+**TAREAS** (con Tareas / Compras), **MISIONES** y **DIARIO** (con Diario / Campaña /
+Registro). KCO **siempre abre en AHORA**: la pregunta al
 abrir es que hago ahora, no en que pestaña me quede.
 
 ### AHORA: el proximo movimiento
@@ -188,8 +197,8 @@ A igual puntaje gana lo creado antes.
 **Mañana.** ⏭ Mañana pone la fecha del item en el dia siguiente sin perderlo. Si tenia un
 recordatorio vencido, lo corre al mismo horario de mañana. Se puede deshacer.
 
-**Triaje del inbox.** El inbox son las tareas en Entrada. En AHORA cada una tiene dos
-botones: ✔ la pasa a Pendiente y 📅 la pasa a Pendiente con fecha de hoy. Se puede deshacer.
+**Triaje del inbox.** El inbox son las tareas en Entrada. En AHORA cada una tiene **Para
+hoy**, que la pasa a Pendiente con fecha de hoy; el circulo la completa. Se puede deshacer.
 
 ### HOY y PROXIMOS DIAS
 
@@ -207,14 +216,15 @@ despues de esos siete dias va en **Mas adelante** (hasta diez).
 ### Navegacion, gestos y animaciones
 
 **Boton atras de Android.** Cada hoja flotante que se abre empuja una entrada en el
-historial (`history.pushState`). El `popstate` cierra la capa de arriba en vez de cerrar
-la PWA. Si no queda ninguna capa abierta y no estas en AHORA, el atras vuelve a AHORA.
-Recien el siguiente atras sale de la app. Si el navegador no tiene History API, la app
-funciona igual: las hojas cierran directo.
+historial (`history.pushState`). El atras cierra la capa de arriba en vez de cerrar la PWA.
+Si no queda ninguna capa abierta y no estas en AHORA, el atras vuelve a AHORA. Recien el
+siguiente atras sale de la app. Las capas se ajustan a la entrada en la que quedo el
+historial, asi que cada atras se nota, tambien despues de recargar la pagina. Si el
+navegador no tiene History API, la app funciona igual: las hojas cierran directo.
 
-*Limitacion conocida:* cerrar una hoja con su boton dispara un retroceso de historial que
-llega en el tick siguiente. Si en esos pocos milisegundos se toca atras, ese toque se
-consume sin efecto visible. No es alcanzable a mano.
+*Limitacion conocida:* si el retroceso que dispara cerrar una hoja nunca llega (borde del
+historial, navegacion externa), el primer atras siguiente se puede consumir sin efecto
+visible; el proximo ya cierra. Detalle en `docs/ARQUITECTURA.md` (Hojas).
 
 **Gestos.** Swipe horizontal sobre el cuerpo de la app cambia de vista en este orden:
 AHORA - HOY - Tareas - Compras - MISIONES - DIARIO. Swipe horizontal sobre el encabezado
@@ -226,21 +236,50 @@ arranca sobre una barra de chips mueve la barra. Con una hoja abierta los gestos
 **Animaciones.** Todo con `transform` y `opacity`. Las hojas suben desde el borde inferior
 con `cubic-bezier(0.16, 1, 0.3, 1)`; el cambio de pestaña entra con un desplazamiento
 lateral corto; los items entran con fade y 6 px de deslizamiento, solo la primera vez que
-aparecen. Si el telefono tiene activado "reducir movimiento", no se anima nada.
+aparecen. Si el telefono tiene activado "reducir movimiento" (`prefers-reduced-motion`),
+toda transicion y animacion se reduce a .01 ms: los cambios se ven al instante.
+
+## Interfaz y atajos
+
+Lo que cambio en 2.1, en el orden en que se usa.
+
+| Que | Como se usa |
+|---|---|
+| Tema | Ajustes > Pantalla: Sistema (sigue al telefono), Claro u Oscuro. Se aplica antes del primer pintado, sin destello. El modo luz de planta funciona en los dos temas |
+| Contexto | el chip del encabezado abre el selector de contexto con las cuentas de cada uno. En escritorio, la barra lateral lista vistas y contextos |
+| Captura | la barra queda justo arriba de las pestañas (en escritorio, arriba de la columna). Al tipear aparecen chips con lo que se va a guardar: contexto, dia y prioridad, leidos con las mismas reglas que al guardar. Tocar el chip de contexto abre "Guardar en" y elige otro contexto solo para esa captura |
+| Hojas | todas son dialogos accesibles: se cierran con la X de arriba, Escape, tocando el fondo, deslizando la cabecera hacia abajo o con atras. El foco queda adentro y vuelve a quien la abrio. En la ficha, el titulo se edita arriba y una fila rapida ofrece Hecho, Hoy, Mañana y Elegir dia. En escritorio la hoja es un dialogo centrado |
+| Tarjetas | un circulo a la izquierda completa (o marca la compra). Deslizar a la derecha completa; a la izquierda abre el menu rapido: Hoy, Mañana, Prioridad, Mover a Compras, Borrar y Mas opciones. Tambien se abre manteniendo apretado, con clic derecho o con Shift+F10. Todo se puede deshacer |
+| Listas largas | Tareas, Compras, Diario, Registro y la busqueda muestran de a 50 filas; **Ver más (N)** suma 50 sin perder el lugar |
+| Estados vacios | cada vista sin contenido muestra un icono, una linea y, si corresponde, la accion para salir de ahi (Capturar, Nueva mision, Ver todo, Borrar busqueda...) |
+| Ajustes | Backup primero (con el ultimo backup), luego Pantalla, Recordatorios, Catalogos e Info (versiones, esquema, cuentas, prefijo) al final |
+| Actualizacion | cuando hay una version nueva aparece **Nueva versión disponible · Actualizar**. Nada cambia hasta tocar Actualizar: la app recarga una sola vez |
+
+**Teclado** (escritorio o teclado fisico). Ningun atajo actua con una hoja abierta, adentro
+de un campo editable ni con Ctrl, Alt o Meta.
+
+| Tecla | Hace |
+|---|---|
+| `n` o `/` | enfoca la barra de captura |
+| `j` / `k` | mueve la seleccion a la fila siguiente / anterior de la vista |
+| `x` | completa o reabre la fila elegida (con deshacer) |
+| Enter | abre la ficha de la fila enfocada |
+| Escape | cierra la hoja de arriba |
 
 ## Acciones de un toque
 
 Lo que se hace muchas veces por dia no puede costar tres toques. En la tarjeta misma,
 sin abrir la ficha:
 
-- Tarea activa: **Listo** la completa. Si ademas esta en Entrada o Pendiente y **no es una
-  ocurrencia de rutina**, aparece **Compras** para mandarla al flujo de compras.
+- Tarea activa: el **circulo** de la izquierda la completa (o la reabre). Mover a Compras
+  esta en el menu rapido y en la ficha, y no se ofrece en ocurrencias de rutina.
 - Compra de fabrica: **el boton dice cual es el proximo casillero** (Esperando OC,
   Esperando aprob., OC enviada, Esperando entrega, Material Recibido) y avanza uno por toque.
   Nunca ofrece Cancelado como paso siguiente: eso se elige a mano desde la ficha. Pausada,
   ofrece `▶ Seguir`.
 - Compra de lista simple (Casa, Apps, Contenido, Personal): marcar y desmarcar comprado.
-- En el inbox de AHORA: ✔ y 📅 (ver triaje).
+- En el inbox de AHORA: **Para hoy** (ver triaje).
+- Deslizar la tarjeta: a la derecha completa, a la izquierda abre el menu rapido.
 
 Mover a Compras arranca en Cotizando en Trabajo y en Por comprar en los demas contextos.
 
@@ -481,6 +520,7 @@ para un dedo apurado o con guantes.
 | `kibco.rutinas` | array JSON de definiciones de rutina | 2.0 |
 | `kibco.proyectos` | array JSON de misiones con sus hitos | 2.0 |
 | `kibco.progreso` | `{nivelVisto, logros: {id: fechaISO}}`: que nivel ya se celebro y que logros se ganaron. El XP no se guarda | 2.0 |
+| `kibco.tema` | tema elegido: `sistema` (o ausente), `claro` u `oscuro`. No viaja en el backup | 2.1 |
 | `<clave>.roto.<timestamp>` | copia intacta de un valor que no se pudo leer (cuarentena) | 0.7 |
 
 `kibco.vista` (ultima pestaña, hasta 1.1.1) ya no se lee ni se escribe: KCO siempre abre en
@@ -607,7 +647,7 @@ preferencias (contexto, filtros, luz, catalogos) o copias de cuarentena no la bl
 Desde Ajustes se descarga o comparte un `.json` (`kco-backup-AAAAMMDD-HHMM.json`):
 
     {
-      "app": "kco", "schema": 4, "version": "2.0.0",
+      "app": "kco", "schema": 4, "version": "2.1.0",
       "exportado": "<fecha ISO>", "contexto": "<contexto actual>",
       "items": [...], "eventos": [...], "rutinas": [...], "proyectos": [...],
       "progreso": {"nivelVisto": 1, "logros": {}}
@@ -641,28 +681,36 @@ engranaje de Ajustes.
 | Deshacer | repone una foto entera del item, no solo el cambio deshecho |
 | Recordatorios | solo con la app abierta o recien usada |
 | Almacenamiento | todo vive en localStorage del navegador, con su tope (del orden de 5 MB). Una escritura que no entra se avisa y no se aplica |
-| Registro | los eventos crecen sin limite; las ocurrencias de rutina suman items cada dia que tocan |
+| Registro | los eventos crecen sin limite mientras entren; solo si una escritura falla por almacenamiento lleno se compacta lo anterior a 180 dias (sin cambiar XP, logros ni diario). Las ocurrencias de rutina suman items cada dia que tocan |
 | Varias ventanas | la carrera entre ventanas solo se mitiga pasando a solo lectura; no hay fusion de cambios |
 | Normalizadores | un elemento de una lista que el normalizador descarta (sin id o sin texto) se pierde en el proximo guardado, igual que en v1 |
 | Comentarios | no se pueden borrar ni editar desde la app |
 
 ## Al publicar una version nueva
 
-1. `VERSION` en `sw.js`.
-2. `VERSION_APP` en `kco-app.js`.
-3. `version` en `package.json`.
-4. Linea nueva en el CHANGELOG.
-5. Si cambia el contenido cacheado, subir `CACHE` (`kibco-v16` -> `kibco-v17`).
-6. Si se agrega un archivo, sumarlo a `ARCHIVOS` en `sw.js`.
-7. `npm run verify` (ES5, unitarias y E2E) en verde.
+1. `VERSION` en `sw.js`, `VERSION_APP` en `kco-app.js` y `version` en `package.json`,
+   los tres iguales (lo controla `tests/unit/version.test.js`). La cache se llama
+   `kibco-` + `VERSION`: subir la version ya renombra la cache.
+2. Entrada nueva en `CHANGELOG.md`.
+3. Si se agrega un archivo, sumarlo a `ARCHIVOS` en `sw.js`.
+4. `npm run verify` (ES5, unitarias y E2E) en verde.
 
-Un cambio de una sola linea en `index.html`, `kco-core.js` o `kco-app.js` tambien cuenta:
-si el nombre de cache no sube, el telefono sigue sirviendo el archivo viejo y el cambio no
-aparece nunca.
+Un cambio de una sola linea en `index.html`, `kco.css`, `kco-core.js` o `kco-app.js`
+tambien cuenta: si la version no sube, el telefono sigue sirviendo el archivo viejo y el
+cambio no aparece nunca. Con la version nueva, la app muestra el aviso "Actualizar".
 
 ---
 
 # CHANGELOG
+
+Desde 2.1.0 el detalle de cada version esta en `CHANGELOG.md`.
+
+## 2.1.0 — interfaz renovada y cero friccion
+
+Cache `kibco-2.1.0`. Esquema 4. Sin cambios de datos: `kibco.tema` es una preferencia
+nueva y no entra en el backup. Tema claro y oscuro, pestañas abajo y barra lateral, hojas
+accesibles, gestos en las tarjetas, chips de captura, atajos de teclado, estados vacios,
+Ajustes reordenado, "Ver más" y aviso de actualizacion. Ver `CHANGELOG.md`.
 
 ## 2.0.0 — Centro de control personal
 
