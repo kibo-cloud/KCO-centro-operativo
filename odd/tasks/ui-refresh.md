@@ -106,8 +106,21 @@ spot-checks one command, commits, runs RDD assess.
 - T10b done in `70e102c` (delegated, writer-committed; 3 files, +110/-14): `reconciliarHistorial` now absorbs silently only a *residue* of our own traversal (`residuos`: series of the entries a self-initiated `history.go` moved away from, recorded in `cerrarHoja`, when `irAVista('ahora')` abandons the anchor and in `soltarRelevo`; consumed once, capped at 20; a persisted `pageshow` respects a residue without consuming it). Any other unknown kco entry (earlier load's serie, markers without serie) is treated as the base: close all layers, or with none open and a tab other than Ahora, go to Ahora. Boot normalizes a `history.state` carrying kco markers to `replaceState(null)`. The slow-traversal spec now asserts `kcoSerie` (late landing = first sheet's own entry, second sheet's entry reachable with `history.forward()`). RED: 3 e2e (after reload one back from Tareas stayed on Tareas; a foreign-serie popstate left the sheet open; after `forward()` the back landing on the stale first-sheet entry did not close the sheet). GREEN: es5 ok, 80 unit, 115 e2e. T09b guarantee kept (slow / lost / pageshow specs green).
 - T11 done in `c016d5d` (delegated, writer-committed; 7 files, +171/-42): version 2.1.0 in `VERSION_APP`, `VERSION` (cache `kibco-2.1.0`) and `package.json` (Ajustes Info and footer read `VERSION_APP`; manifest carries no version); `CHANGELOG.md` created (Spanish, like LEEME/ARQUITECTURA) with the 2.1.0 entry grouped Agregado / Cambiado / Corregido; LEEME: cache name, identity and files tables, new "Interfaz y atajos" section (theme, shell, capture chips, sheets, swipe + quick menu, Ver más, empty states, Ajustes order, update toast, keyboard table), reduced motion, Android back after reload, `kibco.tema` key, compaction limit, release steps, short 2.1.0 entry pointing to CHANGELOG.md; ARQUITECTURA/TESTING titles 2.1, counts 80 unit / 115 e2e, per-area table now lists `quick menu` (4) and `compactacion.test.js` (8). Release checks: `npm run verify` es5 ok, 80 unit, 115 e2e; no `2.0.0` left in code (only historical 2.0.0 docs); sw.js precache lists every shipped asset (index, kco.css, tema.js, iconos.js, core, app, manifest, 4 icons). Screenshots Hoy / Tareas / ficha / Ajustes / capture chips at 390 and 1366, light and dark (scratch harness script, not committed): no horizontal scroll, no page errors. Seen, out of scope: item sheet state chips and header still use emoji; Ajustes shows the raw `Notification.permission` value ("default"); the focused Ajustes title shows a focus ring on open.
 
-Last reviewed boundary: `7bd0668`.
+- RDD T10b+T11 (`7bd0668..96dfda1`, 9 files, 347 lines): medium, granted (user pre-authorized), approved + acknowledged (lineage review-e90f45a24dfdd410). No WARNING. Follow-up (not scheduled): R3-residue-lifecycle-untested (SUGGESTION, `kco-app.js:2335-2342`: residue FIFO cap/eviction and multi-residue `go(-n)` untested; behaviour benign today).
+
+Feature complete: T01-T11 plus T07b, T08b, T09b, T10b all closed; every slice reviewed and acknowledged.
+
+Last reviewed boundary: `96dfda1`.
+
+## Follow-ups (out of scope, not scheduled)
+
+- R3-residue-lifecycle-untested (SUGGESTION above).
+- Item sheet state chips and header still use emoji (rest of UI uses SVG icons).
+- Ajustes shows raw `Notification.permission` value ("default") instead of Spanish copy.
+- Ajustes title shows a focus ring when the sheet opens.
+- Compras chips show "Por comprar" twice at 390px (Activos chip vs first purchase state).
+- Intermittent e2e flake `cards: a round checkbox` (seen in T08b/T09b runs, passes on rerun).
 
 ## Next step
 
-Final RDD on T10b+T11; then user decides push / PR chain strategy (stacked-to-main vs feature-branch-chain) / release.
+User decides: push `feat/ui-refresh`, PR chain strategy (stacked-to-main vs feature-branch-chain), and v2.1.0 release/deploy.
