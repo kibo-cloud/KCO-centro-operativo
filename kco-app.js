@@ -2269,6 +2269,7 @@
         if (empujarHistorial({ kcoAncla: true, kcoNivel: 0, kcoSerie: s })) { anclaSerie = s; }
       }
     } else if (anclaSerie !== '' && pilaCapas.length === 0) {
+      anotarResiduo(anclaSerie);
       anclaSerie = '';
       retrocederHistorial(1);
     }
@@ -2326,6 +2327,19 @@
      se empuje la reemplaza con replaceState. Asi no queda ningun retroceso en
      vuelo. soltarRelevo() retrocede si al final nadie la reuso. */
   var relevo = false;
+  var relevoSerie = '';
+  /* Residuos: series de las entradas de las que se fue un retroceso propio
+     (capas cerradas, ancla abandonada). Si ese retroceso llega tarde o se
+     pierde, el historial cae en una de ellas: es lo unico que se absorbe en
+     silencio. Cualquier otra entrada desconocida cuenta como la base. */
+  var residuos = [];
+  var MAX_RESIDUOS = 20;
+
+  function anotarResiduo(s) {
+    if (!s) { return; }
+    residuos.push(s);
+    if (residuos.length > MAX_RESIDUOS) { residuos.shift(); }
+  }
 
   function nuevaSerie() {
     cuentaSerie = cuentaSerie + 1;
@@ -2379,21 +2393,28 @@
      - el ancla vigente: se cierran todas las capas;
      - la entrada base (sin datos de KCO): se cierran todas; si no habia
        ninguna, una pestaña que no es Ahora vuelve a Ahora;
-     - una entrada vieja (capa ya cerrada, ancla abandonada o de antes de
-       recargar): se asienta en silencio. Es donde cae un retroceso propio que
-       llego tarde, despues de que se abrio otra hoja, y esa hoja no se toca.
-       Si en cambio el retroceso se perdio, el primer "atras" del usuario cae
-       en esa entrada y no cierra nada; el siguiente ya anda. */
-  function reconciliarHistorial(st) {
+     - un residuo de un retroceso propio (entrada de la que ese retroceso se
+       fue): se asienta en silencio, una sola vez. Es donde cae un retroceso
+       propio que llego tarde, despues de que se abrio otra hoja, y esa hoja no
+       se toca. Si en cambio el retroceso se perdio, el primer "atras" del
+       usuario cae en esa entrada y no cierra nada; el siguiente ya anda;
+     - cualquier otra entrada de KCO desconocida (de antes de recargar, de
+       otro formato): cuenta como la base, asi cada "atras" se nota.
+     sinConsumir (pageshow restaurado): no es un aterrizaje de un retroceso, asi
+     que un residuo se respeta pero queda anotado para cuando ese retroceso llegue. */
+  function reconciliarHistorial(st, sinConsumir) {
     var serie = st && typeof st.kcoSerie === 'string' ? st.kcoSerie : '';
     var pos;
     if (serie !== '') {
       pos = seriesCapas.indexOf(serie);
       if (pos > -1) { cerrarCapasSobre(pos); return; }
-      if (anclaSerie !== '' && serie === anclaSerie) { cerrarCapasSobre(-1); }
-      return;
+      if (anclaSerie !== '' && serie === anclaSerie) { cerrarCapasSobre(-1); return; }
+      pos = residuos.indexOf(serie);
+      if (pos > -1) {
+        if (!sinConsumir) { residuos.splice(pos, 1); }
+        return;
+      }
     }
-    if (st && (st.kcoCapa || st.kcoAncla)) { return; }
     anclaSerie = '';
     if (cerrarCapasSobre(-1) > 0) { return; }
     if (vista !== 'ahora') { irAVista('ahora', true); }
@@ -2407,13 +2428,14 @@
     if (top < 0 || pilaCapas[top] !== id || seriesCapas[top] === '') { cerrarHoja(id); return; }
     cerrarDom(id);
     pilaCapas.pop();
-    seriesCapas.pop();
+    relevoSerie = seriesCapas.pop();
     relevo = true;
   }
 
   function soltarRelevo() {
     if (!relevo) { return; }
     relevo = false;
+    anotarResiduo(relevoSerie);
     retrocederHistorial(1);
   }
 
@@ -2614,7 +2636,7 @@
        retroceden las que tienen entrada en el historial. */
     var cuantas = 0;
     for (i = pilaCapas.length - 1; i >= pos; i--) {
-      if (seriesCapas[i] !== '') { cuantas++; }
+      if (seriesCapas[i] !== '') { cuantas++; anotarResiduo(seriesCapas[i]); }
     }
     cerrarCapasSobre(pos - 1);
     if (cuantas > 0) { retrocederHistorial(cuantas); }
@@ -5447,7 +5469,7 @@
   /* Volver desde el bfcache: las capas se reconcilian contra la entrada en la
      que quedo el historial (un retroceso propio en vuelo no cambia nada). */
   window.addEventListener('pageshow', function (ev) {
-    if (ev && ev.persisted && window.history) { reconciliarHistorial(window.history.state); }
+    if (ev && ev.persisted && window.history) { reconciliarHistorial(window.history.state, true); }
   });
 
   /* Otra pestaña o ventana de KCO cambio los datos: lo que esta en memoria aca
@@ -5470,6 +5492,17 @@
   conectarSwipe(document.getElementsByTagName('main')[0], swipeVistas);
   conectarSwipe(document.getElementsByTagName('header')[0], swipeContexto);
 
+
+  /* Recargar deja el historial parado en una entrada de la carga anterior
+     (capa o ancla de otra serie). Al arrancar no hay ninguna capa abierta y la
+     vista es Ahora: esa entrada pasa a ser la base. */
+  try {
+    var stArranque = window.history ? window.history.state : null;
+    if (stArranque && (stArranque.kcoCapa || stArranque.kcoAncla || stArranque.kcoSerie) &&
+        typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '');
+    }
+  } catch (e) { /* sin history: nada que normalizar */ }
 
   /* Atajo "Capturar" del manifest (./?capturar=1): abre con el cursor en la
      captura. La query se limpia para que recargar no repita el foco. */

@@ -1750,17 +1750,79 @@ export const tests = [
       await sleep(150);
       // Our own traversal lands late: history.go / back really run 600ms after the call.
       await page.eval(SLOW_HISTORY);
+      const serie = () => page.eval('history.state && history.state.kcoSerie || null');
+      const serieA = await serie();
       await page.key('Escape');
       assert.equal(await isOpen(), false, 'the first sheet closed');
       await page.click('#lista li.item:nth-child(2)');
+      const serieB = await serie();
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaItem');
+      assert.ok(serieA && serieB && serieA !== serieB, 'each sheet has its own entry: ' + serieA + ' / ' + serieB);
       await sleep(900);
       assert.ok(await isOpen(), 'the sheet opened meanwhile survives the late popstate');
-      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaItem');
+      // The late go(-1) landed on the first sheet's own residue, not on the second sheet's entry.
+      assert.equal(await serie(), serieA, 'the late traversal settled on the first sheet entry');
       await page.eval('history.go=window.__go;history.back=window.__back');
+      // The second sheet's own entry is still in history, right above.
+      await page.eval('history.forward()');
+      await sleep(200);
+      assert.equal(await serie(), serieB, 'the second sheet entry is reachable');
+      assert.ok(await isOpen(), 'landing on its own entry changes nothing');
       await page.eval('history.back()');
       await sleep(200);
       assert.equal(await isOpen(), false, 'one back closes it');
       assert.equal(await page.eval("document.getElementById('tabTareas').getAttribute('aria-selected')"), 'true', 'back only closed the sheet');
+    }
+  },
+  {
+    name: 'sheets: after a reload, one back from a tab reaches Ahora (entries from the previous load are not dead)',
+    storage: seed(),
+    async fn(page) {
+      const tab = (id) => page.eval(`document.getElementById('${id}').getAttribute('aria-selected')`);
+      // Before the reload: a tab anchor and a sheet entry from this load sit in history.
+      await openFirstItem(page);
+      await sleep(150);
+      assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), 'tapaItem');
+      await page.reload();
+      assert.equal(await tab('tabAhora'), 'true', 'a reload starts on Ahora');
+      await toTasks(page);
+      assert.equal(await tab('tabTareas'), 'true');
+      await page.eval('history.back()');
+      await sleep(250);
+      assert.equal(await tab('tabAhora'), 'true', 'one back returns to Ahora');
+      // Again from a plain tab anchor (no sheet) left by the previous load.
+      await toTasks(page);
+      await page.reload();
+      await openFirstItem(page);
+      await sleep(150);
+      await page.eval('history.back()');
+      await sleep(250);
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'one back closes the sheet');
+      assert.equal(await tab('tabTareas'), 'true');
+      await page.eval('history.back()');
+      await sleep(250);
+      assert.equal(await tab('tabAhora'), 'true', 'the next back returns to Ahora');
+    }
+  },
+  {
+    name: 'sheets: a foreign or stale kco history entry is treated as the base (visible progress on every back)',
+    storage: seed(),
+    async fn(page) {
+      const isOpen = () => page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1");
+      const tab = (id) => page.eval(`document.getElementById('${id}').getAttribute('aria-selected')`);
+      const pop = (state) => page.eval(`window.dispatchEvent(new PopStateEvent('popstate',{state:${JSON.stringify(state)}}))`);
+      await openFirstItem(page);
+      await sleep(150);
+      assert.ok(await isOpen());
+      // An entry from an earlier load: unknown serie.
+      await pop({ kcoCapa: 'tapaItem', kcoNivel: 0, kcoSerie: 'otra-carga.1' });
+      await sleep(100);
+      assert.equal(await isOpen(), false, 'a foreign entry closes the open layers');
+      assert.equal(await tab('tabTareas'), 'true', 'closing layers is the visible step; the tab stays');
+      // An old-format entry (kco markers, no serie) with nothing open: back to Ahora.
+      await pop({ kcoAncla: true, kcoNivel: 0 });
+      await sleep(100);
+      assert.equal(await tab('tabAhora'), 'true', 'a foreign anchor with nothing open returns to Ahora');
     }
   },
   {
