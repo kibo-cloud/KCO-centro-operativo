@@ -95,9 +95,11 @@ lo que se va a guardar, con `KCOCore.resumenCaptura` (el mismo parser que `captu
 contexto destino, dia y prioridad. El chip de contexto (`#capCtx`) abre la hoja "Guardar en"
 (`#tapaDestino`, mismas reglas de dialogo e historial que toda hoja): elegir fija el destino
 de esa sola captura (`ctxDestino`; guardar o cambiar de vista lo limpia), saca la #etiqueta
-tipeada y devuelve el foco al campo. Prioridad del destino: #etiqueta, chip, contexto de la
-vista. Con chips la barra crece y `html[data-capchips]` sube `--capbar-h` para que el contenido
-la despeje. Atajo: `n` o `/` enfocan la captura si no hay una hoja abierta ni foco en un campo
+tipeada (la misma que resolvio el parser: la primera #etiqueta que es un contexto conocido, este
+donde este; `#idea #casa` va a Casa) y devuelve el foco al campo. Prioridad del destino: #etiqueta, chip, contexto de la
+vista. Con chips la barra crece: `html[data-capchips]` sube `--capbar-h` a 104px (una fila) y
+`ajustarAltoCaptura()` lo pisa con el alto medido de `.captura` (los chips pueden ocupar dos
+filas a 320px; se recalcula al tipear y en `resize`), asi el contenido y el deshacer la despejan. Atajo: `n` o `/` enfocan la captura si no hay una hoja abierta ni foco en un campo
 editable (nunca se roba una tecla tipeada).
 
 Las filas de contexto y de vistas se arman una vez y cada `pintar()` solo actualiza estado y
@@ -118,7 +120,7 @@ titulo y una X "Cerrar" arriba a la derecha. La cabecera queda pegada arriba al 
 |---|---|
 | X, Escape (hoja de arriba), tocar el fondo, deslizar la cabecera hacia abajo (> 80px o tiron rapido, solo tactil) | `cerrarCapa(id)` -> `cerrarHoja(id)`, el mismo camino que el boton atras: saca la entrada del historial (`history.go(-n)` con `ignorarPop`), asi la pila de capas y el historial nunca se desfasan |
 | Atras de Android | `popstate` -> `alVolverAtras()` cierra la de arriba |
-| Cerrar una hoja y abrir otra en el mismo toque (menu rapido -> ficha o confirmar, buscar -> ficha) | `history.go` es asincrono: mientras un retroceso propio esta en vuelo (`ignorarPop` cuenta retrocesos, uno por `history.go`, que dispara un solo `popstate`), `abrirHoja` deja la hoja nueva en `capasEnEspera` y su `pushState` sale recien al llegar ese `popstate`; asi el retroceso no se lleva la entrada nueva. Cerrar una hoja en espera no retrocede nada |
+| Cerrar una hoja y abrir otra en el mismo toque (menu rapido -> ficha o confirmar, buscar -> ficha) | `history.go` es asincrono: mientras un retroceso propio esta en vuelo (`ignorarPop` cuenta retrocesos, uno por `history.go`, que dispara un solo `popstate`), `abrirHoja` deja la hoja nueva en `capasEnEspera` y su `pushState` sale recien al llegar ese `popstate`; asi el retroceso no se lleva la entrada nueva. Cerrar una hoja en espera no retrocede nada. Si ese `popstate` no llega (`history.go` sin efecto en el borde del historial, navegacion externa, bfcache), un vigia de 300ms (`VIGIA_POP`) o un `pageshow` persistido terminan el retroceso: `ignorarPop` vuelve a 0 y las hojas en espera empujan su entrada |
 
 | Foco | Como |
 |---|---|

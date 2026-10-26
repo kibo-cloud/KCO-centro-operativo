@@ -249,11 +249,21 @@
 
   function limpio(t) { return t.replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, ''); }
 
+  /* La primera #etiqueta que es un contexto conocido, este donde este: una
+     #etiqueta cualquiera antes (#idea, #hashtag) no la tapa. null si no hay. */
+  function etiquetaContexto(texto) {
+    var re = /\s#([a-z\u00F1]+)(?=\s)/gi, m;
+    while ((m = re.exec(texto)) !== null) {
+      if (ALIAS_CTX.hasOwnProperty(m[1].toLowerCase())) { return m; }
+    }
+    return null;
+  }
+
   function parsearCaptura(entrada, ahora) {
     var texto = ' ' + entrada + ' ';
     var r = { texto: '', recordatorio: '', fecha: '', contexto: '', nivel: '' };
-    var mc = texto.match(/\s#([a-zñ]+)(?=\s)/i);
-    if (mc && ALIAS_CTX.hasOwnProperty(mc[1].toLowerCase())) {
+    var mc = etiquetaContexto(texto);
+    if (mc) {
       r.contexto = ALIAS_CTX[mc[1].toLowerCase()];
       texto = quitar(texto, mc);
     }
@@ -318,11 +328,12 @@
   }
 
   /* Al elegir el destino con el chip, la etiqueta #contexto tipeada se saca
-     del texto: si no, ganaria al guardar y el chip mentiria. */
+     del texto: si no, ganaria al guardar y el chip mentiria. Es la misma que
+     resolvio parsearCaptura (etiquetaContexto), no la primera #etiqueta. */
   function quitarContextoCaptura(entrada) {
     var texto = ' ' + entrada + ' ';
-    var mc = texto.match(/\s#([a-zñ]+)(?=\s)/i);
-    if (!mc || !ALIAS_CTX.hasOwnProperty(mc[1].toLowerCase())) { return entrada; }
+    var mc = etiquetaContexto(texto);
+    if (!mc) { return entrada; }
     return limpio(quitar(texto, mc));
   }
 

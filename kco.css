@@ -276,7 +276,9 @@ header.appbar{
 .capchip-chev{color:var(--text-muted)}
 .capchip-ctx[aria-expanded="true"] .capchip-chev{transform:rotate(180deg)}
 @media (hover:hover){.capchip-ctx:hover{background:var(--surface-2)}}
-/* Con chips la barra crece: el contenido y el deshacer dejan libre ese alto. */
+/* Con chips la barra crece: el contenido y el deshacer dejan libre ese alto.
+   104px es una fila de chips; kco-app.js lo pisa con el alto medido (dos filas
+   en pantallas angostas). */
 html[data-capchips]{--capbar-h:104px}
 .pista{color:var(--text-muted);font-size:var(--fs-xs);margin-top:7px}
 /* Solicitante y destino en la tarjeta de compra de Trabajo. */

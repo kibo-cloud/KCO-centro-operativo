@@ -1,7 +1,7 @@
 # Pruebas — KCO 2.0
 
 Tres controles, cero dependencias. `npm run verify` los corre en orden y falla al primero que
-no pasa. Conteo actual: **79 pruebas unitarias** y **99 specs E2E**, todas en verde.
+no pasa. Conteo actual: **80 pruebas unitarias** y **101 specs E2E**, todas en verde.
 
 ## Correr
 
@@ -31,7 +31,7 @@ Cargan `kco-core.js` con `require` y usan fechas fijas, asi no dependen del relo
 | Archivo | Pruebas | Cubre |
 |---|---|---|
 | `fechas.test.js` | 5 | claves de dia, fechas imposibles, cruce de meses, años bisiestos y horario de verano |
-| `captura.test.js` | 4 | chips de la barra de captura: `resumenCaptura` coincide campo a campo con `parsearCaptura` y rotula el dia (Hoy, Mañana, con hora); `quitarContextoCaptura` saca solo una #etiqueta de contexto conocida |
+| `captura.test.js` | 5 | chips de la barra de captura: `resumenCaptura` coincide campo a campo con `parsearCaptura` y rotula el dia (Hoy, Mañana, con hora); `quitarContextoCaptura` saca solo una #etiqueta de contexto conocida, la misma que resolvio el parser aunque no sea la primera (`ver #hashtag #casa`) |
 | `modelo.test.js` | 8 | contextos y flujo de fabrica, prioridad heredada, cinco situaciones, +48 hs, puntaje del proximo movimiento, reglas de captura viejas y nuevas |
 | `rutinas.test.js` | 11 | normalizacion, frecuencias diaria, cada N, semanal, cada dos semanas, mensual con dia 31, fin, plan de ocurrencias (solo la ultima, idempotente, vencidas), rachas |
 | `misiones.test.js` | 6 | normalizacion, progreso por hitos o tareas, proximo movimiento |
@@ -82,7 +82,7 @@ foco y sin esto `focus`/`blur` no se disparan). Ninguna spec llama esos metodos 
 
 **Capturas.** Algunas specs guardan PNG en `tests/e2e/out/` (ignorado por git) para revisar
 a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `campana.png`,
-`mobile.png`.
+`mobile.png`, `capture-mobile.png`, `capture-desktop.png`, `capture-320.png`.
 
 **Specs por area** (prefijo del nombre)
 
@@ -111,9 +111,9 @@ a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `camp
 | `ux` | 5 | las cinco pestañas inferiores entran a 390 y 340 px (fijas al borde, objetivos de 44px), captura movil, campos de al menos 16px (sin zoom de iOS), todo texto visible de AHORA de al menos 12px |
 | `shell` | 4 | a 390px la captura va justo arriba de la barra de pestañas y el contenido las despeja, al escribir la barra se aparta; el selector de contexto abre desde el chip (aria-expanded), marca el actual, muestra cuentas, elige Casa y la captura va a Casa; sin scroll horizontal ni botones cortados a 340/390 (tambien durante la transicion a Tareas); a 1366px barra lateral de 240px sin pestañas, columna centrada de hasta 760px, captura arriba, navega vistas (aria-current) y cambia de contexto |
 | `a11y` | 1 | todo boton solo-icono tiene `aria-label`; iconos SVG de `KCOIconos` (viewBox 24, currentColor, trazo 1.75, aria-hidden), sin emoji en barra, pestañas, lateral, hero, pulso y encabezados; ningun icono usado sin definir |
-| `sheets` | 7 | toda hoja es `role=dialog` + `aria-modal` + `aria-labelledby` con asa y X "Cerrar"; Escape cierra solo la de arriba, el foco vuelve a quien la abrio y el historial queda a la par (dos hojas apiladas); Tab/Shift+Tab giran dentro; tocar el fondo cierra la ficha y el selector de contexto (tocar dentro no); arrastrar la cabecera 160px cierra, 30px vuelve a su lugar; a 390x844 Hecho, Hoy, Mañana, Prioridad y Contexto se ven sin scrollear; a 1366px dialogo centrado de hasta 560px sin asa |
+| `sheets` | 8 | toda hoja es `role=dialog` + `aria-modal` + `aria-labelledby` con asa y X "Cerrar"; Escape cierra solo la de arriba, el foco vuelve a quien la abrio y el historial queda a la par (dos hojas apiladas); Tab/Shift+Tab giran dentro; tocar el fondo cierra la ficha y el selector de contexto (tocar dentro no); arrastrar la cabecera 160px cierra, 30px vuelve a su lugar; a 390x844 Hecho, Hoy, Mañana, Prioridad y Contexto se ven sin scrollear; a 1366px dialogo centrado de hasta 560px sin asa; un `history.go` propio cuyo `popstate` no llega no deja a la hoja siguiente sin entrada en el historial (vigia de 300ms) |
 | `cards` | 4 | circulo a la izquierda (44px de toque, 21px a la vista) con nombre "Completar: <texto>" armado con `setAttribute` (el texto nunca se interpreta como HTML), completa y deshacer restaura; ninguna tarjeta tiene boton de carrito ni botones cuadrados, el inbox conserva un solo "Para hoy"; deslizar a la derecha completa sin cambiar de vista ni abrir la ficha (deshacer restaura) y un arrastre vertical no hace nada; deslizar a la izquierda abre el menu rapido (`role=dialog`) con Hoy, Mañana, Prioridad, Mover a Compras y Borrar, que funcionan; la tarjeta se enfoca con Tab, Enter abre la ficha y "Mas opciones" tambien |
-| `capture bar` | 3 | chips en vivo de contexto, dia y prioridad (ocultos con la barra vacia, dentro de 390px, guardar guarda lo mismo y los limpia; recordatorio "Mañana 09:30"); el chip de contexto abre "Guardar en" (`#tapaDestino`, `role=dialog`, entrada en `history`, sin Todo), elegir cierra la hoja, vuelve el foco a la barra y guarda ahi sin cambiar la vista, vale para una captura y reemplaza una #etiqueta tipeada; `n` y `/` enfocan la barra a 1366px sin escribirse, pero no adentro de un campo ni con una hoja abierta |
+| `capture bar` | 4 | chips en vivo de contexto, dia y prioridad (ocultos con la barra vacia, dentro de 390px, guardar guarda lo mismo y los limpia; recordatorio "Mañana 09:30"); el chip de contexto abre "Guardar en" (`#tapaDestino`, `role=dialog`, entrada en `history`, sin Todo), elegir cierra la hoja, vuelve el foco a la barra y guarda ahi sin cambiar la vista, vale para una captura y reemplaza una #etiqueta tipeada; `n` y `/` enfocan la barra a 1366px sin escribirse, pero no adentro de un campo ni con una hoja abierta; a 320px con "Mañana 09:30" + prioridad + Contenido los chips pueden ocupar dos filas y el contenido igual despeja la barra (alto medido) |
 | `harness` | 1 | `teardown()` quita los scripts inyectados y devuelve el esquema de color real |
 
 ## Agregar una spec E2E

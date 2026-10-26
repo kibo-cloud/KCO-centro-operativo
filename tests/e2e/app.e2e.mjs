@@ -1713,6 +1713,52 @@ export const tests = [
     }
   },
   {
+    name: 'sheets: a self-initiated history.go whose popstate never arrives does not strand later sheets without a history entry',
+    storage: seed(),
+    async fn(page) {
+      const capa = () => page.eval('history.state && history.state.kcoCapa || null');
+      await page.click('#btnCtx');
+      await sleep(150);
+      assert.equal(await capa(), 'tapaCtx');
+      // history.go becomes a no-op (history boundary, bfcache, external navigation): no popstate follows.
+      await page.eval('window.__go=history.go;history.go=function(){}');
+      await page.key('Escape');
+      await sleep(450);
+      assert.equal(await page.eval("document.getElementById('tapaCtx').className"), 'tapa', 'the switcher closed');
+      await openFirstItem(page);
+      await sleep(150);
+      assert.ok(await page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1"), 'the item sheet is open');
+      assert.equal(await capa(), 'tapaItem', 'the sheet opened afterwards still gets its own history entry');
+      // With traversal back, back closes only that sheet.
+      await page.eval('history.go=window.__go');
+      await page.eval('history.back()');
+      await sleep(200);
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'back closes the item sheet');
+      assert.equal(await page.eval("document.getElementById('tabTareas').getAttribute('aria-selected')"), 'true', 'back only closed the sheet');
+    }
+  },
+  {
+    name: 'capture bar: at 320px long chips (Mañana 09:30 + priority) may wrap and the content still clears the bar',
+    storage: seed(),
+    width: 320, height: 700,
+    async fn(page) {
+      await page.type('#txtCaptura', 'turno medico @9:30 mañana !! #contenido');
+      assert.equal((await page.text('#capDia')).trim(), 'Mañana 09:30');
+      assert.equal(await page.visible('#capNivel'), true);
+      await sleep(50);
+      const r = await page.eval(`(function(){var c=document.querySelector('.captura').getBoundingClientRect(),m=document.querySelector('main');
+        return {top:c.top,h:window.innerHeight,pad:parseFloat(getComputedStyle(m).paddingBottom)};})()`);
+      const covered = r.h - r.top;
+      assert.ok(r.pad >= covered, 'main bottom padding ' + r.pad + ' clears capture + tabs ' + covered);
+      const row = await page.rect('#capChips');
+      assert.ok(row.x >= 0 && row.r <= 320.5, 'chips inside the viewport');
+      await page.screenshot(path.join(OUT, 'capture-320.png'));
+      // Clearing the bar drops back to the base height.
+      await page.eval("(function(){var i=document.getElementById('txtCaptura');i.value='';i.dispatchEvent(new Event('input'));})()");
+      assert.equal(await page.eval("document.documentElement.style.getPropertyValue('--capbar-h')"), '');
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');

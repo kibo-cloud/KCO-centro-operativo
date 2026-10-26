@@ -874,7 +874,7 @@
     caja.hidden = !hay;
     /* La barra crece: el contenido deja libre ese alto extra (kco.css). */
     if (hay) { raiz.setAttribute('data-capchips', '1'); } else { raiz.removeAttribute('data-capchips'); }
-    if (!hay) { return; }
+    if (!hay) { ajustarAltoCaptura(); return; }
     var r = K.resumenCaptura(crudo, new Date()), ctx = destinoCaptura(r), b = $('capCtx');
     vaciar(b);
     b.appendChild(punto(ctx));
@@ -884,6 +884,19 @@
     chipDato($('capDia'), r.dia, r.recordatorio !== '' ? 'clock' : 'calendar');
     chipDato($('capNivel'), r.nivel ? K.infoNivel(r.nivel).nom : '', 'flag');
     $('capNivel').className = r.nivel === 'urgente' ? 'capchip rojo' : 'capchip';
+    ajustarAltoCaptura();
+  }
+
+  /* Los chips pueden ocupar dos filas en pantallas angostas (Ma\u00F1ana 09:30 +
+     prioridad + un contexto largo): --capbar-h toma el alto medido de la barra
+     para que el contenido y el deshacer no queden tapados. Sin chips vuelve al
+     valor de kco.css. */
+  function ajustarAltoCaptura() {
+    var raiz = document.documentElement, barra = document.querySelector('.captura'), h;
+    if (!raiz.style || typeof raiz.style.setProperty !== 'function') { return; }
+    if (!barra || !raiz.hasAttribute('data-capchips')) { raiz.style.removeProperty('--capbar-h'); return; }
+    h = Math.ceil(barra.getBoundingClientRect().height);
+    if (h > 0) { raiz.style.setProperty('--capbar-h', h + 'px'); }
   }
 
   function filaDestino(id) {
@@ -2175,6 +2188,32 @@
      recien cuando llego el popstate del retroceso. */
   var capasEnEspera = [];
   var anclaPuesta = false;
+  /* El popstate de un retroceso propio puede no llegar nunca: history.go() en
+     el borde del historial no hace nada, una navegacion externa o volver desde
+     el bfcache se lo comen. Si en VIGIA_POP ms no llego, se da por terminado:
+     si no, ignorarPop quedaria arriba de 0 y toda hoja nueva esperaria para
+     siempre sin entrada en el historial. */
+  var VIGIA_POP = 300;
+  var vigiaPop = null;
+
+  function pararVigiaPop() {
+    if (vigiaPop !== null) { window.clearTimeout(vigiaPop); vigiaPop = null; }
+  }
+
+  function terminarRetrocesos() {
+    pararVigiaPop();
+    ignorarPop = 0;
+    soltarCapasEnEspera();
+  }
+
+  function vigilarRetroceso() {
+    pararVigiaPop();
+    if (typeof window.setTimeout !== 'function') { return; }
+    vigiaPop = window.setTimeout(function () {
+      vigiaPop = null;
+      if (ignorarPop > 0) { terminarRetrocesos(); }
+    }, VIGIA_POP);
+  }
 
   function empujarHistorial(dato) {
     try {
@@ -2190,10 +2229,11 @@
     try {
       if (window.history && typeof window.history.go === 'function') {
         ignorarPop = ignorarPop + 1;
+        vigilarRetroceso();
         window.history.go(-n);
         return;
       }
-    } catch (e) { ignorarPop = 0; soltarCapasEnEspera(); }
+    } catch (e) { terminarRetrocesos(); }
   }
 
   /* La entrada de historial de una hoja recien abierta: ya, o cuando termine
@@ -2437,7 +2477,7 @@
   function alVolverAtras() {
     if (ignorarPop > 0) {
       ignorarPop = ignorarPop - 1;
-      if (ignorarPop === 0) { soltarCapasEnEspera(); }
+      if (ignorarPop === 0) { terminarRetrocesos(); }
       return;
     }
     if (pilaCapas.length > 0) {
@@ -5195,6 +5235,15 @@
   }
 
   window.onpopstate = function () { alVolverAtras(); };
+  /* Girar o achicar la ventana cambia cuantas filas ocupan los chips. */
+  window.addEventListener('resize', function () {
+    if (document.documentElement.hasAttribute('data-capchips')) { ajustarAltoCaptura(); }
+  });
+  /* Volver desde el bfcache: un retroceso que quedo en vuelo ya no va a
+     terminar con su popstate. */
+  window.addEventListener('pageshow', function (ev) {
+    if (ev && ev.persisted && ignorarPop > 0) { terminarRetrocesos(); }
+  });
 
   /* Otra pestaña o ventana de KCO cambio los datos: lo que esta en memoria aca
      ya es viejo y guardarlo pisaria lo nuevo. Se deja de escribir hasta recargar.

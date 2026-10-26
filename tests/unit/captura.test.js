@@ -45,3 +45,17 @@ test('capture target: quitarContextoCaptura removes only a known context tag', (
   // After removing it the parser no longer sees a context.
   assert.equal(C.parsearCaptura(C.quitarContextoCaptura('barrer #casa'), NOW).contexto, '');
 });
+
+test('capture target: the resolved context tag is removed wherever it sits', () => {
+  // An unknown #tag first does not hide a known one after it.
+  assert.equal(C.parsearCaptura('ver #hashtag #casa', NOW).contexto, 'hogar');
+  assert.equal(C.parsearCaptura('ver #hashtag #casa', NOW).texto, 'ver #hashtag');
+  assert.equal(C.resumenCaptura('ver #hashtag #casa', NOW).contexto, 'hogar');
+  assert.equal(C.quitarContextoCaptura('ver #hashtag #casa'), 'ver #hashtag');
+  assert.equal(C.quitarContextoCaptura('#idea grabar #contenido hoy'), '#idea grabar hoy');
+  // Only the tag the parser resolved goes; a second known tag stays as text.
+  assert.equal(C.parsearCaptura('mover #apps a #casa', NOW).contexto, 'apps');
+  assert.equal(C.quitarContextoCaptura('mover #apps a #casa'), 'mover a #casa');
+  // After removing it the parser sees no context from that tag.
+  assert.equal(C.parsearCaptura(C.quitarContextoCaptura('ver #hashtag #casa'), NOW).contexto, '');
+});
