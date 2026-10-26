@@ -1,7 +1,7 @@
 # Pruebas — KCO 2.0
 
 Tres controles, cero dependencias. `npm run verify` los corre en orden y falla al primero que
-no pasa. Conteo actual: **75 pruebas unitarias** y **92 specs E2E**, todas en verde.
+no pasa. Conteo actual: **79 pruebas unitarias** y **99 specs E2E**, todas en verde.
 
 ## Correr
 
@@ -31,6 +31,7 @@ Cargan `kco-core.js` con `require` y usan fechas fijas, asi no dependen del relo
 | Archivo | Pruebas | Cubre |
 |---|---|---|
 | `fechas.test.js` | 5 | claves de dia, fechas imposibles, cruce de meses, años bisiestos y horario de verano |
+| `captura.test.js` | 4 | chips de la barra de captura: `resumenCaptura` coincide campo a campo con `parsearCaptura` y rotula el dia (Hoy, Mañana, con hora); `quitarContextoCaptura` saca solo una #etiqueta de contexto conocida |
 | `modelo.test.js` | 8 | contextos y flujo de fabrica, prioridad heredada, cinco situaciones, +48 hs, puntaje del proximo movimiento, reglas de captura viejas y nuevas |
 | `rutinas.test.js` | 11 | normalizacion, frecuencias diaria, cada N, semanal, cada dos semanas, mensual con dia 31, fin, plan de ocurrencias (solo la ultima, idempotente, vencidas), rachas |
 | `misiones.test.js` | 6 | normalizacion, progreso por hitos o tareas, proximo movimiento |
@@ -69,7 +70,7 @@ Una spec que compara colores fija el esquema con el helper `scheme(page, 'dark'|
 Helpers de pagina: `goto`, `reload`, `eval`, `click`, `clickText`, `type` (con Enter
 opcional), `text`, `count`, `visible`, `rect`, `storage`, `setStorage`, `screenshot`, `offline`,
 `setFile` y `viewport`. Entrada real por CDP: `key(nombre, {shift})` (`Input.dispatchKeyEvent`:
-Escape, Tab, Enter), `tap(x, y)` y `drag(x0, y0, x1, y1)` (`Input.dispatchTouchEvent`; con el
+Escape, Tab, Enter), `press(caracter)` (tecla imprimible con `text`: corre los listeners de keydown y escribe el caracter si nadie lo previene, p. ej. `n`, `/`), `tap(x, y)` y `drag(x0, y0, x1, y1)` (`Input.dispatchTouchEvent`; con el
 viewport movil la emulacion tactil esta activa y el navegador genera pointer + touch events).
 
 **Estado CDP por spec.** Lo que una spec cambia en la pestana por CDP pasa por el harness y
@@ -112,6 +113,7 @@ a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `camp
 | `a11y` | 1 | todo boton solo-icono tiene `aria-label`; iconos SVG de `KCOIconos` (viewBox 24, currentColor, trazo 1.75, aria-hidden), sin emoji en barra, pestañas, lateral, hero, pulso y encabezados; ningun icono usado sin definir |
 | `sheets` | 7 | toda hoja es `role=dialog` + `aria-modal` + `aria-labelledby` con asa y X "Cerrar"; Escape cierra solo la de arriba, el foco vuelve a quien la abrio y el historial queda a la par (dos hojas apiladas); Tab/Shift+Tab giran dentro; tocar el fondo cierra la ficha y el selector de contexto (tocar dentro no); arrastrar la cabecera 160px cierra, 30px vuelve a su lugar; a 390x844 Hecho, Hoy, Mañana, Prioridad y Contexto se ven sin scrollear; a 1366px dialogo centrado de hasta 560px sin asa |
 | `cards` | 4 | circulo a la izquierda (44px de toque, 21px a la vista) con nombre "Completar: <texto>" armado con `setAttribute` (el texto nunca se interpreta como HTML), completa y deshacer restaura; ninguna tarjeta tiene boton de carrito ni botones cuadrados, el inbox conserva un solo "Para hoy"; deslizar a la derecha completa sin cambiar de vista ni abrir la ficha (deshacer restaura) y un arrastre vertical no hace nada; deslizar a la izquierda abre el menu rapido (`role=dialog`) con Hoy, Mañana, Prioridad, Mover a Compras y Borrar, que funcionan; la tarjeta se enfoca con Tab, Enter abre la ficha y "Mas opciones" tambien |
+| `capture bar` | 3 | chips en vivo de contexto, dia y prioridad (ocultos con la barra vacia, dentro de 390px, guardar guarda lo mismo y los limpia; recordatorio "Mañana 09:30"); el chip de contexto abre "Guardar en" (`#tapaDestino`, `role=dialog`, entrada en `history`, sin Todo), elegir cierra la hoja, vuelve el foco a la barra y guarda ahi sin cambiar la vista, vale para una captura y reemplaza una #etiqueta tipeada; `n` y `/` enfocan la barra a 1366px sin escribirse, pero no adentro de un campo ni con una hoja abierta |
 | `harness` | 1 | `teardown()` quita los scripts inyectados y devuelve el esquema de color real |
 
 ## Agregar una spec E2E

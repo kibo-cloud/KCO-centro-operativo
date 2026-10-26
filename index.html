@@ -41,6 +41,13 @@
   <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
          autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="Capturar"
          placeholder="Escrib&iacute; y Enter &middot; 18:00 o @9:30 toma la hora">
+  <!-- Lo que se detecta al tipear (mismo parser que guardar). El chip de contexto
+       abre #tapaDestino para elegir donde cae esta captura. -->
+  <div class="capchips" id="capChips" role="group" aria-label="Detectado al tipear" hidden>
+    <button class="capchip capchip-ctx" id="capCtx" type="button" aria-label="Elegir d&oacute;nde se guarda" aria-expanded="false" aria-haspopup="dialog" aria-controls="tapaDestino"></button>
+    <span class="capchip" id="capDia" hidden></span>
+    <span class="capchip" id="capNivel" hidden></span>
+  </div>
 </div>
 
 <div class="aviso" id="aviso" role="alert"></div>
@@ -132,6 +139,14 @@
   <div class="hoja hoja-ctx">
     <h2 id="ctxTitulo">Contexto</h2>
     <div class="ctxlista" id="ctxsel" role="group" aria-labelledby="ctxTitulo"></div>
+  </div>
+</div>
+
+<!-- Destino de la captura en curso (chip de contexto de la barra): no cambia la vista. -->
+<div class="tapa" id="tapaDestino" role="dialog" aria-modal="true" aria-labelledby="destTitulo">
+  <div class="hoja hoja-ctx">
+    <h2 id="destTitulo">Guardar en</h2>
+    <div class="ctxlista" id="destsel" role="group" aria-labelledby="destTitulo"></div>
   </div>
 </div>
 

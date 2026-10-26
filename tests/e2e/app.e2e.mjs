@@ -1606,6 +1606,113 @@ export const tests = [
     }
   },
   {
+    name: 'capture bar: live chips show the parsed context, day and priority; saving stores the same',
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    async fn(page) {
+      assert.equal(await page.visible('#capChips'), false, 'no chips while the bar is empty');
+      await page.type('#txtCaptura', 'pagar luz #casa !! mañana');
+      assert.equal(await page.visible('#capChips'), true, 'chips appear while typing');
+      assert.equal((await page.text('#capCtx')).trim(), 'Casa');
+      assert.equal((await page.text('#capDia')).trim(), 'Mañana');
+      assert.equal((await page.text('#capNivel')).trim(), 'Urgente');
+      // 390px: the chip row stays on screen and the bar does not overflow sideways.
+      const row = await page.rect('#capChips');
+      assert.ok(row.x >= 0 && row.r <= 390.5, 'chips inside the viewport: ' + row.x + '-' + row.r);
+      assert.equal(await page.eval("document.querySelector('.captura').scrollWidth<=document.querySelector('.captura').clientWidth"), true, 'no horizontal overflow');
+      await page.screenshot(path.join(OUT, 'capture-mobile.png'));
+      await page.type('#txtCaptura', 'pagar luz #casa !! mañana', true);
+      const it = (await items(page)).find((i) => i.texto === 'pagar luz');
+      assert.equal(it.contexto, 'hogar');
+      assert.equal(it.nivel, 'urgente');
+      assert.equal(it.fecha, ymd(1));
+      assert.equal(await page.visible('#capChips'), false, 'chips clear after saving');
+      // Reminder + default target: the chips name the view context and the time.
+      await page.type('#txtCaptura', 'turno @9:30 mañana');
+      assert.equal((await page.text('#capCtx')).trim(), 'Trabajo');
+      assert.equal((await page.text('#capDia')).trim(), 'Mañana 09:30');
+      assert.equal(await page.visible('#capNivel'), false, 'no priority chip without a mark');
+    }
+  },
+  {
+    name: 'capture bar: tapping the context chip picks the target; the item saves there; history stays in sync',
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    async fn(page) {
+      const capa = () => page.eval('history.state && history.state.kcoCapa || null');
+      await page.type('#txtCaptura', 'idea video');
+      assert.equal((await page.text('#capCtx')).trim(), 'Trabajo');
+      await page.click('#capCtx');
+      assert.ok(await page.eval("document.getElementById('tapaDestino').className.indexOf('on')>-1"), 'target sheet open');
+      assert.equal(await page.eval("document.getElementById('tapaDestino').getAttribute('role')"), 'dialog');
+      assert.equal(await capa(), 'tapaDestino');
+      assert.equal(await page.count('#destsel [data-ctx="todo"]'), 0, 'Todo is not a target');
+      await page.click('#destsel [data-ctx="contenido"]');
+      await sleep(150);
+      assert.equal(await page.eval("document.getElementById('tapaDestino').className"), 'tapa', 'sheet closed');
+      assert.equal(await capa(), null, 'history popped with the sheet');
+      assert.equal(await page.eval('document.activeElement&&document.activeElement.id'), 'txtCaptura', 'focus back in the bar');
+      assert.equal((await page.text('#capCtx')).trim(), 'Contenido');
+      await page.type('#txtCaptura', 'idea video', true);
+      assert.equal((await items(page)).find((i) => i.texto === 'idea video').contexto, 'contenido');
+      assert.equal(await page.storage('kibco.contexto'), 'trabajo', 'the view context did not change');
+      // The pick is for one capture: the next one goes back to the view context.
+      await page.type('#txtCaptura', 'otra cosa');
+      assert.equal((await page.text('#capCtx')).trim(), 'Trabajo');
+      // A typed #tag is replaced by the pick, so the chip and the saved item agree.
+      await page.type('#txtCaptura', 'barrer #casa patio');
+      assert.equal((await page.text('#capCtx')).trim(), 'Casa');
+      await page.click('#capCtx');
+      await page.click('#destsel [data-ctx="apps"]');
+      await sleep(150);
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'barrer patio');
+      assert.equal((await page.text('#capCtx')).trim(), 'Apps');
+      await page.type('#txtCaptura', 'barrer patio', true);
+      assert.equal((await items(page)).find((i) => i.texto === 'barrer patio').contexto, 'apps');
+    }
+  },
+  {
+    name: 'capture bar: n and / focus it; typing inside a field or with a sheet open is never hijacked',
+    storage: seed(),
+    width: 1366, height: 900, mobile: false,
+    async fn(page) {
+      const active = () => page.eval('document.activeElement&&document.activeElement.id||""');
+      const value = () => page.eval("document.getElementById('txtCaptura').value");
+      await page.eval('document.activeElement&&document.activeElement.blur()');
+      await page.press('n');
+      assert.equal(await active(), 'txtCaptura', 'n focuses the capture bar');
+      assert.equal(await value(), '', 'the shortcut key is not typed');
+      await page.eval('document.activeElement.blur()');
+      await page.press('/');
+      assert.equal(await active(), 'txtCaptura', '/ focuses the capture bar');
+      assert.equal(await value(), '');
+      // Already typing: n and / are just characters.
+      await page.press('n');
+      await page.press('/');
+      assert.equal(await value(), 'n/', 'typed, not hijacked');
+      await page.eval("document.getElementById('txtCaptura').value='';document.activeElement.blur()");
+      // A sheet is open: the key stays with the sheet.
+      await page.click('#navLateral [data-vista="tablero"]');
+      await page.click('#lista li.item');
+      await sleep(200);
+      assert.ok(await page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1"), 'item sheet open');
+      await page.press('n');
+      assert.notEqual(await active(), 'txtCaptura', 'no jump while a sheet is open');
+      assert.equal(await value(), '');
+      await page.key('Escape');
+      await sleep(150);
+      // Any other editable field (no sheet open) keeps its keys.
+      await page.eval("(function(){var i=document.createElement('input');i.id='otroCampo';document.querySelector('main').appendChild(i);i.focus();})()");
+      await page.press('n');
+      await page.press('/');
+      assert.equal(await active(), 'otroCampo', 'focus stays in the other field');
+      assert.equal(await page.eval("document.getElementById('otroCampo').value"), 'n/');
+      await page.eval("document.getElementById('otroCampo').remove()");
+      await page.type('#txtCaptura', 'pagar luz #casa !');
+      await page.screenshot(path.join(OUT, 'capture-desktop.png'));
+      const row = await page.rect('#capChips');
+      assert.ok(row && row.w > 0 && row.r <= 1366, 'chips laid out on desktop');
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');

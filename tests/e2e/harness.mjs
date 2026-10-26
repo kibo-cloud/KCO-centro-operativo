@@ -232,6 +232,15 @@ export async function openPage(browser, baseUrl) {
       await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
       await sleep(60);
     },
+    // Real printable key press through CDP (keydown listeners run; the character is
+    // inserted into the focused field unless a listener prevents it), e.g. 'n', '/'.
+    async press(ch) {
+      const vk = ch === '/' ? 191 : ch.toUpperCase().charCodeAt(0);
+      const base = { key: ch, text: ch, unmodifiedText: ch, windowsVirtualKeyCode: vk };
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...base });
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, windowsVirtualKeyCode: vk });
+      await sleep(60);
+    },
     // Touch tap at viewport coordinates (needs a mobile viewport: touch emulation on).
     async tap(x, y) {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });

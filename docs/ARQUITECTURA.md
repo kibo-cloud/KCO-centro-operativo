@@ -90,6 +90,16 @@ atributos `style` para mostrar u ocultar vistas.
 | Tableta (760-1023px) | igual que movil, con el contenido en una columna centrada de 720px |
 | Escritorio (>= 1024px) | barra lateral fija de 240px (`#lateral`): marca, las cinco vistas con cuenta (`#navLateral`, `aria-current="page"`) y los seis contextos con punto y cuenta (`#ctxLateral`). Sin pestañas abajo. Titulo de la vista, captura y contenido en una columna de hasta 760px centrada en el resto; la captura va arriba de la columna (en pantalla ancha la mirada arranca arriba, como Todoist o Things) |
 
+**Barra de captura.** Al tipear, `pintarChipsCaptura()` muestra debajo del campo (`#capChips`)
+lo que se va a guardar, con `KCOCore.resumenCaptura` (el mismo parser que `capturar()`):
+contexto destino, dia y prioridad. El chip de contexto (`#capCtx`) abre la hoja "Guardar en"
+(`#tapaDestino`, mismas reglas de dialogo e historial que toda hoja): elegir fija el destino
+de esa sola captura (`ctxDestino`; guardar o cambiar de vista lo limpia), saca la #etiqueta
+tipeada y devuelve el foco al campo. Prioridad del destino: #etiqueta, chip, contexto de la
+vista. Con chips la barra crece y `html[data-capchips]` sube `--capbar-h` para que el contenido
+la despeje. Atajo: `n` o `/` enfocan la captura si no hay una hoja abierta ni foco en un campo
+editable (nunca se roba una tecla tipeada).
+
 Las filas de contexto y de vistas se arman una vez y cada `pintar()` solo actualiza estado y
 cuentas, asi el foco de teclado no se pierde. `main` es el que scrollea (las barras quedan
 fuera) y recorta en x la animacion entre vistas: sin eso el desplazamiento de 22px ensancha el
@@ -171,7 +181,7 @@ ocurrencias nuevas.
 | Estados | `CERRADOS`, `esActivo`, `esHecho`, `alertaEntrega`, `diaDe` |
 | Situacion | `SITUACIONES`, `infoSituacion`, `situacion` |
 | Proximo movimiento | `puntaje`, `priorizar` |
-| Captura | `parsearCaptura` |
+| Captura | `parsearCaptura`, `resumenCaptura` (chips: el mismo parse + rotulo del dia), `quitarContextoCaptura` |
 | Rutinas | `normalizarRutina`, `tocaEnDia`, `ultimaFecha`, `proximaFecha`, `describirRutina`, `ocurrenciasDe`, `planificarOcurrencias`, `rachaRutina` |
 | Misiones | `normalizarProyecto`, `tareasDeProyecto`, `progresoProyecto`, `proximaAccion` |
 | Diario | `diario`, `compactarEventos` |

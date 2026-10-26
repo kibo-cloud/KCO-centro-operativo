@@ -300,6 +300,32 @@
     return r;
   }
 
+  /* Chips de la barra de captura: el mismo parsearCaptura que usa guardar,
+     mas un rotulo corto del dia (Hoy, Manana, Hoy 18:00). Asi lo que se
+     ve al tipear es exactamente lo que queda guardado. */
+  function resumenCaptura(entrada, ahora) {
+    var r = parsearCaptura(entrada || '', ahora), hoyK = claveDia(ahora), k = '', hora = '';
+    if (r.recordatorio !== '') {
+      var d = new Date(r.recordatorio);
+      k = claveDia(d);
+      hora = ' ' + dosDig(d.getHours()) + ':' + dosDig(d.getMinutes());
+    } else if (r.fecha !== '') { k = r.fecha; }
+    if (k === '') { r.dia = ''; }
+    else if (k === hoyK) { r.dia = 'Hoy' + hora; }
+    else if (k === sumarDias(hoyK, 1)) { r.dia = 'Ma\u00F1ana' + hora; }
+    else { r.dia = k + hora; }
+    return r;
+  }
+
+  /* Al elegir el destino con el chip, la etiqueta #contexto tipeada se saca
+     del texto: si no, ganaria al guardar y el chip mentiria. */
+  function quitarContextoCaptura(entrada) {
+    var texto = ' ' + entrada + ' ';
+    var mc = texto.match(/\s#([a-zñ]+)(?=\s)/i);
+    if (!mc || !ALIAS_CTX.hasOwnProperty(mc[1].toLowerCase())) { return entrada; }
+    return limpio(quitar(texto, mc));
+  }
+
   /* ---------- rutinas (tareas recurrentes) ----------
      Una rutina es una DEFINICION. Cada vez que le toca, genera una OCURRENCIA:
      un item comun con rutinaId y ocurrencia (el dia). La ocurrencia se completa
@@ -1059,6 +1085,8 @@
     puntaje: puntaje,
     priorizar: priorizar,
     parsearCaptura: parsearCaptura,
+    resumenCaptura: resumenCaptura,
+    quitarContextoCaptura: quitarContextoCaptura,
     nuevoId: nuevoId,
     dosDig: dosDig,
     claveDia: claveDia,

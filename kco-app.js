@@ -108,6 +108,9 @@
   var contexto = 'trabajo';
   /* Donde cae lo que se captura mirando 'Todo': el ultimo contexto elegido. */
   var ctxCaptura = 'trabajo';
+  /* Destino elegido con el chip de la barra para la captura en curso ('' = el
+     de la vista). Vale para una sola captura: guardar o cambiar de vista lo limpia. */
+  var ctxDestino = '';
   var filtro = 'activos';
   var filtroCompra = 'activos';
   var filtroTag = '';
@@ -679,7 +682,7 @@
     var crudo = $('txtCaptura').value.replace(/^\s+|\s+$/g, '');
     if (crudo === '' || soloLectura) { return; }
     var p = K.parsearCaptura(crudo, new Date());
-    var it = itemNuevo(p.texto, p.contexto || ctxCaptura, {
+    var it = itemNuevo(p.texto, destinoCaptura(p), {
       recordatorio: p.recordatorio, fecha: p.fecha, nivel: p.nivel || 'normal'
     });
     items.push(it);
@@ -687,6 +690,8 @@
       registrar('captura', it, '', 'entrada');
       if (it.recordatorio !== '') { registrar('recordatorio', it, '', horaCorta(it.recordatorio)); }
       $('txtCaptura').value = '';
+      ctxDestino = '';
+      pintarChipsCaptura();
       pintar();
       $('txtCaptura').focus();
     } else {
@@ -846,6 +851,79 @@
     if (inp) {
       inp.setAttribute('placeholder', 'Capturar en ' + nomCtx(ctxCaptura) + ' \u00B7 Enter guarda');
     }
+  }
+
+  /* ---------- chips de la barra de captura ----------
+     Al tipear se muestra lo que se va a guardar: contexto destino, dia y
+     prioridad. Sale de KCOCore.resumenCaptura, el mismo parser que capturar(). */
+
+  /* Una #etiqueta tipeada gana; si no, el chip elegido; si no, la vista. */
+  function destinoCaptura(p) { return p.contexto || ctxDestino || ctxCaptura; }
+
+  function chipDato(el, texto, ico) {
+    vaciar(el);
+    el.hidden = texto === '';
+    if (texto !== '') { conIcono(el, ico, texto); }
+  }
+
+  function pintarChipsCaptura() {
+    var inp = $('txtCaptura'), caja = $('capChips'), raiz = document.documentElement;
+    if (!inp || !caja) { return; }
+    var crudo = inp.value.replace(/^\s+|\s+$/g, '');
+    var hay = crudo !== '' || ctxDestino !== '';
+    caja.hidden = !hay;
+    /* La barra crece: el contenido deja libre ese alto extra (kco.css). */
+    if (hay) { raiz.setAttribute('data-capchips', '1'); } else { raiz.removeAttribute('data-capchips'); }
+    if (!hay) { return; }
+    var r = K.resumenCaptura(crudo, new Date()), ctx = destinoCaptura(r), b = $('capCtx');
+    vaciar(b);
+    b.appendChild(punto(ctx));
+    b.appendChild(nodo('span', 'capchip-nom', nomCtx(ctx)));
+    b.appendChild(svgIco('chevron-down', 'capchip-chev'));
+    b.setAttribute('aria-label', 'Guardar en ' + nomCtx(ctx) + '. Cambiar');
+    chipDato($('capDia'), r.dia, r.recordatorio !== '' ? 'clock' : 'calendar');
+    chipDato($('capNivel'), r.nivel ? K.infoNivel(r.nivel).nom : '', 'flag');
+    $('capNivel').className = r.nivel === 'urgente' ? 'capchip rojo' : 'capchip';
+  }
+
+  function filaDestino(id) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ctxfila';
+    b.setAttribute('data-ctx', id);
+    b.appendChild(punto(id));
+    b.appendChild(nodo('span', 'ctxfila-nom', nomCtx(id)));
+    b.appendChild(svgIco('check', 'ctxfila-ok'));
+    b.onclick = function () { elegirDestino(id); };
+    return b;
+  }
+
+  /* Hoja "Guardar en": los cinco contextos (Todo no es un destino). */
+  function abrirDestinoCaptura() {
+    var cont = $('destsel'), i, b, on;
+    var actual = destinoCaptura(K.parsearCaptura($('txtCaptura').value, new Date()));
+    if (!cont.firstChild) {
+      for (i = 0; i < K.CONTEXTOS.length; i++) { cont.appendChild(filaDestino(K.CONTEXTOS[i].id)); }
+    }
+    for (b = cont.firstChild; b; b = b.nextSibling) {
+      on = b.getAttribute('data-ctx') === actual;
+      b.className = on ? 'ctxfila on' : 'ctxfila';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    abrirHoja('tapaDestino');
+    b = cont.getElementsByClassName('on')[0];
+    if (b) { enfocar(b); }
+  }
+
+  /* Elegir destino saca la #etiqueta tipeada (si no, ganaria al guardar) y
+     devuelve el foco a la barra para seguir escribiendo o dar Enter. */
+  function elegirDestino(id) {
+    var inp = $('txtCaptura');
+    ctxDestino = id;
+    inp.value = K.quitarContextoCaptura(inp.value);
+    cerrarHoja('tapaDestino');
+    pintarChipsCaptura();
+    enfocar(inp);
   }
 
   /* Grilla de opciones de un toque para la ficha: nivel, contexto. */
@@ -2181,12 +2259,14 @@
     if (id === 'tapaItem') { itemAbierto = null; }
     if (id === 'tapaConfirmar') { confAccion = null; }
     if (id === 'tapaCtx') { $('btnCtx').setAttribute('aria-expanded', 'false'); }
+    if (id === 'tapaDestino') { $('capCtx').setAttribute('aria-expanded', 'false'); }
     devolverFoco(id);
   }
 
   function abrirHoja(id) {
     var i;
     if (id === 'tapaCtx') { $('btnCtx').setAttribute('aria-expanded', 'true'); }
+    if (id === 'tapaDestino') { $('capCtx').setAttribute('aria-expanded', 'true'); }
     for (i = 0; i < pilaCapas.length; i++) {
       if (pilaCapas[i] === id) { $(id).className = 'tapa on'; return; }
     }
@@ -3527,8 +3607,10 @@
   function aplicarContexto(nuevo, guardar) {
     contexto = nuevo === 'todo' || K.contextoValido(nuevo) ? nuevo : 'trabajo';
     if (contexto !== 'todo') { ctxCaptura = contexto; }
+    ctxDestino = '';
     aplicarLuz(false);
     pintarPistaCaptura();
+    pintarChipsCaptura();
     if (guardar) {
       escribir(K_CTX, contexto);
       escribir(K_CTXCAP, ctxCaptura);
@@ -3557,6 +3639,25 @@
     var k = ev.key || ev.keyCode;
     if (k === 'Enter' || k === 13) { ev.preventDefault(); capturar(); }
   };
+  $('txtCaptura').addEventListener('input', pintarChipsCaptura);
+  $('capCtx').onclick = function () { abrirDestinoCaptura(); };
+
+  /* n o / llevan a la barra de captura (Todoist, Gmail), salvo que ya se este
+     escribiendo en un campo o haya una hoja abierta: nunca se roba una tecla. */
+  function esEditable(el) {
+    if (!el || !el.tagName) { return false; }
+    var t = el.tagName.toLowerCase();
+    return t === 'input' || t === 'textarea' || t === 'select' || el.isContentEditable === true;
+  }
+
+  document.addEventListener('keydown', function (ev) {
+    var k = ev.key || '';
+    if (k !== 'n' && k !== '/') { return; }
+    if (ev.defaultPrevented || ev.ctrlKey || ev.metaKey || ev.altKey) { return; }
+    if (capaArriba() || esEditable(ev.target) || esEditable(document.activeElement)) { return; }
+    ev.preventDefault();
+    enfocar($('txtCaptura'));
+  });
 
   $('tabAhora').onclick = function () { irAVista('ahora'); };
   $('tabHoy').onclick = function () { irAVista('hoy'); };

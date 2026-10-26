@@ -258,6 +258,26 @@ header.appbar{
 #txtCaptura{width:100%;min-height:48px;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-pill);border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font-size:16px;outline:none;transition:border-color var(--dur-fast) ease,box-shadow var(--dur-fast) ease}
 #txtCaptura:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 #txtCaptura::placeholder{color:var(--text-muted)}
+/* Chips de lo detectado al tipear: destino (boton, abre "Guardar en"), dia y
+   prioridad. Pastillas de 32px; el boton extiende su area de toque a 44px. */
+.capchips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-1) 0 var(--sp-1)}
+.capchips[hidden],.capchip[hidden]{display:none}
+.capchip{
+  position:relative;display:inline-flex;align-items:center;gap:6px;min-height:32px;max-width:100%;
+  padding:0 var(--sp-3);border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface-2);
+  color:var(--text-muted);font-size:var(--fs-sm);font-weight:500;line-height:1;white-space:nowrap;
+}
+.capchip .ico{width:16px;height:16px;margin:0;flex:0 0 auto}
+.capchip.rojo{color:var(--danger);border-color:var(--danger)}
+.capchip-ctx{color:var(--text);border-color:var(--border-strong);background:var(--bg);cursor:pointer}
+.capchip-ctx::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.capchip-ctx .punto{margin:0}
+.capchip-nom{overflow:hidden;text-overflow:ellipsis}
+.capchip-chev{color:var(--text-muted)}
+.capchip-ctx[aria-expanded="true"] .capchip-chev{transform:rotate(180deg)}
+@media (hover:hover){.capchip-ctx:hover{background:var(--surface-2)}}
+/* Con chips la barra crece: el contenido y el deshacer dejan libre ese alto. */
+html[data-capchips]{--capbar-h:104px}
 .pista{color:var(--text-muted);font-size:var(--fs-xs);margin-top:7px}
 /* Solicitante y destino en la tarjeta de compra de Trabajo. */
 .pedido{color:var(--text-muted);font-size:var(--fs-xs);margin-top:5px;word-break:break-word}
