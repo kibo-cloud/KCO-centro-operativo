@@ -404,14 +404,13 @@
 <div class="tapa" id="tapaAjustes">
   <div class="hoja">
     <h2>Ajustes</h2>
-    <div class="dato"><span>Version app</span><span id="vApp">-</span></div>
-    <div class="dato"><span>Version service worker</span><span id="vSw">-</span></div>
-    <div class="dato"><span>Esquema de datos</span><span id="vEsquema">-</span></div>
-    <div class="dato"><span>Items guardados</span><span id="vTotal">-</span></div>
-    <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
-    <div class="dato"><span>Notificaciones</span><span id="vNotif">-</span></div>
-    <div class="dato"><span>Ultimo backup</span><span id="vBackup">-</span></div>
-    <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
+    <!-- Orden: lo que protege los datos primero (backup), lo informativo al final. -->
+    <div class="rot">Backup</div>
+    <div class="dato"><span>&Uacute;ltimo backup</span><span id="vBackup">-</span></div>
+    <button class="bloque" id="btnExportar" type="button" data-ico="download">Descargar backup (.json)</button>
+    <button class="bloque" id="btnBackupTexto" type="button" data-ico="share">Compartir backup como texto</button>
+    <button class="bloque" id="btnImportar" type="button" data-ico="upload">Restaurar backup</button>
+    <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
     <div class="rot">Pantalla</div>
     <div class="seg" id="segTema" role="group" aria-label="Tema">
       <button class="segbtn" type="button" data-tema="sistema">Sistema</button>
@@ -421,9 +420,10 @@
     <button class="bloque" id="btnLuz" type="button" data-ico="sun">Modo luz de planta</button>
     <div class="pista" style="margin-top:8px">Sube el contraste y agranda los textos chicos para leer bajo el sol o los tubos de la planta.</div>
     <div class="rot">Recordatorios</div>
+    <div class="dato"><span>Notificaciones</span><span id="vNotif">-</span></div>
     <button class="bloque" id="btnPermiso" type="button" data-ico="bell">Activar notificaciones</button>
     <div class="pista" style="margin-top:8px">Suenan con KCO abierta o recien usada. Con la app cerrada Android no las dispara: al abrir KCO vas a ver los vencidos arriba.</div>
-    <div class="rot">Catalogos de compras</div>
+    <div class="rot">Cat&aacute;logos de compras</div>
     <div class="pista" style="margin-top:0;margin-bottom:9px">Solicitantes y destinos que KCO fue aprendiendo sola. Borrar uno de aca no toca ninguna compra ya cargada.</div>
     <div class="dato"><span>Solicitantes</span><span id="vSolic">-</span></div>
     <div id="chipsSolic" class="catalogo"></div>
@@ -436,11 +436,13 @@
               placeholder="Uno por renglon. Se puede pegar una lista entera."></textarea>
     <button class="bloque" id="btnSumarDest" type="button" data-ico="plus">Sumar destinos</button>
 
-    <div class="rot">Backup</div>
-    <button class="bloque" id="btnExportar" type="button" data-ico="download">Descargar backup (.json)</button>
-    <button class="bloque" id="btnBackupTexto" type="button" data-ico="share">Compartir backup como texto</button>
-    <button class="bloque" id="btnImportar" type="button" data-ico="upload">Restaurar backup</button>
-    <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
+    <div class="rot">Info</div>
+    <div class="dato"><span>Versi&oacute;n app</span><span id="vApp">-</span></div>
+    <div class="dato"><span>Versi&oacute;n service worker</span><span id="vSw">-</span></div>
+    <div class="dato"><span>Esquema de datos</span><span id="vEsquema">-</span></div>
+    <div class="dato"><span>Items guardados</span><span id="vTotal">-</span></div>
+    <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
+    <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
     <div class="pie">KCO v<span id="pieVersion">-</span> &middot; esquema <span id="pieEsquema">-</span><br>Desarrollado por Kevin V&aacute;squez</div>
   </div>
 </div>

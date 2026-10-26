@@ -1759,6 +1759,117 @@ export const tests = [
     }
   },
   {
+    name: 'empty: with no data Ahora, Hoy, Tareas, inbox, a filter and Compras show an icon, a short line and a working action',
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'apps' },
+    async fn(page) {
+      await page.emulateFocus();
+      const active = () => page.eval('document.activeElement&&document.activeElement.id||""');
+      const blur = () => page.eval('document.activeElement&&document.activeElement.blur()');
+      // Ahora in a context with nothing pending: names the context, offers capture.
+      const ahora = await emptyState(page, '#ahoraCuerpo [data-vacio="ahora"]');
+      assert.match(ahora.text, /Apps/, 'names the context');
+      await page.click('#ahoraCuerpo [data-vacio="ahora"] .vacio-acc');
+      assert.equal(await active(), 'txtCaptura', 'Capturar focuses the bar');
+      await blur();
+      await page.click('#tabHoy');
+      await emptyState(page, '#hoyCuerpo [data-vacio="hoy"]');
+      await page.click('#hoyCuerpo [data-vacio="hoy"] .vacio-acc');
+      assert.equal(await active(), 'txtCaptura');
+      await blur();
+      await toTasks(page);
+      await emptyState(page, '#vacioTablero[data-vacio="tareas"]');
+      await page.click('#vacioTablero .vacio-acc');
+      assert.equal(await active(), 'txtCaptura');
+      await blur();
+      await page.click('#chips [data-filtro="entrada"]');
+      const inbox = await emptyState(page, '#vacioTablero[data-vacio="inbox"]');
+      assert.match(inbox.text, /Inbox/);
+      await page.click('#chips [data-filtro="esperando"]');
+      await emptyState(page, '#vacioTablero[data-vacio="filtro"]');
+      await page.click('#vacioTablero .vacio-acc');
+      assert.equal(await page.eval("document.querySelector('#chips [data-filtro=\"activos\"]').className.indexOf('on')>-1"), true, 'Ver activos resets the filter');
+      assert.ok(await page.visible('#vacioTablero[data-vacio="tareas"]'));
+      await page.click('#segBtnCompras');
+      await emptyState(page, '#vacioCompras[data-vacio="compras"]');
+      await page.screenshot(path.join(OUT, 'empty-tareas-mobile.png'));
+    }
+  },
+  {
+    name: 'empty: missions, diary, an empty campaign and search show an empty state whose action works',
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    async fn(page) {
+      await page.click('#tabMisiones');
+      await emptyState(page, '#misionesCuerpo [data-vacio="misiones"]');
+      assert.equal(await page.count('#btnNuevaMision'), 1, 'one Nueva mision button');
+      await page.click('#misionesCuerpo [data-vacio="misiones"] .vacio-acc');
+      await sleep(150);
+      assert.ok(await page.eval("document.getElementById('tapaMision').className.indexOf('on')>-1"), 'Nueva mision opens the sheet');
+      await page.key('Escape');
+      await sleep(150);
+      await page.click('#tabRegistro');
+      await emptyState(page, '#vacioRegistro[data-vacio="diario"]');
+      await page.click('#vacioRegistro .vacio-acc');
+      assert.equal(await page.eval("document.querySelector('#chipsRango [data-filtro=\"todo\"]').className.indexOf('on')>-1"), true, 'Ver todo widens the range');
+      assert.equal(await page.count('#vacioRegistro .vacio-acc'), 0, 'no widen action once the range is Todo');
+      await page.click('#btnModoRegistro');
+      await emptyState(page, '#vacioRegistro[data-vacio="registro"]', false);
+      await page.click('#btnModoCampana');
+      const camp = await emptyState(page, '#campanaCuerpo [data-vacio="campana"]');
+      assert.match(camp.text, /campa\u00F1a/i);
+      assert.equal(await page.count('#campanaCuerpo .stats'), 0, 'no wall of zeros');
+      await page.screenshot(path.join(OUT, 'empty-campaign-mobile.png'));
+      await page.click('#campanaCuerpo [data-vacio="campana"] .vacio-acc');
+      assert.equal(await page.eval("document.getElementById('tabAhora').getAttribute('aria-selected')"), 'true', 'Ir a Ahora');
+      await page.click('#btnBuscar');
+      await sleep(150);
+      await emptyState(page, '#vacioBusca[data-vacio="buscar"]', false);
+      await page.type('#txtBusca', 'zzz');
+      await page.eval("document.getElementById('txtBusca').dispatchEvent(new Event('input'))");
+      const none = await emptyState(page, '#vacioBusca[data-vacio="sin-resultados"]');
+      assert.match(none.text, /zzz/, 'echoes the query');
+      await page.click('#vacioBusca .vacio-acc');
+      assert.equal(await page.eval("document.getElementById('txtBusca').value"), '', 'Borrar busqueda clears it');
+      assert.ok(await page.visible('#vacioBusca[data-vacio="buscar"]'));
+    }
+  },
+  {
+    name: 'empty: at 1366px the empty state is centered in the column with its action',
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    width: 1366, height: 900, mobile: false,
+    async fn(page) {
+      await page.click('#navLateral [data-vista="tablero"]');
+      await emptyState(page, '#vacioTablero[data-vacio="tareas"]');
+      const r = await page.eval(`(function(){var v=document.getElementById('vacioTablero').getBoundingClientRect(),i=document.querySelector('#vacioTablero .vacio-ico').getBoundingClientRect();
+        return {mid:v.left+v.width/2,ico:i.left+i.width/2,w:v.width};})()`);
+      assert.ok(Math.abs(r.mid - r.ico) < 2, 'icon centered in the block');
+      assert.ok(r.w <= 760, 'inside the content column');
+      await page.screenshot(path.join(OUT, 'empty-tareas-desktop.png'));
+    }
+  },
+  {
+    name: 'settings: Ajustes opens with Backup first and Info last, and every setting is still there',
+    storage: seed(),
+    async fn(page) {
+      await page.click('#btnAjustes');
+      await sleep(150);
+      const r = await page.eval(`(function(){var h=document.getElementById('tapaAjustes'),rot=h.querySelectorAll('.rot'),t=[],i;
+        for(i=0;i<rot.length;i++){t.push(rot[i].textContent.trim());}
+        function pos(id){var all=h.getElementsByTagName('*');for(var k=0;k<all.length;k++){if(all[k].id===id)return k;}return -1;}
+        var ids=['vBackup','btnExportar','btnBackupTexto','btnImportar','archivoImport','segTema','btnLuz','vNotif','btnPermiso','vSolic','chipsSolic','txtNuevoSolic','btnSumarSolic','vDest','chipsDest','txtNuevoDest','btnSumarDest','vApp','vSw','vEsquema','vTotal','vEventos','pieVersion','pieEsquema'],p={};
+        for(i=0;i<ids.length;i++){p[ids[i]]=pos(ids[i]);}
+        var pie=h.querySelector('.pie');return {rot:t,p:p,pieLast:!!pie&&pie===h.querySelector('.hoja').lastElementChild};})()`);
+      assert.deepEqual(r.rot, ['Backup', 'Pantalla', 'Recordatorios', 'Cat\u00E1logos de compras', 'Info']);
+      for (const [id, k] of Object.entries(r.p)) assert.ok(k > -1, id + ' is still in Ajustes');
+      assert.ok(r.p.btnExportar < r.p.segTema && r.p.vBackup < r.p.btnExportar, 'backup comes first, with its last-backup date');
+      assert.ok(r.p.vApp > r.p.btnSumarDest, 'version info comes after every setting');
+      assert.ok(r.pieLast, 'the footer closes the sheet');
+      // The backup action still works from its new place.
+      assert.equal(await page.visible('#btnExportar'), true);
+      assert.ok((await page.rect('#btnExportar')).y < 844, 'backup reachable without scrolling at 390x844');
+      await page.screenshot(path.join(OUT, 'ajustes-mobile.png'));
+    }
+  },
+  {
     name: 'ux: mobile screenshot',
     async fn(page) {
       await capture(page, 'revisar bomba hidraulica');
@@ -1857,6 +1968,20 @@ async function openQuickMenu(page, sel) {
   await page.eval(`document.querySelector(${JSON.stringify(sel)}).dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
   await sleep(80);
   assert.ok(await page.eval("document.getElementById('tapaRapido').className.indexOf('on')>-1"), 'quick menu open');
+}
+
+// An empty state: visible, one SVG icon, a title and (unless withAction is false) one action button.
+async function emptyState(page, sel, withAction = true) {
+  const r = await page.eval(`(function(){var e=document.querySelector(${JSON.stringify(sel)});if(!e)return null;
+    var st=getComputedStyle(e),b=e.getBoundingClientRect();
+    return {vis:st.display!=='none'&&b.height>0,svg:e.querySelectorAll('.vacio-ico svg').length,tit:(e.querySelector('.vacio-tit')||{}).textContent||'',
+      acc:e.querySelectorAll('.vacio-acc').length,text:e.textContent};})()`);
+  assert.ok(r, 'empty state present: ' + sel);
+  assert.ok(r.vis, 'empty state visible: ' + sel);
+  assert.equal(r.svg, 1, 'one icon: ' + sel);
+  assert.ok(r.tit.length > 0, 'a title: ' + sel);
+  if (withAction) assert.equal(r.acc, 1, 'one action: ' + sel);
+  return r;
 }
 
 async function openFirstItem(page, estado) {

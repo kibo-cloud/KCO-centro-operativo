@@ -102,6 +102,21 @@ vista. Con chips la barra crece: `html[data-capchips]` sube `--capbar-h` a 104px
 filas a 320px; se recalcula al tipear y en `resize`), asi el contenido y el deshacer la despejan. Atajo: `n` o `/` enfocan la captura si no hay una hoja abierta ni foco en un campo
 editable (nunca se roba una tecla tipeada).
 
+**Estados vacios.** Toda vista que puede quedar vacia usa `estadoVacio(el, o)` / `vacioNuevo(tag, o)`:
+un icono de `iconos.js` en un circulo, un titulo corto, una linea que dice que hacer y, si sirve,
+una accion (`.vacio-acc`, con `data-vacio` en el contenedor). Ahora (nombra el contexto) y Hoy,
+Tareas activas, inbox y Compras ofrecen "Capturar" (foco en la barra); un filtro de estado o de
+etiqueta sin nada ofrece volver a Activos o quitar la etiqueta; Misiones ofrece "Nueva mision";
+Diario y Registro con un rango corto ofrecen "Ver todo"; la busqueda vacia explica que busca y sin
+resultados repite la consulta y ofrece borrarla. Una campaña sin primer dia activo muestra su
+estado vacio ("Ir a Ahora") y los logros por ganar en vez de una pared de ceros. El contenedor no
+usa flex: la app lo muestra con `style.display = 'block'`.
+
+**Ajustes.** Orden: Backup (ultimo backup, descargar, compartir como texto, restaurar) primero,
+porque protege los datos; despues Pantalla, Recordatorios (estado de notificaciones) y Catalogos
+de compras; Info (version de app y SW, esquema, items, movimientos, prefijo `kibco.`) y el pie
+al final.
+
 Las filas de contexto y de vistas se arman una vez y cada `pintar()` solo actualiza estado y
 cuentas, asi el foco de teclado no se pierde. `main` es el que scrollea (las barras quedan
 fuera) y recorta en x la animacion entre vistas: sin eso el desplazamiento de 22px ensancha el

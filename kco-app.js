@@ -1454,14 +1454,29 @@
       filtro = id; escribir(K_FILTRO, filtro); pintar();
     });
     pintarChipsTag();
-    pintarLista('tarea', filtro, 'lista', 'vacioTablero');
+    if (pintarLista('tarea', filtro, 'lista', 'vacioTablero') === 0) { vacioTareas(); }
+  }
+
+  function vacioTareas() {
+    var el = $('vacioTablero'), t;
     if (filtroTag !== '') {
-      var t = tagInfo(filtroTag);
-      $('vacioTablero').textContent = 'Nada en ' + (t ? t.nom : 'esa clasificacion') + ' con este filtro.';
+      t = tagInfo(filtroTag);
+      estadoVacio(el, { id: 'etiqueta', ico: 'list', tit: 'Nada en ' + (t ? t.nom : 'esa clasificaci\u00F3n'),
+        txt: 'Ninguna tarea de este filtro tiene esa etiqueta.', acc: 'Quitar etiqueta',
+        alTocar: function () { filtroTag = ''; escribir(K_FILTROTAG, filtroTag); pintar(); } });
+    } else if (filtro === 'activos') {
+      estadoVacio(el, { id: 'tareas', ico: 'tareas',
+        tit: contexto === 'todo' ? 'Sin tareas activas' : 'Sin tareas activas en ' + nomCtx(contexto),
+        txt: 'Escrib\u00ED en la barra de captura y toc\u00E1 Enter. Termin\u00E1 con "hoy" o "ma\u00F1ana" para agendarla.',
+        acc: 'Capturar', accIco: 'plus', alTocar: irACaptura });
+    } else if (filtro === 'entrada') {
+      estadoVacio(el, { id: 'inbox', ico: 'inbox', tit: 'Inbox vac\u00EDo',
+        txt: 'Lo que captures cae ac\u00E1 hasta que decidas: para hoy, otro d\u00EDa u otro estado.',
+        acc: 'Capturar', accIco: 'plus', alTocar: irACaptura });
     } else {
-      $('vacioTablero').textContent = filtro === 'activos'
-        ? 'Nada activo ac\u00E1. Escrib\u00ED abajo y toc\u00E1 Enter.'
-        : 'No hay items en este filtro.';
+      estadoVacio(el, { id: 'filtro', ico: 'list', tit: 'Nada en ' + estadoInfo(filtro).nom,
+        txt: 'Ninguna tarea est\u00E1 en ese estado ahora.', acc: 'Ver activos',
+        alTocar: function () { filtro = 'activos'; escribir(K_FILTRO, filtro); pintar(); } });
     }
   }
 
@@ -1476,10 +1491,18 @@
     pintarChipsGen('chipsCompra', defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
       filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
     });
-    pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras');
-    $('vacioCompras').textContent = esHogar
-      ? 'Lista vac\u00EDa. Escrib\u00ED en la barra de captura y toc\u00E1 Mover a Compras.'
-      : 'Sin compras. Toca Mover a Compras en cualquier tarea.';
+    if (pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras') > 0) { return; }
+    if (filtroCompra !== 'activos') {
+      estadoVacio($('vacioCompras'), { id: 'compras-filtro', ico: 'cart', tit: 'Nada en ' + estadoInfo(filtroCompra).nom,
+        txt: 'Ninguna compra est\u00E1 en ese paso ahora.', acc: esHogar ? 'Ver por comprar' : 'Ver abiertas',
+        alTocar: function () { filtroCompra = 'activos'; escribir(K_FILTROC, filtroCompra); pintar(); } });
+      return;
+    }
+    estadoVacio($('vacioCompras'), { id: 'compras', ico: 'cart', tit: esHogar ? 'Lista de compras vac\u00EDa' : 'Sin compras abiertas',
+      txt: esHogar
+        ? 'Captur\u00E1 lo que falta y movelo a Compras desde su men\u00FA (desliz\u00E1 a la izquierda) o su ficha.'
+        : 'Cualquier tarea pasa a compra desde su men\u00FA o su ficha (Mover a Compras) y sigue ac\u00E1 hasta recibirla.',
+      acc: 'Capturar', accIco: 'plus', alTocar: irACaptura });
   }
 
   function desdeRango() {
@@ -1573,7 +1596,9 @@
     var corte = desdeRango();
     var dias = K.diario(eventos, items, { desde: corte ? corte.toISOString() : '', contexto: contexto });
     $('vacioRegistro').style.display = dias.length === 0 ? 'block' : 'none';
-    $('vacioRegistro').textContent = 'Sin actividad significativa en este periodo. Lo que completes, los hitos y las misiones quedan aca solos.';
+    if (dias.length === 0) {
+      vacioRango('diario', 'book', 'Nada en el diario', 'Lo que completes, los hitos y las misiones quedan ac\u00E1 solos, d\u00EDa por d\u00EDa.');
+    }
     var i, j;
     for (i = 0; i < dias.length; i++) {
       var g = dias[i];
@@ -1601,6 +1626,14 @@
     }
   }
 
+  /* Diario o registro sin nada en el rango: si el rango es corto, la accion
+     lo abre a Todo. */
+  function vacioRango(id, ico, tit, txt) {
+    var todo = rango === 'todo';
+    estadoVacio($('vacioRegistro'), { id: id, ico: ico, tit: tit + (todo ? ' todav\u00EDa' : ' en este per\u00EDodo'), txt: txt,
+      acc: todo ? '' : 'Ver todo', alTocar: function () { rango = 'todo'; pintar(); } });
+  }
+
   function pintarRegistro() {
     $('btnModoDiario').className = modoDiario === 'diario' ? 'segbtn on' : 'segbtn';
     $('btnModoRegistro').className = modoDiario === 'registro' ? 'segbtn on' : 'segbtn';
@@ -1612,11 +1645,14 @@
     if (modoDiario === 'campana') { $('vacioRegistro').style.display = 'none'; pintarCampana(); return; }
     pintarChipsGen('chipsRango', RANGOS, rango, function () { return ''; }, function (id) { rango = id; pintar(); });
     if (modoDiario === 'diario') { pintarDiario(); return; }
-    $('vacioRegistro').textContent = 'Sin movimientos en este periodo.';
     var cont = $('timeline');
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
     var lista = eventosFiltrados();
-    if (lista.length === 0) { $('vacioRegistro').style.display = 'block'; return; }
+    if (lista.length === 0) {
+      vacioRango('registro', 'list', 'Sin movimientos', 'Cada captura, cambio de estado y cierre queda anotado ac\u00E1.');
+      $('vacioRegistro').style.display = 'block';
+      return;
+    }
     $('vacioRegistro').style.display = 'none';
     var diaActual = '', i;
     for (i = lista.length - 1; i >= 0; i--) {
@@ -1671,6 +1707,34 @@
     }
     return e;
   }
+
+  /* ---------- estados vacios ----------
+     Toda vista sin nada muestra lo mismo: un icono de iconos.js, un titulo
+     corto, una linea que dice que hacer y, si sirve, una accion. el puede ser
+     un contenedor fijo (#vacioTablero) o uno nuevo (vacioNuevo). */
+  function estadoVacio(el, o) {
+    vaciar(el);
+    el.className = 'vacio est-vacio';
+    el.setAttribute('data-vacio', o.id);
+    var ic = nodo('div', 'vacio-ico');
+    ic.appendChild(svgIco(o.ico));
+    el.appendChild(ic);
+    el.appendChild(nodo('div', 'vacio-tit', o.tit));
+    if (o.txt) { el.appendChild(nodo('div', 'vacio-txt', o.txt)); }
+    if (o.acc) {
+      var b = nodo('button', 'vacio-acc', o.acc, o.accIco || '');
+      b.type = 'button';
+      if (o.accId) { b.id = o.accId; }
+      b.onclick = o.alTocar;
+      el.appendChild(b);
+    }
+    return el;
+  }
+
+  function vacioNuevo(tag, o) { return estadoVacio(document.createElement(tag), o); }
+
+  /* La accion "Capturar" de un estado vacio: el cursor en la barra. */
+  function irACaptura() { enfocar($('txtCaptura')); }
 
   function nodo(tag, clase, texto, ico) {
     var e = document.createElement(tag);
@@ -1869,12 +1933,14 @@
     cont.appendChild(pulso);
 
     var mostrados = {};
-    if (ranking.length === 0) {
+    if (lista.length === 0) {
+      cont.appendChild(vacioNuevo('div', { id: 'ahora', ico: 'check-circle', tit: 'Todo en orden',
+        txt: 'Nada pendiente en ' + nomCtx(contexto) + '. Captur\u00E1 lo pr\u00F3ximo que aparezca y KCO te dice qu\u00E9 sigue.',
+        acc: 'Capturar', accIco: 'plus', alTocar: irACaptura }));
+    } else if (ranking.length === 0) {
       var calma = nodo('div', 'hero calma');
       calma.appendChild(nodo('div', 'hero-rot', 'Todo en orden', 'check-circle'));
-      calma.appendChild(nodo('div', 'hero-txt', lista.length === 0
-        ? 'Nada pendiente en ' + nomCtx(contexto) + '. Captur\u00E1 lo pr\u00F3ximo que aparezca.'
-        : 'Lo que queda esta esperando a otros o tiene dia mas adelante.'));
+      calma.appendChild(nodo('div', 'hero-txt', 'Lo que queda esta esperando a otros o tiene dia mas adelante.'));
       cont.appendChild(calma);
     } else {
       var sig = [];
@@ -2004,7 +2070,9 @@
     for (i = 0; i < deHoy.length; i++) { if (deHoy[i].rutinaId === '') { noRut.push(deHoy[i]); } }
     var ulH = seccion(cont, 'secParaHoy', 'Para hoy', noRut.length, '', 'calendar');
     if (noRut.length === 0) {
-      ulH.appendChild(nodo('li', 'vacio chico', 'Nada agendado para hoy. Desde AHORA ves que conviene hacer.'));
+      ulH.appendChild(vacioNuevo('li', { id: 'hoy', ico: 'calendar', tit: 'Nada agendado para hoy',
+        txt: 'Termin\u00E1 una captura con "hoy" o eleg\u00ED un d\u00EDa en la ficha. Desde Ahora ves qu\u00E9 conviene hacer.',
+        acc: 'Capturar', accIco: 'plus', alTocar: irACaptura }));
     }
     for (i = 0; i < noRut.length; i++) { ulH.appendChild(nodoItem(noRut[i], '')); }
     if (hechas.length > 0) {
@@ -3240,7 +3308,8 @@
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
     if (q === '') {
       $('vacioBusca').style.display = 'block';
-      $('vacioBusca').textContent = 'Escrib\u00ED para buscar.';
+      estadoVacio($('vacioBusca'), { id: 'buscar', ico: 'search', tit: 'Busc\u00E1 en todo KCO',
+        txt: 'Tareas y compras de todos los contextos, por texto o etiqueta.' });
       return;
     }
     var i, n = 0;
@@ -3278,7 +3347,11 @@
       })(it);
     }
     $('vacioBusca').style.display = n === 0 ? 'block' : 'none';
-    $('vacioBusca').textContent = 'Sin resultados para esa busqueda.';
+    if (n === 0) {
+      estadoVacio($('vacioBusca'), { id: 'sin-resultados', ico: 'search', tit: 'Sin resultados',
+        txt: 'Nada coincide con \u201C' + $('txtBusca').value.replace(/^\s+|\s+$/g, '') + '\u201D. Prob\u00E1 con otra palabra.',
+        acc: 'Borrar b\u00FAsqueda', alTocar: function () { $('txtBusca').value = ''; pintarBusqueda(); enfocar($('txtBusca')); } });
+    }
   }
 
   /* ---------- resumen ---------- */
@@ -4215,6 +4288,17 @@
     var st = K.estadisticas(items, proyectos, rutinas, hoy);
     var nv = K.nivelPorXP(st.xp);
 
+    /* Campana vacia: sin un primer dia activo no hay racha, semanas ni
+       contextos que mostrar; en vez de una pared de ceros, que hacer y los
+       logros que esperan. */
+    if (!st.primerDia) {
+      cont.appendChild(vacioNuevo('div', { id: 'campana', ico: 'trophy', tit: 'La campa\u00F1a todav\u00EDa no empez\u00F3',
+        txt: 'Complet\u00E1 tu primera tarea: desde ese d\u00EDa cuentan los d\u00EDas activos, la racha, el XP y los logros.',
+        acc: 'Ir a Ahora', accIco: 'zap', alTocar: function () { irAVista('ahora'); } }));
+      pintarLogros(cont);
+      return;
+    }
+
     var cab = nodo('div', 'camp-cab');
     cab.appendChild(nodo('div', 'camp-nv', 'Nivel ' + nv.nivel, 'star'));
     cab.appendChild(nodo('div', 'camp-tit', nv.titulo));
@@ -4450,8 +4534,10 @@
     nueva.onclick = function () { abrirMision(null); };
     var act = misionesVisibles('activo'), pau = misionesVisibles('pausado'), fin = misionesVisibles('terminado'), i;
     if (act.length + pau.length + fin.length === 0) {
-      cont.appendChild(nodo('div', 'vacio', 'Una mision es un objetivo con hitos y tareas. KCO te dice cual es el proximo movimiento de cada una.'));
-      cont.appendChild(nueva);
+      cont.appendChild(vacioNuevo('div', { id: 'misiones', ico: 'target',
+        tit: contexto === 'todo' ? 'Sin misiones todav\u00EDa' : 'Sin misiones en ' + nomCtx(contexto),
+        txt: 'Una misi\u00F3n es un objetivo con hitos y tareas. KCO te dice cu\u00E1l es el pr\u00F3ximo movimiento de cada una.',
+        acc: 'Nueva misi\u00F3n', accIco: 'plus', accId: 'btnNuevaMision', alTocar: function () { abrirMision(null); } }));
       return;
     }
     cont.appendChild(nueva);

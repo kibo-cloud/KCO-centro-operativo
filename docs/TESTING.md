@@ -1,7 +1,7 @@
 # Pruebas — KCO 2.0
 
 Tres controles, cero dependencias. `npm run verify` los corre en orden y falla al primero que
-no pasa. Conteo actual: **80 pruebas unitarias** y **101 specs E2E**, todas en verde.
+no pasa. Conteo actual: **80 pruebas unitarias** y **105 specs E2E**, todas en verde.
 
 ## Correr
 
@@ -82,7 +82,8 @@ foco y sin esto `focus`/`blur` no se disparan). Ninguna spec llama esos metodos 
 
 **Capturas.** Algunas specs guardan PNG en `tests/e2e/out/` (ignorado por git) para revisar
 a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `campana.png`,
-`mobile.png`, `capture-mobile.png`, `capture-desktop.png`, `capture-320.png`.
+`mobile.png`, `capture-mobile.png`, `capture-desktop.png`, `capture-320.png`, `empty-tareas-mobile.png`,
+`empty-campaign-mobile.png`, `empty-tareas-desktop.png`, `ajustes-mobile.png`.
 
 **Specs por area** (prefijo del nombre)
 
@@ -114,6 +115,8 @@ a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `camp
 | `sheets` | 8 | toda hoja es `role=dialog` + `aria-modal` + `aria-labelledby` con asa y X "Cerrar"; Escape cierra solo la de arriba, el foco vuelve a quien la abrio y el historial queda a la par (dos hojas apiladas); Tab/Shift+Tab giran dentro; tocar el fondo cierra la ficha y el selector de contexto (tocar dentro no); arrastrar la cabecera 160px cierra, 30px vuelve a su lugar; a 390x844 Hecho, Hoy, Mañana, Prioridad y Contexto se ven sin scrollear; a 1366px dialogo centrado de hasta 560px sin asa; un `history.go` propio cuyo `popstate` no llega no deja a la hoja siguiente sin entrada en el historial (vigia de 300ms) |
 | `cards` | 4 | circulo a la izquierda (44px de toque, 21px a la vista) con nombre "Completar: <texto>" armado con `setAttribute` (el texto nunca se interpreta como HTML), completa y deshacer restaura; ninguna tarjeta tiene boton de carrito ni botones cuadrados, el inbox conserva un solo "Para hoy"; deslizar a la derecha completa sin cambiar de vista ni abrir la ficha (deshacer restaura) y un arrastre vertical no hace nada; deslizar a la izquierda abre el menu rapido (`role=dialog`) con Hoy, Mañana, Prioridad, Mover a Compras y Borrar, que funcionan; la tarjeta se enfoca con Tab, Enter abre la ficha y "Mas opciones" tambien |
 | `capture bar` | 4 | chips en vivo de contexto, dia y prioridad (ocultos con la barra vacia, dentro de 390px, guardar guarda lo mismo y los limpia; recordatorio "Mañana 09:30"); el chip de contexto abre "Guardar en" (`#tapaDestino`, `role=dialog`, entrada en `history`, sin Todo), elegir cierra la hoja, vuelve el foco a la barra y guarda ahi sin cambiar la vista, vale para una captura y reemplaza una #etiqueta tipeada; `n` y `/` enfocan la barra a 1366px sin escribirse, pero no adentro de un campo ni con una hoja abierta; a 320px con "Mañana 09:30" + prioridad + Contenido los chips pueden ocupar dos filas y el contenido igual despeja la barra (alto medido) |
+| `empty` | 3 | sin datos, Ahora (nombra el contexto), Hoy, Tareas, inbox, un filtro, Compras, Misiones, Diario, Registro, la campaña y la busqueda muestran icono SVG + titulo (+ accion): Capturar enfoca la barra, Ver activos vuelve el filtro, Nueva mision abre la hoja, Ver todo abre el rango, Ir a Ahora cambia de vista, Borrar busqueda limpia; campaña vacia sin `.stats`; a 1366px el estado queda centrado en la columna |
+| `settings` | 1 | Ajustes abre con Backup primero e Info al final (rotulos en orden), ningun ajuste se perdio (ids presentes), el pie cierra la hoja y Descargar backup se ve sin scroll a 390x844 |
 | `harness` | 1 | `teardown()` quita los scripts inyectados y devuelve el esquema de color real |
 
 ## Agregar una spec E2E
