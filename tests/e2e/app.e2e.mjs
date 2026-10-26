@@ -297,6 +297,146 @@ export const tests = [
     }
   },
   {
+    name: 'backup: export carries every section, archived ones too, as schema 5',
+    storage: {
+      'kibco.esquema': '5',
+      'kibco.apartados': JSON.stringify([{ id: 'estudio', nom: 'Estudio', color: 'azul', orden: 0 },
+        { id: 'viejo', nom: 'Viejo', orden: 1, activo: false }])
+    },
+    async fn(page) {
+      await page.click('#btnAjustes');
+      await page.click('#btnBackupTexto');
+      const data = JSON.parse(await page.eval("document.getElementById('txtSalida').value"));
+      assert.equal(data.schema, 5);
+      assert.deepEqual(data.apartados.map((a) => a.id), ['estudio', 'viejo']);
+      assert.equal(data.apartados[0].nom, 'Estudio');
+      assert.equal(data.apartados[1].activo, false);
+    }
+  },
+  {
+    name: 'backup: a schema-5 backup restores its sections and items stay in them',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': LEGACY_SECTIONS, 'kibco.contexto': 'hogar', 'kibco.contextoCaptura': 'hogar',
+      'kibco.items': JSON.stringify([{ id: 'v1', texto: 'viejo', contexto: 'hogar', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      const file = path.join(os.tmpdir(), 'kco-e2e-apartados5.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 5,
+        apartados: [{ id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', orden: 0 }, { id: 'gym', nom: 'Gym', orden: 1 }],
+        items: [{ id: 'e1', texto: 'leer capitulo', contexto: 'estudio', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+          { id: 'g1', texto: 'sentadillas', contexto: 'gym', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }] }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      assert.deepEqual(JSON.parse(await page.storage('kibco.apartados')).map((a) => a.id), ['estudio', 'gym']);
+      const list = await items(page);
+      assert.equal(list.find((i) => i.id === 'e1').contexto, 'estudio');
+      assert.equal(list.find((i) => i.id === 'g1').contexto, 'gym');
+      assert.equal(await page.eval("document.getElementById('ctxNombre').textContent"), 'Estudio', 'current context refreshed');
+      const filas = await page.eval("document.getElementById('ctxsel').textContent");
+      assert.match(filas, /Estudio/);
+      assert.match(filas, /Gym/);
+      assert.doesNotMatch(filas, /Casa|Trabajo/);
+      await capture(page, 'remo #gym');
+      assert.equal((await items(page)).find((i) => i.texto === 'remo').contexto, 'gym');
+      await page.reload();
+      assert.equal((await items(page)).find((i) => i.id === 'e1').contexto, 'estudio', 'survives a reload');
+    }
+  },
+  {
+    name: 'backup: a schema-5 backup restores sections on a fresh install',
+    async fn(page) {
+      assert.equal(await page.storage('kibco.apartados'), null);
+      const file = path.join(os.tmpdir(), 'kco-e2e-apartados-fresh.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 5, apartados: [{ id: 'estudio', nom: 'Estudio' }],
+        items: [{ id: 'e1', texto: 'leer', contexto: 'estudio', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }] }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      assert.deepEqual(JSON.parse(await page.storage('kibco.apartados')).map((a) => a.id), ['estudio']);
+      assert.equal((await items(page))[0].contexto, 'estudio');
+    }
+  },
+  {
+    name: 'backup: a schema-4 backup seeds the legacy sections',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': JSON.stringify([{ id: 'estudio', nom: 'Estudio', color: 'azul' }]),
+      'kibco.items': JSON.stringify([{ id: 'x1', texto: 'leer', contexto: 'estudio', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      const file = path.join(os.tmpdir(), 'kco-e2e-apartados4.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 4,
+        items: [{ id: 'h1', texto: 'barrer', contexto: 'hogar', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+          { id: 't1', texto: 'filtro', contexto: 'trabajo', tipo: 'compra', estado: 'esperando_oc', creado: '2026-01-01T10:00:00.000Z' }] }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      const secs = JSON.parse(await page.storage('kibco.apartados'));
+      assert.deepEqual(secs.map((a) => a.id), ['trabajo', 'hogar', 'apps', 'contenido', 'personal']);
+      assert.equal(secs[0].compras, 'fabrica');
+      const list = await items(page);
+      assert.equal(list.find((i) => i.id === 'h1').contexto, 'hogar');
+      assert.equal(list.find((i) => i.id === 't1').estado, 'esperando_oc');
+      assert.doesNotMatch(await page.eval("document.getElementById('ctxsel').textContent"), /Estudio/);
+    }
+  },
+  {
+    name: 'backup: a context id outside the legacy set gets a generated section',
+    async fn(page) {
+      const file = path.join(os.tmpdir(), 'kco-e2e-apartados-extra.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 4,
+        items: [{ id: 'k1', texto: 'tornear eje', contexto: 'taller', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' },
+          { id: 'k2', texto: 'raro', contexto: 'todo', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }],
+        eventos: [{ id: 'ev1', ts: '2026-01-01T10:00:00.000Z', tipo: 'captura', itemId: 'm', texto: 'm', contexto: 'musica' }],
+        rutinas: [], proyectos: [] }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      const secs = JSON.parse(await page.storage('kibco.apartados'));
+      assert.deepEqual(secs.map((a) => a.id), ['trabajo', 'hogar', 'apps', 'contenido', 'personal', 'taller', 'musica']);
+      const taller = secs.find((a) => a.id === 'taller');
+      assert.equal(taller.nom, 'taller');
+      assert.equal(taller.color, 'gris');
+      assert.equal(taller.activo, true);
+      const list = await items(page);
+      assert.equal(list.find((i) => i.id === 'k1').contexto, 'taller');
+      assert.equal(list.find((i) => i.id === 'k2').contexto, 'trabajo', 'todo is never a section');
+      assert.equal((await events(page)).find((e) => e.id === 'ev1').contexto, 'musica');
+    }
+  },
+  {
+    name: 'backup: an unusable apartados field is rejected without writing anything',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': LEGACY_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'v1', texto: 'viejo', contexto: 'hogar', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      const before = { items: await page.storage('kibco.items'), secs: await page.storage('kibco.apartados'), evs: await page.storage('kibco.eventos') };
+      const bad = [[], [{ id: 'todo', nom: 'Todo' }, { nom: 'sin id' }], [{ id: 'x', nom: 'X', activo: false }], 'nope', null];
+      for (let k = 0; k < bad.length; k++) {
+        const file = path.join(os.tmpdir(), 'kco-e2e-apartados-bad' + k + '.json');
+        fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 5, apartados: bad[k],
+          items: [{ id: 'n1', texto: 'nuevo', contexto: 'hogar', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }] }));
+        await page.setFile('#archivoImport', file);
+        assert.match(await page.text('#aviso'), /apartado/, 'case ' + k);
+        assert.notEqual(await page.eval("document.getElementById('tapaConfirmar').className"), 'tapa on', 'no confirmation for case ' + k);
+        assert.equal(await page.storage('kibco.items'), before.items);
+        assert.equal(await page.storage('kibco.apartados'), before.secs);
+        assert.equal(await page.storage('kibco.eventos'), before.evs);
+      }
+    }
+  },
+  {
+    name: 'backup: a failed write also rolls the sections back',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': LEGACY_SECTIONS, 'kibco.contexto': 'hogar',
+      'kibco.items': JSON.stringify([{ id: 'v1', texto: 'viejo', contexto: 'hogar', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]), 'kibco.eventos': '[]' },
+    async fn(page) {
+      const beforeSecs = await page.storage('kibco.apartados');
+      const file = path.join(os.tmpdir(), 'kco-e2e-apartados-falla.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 5, apartados: [{ id: 'estudio', nom: 'Estudio' }],
+        items: [{ id: 'n1', texto: 'nuevo', contexto: 'estudio', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }], proyectos: [] }));
+      await page.eval("(function(){var o=Storage.prototype.setItem;window.__setItem=o;Storage.prototype.setItem=function(k,v){if(k==='kibco.esquema'){throw new Error('quota');}return o.call(this,k,v);};})()");
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      assert.match(await page.text('#aviso'), /No se pudo restaurar/);
+      assert.equal(await page.storage('kibco.apartados'), beforeSecs);
+      await page.eval('Storage.prototype.setItem=window.__setItem');
+      assert.equal(await page.eval("document.getElementById('ctxNombre').textContent"), 'Casa');
+      await capture(page, 'despues #casa');
+      assert.equal((await items(page)).find((i) => i.texto === 'despues').contexto, 'hogar', 'registry rolled back in memory');
+    }
+  },
+  {
     name: 'backup: text export + file restore round-trip',
     async fn(page) {
       await capture(page, 'item uno');

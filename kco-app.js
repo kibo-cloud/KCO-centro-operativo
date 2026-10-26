@@ -3670,6 +3670,7 @@
     return JSON.stringify({
       app: 'kco', schema: ESQUEMA, version: VERSION_APP,
       exportado: new Date().toISOString(), contexto: contexto,
+      apartados: K.todosApartados(),
       items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos, progreso: memProgreso
     });
   }
@@ -3703,6 +3704,36 @@
 
   function esObjeto(x) { return !!x && typeof x === 'object' && !esArray(x); }
 
+  var AVISO_APARTADOS_INVALIDOS = 'El backup trae apartados que no se pueden usar (ninguno activo y valido). No se cambio nada.';
+
+  /* Apartados que deja un backup, o null si trae el campo pero no sirve
+     (ningun apartado activo valido). Sin el campo (esquema 4 o anterior) se
+     siembran los cinco de siempre mas uno generico (nombre = id, color gris)
+     por cada otro contexto que usen sus registros: ninguno se reasigna. */
+  function apartadosDeBackup(datos) {
+    var l, extra = [], vistos = {}, listas, i, j, x, a;
+    if (datos.apartados !== undefined) {
+      l = K.normalizarApartados(datos.apartados);
+      for (i = 0; i < l.length; i++) { if (l[i].activo) { return l; } }
+      return null;
+    }
+    l = K.apartadosLegado();
+    for (i = 0; i < l.length; i++) { vistos['#' + l[i].id] = true; }
+    listas = [datos.items, datos.rutinas, datos.proyectos, datos.eventos];
+    for (j = 0; j < listas.length; j++) {
+      if (!esArray(listas[j])) { continue; }
+      for (i = 0; i < listas[j].length; i++) {
+        x = listas[j][i];
+        if (!x || typeof x !== 'object' || typeof x.contexto !== 'string' || vistos['#' + x.contexto]) { continue; }
+        a = K.normalizarApartado({ id: x.contexto, nom: x.contexto, color: 'gris', orden: l.length + extra.length });
+        if (!a || a.id !== x.contexto) { continue; }
+        vistos['#' + a.id] = true;
+        extra.push(a);
+      }
+    }
+    return K.normalizarApartados(l.concat(extra));
+  }
+
   /* Todo o nada: primero se normaliza todo el backup sin tocar nada; recien
      despues se escribe. Si alguna escritura falla, se repone lo que habia
      (en memoria y en el almacenamiento) y se avisa que no cambio nada. */
@@ -3710,6 +3741,13 @@
     if (esquemaFuturo) { avisar(AVISO_ESQUEMA_FUTURO); return false; }
     var nuevosItems = [], nuevosEventos = [], nuevasRutinas = [], nuevosProyectos = [];
     var nuevoProgreso, conProgreso, i, n;
+    /* El registro del backup se fija antes de normalizar: asi cada item,
+       rutina, mision y evento conserva su apartado. Si algo falla, vuelve el
+       registro de antes. */
+    var nuevosApartados = apartadosDeBackup(datos);
+    if (!nuevosApartados) { avisar(AVISO_APARTADOS_INVALIDOS); return false; }
+    var apartadosAntes = K.todosApartados();
+    K.fijarApartados(nuevosApartados);
     try {
       for (i = 0; i < datos.items.length; i++) {
         n = normalizarItem(datos.items[i]);
@@ -3736,23 +3774,25 @@
       conProgreso = esObjeto(datos.progreso);
       nuevoProgreso = normalizarProgreso(conProgreso ? datos.progreso : null);
     } catch (e) {
+      K.fijarApartados(apartadosAntes);
       avisar('El backup trae datos que no se pueden leer. No se cambio nada.');
       return false;
     }
     /* Un progreso roto que no se pudo copiar se copia ahora; si tampoco se
        puede, la escritura del progreso falla y el restore se deshace entero. */
     if (progresoSinCopia && ponerEnCuarentena(K_PROGRESO, leer(K_PROGRESO))) { progresoSinCopia = false; }
-    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA];
+    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA, K_APARTADOS];
     var crudos = [], j;
     for (j = 0; j < claves.length; j++) { crudos.push(leer(claves[j])); }
     var antes = { items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos,
-      progreso: memProgreso, soloLectura: soloLectura };
+      progreso: memProgreso, soloLectura: soloLectura, plantillas: necesitaPlantillas };
     items = nuevosItems;
     eventos = nuevosEventos;
     rutinas = nuevasRutinas;
     proyectos = nuevosProyectos;
     memProgreso = nuevoProgreso;
     soloLectura = false;
+    necesitaPlantillas = false;
     /* Backup anterior a 2.0 (sin progreso): se siembra en silencio, igual que
        la primera vez, para no festejar de nuevo toda la historia. */
     if (!conProgreso) {
@@ -3760,7 +3800,7 @@
       revisarLogros(true);
     }
     var ok = guardarItems() && guardarEventos() && guardarRutinas() && guardarProyectos() &&
-      guardarProgreso() && escribir(K_ESQUEMA, '' + ESQUEMA);
+      guardarProgreso() && guardarApartados() && escribir(K_ESQUEMA, '' + ESQUEMA);
     if (!ok) {
       for (j = 0; j < claves.length; j++) {
         if (leer(claves[j]) !== crudos[j]) { reponerCrudo(claves[j], crudos[j]); }
@@ -3771,17 +3811,21 @@
       proyectos = antes.proyectos;
       memProgreso = antes.progreso;
       soloLectura = antes.soloLectura;
+      necesitaPlantillas = antes.plantillas;
+      K.fijarApartados(apartadosAntes);
       avisar('No se pudo restaurar el backup (fallo al guardar). No se cambio nada.');
       pintar();
       return false;
     }
     generarOcurrencias();
     $('aviso').className = 'aviso';
+    /* Los selectores y el contexto actual siguen al registro restaurado. */
+    ctxCaptura = K.normalizarContexto(ctxCaptura);
     anotarEventos([{
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'restauracion', itemId: '',
       texto: nuevosItems.length + ' items restaurados', contexto: ctxCaptura, desde: '', hasta: ''
     }]);
-    pintar();
+    aplicarContexto(contexto, true);
     return true;
   }
 
@@ -3810,10 +3854,12 @@
       return;
     }
     if (!esArray(datos.items)) { avisar('El backup no trae la lista de items.'); return; }
+    if (!apartadosDeBackup(datos)) { avisar(AVISO_APARTADOS_INVALIDOS); return; }
     pedirConfirmacion('Restaurar backup',
       'Trae ' + datos.items.length + ' items y ' + (esArray(datos.eventos) ? datos.eventos.length : 0) +
       ' movimientos' + (esArray(datos.rutinas) ? ', ' + datos.rutinas.length + ' rutinas' : '') +
       (esArray(datos.proyectos) ? ', ' + datos.proyectos.length + ' misiones' : '') +
+      (esArray(datos.apartados) ? ', ' + datos.apartados.length + ' apartados' : '') +
       ', exportado el ' + (datos.exportado ? horaCorta(datos.exportado) : 'sin fecha') +
       '. Esto REEMPLAZA los ' + items.length + ' items que tenes ahora. No se puede deshacer.',
       function () { aplicarBackup(datos); });
