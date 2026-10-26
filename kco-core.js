@@ -201,6 +201,16 @@
     return r;
   }
 
+  /* Emoji de los cinco contextos de antes (texto exportado), mientras el
+     apartado conserve el icono con el que se sembro. */
+  var EMOJI_LEGADO = {
+    trabajo: { ico: 'clipboard', emoji: '\uD83C\uDFED' },
+    hogar: { ico: 'users', emoji: '\uD83C\uDFE0' },
+    apps: { ico: 'layers', emoji: '\uD83D\uDCBB' },
+    contenido: { ico: 'play', emoji: '\uD83C\uDFAC' },
+    personal: { ico: 'target', emoji: '\uD83C\uDFCB' }
+  };
+
   /* Los cinco contextos de siempre como apartados, con los mismos ids, colores
      (paleta) y tags. Sirve para migrar datos viejos. Copias nuevas en cada
      llamada: nadie comparte objetos con el registro. */
@@ -304,10 +314,40 @@
     return r;
   }
 
-  function infoTag(id) {
-    var l = todosTags(), i;
+  /* Con ctx, primero el tag de ese apartado: dos apartados pueden usar el
+     mismo id de tag con nombres distintos. Si no lo tiene, el catalogo
+     global (gana el primer apartado que lo define). */
+  function infoTag(id, ctx) {
+    var a = ctx ? infoContexto(ctx) : null, l, i;
+    if (a) {
+      for (i = 0; i < a.tags.length; i++) { if (a.tags[i].id === id) { return conIco(a.tags[i]); } }
+    }
+    l = todosTags();
     for (i = 0; i < l.length; i++) { if (l[i].id === id) { return l[i]; } }
     return null;
+  }
+
+  /* Emoji de un apartado para textos exportados (el icono es un SVG de
+     iconos.js, que no sirve en texto plano). Un apartado heredado con su
+     icono de siempre conserva el emoji de antes; los demas lo toman de su
+     icono y, sin equivalente, uno generico. */
+  var EMOJI_GENERICO = '\uD83D\uDCCB';
+  var EMOJI_ICONO = {
+    zap: '\u26A1', calendar: '\uD83D\uDCC5', tareas: '\u2705', target: '\uD83C\uDFAF',
+    book: '\uD83D\uDCD6', search: '\uD83D\uDD0D', settings: '\u2699', check: '\u2714',
+    play: '\u25B6', cart: '\uD83D\uDED2', pin: '\uD83D\uDCCC', inbox: '\uD83D\uDCE5',
+    hourglass: '\u23F3', clock: '\uD83D\uDD52', repeat: '\uD83D\uDD01', layers: '\uD83D\uDDC2',
+    flag: '\uD83D\uDEA9', star: '\u2B50', trophy: '\uD83C\uDFC6', 'trending-up': '\uD83D\uDCC8',
+    compass: '\uD83E\uDDED', list: '\uD83D\uDCDD', clipboard: '\uD83D\uDCCB', bell: '\uD83D\uDD14',
+    message: '\uD83D\uDCAC', sun: '\u2600', users: '\uD83D\uDC65'
+  };
+
+  function emojiApartado(id) {
+    var a = infoContexto(id), leg;
+    if (!a) { return EMOJI_GENERICO; }
+    leg = EMOJI_LEGADO.hasOwnProperty(a.id) ? EMOJI_LEGADO[a.id] : null;
+    if (leg && leg.ico === a.ico) { return leg.emoji; }
+    return EMOJI_ICONO.hasOwnProperty(a.ico) ? EMOJI_ICONO[a.ico] : EMOJI_GENERICO;
   }
 
   /* Progreso de la meta del apartado: completadas (estado hecho, dia de
@@ -1348,6 +1388,7 @@
     tagsDe: tagsDe,
     todosTags: todosTags,
     infoTag: infoTag,
+    emojiApartado: emojiApartado,
     progresoMeta: progresoMeta,
     NIVELES: NIVELES,
     infoNivel: infoNivel,

@@ -54,12 +54,17 @@ Full check at task closure: `npm run verify`.
 
 ## Tasks
 
-- [ ] **T01 Core section registry** — `normalizarApartado(s)`, `fijarApartados`, `apartados()`,
+- [x] **T01 Core section registry** — `normalizarApartado(s)`, `fijarApartados`, `apartados()`,
   generic `normalizarContexto`/`contextoValido`/`infoContexto`, `modoCompras(ctx)` replacing
   `esFabrica`, capture aliases built from the registry (slugged, accent-insensitive),
   `estadisticas` from the registry, `equilibrio` threshold `min(3, n)`, legacy seed
   `apartadosLegado()`, `progresoMeta`. Unit tests first.
-- [ ] **T02 Persistence + migration 4→5** — `ESQUEMA=5`, load/save/quarantine of
+- [ ] **T01b Review follow-ups (review-34241d99cef28d59)** — (a) `listaTags(ctx)` must show the
+  section's own tag names when two sections share a tag id (no global `infoTag` lookup for a
+  section list); (b) `icoCtx` must keep a per-section emoji in exported text (emoji derived from
+  the section icon, legacy sections keep their previous emoji); (c) unit tests: archived section
+  is not `contextoValido` and `#alias` capture does not route to it.
+- [x] **T02 Persistence + migration 4→5** — `ESQUEMA=5`, load/save/quarantine of
   `kibco.apartados`, legacy seed, `CLAVES_DATOS`, migration event; app reads the registry.
 - [ ] **T03 Backup/import** — include `apartados`, seed when absent, validate, all-or-nothing.
 - [ ] **T04 Generic visual identity** — palette tokens + `pal-<key>` classes instead of
@@ -92,6 +97,19 @@ Full check at task closure: `npm run verify`.
 ## Progress
 
 - 2026-10-26: exploration done (mapping by read-only explorer); feature doc created.
+- T01 (delegated writer; trigger: 2+ non-trivial files) — commit `1ed8a10`. RED observed
+  (`progresoMeta is not a function`), GREEN: es5 ok, 89 unit, 115 e2e (flake rerun).
+  Notes: `equilibrio` target = min(3, n) with ≥2 sections; icons are `iconos.js` names (text
+  exports use a generic emoji until T04); app tags now come from `K.tagsDe`/`K.todosTags`.
+  RDD: assess medium, `slice_budget_reached` (647 lines) → review started (consent granted
+  under the user's standing authorization). review-34241d99cef28d59: **approved**,
+  acknowledged/burned. Last reviewed boundary: `1ed8a10`. Warnings → task T01b.
+- Paused by the user mid-T02, resumed the same day.
+- T02 (delegated writer) — commit `3f87c1b`. RED: schema specs `'4' !== '5'`. GREEN: es5 ok,
+  89 unit, 120 e2e. `cargarApartados()` runs before the lists; `hayDatos()` decides fresh
+  install; fresh install keeps an in-memory legacy bridge with `necesitaPlantillas=true` (T07
+  replaces it); boot context defaults to `todo`. RDD: medium, `under_budget` (211) — pending
+  in slice. Gaps for T03: restore does not write/snapshot `apartados`.
 
 ## Next step
 

@@ -174,9 +174,11 @@
   function listaTags(ctx) {
     var r = [], i;
     if (ctx === 'todo') { return K.todosTags(); }
+    /* Cada tag con el nombre de este apartado, aunque otro apartado use el
+       mismo id con otro nombre. */
     var propios = K.tagsDe(ctx);
     for (i = 0; i < propios.length; i++) {
-      var t = tagInfo(propios[i].id);
+      var t = tagInfo(propios[i].id, ctx);
       if (t) { r.push(t); }
     }
     return r;
@@ -211,7 +213,8 @@
     return 'cotizando';
   }
 
-  function tagInfo(id) { return K.infoTag(id); }
+  /* Con ctx, el tag como lo nombra ese apartado; si no, el del catalogo. */
+  function tagInfo(id, ctx) { return K.infoTag(id, ctx); }
 
   /* Los ids de estado de un evento vienen de datos importados: se consulta el
      mapa sin pasar por el prototipo ('constructor' no es un estado cerrado). */
@@ -388,7 +391,7 @@
     est = estadoEquivalente(tipo, ctx, est);
     var act = it.actualizado ? '' + it.actualizado : creado;
     var tag = it.tag ? '' + it.tag : '';
-    if (tag !== '' && !tagInfo(tag)) { tag = ''; }
+    if (tag !== '' && !tagInfo(tag, ctx)) { tag = ''; }
     return {
       id: it.id ? '' + it.id : nuevoId(),
       texto: it.texto ? '' + it.texto : '',
@@ -798,9 +801,9 @@
   }
 
   /* Emoji para textos exportados: el icono de un apartado es un nombre de
-     iconos.js (SVG), que no sirve en texto plano. */
+     iconos.js (SVG), que no sirve en texto plano; el nucleo lo traduce. */
   function icoCtx(id) {
-    return id === 'todo' ? '\u2B50' : '\uD83D\uDCCB';
+    return id === 'todo' ? '\u2B50' : K.emojiApartado(id);
   }
 
   /* Identidad visual de un contexto en la interfaz: un punto de su color
@@ -1237,7 +1240,7 @@
     if (it.estado !== 'pendiente') { l2.appendChild(badge('est', inf.nom)); }
     if (it.pausado === true) { l2.appendChild(badge('pausa', 'En espera', 'pause')); }
     if (it.tag !== '') {
-      var t = tagInfo(it.tag);
+      var t = tagInfo(it.tag, it.contexto);
       if (t) { l2.appendChild(badge('tag', t.ico + ' ' + t.nom)); }
     }
     if (it.recordatorio !== '') {
@@ -1557,7 +1560,7 @@
   function vacioTareas() {
     var el = $('vacioTablero'), t;
     if (filtroTag !== '') {
-      t = tagInfo(filtroTag);
+      t = tagInfo(filtroTag, contexto);
       estadoVacio(el, { id: 'etiqueta', ico: 'list', tit: 'Nada en ' + (t ? t.nom : 'esa clasificaci\u00F3n'),
         txt: 'Ninguna tarea de este filtro tiene esa etiqueta.', acc: 'Quitar etiqueta',
         alTocar: function () { filtroTag = ''; escribir(K_FILTROTAG, filtroTag); pintar(); } });
@@ -2883,10 +2886,10 @@
     var tg = listaTags(it.contexto);
     /* Si el item arrastra un tag que ya no se ofrece en este contexto, se agrega
        al final para poder verlo y sacarlo, en vez de perderlo en silencio. */
-    if (it.tag !== '' && tagInfo(it.tag)) {
+    if (it.tag !== '' && tagInfo(it.tag, it.contexto)) {
       var presente = false;
       for (i = 0; i < tg.length; i++) { if (tg[i].id === it.tag) { presente = true; } }
-      if (!presente) { tg = tg.concat([tagInfo(it.tag)]); }
+      if (!presente) { tg = tg.concat([tagInfo(it.tag, it.contexto)]); }
     }
     for (i = 0; i < tg.length; i++) {
       (function (t) {
@@ -3443,7 +3446,7 @@
     var i, n = 0, lim = limiteTrozo('resultados', q);
     for (i = items.length - 1; i >= 0; i--) {
       var it = items[i];
-      var t = tagInfo(it.tag);
+      var t = tagInfo(it.tag, it.contexto);
       var heno = it.texto.toLowerCase() + ' ' + (t ? t.nom.toLowerCase() : '');
       if (heno.indexOf(q) === -1) { continue; }
       n++;

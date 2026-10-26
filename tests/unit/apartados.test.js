@@ -174,3 +174,45 @@ test('progresoMeta: counts completions of the section in the current ISO week or
   assert.equal(C.progresoMeta({ id: 'trabajo', meta: { n: 1, periodo: 'semana' } }, items, '2026-10-05').desde, '2026-10-05');
   assert.equal(C.progresoMeta({ id: 'trabajo', meta: { n: 1, periodo: 'semana' } }, items, '2026-10-11').desde, '2026-10-05');
 });
+
+test('archived section: not contextoValido and #id, #name or #alias capture never routes to it', () => {
+  try {
+    C.fijarApartados([{ id: 'taller', nom: 'Taller' },
+      { id: 'viejo', nom: 'Estudio Viejo', alias: ['antiguo'], activo: false }]);
+    assert.equal(C.contextoValido('viejo'), false);
+    assert.equal(C.contextoValido('taller'), true);
+    assert.equal(C.normalizarContexto('viejo'), 'taller');
+    for (const k of ['#viejo', '#estudio-viejo', '#antiguo']) {
+      assert.equal(C.parsearCaptura('algo ' + k, NOW).contexto, '', k + ' is a plain hashtag');
+      assert.equal(C.resumenCaptura('algo ' + k, NOW).contexto, '', k + ' summary');
+    }
+  } finally { restaurar(); }
+});
+
+test('infoTag: a section resolves its own tag name first, then the global catalog', () => {
+  try {
+    C.fijarApartados([{ id: 'a', nom: 'A', tags: [{ id: 'compartido', nom: 'Nombre A' }, { id: 'panol', nom: 'Deposito' }] },
+      { id: 'b', nom: 'B', tags: [{ id: 'compartido', nom: 'Nombre B' }, { id: 'solo-b', nom: 'Solo B' }] }]);
+    assert.equal(C.infoTag('compartido').nom, 'Nombre A', 'global lookup: first section wins');
+    assert.equal(C.infoTag('compartido', 'a').nom, 'Nombre A');
+    assert.equal(C.infoTag('compartido', 'b').nom, 'Nombre B');
+    assert.equal(C.infoTag('solo-b', 'a').nom, 'Solo B', 'falls back to another section');
+    assert.equal(C.infoTag('compartido', 'nada').nom, 'Nombre A');
+    assert.equal(C.infoTag('panol', 'a').ico, '🧰', 'legacy emoji kept with a custom name');
+    assert.equal(C.infoTag('panol', 'a').nom, 'Deposito');
+    assert.equal(C.infoTag('nada', 'a'), null);
+  } finally { restaurar(); }
+});
+
+test('emojiApartado: legacy sections keep their emoji, others derive it from the icon', () => {
+  assert.deepEqual(['trabajo', 'hogar', 'apps', 'contenido', 'personal'].map((id) => C.emojiApartado(id)),
+    ['🏭', '🏠', '💻', '🎬', '🏋']);
+  try {
+    C.fijarApartados([{ id: 'est', nom: 'Estudio', ico: 'book' }, { id: 'trabajo', nom: 'Trabajo', ico: 'cart' },
+      { id: 'raro', nom: 'Raro', ico: 'chevron-down' }]);
+    assert.equal(C.emojiApartado('est'), '📖');
+    assert.equal(C.emojiApartado('trabajo'), '🛒', 'a changed icon wins over the legacy emoji');
+    assert.equal(C.emojiApartado('raro'), '📋', 'generic fallback');
+    assert.equal(C.emojiApartado('nada'), '📋');
+  } finally { restaurar(); }
+});
