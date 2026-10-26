@@ -59,7 +59,7 @@ spot-checks one command, commits, runs RDD assess.
 - [x] T06 Accessible sheets: dialog role, focus trap/return, Escape, backdrop tap, drag handle + top close, editable title on top.
 - [x] T07 Cards: single round checkbox, no cart button, swipe right = complete, swipe left = quick menu.
 - [x] T07b Quick-menu sheet handoff: closing `#tapaRapido` then opening another sheet (`ficha` -> `tapaItem`, `borrar` -> `tapaConfirmar`) must keep layer stack and `history` in sync (async `history.go` must not pop the new sheet's entry); e2e asserts `history.state.kcoCapa` after each handoff and covers the "Para hoy" quick action (inbox + non-inbox).
-- [ ] T08 Capture bar: live parse chips (context/day/priority), tap to change target context, `n` / `/` shortcut.
+- [x] T08 Capture bar: live parse chips (context/day/priority), tap to change target context, `n` / `/` shortcut.
 - [ ] T09 Empty states + Ajustes reorder (Backup first, Info last) + empty campaign state.
 - [ ] T10 Large lists "Ver más" chunking, j/k/x keyboard nav, `prefers-reduced-motion`.
 - [ ] T11 Docs (LEEME, CHANGELOG, ARQUITECTURA), version 2.1.0, release verification.
@@ -90,9 +90,11 @@ spot-checks one command, commits, runs RDD assess.
 - T07b done in `294fd56` (delegated, writer-committed): sheets opened while a self-initiated `history.go` is in flight wait in `capasEnEspera` and push their entry when that traversal's popstate arrives; `ignorarPop` now counts one per `history.go` (probe: `go(-2)` fires 1 popstate, the old `+n` leaked swallowed backs). RED: 2 handoff specs failed (`history.state.kcoCapa` null instead of `tapaItem` / `tapaConfirmar`); 2 'Para hoy' specs (inbox + non-inbox) passed as regression coverage. GREEN: es5 ok, 75 unit, 96 e2e.
 
 - RDD T06+T07+docs (`e4d7c11..d48e480`, 9 files, 1264 lines): medium, granted, approved + acknowledged (lineage review-f0d59076961b9b1b, 2026-10-26). Untracked `CLAUDE.md` excluded via `--untracked-scope=exclude`; in-process reviewer needed native `claude.exe` dir on PATH. Advisory -> T07b: R3-quick-menu-close-then-open-history (WARNING, `kco-app.js:1284-1294`), R3-quick-menu-hoy-untested (SUGGESTION).
+- RDD T07b (`d48e480..c971304`): medium, review_due=false, under_budget (134 lines) -> pending in slice; boundary stays `d48e480`.
+- T08 done in `b47debf` (delegated, writer-committed): live chips under the capture bar (`#capChips`: target context, day, priority) from new pure `KCOCore.resumenCaptura` (same `parsearCaptura` that saving uses + day label) so chips match what is stored; context chip opens accessible sheet `#tapaDestino` ("Guardar en", 5 contexts, history entry) that sets a one-capture target (`ctxDestino`, cleared on save or view change) and strips a typed #tag via `quitarContextoCaptura`; `n` / `/` focus the bar unless a sheet is open or an editable field has focus; `html[data-capchips]` raises `--capbar-h`. Harness gained `press(ch)`. RED: 4 unit (`resumenCaptura` / `quitarContextoCaptura is not a function`) + 3 e2e (chips not visible, `#capCtx` missing, `n` did not focus); GREEN: es5 ok, 79 unit, 99 e2e. Screenshots `capture-mobile.png` (390) and `capture-desktop.png` (1366) reviewed.
 
 Last reviewed boundary: `d48e480`.
 
 ## Next step
 
-T08 via delegated writer.
+T09 via delegated writer.
