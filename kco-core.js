@@ -246,6 +246,53 @@
     ]);
   }
 
+  function tagsPropios(noms) {
+    var r = [], i;
+    for (i = 0; i < noms.length; i++) { r.push({ id: slug(noms[i]), nom: noms[i] }); }
+    return r;
+  }
+
+  /* Plantillas de la primera corrida (instalacion nueva): datos puros que la
+     app ofrece antes de guardar ningun apartado. Cada una trae apartados ya
+     saneados (todo queda editable despues en Ajustes). La ultima, "Empezar de
+     cero", crea un solo apartado generico y abre su editor (editar: true).
+     Copias nuevas en cada llamada. */
+  function plantillas() {
+    return [
+      { id: 'personal', nom: 'Vida personal', desc: 'Lo tuyo, la casa, la salud y la plata.',
+        apartados: normalizarApartados([
+          { id: 'personal', nom: 'Personal', ico: 'target', color: 'verde', compras: 'lista',
+            tags: tagsPropios(['Tr\u00E1mites', 'Salidas']) },
+          { id: 'casa', nom: 'Casa', ico: 'users', color: 'cian', compras: 'lista', alias: ['hogar'],
+            tags: tagsPropios(['Comida', 'Limpieza', 'Mantenimiento']) },
+          { id: 'salud', nom: 'Salud', ico: 'sun', color: 'lima', compras: 'no',
+            tags: tagsPropios(['Ejercicio', 'Turnos']) },
+          { id: 'finanzas', nom: 'Finanzas', ico: 'trending-up', color: 'ambar', compras: 'no', alias: ['plata'],
+            tags: tagsPropios(['Pagos', 'Ahorro']) }
+        ]) },
+      { id: 'trabajo-casa', nom: 'Trabajo y casa', desc: 'Los cinco apartados cl\u00E1sicos de KCO, con compras de f\u00E1brica en Trabajo.',
+        apartados: apartadosLegado() },
+      { id: 'creador', nom: 'Creador de contenido', desc: 'Ideas, producci\u00F3n y colaboraciones, sin perder lo personal.',
+        apartados: normalizarApartados([
+          { id: 'contenido', nom: 'Contenido', ico: 'play', color: 'rosa', compras: 'lista',
+            tags: tagsPropios(['Guion', 'Grabaci\u00F3n', 'Edici\u00F3n', 'Publicaci\u00F3n']) },
+          { id: 'ideas', nom: 'Ideas', ico: 'star', color: 'ambar', compras: 'no' },
+          { id: 'colaboraciones', nom: 'Colaboraciones', ico: 'message', color: 'violeta', compras: 'no', alias: ['colab'] },
+          { id: 'personal', nom: 'Personal', ico: 'target', color: 'verde', compras: 'lista' }
+        ]) },
+      { id: 'estudiante', nom: 'Estudiante', desc: 'Materias, proyectos y el d\u00EDa a d\u00EDa.',
+        apartados: normalizarApartados([
+          { id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', compras: 'no',
+            tags: tagsPropios(['Ex\u00E1menes', 'Trabajos pr\u00E1cticos', 'Lecturas']) },
+          { id: 'proyectos', nom: 'Proyectos', ico: 'layers', color: 'violeta', compras: 'no' },
+          { id: 'casa', nom: 'Casa', ico: 'users', color: 'cian', compras: 'lista', alias: ['hogar'] },
+          { id: 'personal', nom: 'Personal', ico: 'target', color: 'verde', compras: 'lista' }
+        ]) },
+      { id: 'cero', nom: 'Empezar de cero', desc: 'Un solo apartado para nombrar y armar a tu gusto.', editar: true,
+        apartados: normalizarApartados([{ id: 'general', nom: 'General', ico: 'inbox', color: 'azul', compras: 'lista' }]) }
+    ];
+  }
+
   /* ---------- registro ---------- */
 
   var CONTEXTOS = [];
@@ -1412,6 +1459,7 @@
     normalizarApartado: normalizarApartado,
     normalizarApartados: normalizarApartados,
     apartadosLegado: apartadosLegado,
+    plantillas: plantillas,
     fijarApartados: fijarApartados,
     apartados: apartados,
     todosApartados: todosApartados,

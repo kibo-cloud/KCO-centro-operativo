@@ -342,6 +342,20 @@ html[data-capchips]{--capbar-h:104px}
 .apfila.archivado .apfila-nom{color:var(--text-muted)}
 .apfila-orden:disabled{opacity:.35;cursor:default}
 @media (hover:hover){.apfila-abrir:hover{background:var(--surface-2)}}
+/* Plantillas de la primera corrida (#tapaPlantillas): una tarjeta por
+   plantilla con nombre, para que sirve y los apartados que crea. */
+.pllista{display:flex;flex-direction:column;gap:var(--sp-2)}
+.plfila-abrir{
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:100%;min-height:var(--tap);padding:var(--sp-3);
+  border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:inherit;text-align:left;cursor:pointer;
+}
+.plfila-nom{font-size:var(--fs-md);font-weight:600}
+.plfila-desc{color:var(--text-muted);font-size:var(--fs-sm)}
+.plfila-aps{display:flex;flex-wrap:wrap;gap:6px var(--sp-3);color:var(--text-muted);font-size:var(--fs-xs)}
+.plfila-ap{display:inline-flex;align-items:center;gap:4px}
+.plfila-ap .punto{margin:0}
+.plfila-ap .plfila-ico{flex:0 0 auto;width:14px;height:14px;margin:0}
+@media (hover:hover){.plfila-abrir:hover{background:var(--surface-2)}}
 .apicos,.apcolores{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
 .apicos .gbtn,.apcolores .gbtn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0}
 .apicos .ico{width:22px;height:22px;margin:0}

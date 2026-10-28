@@ -532,11 +532,14 @@
   }
 
   /* Registro de apartados. Lectura con cuarentena igual que las listas.
-     Sin apartados activos (instalacion nueva) queda necesitaPlantillas para que
-     la primera corrida ofrezca plantillas (T07).
-     PUENTE TEMPORAL hasta T07: mientras no exista el selector de plantillas, un
-     registro vacio se completa con los apartados de siempre SOLO en memoria (no
-     se guarda nada), asi la app sigue usable. T07 reemplaza este puente. */
+     Sin apartados activos (instalacion nueva) queda necesitaPlantillas: al
+     arrancar se abre el selector de plantillas (#tapaPlantillas). Mientras
+     tanto la pantalla de atras se arma con los apartados de siempre SOLO en
+     memoria, y no se guarda ningun dato (ni items, ni registro, ni rutinas, ni
+     misiones): asi nada queda atado a apartados que la persona no eligio y el
+     proximo arranque sigue siendo una instalacion nueva (sin siembra ni evento
+     de migracion). Elegir una plantilla, cerrar el selector o restaurar un
+     backup terminan este estado. */
   function cargarApartados() {
     K.fijarApartados(cargarLista(K_APARTADOS, K.normalizarApartado));
     necesitaPlantillas = false;
@@ -586,7 +589,7 @@
     }]);
   }
 
-  function guardarItems() { return soloLectura ? false : escribir(K_ITEMS, JSON.stringify(items)); }
+  function guardarItems() { return soloLectura || necesitaPlantillas ? false : escribir(K_ITEMS, JSON.stringify(items)); }
 
   function corteEventos() {
     var d = new Date();
@@ -598,7 +601,7 @@
      una sola vez. La memoria solo toma la version
      compactada si quedo guardada: memoria y almacenamiento dicen lo mismo. */
   function guardarEventos() {
-    if (soloLectura) { return false; }
+    if (soloLectura || necesitaPlantillas) { return false; }
     var lista = eventos;
     if (escribir(K_EVENTOS, JSON.stringify(lista), true)) { eventos = lista; return true; }
     if (lista === eventos) {
@@ -725,6 +728,9 @@
   function capturar() {
     var crudo = $('txtCaptura').value.replace(/^\s+|\s+$/g, '');
     if (crudo === '' || soloLectura) { return; }
+    /* Sin plantilla elegida no se guarda nada: se pide elegir primero y lo
+       tipeado queda en la barra para guardarlo despues. */
+    if (necesitaPlantillas) { abrirPlantillas(); return; }
     var p = K.parsearCaptura(crudo, new Date());
     var it = itemNuevo(p.texto, destinoCaptura(p), {
       recordatorio: p.recordatorio, fecha: p.fecha, nivel: p.nivel || 'normal'
@@ -2610,6 +2616,10 @@
     if (id === 'tapaConfirmar') { confAccion = null; }
     if (id === 'tapaCtx') { $('btnCtx').setAttribute('aria-expanded', 'false'); }
     if (id === 'tapaDestino') { $('capCtx').setAttribute('aria-expanded', 'false'); }
+    /* Cerrar el selector de plantillas sin elegir (X, Escape, fondo, gesto o
+       atras) empieza con el apartado generico de "Empezar de cero", sin abrir
+       su editor: la app nunca queda sin apartados guardados. */
+    if (id === 'tapaPlantillas' && necesitaPlantillas) { aplicarPlantilla(K.plantillas().pop()); }
     devolverFoco(id);
   }
 
@@ -4068,6 +4078,74 @@
     return true;
   }
 
+  /* ---------- primera corrida: plantillas ----------
+     Instalacion nueva: antes de guardar nada se elige con que apartados
+     empezar (K.plantillas). Todo queda editable despues en Ajustes. */
+
+  function abrirPlantillas() {
+    pintarPlantillas();
+    abrirHoja('tapaPlantillas');
+  }
+
+  function pintarPlantillas() {
+    var cont = $('listaPlantillas'), l = K.plantillas(), i;
+    vaciar(cont);
+    for (i = 0; i < l.length; i++) { cont.appendChild(filaPlantilla(l[i])); }
+    $('plError').textContent = '';
+  }
+
+  /* Tarjeta: nombre, para que sirve y los apartados que crea (punto de color,
+     icono y nombre de cada uno). */
+  function filaPlantilla(p) {
+    var f = nodo('div', 'plfila'), b = document.createElement('button'), aps = nodo('span', 'plfila-aps'), i, a, chip, pt;
+    f.setAttribute('role', 'listitem');
+    b.type = 'button';
+    b.className = 'plfila-abrir';
+    b.setAttribute('data-plantilla', p.id);
+    b.appendChild(nodo('span', 'plfila-nom', p.nom));
+    b.appendChild(nodo('span', 'plfila-desc', p.desc));
+    for (i = 0; i < p.apartados.length; i++) {
+      a = p.apartados[i];
+      chip = nodo('span', 'plfila-ap');
+      pt = nodo('span', 'punto pal-' + a.color);
+      pt.setAttribute('aria-hidden', 'true');
+      chip.appendChild(pt);
+      chip.appendChild(svgIco(a.ico, 'plfila-ico'));
+      chip.appendChild(nodo('span', '', a.nom));
+      aps.appendChild(chip);
+    }
+    b.appendChild(aps);
+    b.onclick = function () { elegirPlantilla(p.id); };
+    f.appendChild(b);
+    return f;
+  }
+
+  /* Guarda los apartados de la plantilla (cierra el estado de instalacion
+     nueva). Si no se pudo guardar, todo sigue como estaba. */
+  function aplicarPlantilla(p) {
+    if (!necesitaPlantillas || soloLectura) { return false; }
+    return guardarRegistro(p.apartados);
+  }
+
+  function elegirPlantilla(id) {
+    var l = K.plantillas(), p = null, i;
+    for (i = 0; i < l.length; i++) { if (l[i].id === id) { p = l[i]; } }
+    /* Ya no hace falta (otra ventana eligio, o se restauro un backup): se cierra. */
+    if (!p || !necesitaPlantillas || soloLectura) { cerrarHoja('tapaPlantillas'); return; }
+    if (!aplicarPlantilla(p)) {
+      $('plError').textContent = 'No se pudo guardar. Revis\u00E1 el espacio del navegador y prob\u00E1 de nuevo.';
+      return;
+    }
+    if (p.editar) {
+      /* Empezar de cero: el editor del apartado nuevo ocupa la entrada del selector. */
+      cerrarParaRelevo('tapaPlantillas');
+      abrirEditorApartado(p.apartados[0].id);
+      soltarRelevo();
+      return;
+    }
+    cerrarHoja('tapaPlantillas');
+  }
+
   function moverApartado(id, paso) {
     if (soloLectura) { return; }
     var l = apartadosEnLista(), pos = -1, otro, i, x;
@@ -5347,7 +5425,7 @@
      kibco.proyectos guarda las misiones. Las tareas se vinculan con proyectoId.
      El progreso y la proxima accion los calcula KCOCore. */
 
-  function guardarProyectos() { return soloLectura ? false : escribir(K_PROYECTOS, JSON.stringify(proyectos)); }
+  function guardarProyectos() { return soloLectura || necesitaPlantillas ? false : escribir(K_PROYECTOS, JSON.stringify(proyectos)); }
 
   function buscarProyecto(id) {
     var i;
@@ -5775,7 +5853,7 @@
      otro item. Nunca se reutiliza el mismo registro. */
 
   function normRutina(r) { return K.normalizarRutina(r, hoyClave()); }
-  function guardarRutinas() { return soloLectura ? false : escribir(K_RUTINAS, JSON.stringify(rutinas)); }
+  function guardarRutinas() { return soloLectura || necesitaPlantillas ? false : escribir(K_RUTINAS, JSON.stringify(rutinas)); }
 
   function buscarRutina(id) {
     var i;
@@ -6297,6 +6375,10 @@
       window.history.replaceState(window.history.state, '', window.location.pathname);
     }
   }
+
+  /* Instalacion nueva: lo primero es elegir con que apartados empezar (antes
+     de que se pueda capturar o abrir el editor de apartados). */
+  if (necesitaPlantillas) { abrirPlantillas(); }
 
   /* ---------- actualizacion de la app (service worker) ----------
      Una version nueva queda esperando (sw.js no hace skipWaiting al instalarse).

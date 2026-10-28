@@ -261,8 +261,12 @@ export async function openPage(browser, baseUrl) {
     // Bounding box of the first match, or null.
     rect(sel) { return page.eval(`(function(){var e=document.querySelector(${JSON.stringify(sel)});if(!e)return null;var r=e.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height,b:r.bottom,r:r.right};})()`); },
     storage(key) { return page.eval(`localStorage.getItem(${JSON.stringify(key)})`); },
+    // An empty seed stands for an existing user with the default sections: the
+    // legacy registry is stored, so the first-run template picker (fresh install
+    // only) stays out of the way. Fresh-install specs clear storage themselves.
     async setStorage(obj) {
-      await page.eval(`(function(){localStorage.clear();var o=${JSON.stringify(obj)};for(var k in o){localStorage.setItem(k,o[k]);}})()`);
+      const seed = Object.keys(obj).length ? '' : "localStorage.setItem('kibco.apartados',JSON.stringify(KCOCore.apartadosLegado()));";
+      await page.eval(`(function(){localStorage.clear();var o=${JSON.stringify(obj)};for(var k in o){localStorage.setItem(k,o[k]);}${seed}})()`);
     },
     async screenshot(file) {
       const r = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });

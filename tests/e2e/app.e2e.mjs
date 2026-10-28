@@ -39,6 +39,15 @@ async function openAjustes(page) {
   await sleep(120);
 }
 
+// A real fresh install: nothing stored at all (the runner's empty seed stores
+// the legacy sections, like an existing user).
+async function freshInstall(page) {
+  await page.eval('localStorage.clear()');
+  await page.reload();
+}
+const migrations = async (page) => (await events(page)).filter((e) => e.tipo === 'migracion');
+const storedSectionIds = async (page) => JSON.parse(await page.storage('kibco.apartados')).map((a) => a.id);
+
 async function toTasks(page) {
   await page.click('#tabTareas');
   await page.click('#segBtnTareas');
@@ -238,12 +247,117 @@ export const tests = [
     }
   },
   {
-    name: 'data: fresh install persists no sections and still works',
+    name: 'sections: a fresh install opens the template picker first',
     async fn(page) {
-      assert.equal(await page.storage('kibco.apartados'), null);
-      await capture(page, 'primera cosa');
-      assert.equal((await items(page)).length, 1);
-      assert.equal((await events(page)).filter((e) => e.tipo === 'migracion').length, 0);
+      await freshInstall(page);
+      assert.ok(await isOpen(page, 'tapaPlantillas'), 'picker open on first run');
+      assert.equal(await page.storage('kibco.apartados'), null, 'nothing persisted before choosing');
+      const ids = await page.eval("Array.prototype.map.call(document.querySelectorAll('#listaPlantillas [data-plantilla]'),function(b){return b.getAttribute('data-plantilla');})");
+      assert.ok(ids.length >= 4, 'several presets plus starting from scratch');
+      assert.equal(ids[ids.length - 1], 'cero');
+      assert.match(await page.text('#listaPlantillas'), /Empezar de cero/);
+      // Every preset previews its sections (name per section).
+      assert.match(await page.text('[data-plantilla="trabajo-casa"]'), /Trabajo.*Casa/);
+      assert.ok(!(await isOpen(page, 'tapaApartado')), 'the sections editor is not reachable yet');
+    }
+  },
+  {
+    name: 'sections: choosing a preset persists its sections and ends the first run',
+    async fn(page) {
+      await freshInstall(page);
+      await page.click('[data-plantilla="estudiante"]');
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'picker closed');
+      assert.deepEqual(await storedSectionIds(page), ['estudio', 'proyectos', 'casa', 'personal']);
+      assert.equal(await page.storage('kibco.esquema'), '5');
+      assert.match(await page.eval("document.getElementById('ctxsel').textContent"), /Estudio/);
+      assert.doesNotMatch(await page.eval("document.getElementById('ctxsel').textContent"), /Trabajo/);
+      await capture(page, 'leer apunte #casa');
+      assert.equal((await items(page))[0].contexto, 'casa');
+      await page.reload();
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'no picker on the next boot');
+      assert.deepEqual(await storedSectionIds(page), ['estudio', 'proyectos', 'casa', 'personal']);
+      assert.equal((await migrations(page)).length, 0, 'no migration event');
+      // Everything stays editable in Ajustes > Apartados.
+      await openAjustes(page);
+      assert.deepEqual(await apRows(page), ['estudio', 'proyectos', 'casa', 'personal']);
+    }
+  },
+  {
+    name: 'sections: starting from scratch creates one editable section and opens its editor',
+    async fn(page) {
+      await freshInstall(page);
+      await page.click('[data-plantilla="cero"]');
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'picker closed');
+      const secs = JSON.parse(await page.storage('kibco.apartados'));
+      assert.equal(secs.length, 1);
+      assert.equal(secs[0].activo, true);
+      assert.ok(await isOpen(page, 'tapaApartado'), 'editor opened for the new section');
+      assert.equal(await page.eval("document.getElementById('apNom').value"), secs[0].nom);
+      await page.type('#apNom', 'Taller');
+      await page.click('#btnApGuardar');
+      assert.ok(!(await isOpen(page, 'tapaApartado')), 'editor closed after saving');
+      const after = JSON.parse(await page.storage('kibco.apartados'));
+      assert.equal(after.length, 1);
+      assert.equal(after[0].nom, 'Taller');
+      await page.reload();
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')));
+      assert.match(await page.eval("document.getElementById('ctxsel').textContent"), /Taller/);
+    }
+  },
+  {
+    name: 'sections: dismissing the template picker starts with one generic section',
+    async fn(page) {
+      await freshInstall(page);
+      await page.key('Escape');
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'picker closed');
+      const secs = JSON.parse(await page.storage('kibco.apartados'));
+      assert.equal(secs.length, 1, 'the app is usable: one active section');
+      assert.equal(secs[0].activo, true);
+      assert.ok(!(await isOpen(page, 'tapaApartado')), 'no editor on dismiss');
+      await capture(page, 'algo');
+      assert.equal((await items(page))[0].contexto, secs[0].id);
+      await page.reload();
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'no picker on the next boot');
+      assert.equal((await migrations(page)).length, 0);
+    }
+  },
+  {
+    name: 'sections: an existing user never sees the template picker',
+    async fn(page) {
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'stored sections: no picker');
+      await page.setStorage({ 'kibco.esquema': '4', 'kibco.eventos': '[]',
+        'kibco.items': JSON.stringify([{ id: 'v1', texto: 'vieja', contexto: 'hogar', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) });
+      await page.reload();
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'schema 4 data: no picker');
+      assert.deepEqual(await storedSectionIds(page), ['trabajo', 'hogar', 'apps', 'contenido', 'personal']);
+      // Data at schema 5 without a registry (lost key) is also an existing user.
+      await page.setStorage({ 'kibco.esquema': '5',
+        'kibco.items': JSON.stringify([{ id: 'v2', texto: 'otra', contexto: 'trabajo', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) });
+      await page.reload();
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'schema 5 data: no picker');
+    }
+  },
+  {
+    name: 'sections: a capture before choosing a template persists nothing and never seeds legacy sections',
+    async fn(page) {
+      await freshInstall(page);
+      await capture(page, 'antes de elegir');
+      assert.equal(await page.storage('kibco.items'), null, 'no item persisted');
+      assert.ok(await isOpen(page, 'tapaPlantillas'), 'the picker asks first');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'antes de elegir', 'typed text kept');
+      await page.reload();
+      assert.ok(await isOpen(page, 'tapaPlantillas'), 'still a fresh install on the second boot');
+      assert.equal(await page.storage('kibco.apartados'), null, 'no legacy sections seeded');
+      assert.equal((await migrations(page)).length, 0, 'no misleading migration event');
+      await page.click('[data-plantilla="personal"]');
+      await capture(page, 'ahora si');
+      const [it] = await items(page);
+      assert.equal(it.texto, 'ahora si');
+      const ids = await storedSectionIds(page);
+      assert.ok(ids.indexOf(it.contexto) > -1, 'captured into a section of the chosen template');
+      await page.reload();
+      assert.deepEqual(await storedSectionIds(page), ids, 'registry unchanged on the next boot');
+      assert.equal((await migrations(page)).length, 0, 'no migration event on the next boot');
     }
   },
   {
@@ -890,9 +1004,9 @@ export const tests = [
     }
   },
   {
-    name: 'backup: a schema-5 backup restores sections on a fresh install',
+    name: 'backup: a schema-5 backup replaces the stored sections',
     async fn(page) {
-      assert.equal(await page.storage('kibco.apartados'), null);
+      assert.deepEqual(await storedSectionIds(page), ['trabajo', 'hogar', 'apps', 'contenido', 'personal']);
       const file = path.join(os.tmpdir(), 'kco-e2e-apartados-fresh.json');
       fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 5, apartados: [{ id: 'estudio', nom: 'Estudio' }],
         items: [{ id: 'e1', texto: 'leer', contexto: 'estudio', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }] }));
