@@ -92,7 +92,7 @@ Full check at task closure: `npm run verify`.
   back, not only Escape; R3-004 restore the registry in `plantillas.test.js` with try/finally.
 - [x] **T07 First-run templates** — template picker on a fresh install (several presets plus
   "Empezar de cero"); everything stays editable.
-- [ ] **T08 Goals and description in the UI** — goal progress and description shown for the
+- [x] **T08 Goals and description in the UI** — goal progress and description shown for the
   active section (selector/header and Campaña activity).
 - [ ] **T08b Notes ("Notas")** — added by the user 2026-10-26: a notes sub-annotation type that
   each section can enable (`notas: true`). Notes have title, body, section, tags, pinned,
@@ -200,7 +200,25 @@ Full check at task closure: `npm run verify`.
   rollback also fails, memory keeps the stored (edited) registry and the message says items
   were not changed and to reload. All dismiss routes already went through `cerrarDom`; no fix
   needed. E2E helper `failWrites(page, keys, allow)` in `app.e2e.mjs` (reuses `restoreWrites`).
+- T08 (delegated) — commit `ee0390c`. RED: unit `C.textoMeta is not a function` and `progresoMeta`
+  missing `cumplida` (deepEqual); 3/3 new `sections:` e2e failing with the app code stashed (info
+  band not visible, `#apInfo .apmeta-txt` null, `#secMetas` rows `[]`). GREEN: es5 ok, 104 unit,
+  166 e2e. Decisions: `K.progresoMeta` already matched the rule (completed items of the section,
+  `estadoDesde` day from Monday or the 1st up to today); it now also returns `cumplida`
+  (`hechas >= n`), and `K.textoMeta(p)` gives the Spanish text ("2/3 esta semana", met adds
+  "· meta cumplida" so the state is in words, not only the green color). The description and
+  goal show in a band `#apInfo` at the top of `<main>` (all views) for the active section; hidden in
+  Todo and for sections with neither; the description is one line cut with ellipsis (full text in
+  `title`). Goal bar is `role="progressbar"` with min/max/now (now capped at n) and `aria-valuetext`.
+  Campaña gets an "Objetivos" section (`#secMetas`, "N/M cumplidos"): in Todo every active
+  section with a goal, in a section only its own; sections without a goal are omitted and the
+  section disappears when none has a goal (also shown on the empty campaign). Live updates come
+  from `pintar()` (completing an item, saving the section editor via `refrescarApartados`).
+  Screenshots: `tests/e2e/out/section-goal-mobile-dark.png`,
+  `tests/e2e/out/section-goals-campaign-desktop-light.png`. Gaps: bars use `--accent` (neutral gray
+  in Todo), not each section's palette color; docs in T09.
+  RDD T06b slice `83a5e29..64af61d`: medium, `under_budget` (263) — pending in slice.
 
 ## Next step
 
-T08, then T08b, T09.
+T08b, then T09.
