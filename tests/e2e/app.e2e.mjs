@@ -3830,6 +3830,48 @@ export const tests = [
       assert.deepEqual(await noteRows(page), ['n2', 'n1', 'n3']);
       await page.screenshot(path.join(OUT, 'notes-desktop-light.png'));
     }
+  },
+  {
+    name: 'sections ui: the template picker and the sections manager fit 390px (dark)',
+    async fn(page) {
+      await scheme(page, 'dark');
+      await freshInstall(page);
+      assert.ok(await isOpen(page, 'tapaPlantillas'));
+      await sleep(400);
+      assert.equal(await page.eval("(function(){var h=document.querySelector('#tapaPlantillas .hoja');return h.scrollWidth<=h.clientWidth;})()"), true, 'picker fits');
+      await page.screenshot(path.join(OUT, 'plantillas-mobile-dark.png'));
+      await page.click('[data-plantilla="trabajo-casa"]');
+      await sleep(150);
+      await openAjustes(page);
+      await page.eval("document.getElementById('btnImportar').scrollIntoView()");
+      await sleep(400);
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal scroll at 390px');
+      await page.screenshot(path.join(OUT, 'apartados-ajustes-mobile-dark.png'));
+    }
+  },
+  {
+    name: 'sections ui: the template picker, the sections manager and the editor at 1366px (light)',
+    width: 1366,
+    height: 900,
+    mobile: false,
+    async fn(page) {
+      await scheme(page, 'light');
+      await freshInstall(page);
+      assert.ok(await isOpen(page, 'tapaPlantillas'));
+      await sleep(400);
+      await page.screenshot(path.join(OUT, 'plantillas-desktop-light.png'));
+      await page.click('[data-plantilla="estudiante"]');
+      await sleep(150);
+      await openAjustes(page);
+      await page.eval("document.getElementById('btnImportar').scrollIntoView()");
+      await sleep(400);
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal scroll at 1366px');
+      await page.screenshot(path.join(OUT, 'apartados-ajustes-desktop-light.png'));
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      await sleep(400);
+      assert.ok(await isOpen(page, 'tapaApartado'));
+      await page.screenshot(path.join(OUT, 'apartado-editor-desktop-light.png'));
+    }
   }
 ];
 

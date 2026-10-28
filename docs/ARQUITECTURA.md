@@ -1,4 +1,4 @@
-# Arquitectura — KCO 2.1
+# Arquitectura — KCO 2.2
 
 KCO es una PWA estatica sin build ni librerias. La logica de dominio vive en un modulo puro
 (`kco-core.js`) que se prueba en Node; la interfaz y la persistencia viven en `kco-app.js`.
@@ -11,7 +11,7 @@ decidio asi. El uso de la app y el formato de datos estan en `LEEME.md`.
 |---|---|
 | Donde esta una regla de negocio | `kco-core.js` (puntaje, situaciones, rutinas, XP, logros, diario) |
 | Donde se lee y escribe localStorage | solo en `kco-app.js` |
-| Que se guarda y que se calcula | se guardan items, eventos, rutinas, misiones y la memoria de progreso; XP, nivel, situaciones, progreso de misiones, rachas y diario se **derivan** |
+| Que se guarda y que se calcula | se guardan el registro de apartados, items, eventos, rutinas, misiones, notas y la memoria de progreso; XP, nivel, situaciones, progreso de misiones, rachas y diario se **derivan** |
 | Como se verifica | `npm run verify` (ES5 + unitarias + E2E) |
 
 ## Capas
@@ -54,7 +54,7 @@ declara la capa de tokens; las reglas los usan con `var(--...)`.
 
 | Grupo | Tokens | Nota |
 |---|---|---|
-| Color | `--bg`, `--surface`, `--surface-2`, `--border`, `--border-strong`, `--text`, `--text-muted`, `--accent`, `--accent-contrast`, `--accent-soft`, `--danger`(`-soft`, `-border`, `-ink`, `-ink-2`), `--warning`(`-soft`), `--success`, `--focus`, `--overlay`, `--streak`, `--gold`(`-soft`, `-faint`, `-border`, `-border-strong`) | roles, no tonos: `:root` tiene el tema oscuro y `:root[data-tema="claro"]` redefine los mismos roles. `body.ctx-*` redefine `--accent`/`--accent-soft`; `body.luz` (modo "luz de planta": legible bajo sol o tubos) sube contraste redefiniendo `--text-muted`, `--border*`, `--surface*` y agranda textos chicos; en claro tiene su propia variante hacia el negro. `--focus` se recalcula en `body` para seguir el acento del contexto |
+| Color | `--bg`, `--surface`, `--surface-2`, `--border`, `--border-strong`, `--text`, `--text-muted`, `--accent`, `--accent-contrast`, `--accent-soft`, `--danger`(`-soft`, `-border`, `-ink`, `-ink-2`), `--warning`(`-soft`), `--success`, `--focus`, `--overlay`, `--streak`, `--gold`(`-soft`, `-faint`, `-border`, `-border-strong`) | roles, no tonos: `:root` tiene el tema oscuro y `:root[data-tema="claro"]` redefine los mismos roles. `body.pal-<color>` (el color del apartado actual) redefine `--accent`/`--accent-soft`; `body.luz` (modo "luz de planta": legible bajo sol o tubos) sube contraste redefiniendo `--text-muted`, `--border*`, `--surface*` y agranda textos chicos; en claro tiene su propia variante hacia el negro. `--focus` se recalcula en `body` para seguir el acento del apartado |
 | Tipografia | `--font-sans` (pila del sistema) para todo, `--font-mono` solo para cifras cortas en columna (contadores, horas, XP); el resto de las cifras usa `tabular-nums` (`.mono`/`.num`). Minimo 12px en toda la interfaz, rotulos en sans semibold sin mayusculas forzadas, `--fs-xs` 12 · `--fs-sm` 13 · `--fs-md` 15 · `--fs-lg` 17 · `--fs-xl` 20 · `--fs-2xl` 24 · `--fs-3xl` 30, `--lh-tight` 1.2 · `--lh-snug` 1.3 · `--lh-base` 1.45 | |
 | Espaciado | `--sp-1`..`--sp-8` = 4, 8, 12, 16, 20, 24, 32, 40 px | grilla de 4px |
 | Radios | `--r-sm` 6 · `--r-md` 8 · `--r-lg` 12 · `--r-xl` 16 · `--r-pill` 999 px | |
@@ -63,7 +63,7 @@ declara la capa de tokens; las reglas los usan con `var(--...)`.
 | Capas | `--z-bar` 22, `--z-toast` 25, `--z-sheet` 30 | `kco-app.js` apila hojas con `30 + n`: `--z-sheet` no se cambia sin tocar el JS |
 | Toque y bordes | `--tap` 44px, `--safe-top/bottom/left/right` (`env(safe-area-inset-*)`) | |
 | App shell | `--appbar-h` 56, `--tabbar-h` 64, `--capbar-h` 64, `--sidebar-w` 240, `--col-max` 760 px | alturas de las barras fijas; `main` deja libre `--tabbar-h + --capbar-h` abajo |
-| Contextos | `--ctx-todo`, `--ctx-trabajo`, `--ctx-hogar`, `--ctx-apps`, `--ctx-contenido`, `--ctx-personal` (clases `.punto.p-<id>`) | punto de color que identifica cada contexto; el claro tiene su propia variante |
+| Paleta de apartados | `--pal-<color>` y `--pal-<color>-soft` para `azul`, `verde`, `ambar`, `rosa`, `violeta`, `cian`, `naranja`, `rojo`, `lima`, `gris` (`KCOCore.COLORES`); clases `.pal-<color>` | cada apartado elige un color de la paleta; no hay clases por id de apartado. El claro tiene su propia variante de cada color (`tests/unit/paleta.test.js` controla 4.5:1) |
 
 ### Tema claro / oscuro
 
@@ -74,7 +74,7 @@ declara la capa de tokens; las reglas los usan con `var(--...)`.
 | Sistema | escucha `matchMedia('(prefers-color-scheme: light)')` y cambia en vivo; sin dato del sistema queda oscuro |
 | Nativo | `color-scheme` sigue a `data-tema`; los dos `<meta name="theme-color">` (media light y dark) toman el color del tema activo |
 | Pestanas | un cambio de `kibco.tema` en otra ventana se aplica en vivo (listener `storage`) y no pone solo lectura |
-| Contraste | texto, texto apagado y acentos (los seis contextos) >= 4.5:1 sobre `--bg`, `--surface`, `--surface-2` y el `--accent-soft` propio en ambos temas |
+| Contraste | texto, texto apagado y acentos (los diez colores de la paleta y el neutro de Todo) >= 4.5:1 sobre `--bg`, `--surface`, `--surface-2` y el `--accent-soft` propio en ambos temas |
 
 Reglas de uso: un valor nuevo usa un token; un literal queda solo si no hay equivalente
 exacto (T03 migro sin redisenar: espaciados exactos, radios y tamanos de letra a 1px o menos;
@@ -86,16 +86,16 @@ atributos `style` para mostrar u ocultar vistas.
 
 | Ancho | Estructura |
 |---|---|
-| Movil (< 1024px) | barra superior compacta: chip del contexto actual (`#btnCtx`, punto + nombre + chevron, `aria-haspopup="dialog"`/`aria-expanded`) que abre la hoja `#tapaCtx` con los seis contextos (`#ctxsel`: punto, nombre, abiertos, tilde en el actual); buscar y ajustes como botones de icono con `aria-label`. Abajo, barra de pestañas fija (`nav.tabs`, `role=tablist`, `aria-selected`, icono + rotulo de 12px, pastilla de acento en la activa, `env(safe-area-inset-bottom)`) y la captura justo arriba. Al enfocar la captura, `kco-app.js` pone `data-escribiendo` en `<html>`: la barra de pestañas se oculta y la captura baja al borde, pegada al teclado (`interactive-widget=resizes-content` en el viewport). |
+| Movil (< 1024px) | barra superior compacta: chip del contexto actual (`#btnCtx`, punto + nombre + chevron, `aria-haspopup="dialog"`/`aria-expanded`) que abre la hoja `#tapaCtx` con Todo y los apartados activos (`#ctxsel`: icono, nombre, abiertos, tilde en el actual); buscar y ajustes como botones de icono con `aria-label`. Abajo, barra de pestañas fija (`nav.tabs`, `role=tablist`, `aria-selected`, icono + rotulo de 12px, pastilla de acento en la activa, `env(safe-area-inset-bottom)`) y la captura justo arriba. Al enfocar la captura, `kco-app.js` pone `data-escribiendo` en `<html>`: la barra de pestañas se oculta y la captura baja al borde, pegada al teclado (`interactive-widget=resizes-content` en el viewport). |
 | Tableta (760-1023px) | igual que movil, con el contenido en una columna centrada de 720px |
-| Escritorio (>= 1024px) | barra lateral fija de 240px (`#lateral`): marca, las cinco vistas con cuenta (`#navLateral`, `aria-current="page"`) y los seis contextos con punto y cuenta (`#ctxLateral`). Sin pestañas abajo. Titulo de la vista, captura y contenido en una columna de hasta 760px centrada en el resto; la captura va arriba de la columna (en pantalla ancha la mirada arranca arriba, como Todoist o Things) |
+| Escritorio (>= 1024px) | barra lateral fija de 240px (`#lateral`): marca, las cinco vistas con cuenta (`#navLateral`, `aria-current="page"`) y Todo mas los apartados activos con icono y cuenta (`#ctxLateral`). Sin pestañas abajo. Titulo de la vista, captura y contenido en una columna de hasta 760px centrada en el resto; la captura va arriba de la columna (en pantalla ancha la mirada arranca arriba, como Todoist o Things) |
 
 **Barra de captura.** Al tipear, `pintarChipsCaptura()` muestra debajo del campo (`#capChips`)
 lo que se va a guardar, con `KCOCore.resumenCaptura` (el mismo parser que `capturar()`):
-contexto destino, dia y prioridad. El chip de contexto (`#capCtx`) abre la hoja "Guardar en"
+apartado destino (o "Nota" con `nota:`), dia y prioridad. El chip de contexto (`#capCtx`) abre la hoja "Guardar en"
 (`#tapaDestino`, mismas reglas de dialogo e historial que toda hoja): elegir fija el destino
 de esa sola captura (`ctxDestino`; guardar o cambiar de vista lo limpia), saca la #etiqueta
-tipeada (la misma que resolvio el parser: la primera #etiqueta que es un contexto conocido, este
+tipeada (la misma que resolvio el parser: la primera #etiqueta que es un apartado activo, por su id, el slug de su nombre o un alias, este
 donde este; `#idea #casa` va a Casa) y devuelve el foco al campo. Prioridad del destino: #etiqueta, chip, contexto de la
 vista. Con chips la barra crece: `html[data-capchips]` sube `--capbar-h` a 104px (una fila) y
 `ajustarAltoCaptura()` lo pisa con el alto medido de `.captura` (los chips pueden ocupar dos
@@ -113,8 +113,8 @@ estado vacio ("Ir a Ahora") y los logros por ganar en vez de una pared de ceros.
 usa flex: la app lo muestra con `style.display = 'block'`.
 
 **Ajustes.** Orden: Backup (ultimo backup, descargar, compartir como texto, restaurar) primero,
-porque protege los datos; despues Pantalla, Recordatorios (estado de notificaciones) y Catalogos
-de compras; Info (version de app y SW, esquema, items, movimientos, prefijo `kibco.`) y el pie
+porque protege los datos; despues Apartados (`#listaApartados`), Pantalla, Recordatorios (estado de
+notificaciones) y Catalogos de compras (solo si algun apartado usa compras con seguimiento); Info (version de app y SW, esquema, items, movimientos, prefijo `kibco.`) y el pie
 al final.
 
 Las filas de contexto y de vistas se arman una vez y cada `pintar()` solo actualiza estado y
@@ -136,7 +136,7 @@ titulo y una X "Cerrar" arriba a la derecha. La cabecera queda pegada arriba al 
 | X, Escape (hoja de arriba), tocar el fondo, deslizar la cabecera hacia abajo (> 80px o tiron rapido, solo tactil) | `cerrarCapa(id)` -> `cerrarHoja(id)`, el mismo camino que el boton atras: cierra la hoja (y las de encima) y saca sus entradas con `history.go(-n)`; no se cuenta ni se espera ese retroceso, su `popstate` se reconcilia como cualquier otro |
 | Atras de Android, `popstate`, `pageshow` persistido | `reconciliarHistorial(estado)`: cada entrada de capa lleva `{ kcoCapa, kcoNivel, kcoSerie }` (serie unica en la sesion; el ancla de pestaña lleva `kcoAncla` + serie) y las capas se ajustan a la entrada en la que quedo el historial. Entrada de una capa abierta: se cierran las de encima (si es la de arriba fue un retroceso propio: nada). Ancla vigente: se cierran todas. Residuo de un retroceso propio (serie anotada en `residuos` al cerrar capas, abandonar el ancla o soltar un relevo): se asienta en silencio una vez; un `pageshow` persistido lo respeta sin consumirlo. Entrada base o cualquier otra entrada de KCO desconocida (de antes de recargar, sin serie): cuenta como la base, se cierran todas y, sin capas, una pestaña que no es Ahora vuelve a Ahora; asi cada atras se nota. Sin contadores ni timers |
 | Recargar | El historial queda parado en una entrada de la carga anterior (otra semilla de serie). Al arrancar, si `history.state` trae marcas de KCO, `replaceState(null)` la convierte en la base; las entradas viejas que queden debajo cuentan como base al volver a ellas |
-| Cerrar una hoja y abrir otra en el mismo toque (menu rapido -> ficha, Borrar -> confirmar, buscar -> ficha, rutina -> ocurrencia) | `cerrarParaRelevo(id)` cierra la de arriba sin retroceder y deja un relevo: el proximo `pushState` (hoja o ancla) es un `replaceState` sobre su entrada; `soltarRelevo()` retrocede solo si nadie la reuso. No queda ningun retroceso en vuelo |
+| Cerrar una hoja y abrir otra en el mismo toque (menu rapido -> ficha, Borrar -> confirmar, buscar -> ficha, rutina -> ocurrencia, plantillas -> editor, editor de apartado -> confirmar, Ajustes -> confirmar restauracion) | `cerrarParaRelevo(id)` cierra la de arriba sin retroceder y deja un relevo: el proximo `pushState` (hoja o ancla) es un `replaceState` sobre su entrada; `soltarRelevo()` retrocede solo si nadie la reuso. No queda ningun retroceso en vuelo. Con `cerrarHoja` + `abrirHoja` en el mismo toque, Chrome resuelve el `go(-1)` contra la entrada de antes del `pushState` y el `popstate` tardio cae en la base y cierra la hoja nueva (asi fallaba restaurar despues de Escape en la hoja de texto; corregido en 2.2.0) |
 | Retroceso propio lento o perdido | Lento: si se abre otra hoja antes de que llegue, el `go(-n)` cae despues en la entrada vieja de la hoja cerrada y se asienta sin cerrar la nueva. Perdido (`history.go` sin efecto en el borde, navegacion externa): la entrada vieja queda debajo de la hoja siguiente y el primer atras del usuario se asienta en ella sin cerrar nada; el siguiente ya cierra. Ambos casos son indistinguibles sin un timer; se prefirio no cerrar nunca una hoja por un retroceso propio |
 
 | Foco | Como |
@@ -168,13 +168,34 @@ que revela el gesto (`.rev`):
 | Teclado | la tarjeta tiene `tabindex=0`: Enter o Espacio abre la ficha. `j` / `k` mueven una seleccion por las filas visibles de la vista (foco + clase `kbsel` con anillo de foco), `x` completa o reabre la elegida con `accionHecho()` (mismo deshacer) y la seleccion queda en la misma posicion. Como `n` y `/`: nunca con Ctrl/Alt/Meta, con una hoja abierta ni adentro de un campo editable |
 | Listas largas | `pintarLista` (Tareas, Compras), el Diario, el Registro y los resultados de busqueda pintan de a 50 (`TROZO`) y un boton "Ver más (N)" (`data-vermas`) suma 50 mas, conserva el scroll (pagina y hoja) y enfoca la primera fila nueva. `trozos[lista]` guarda el trozo con una clave (contexto + filtro, rango o la busqueda): repintar despues de una edicion lo conserva, cambiar de filtro o de vista (`irAVista` vacia `trozos`) vuelve a 50 |
 
+## Apartados, plantillas y notas (esquema 5)
+
+Los contextos fijos de hasta 2.1 son ahora **apartados** que define la persona. Ningun codigo
+depende de un id de apartado salvo la siembra (`apartadosLegado`) y la migracion 3 -> 4.
+
+| Pieza | Como |
+|---|---|
+| Registro | `kibco.apartados`: arreglo de `{ id, nom, ico, color, orden, desc, meta, alias[], compras, tags[], notas, activo }`. `id` opaco y estable (`^[A-Za-z0-9_-]{1,40}$`, nunca `todo`), `nom` hasta 40, `ico` un nombre de `iconos.js`, `color` una clave de `KCOCore.COLORES`, `desc` hasta 280, `meta` `{ n, periodo }` (`semana` o `mes`) o `null`, `compras` `no`, `lista` o `fabrica`, `tags` `{ id, nom }` propios del apartado, `notas` (por defecto `true`), `activo` (`false` = archivado). Lo normaliza `KCOCore.normalizarApartado(s)` y lo fija `fijarApartados`; `apartados()` da los activos, `todosApartados()` todos |
+| Invariante | siempre queda al menos un apartado activo: el ultimo no se archiva ni se borra. Borrar uno con registros pide un destino y pasa items (estado equivalente en el modo de compras del destino), rutinas, misiones, notas y eventos; todo o nada (`borrarApartado`) |
+| Registros de apartados archivados | `KCOCore.contextoDeRegistro` deja a items, rutinas, misiones y notas en su apartado archivado; captura y selectores solo ofrecen activos (`normalizarContexto`) |
+| Identidad visual | `body` lleva `pal-<color>` (Todo: neutro) y `data-ctx="<id>"` en lugar de `body.ctx-<id>`; iconos de apartado en selectores, chip de cabecera, grillas y barras. Los selectores se rearman cuando cambia la firma id:color:icono:nombre |
+| Modo de compras | `KCOCore.modoCompras(ctx)` / `esFabrica(ctx)` reemplazan los chequeos por id. Con `compras: 'no'` no hay segmento Compras ni "Mover a Compras"; una compra que cae ahi (cambio de modo, mover, restaurar, otra pestaña) se convierte en tarea y se registra un evento `conversion` |
+| Meta y descripcion | `KCOCore.progresoMeta` (items completados del apartado desde el lunes o el dia 1, con `cumplida`) y `textoMeta`. La franja `#apInfo` arriba de `<main>` muestra descripcion y meta del apartado activo; Campaña tiene "Objetivos" (`#secMetas`) |
+| Migracion 4 -> 5 | `migrar()`: si no hay `kibco.apartados` y hay datos (`hayDatos()`) o el esquema guardado es menor a 5, se siembran los cinco apartados de siempre (`trabajo`, `hogar` "Casa", `apps`, `contenido`, `personal`) con los mismos ids, colores, tags y modo de compras (Trabajo `fabrica`, el resto `lista`). Si esa escritura falla el esquema no sube. `aplicarMigracion5()` deja un evento `migracion` |
+| Instalacion nueva | sin apartados activos queda `necesitaPlantillas`: la app arma la pantalla con los apartados de siempre **solo en memoria** y abre `#tapaPlantillas` (`KCOCore.plantillas()`: Vida personal, Trabajo y casa, Creador de contenido, Estudiante, Empezar de cero). Elegir guarda el registro; cerrar sin elegir (X, Escape, fondo, gesto, atras) aplica "Empezar de cero" (un apartado General) sin abrir el editor |
+| Nada se guarda antes de una plantilla | `guardarItems/Eventos/Rutinas/Proyectos/Notas` pasan por `sinGuardar()`: con `necesitaPlantillas` no escriben y, si fue una accion de la persona, reabren el selector ("Elegi con que apartados empezar para poder guardar"); la captura deja el texto en la barra. Las escrituras automaticas (el reloj de 30 s: recordatorios y rutinas del dia nuevo) corren dentro de `enAutomatico(fn)` y se saltean en silencio. Tampoco se dispara la notificacion de un recordatorio, porque su `recAvisado` no se podria guardar. Asi un segundo arranque sigue siendo una instalacion nueva (sin siembra ni evento `migracion`) |
+| Gestor | Ajustes > Apartados (`#listaApartados`: subir, bajar, abrir) y el editor `#tapaApartado` (nombre, icono, color, descripcion, objetivo, alias, compras, notas, etiquetas, archivar, borrar con destino). `aplicarEdicionApartado` devuelve `''` o el motivo del fallo y repone todo lo tocado si una escritura falla |
+| Notas | `kibco.notas`: arreglo de `{ id, tit, txt, ctx, tags[], fijada, archivada, creada, editada }` (`KCOCore.normalizarNota`: titulo hasta 120, texto hasta 20000 con saltos de linea, hasta 10 tags como slugs). Vista Notas = tercer segmento de Tareas (`#vistaNotas`, `KCOCore.notasVisibles`: fijadas primero, despues por `editada`; busqueda por palabras sin acentos ni mayusculas; archivadas a pedido). Hoja `#tapaNota` con borrador: nada se guarda hasta Guardar; borrar ofrece deshacer. Captura `nota: texto #apartado` (`KCOCore.parsearNota`); un apartado con `notas: false` la rechaza y deja el texto. Las notas no generan eventos ni XP. Una escritura que falla avisa `AVISO_NOTA` y no cambia nada. Los comentarios de un item son otra cosa (`#listaComentarios` en la ficha) |
+| Backups | llevan `apartados` y `notas`. Sin `apartados` (esquema 4) se siembran los de siempre; un id que el backup usa y no declara recibe un apartado generado; `apartados` o `notas` inutilizables se rechazan antes de confirmar; restaurar es todo o nada, registro incluido |
+
 ## Flujo de datos
 
-1. **Cargar.** `migrar()` revisa `kibco.esquema`; un esquema mas nuevo deja la app en solo
-   lectura.
+1. **Cargar.** `migrar()` revisa `kibco.esquema` (y siembra los apartados de siempre si hace
+   falta); un esquema mas nuevo deja la app en solo lectura. `cargarApartados()` lee el registro
+   antes que las listas.
 2. **Normalizar.** `cargarLista()` lee cada clave y pasa cada elemento por su normalizador
    (`normalizarItem`, `normalizarEvento`, `KCOCore.normalizarRutina`,
-   `KCOCore.normalizarProyecto`). Una lista ilegible va a cuarentena y la app pasa a solo
+   `KCOCore.normalizarProyecto`, `KCOCore.normalizarNota`). Una lista ilegible va a cuarentena y la app pasa a solo
    lectura. `cargarProgreso()` hace lo mismo con `kibco.progreso`, pero sin bloquear.
 3. **Generar.** `generarOcurrencias()` aplica `KCOCore.planificarOcurrencias` (crear la
    ultima ocurrencia, cerrar como vencidas las viejas) y guarda.
@@ -188,15 +209,16 @@ que revela el gesto (`.rev`):
    repinta. Si el evento no se puede guardar, sale de memoria y se avisa; el cambio del
    item, ya guardado, se queda.
 
-Ademas, cada 30 segundos se revisan recordatorios y, si cambio el dia, se generan las
-ocurrencias nuevas.
+Ademas, cada 30 segundos (dentro de `enAutomatico`) se revisan recordatorios y, si cambio el
+dia, se generan las ocurrencias nuevas.
 
 ## Mapa del nucleo (`kco-core.js`)
 
 | Seccion | Funciones principales |
 |---|---|
 | Fechas (clave `AAAA-MM-DD`, aritmetica a las 12:00 locales) | `claveDia`, `deClave`, `esClave`, `sumarDias`, `difDias`, `diaSemana`, `diasDelMes`, `claveDeIso` |
-| Contextos | `CONTEXTOS`, `infoContexto`, `contextoValido`, `normalizarContexto`, `esFabrica` |
+| Apartados | `normalizarApartado(s)`, `fijarApartados`, `apartados`, `todosApartados`, `apartadosLegado`, `plantillas`, `infoContexto`, `contextoValido`, `normalizarContexto`, `contextoDeRegistro`, `modoCompras`, `esFabrica`, `tagsDe`, `todosTags`, `emojiApartado`, `progresoMeta`, `textoMeta`, `COLORES`, `slug`, `idUnico` |
+| Notas | `normalizarNota`, `usaNotas`, `notasVisibles`, `parsearNota` |
 | Prioridad | `NIVELES`, `infoNivel`, `nivelDe` |
 | Estados | `CERRADOS`, `esActivo`, `esHecho`, `alertaEntrega`, `diaDe` |
 | Situacion | `SITUACIONES`, `infoSituacion`, `situacion` |
@@ -222,6 +244,7 @@ ocurrencias nuevas.
 | Progreso ilegible: cuarentena y re-siembra silenciosa | `cargarProgreso()` |
 | Restore todo o nada, rechazado sobre esquema futuro | `procesarImportacion()`, `aplicarBackup()` |
 | Otra ventana cambia claves de datos: solo lectura; si cambia `kibco.tema`, se aplica el tema y nada mas | listener `storage` al final de `kco-app.js` |
+| Sin plantilla elegida no se escribe nada; las escrituras automaticas se saltean en silencio | `sinGuardar()`, `enAutomatico()` |
 | Ids de rutina, mision y vinculos validados con `^[A-Za-z0-9_-]{1,40}$` | `idSeguro()`, `normalizarRutina`, `normalizarProyecto` |
 | Sin sumideros de HTML (`innerHTML`, `document.write`, `eval`) | control estatico `tests/check-es5.mjs` |
 | CSP: `default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'` | `<meta>` en `index.html` |
@@ -240,7 +263,9 @@ Detalle de cada archivo y como agregar pruebas: `docs/TESTING.md`.
 
 | Decision | Por que |
 |---|---|
-| El esquema sigue en `4` | la 2.0 solo agrega campos con fallback y claves nuevas; subirlo haria que los KCO anteriores rechacen los backups y que un rollback quede en solo lectura |
+| Esquema `5` en 2.2 | los apartados cambian el significado de `contexto` (de un id fijo a una referencia al registro) y el backup suma `apartados` y `notas`; un KCO 2.1 que abra datos de 2.2 queda en solo lectura en vez de interpretar mal apartados que no conoce. Hasta 2.1 el esquema siguio en `4` porque solo se sumaron campos con fallback |
+| Apartados como datos, no como codigo | crear, renombrar o borrar un apartado no requiere una version nueva; las reglas que dependian de un id (compras de fabrica, etiquetas, reporte) pasan a ser campos del apartado |
+| Ninguna escritura antes de elegir plantilla | si la app guardara con los apartados de siempre en memoria, el segundo arranque veria datos y sembraria apartados que la persona nunca eligio |
 | Compactar sin cambiar lo derivado | XP, nivel, logros, rachas y campana salen de items y misiones, no del registro; del registro viejo solo sale ruido (captura, edicion, prioridad...) y cambios de estado que no son el ultimo cierre vigente de su item, asi el diario queda identico. Lo quitado queda como un evento `compactado` de forma comun (las versiones viejas lo leen como "Movimiento"). La vista cruda del Registro en "Todo" pierde ese detalle viejo |
 | XP derivado, no acumulado | reabrir resta, recompletar no duplica, un backup restaurado da el mismo XP; solo se guarda que nivel se celebro y que logros se ganaron |
 | Ocurrencias como items separados | cada dia de una rutina es historial propio (hecha, omitida, delegada, sin registrar); las vistas, el XP y el diario las tratan como cualquier tarea |
