@@ -99,7 +99,15 @@ Full check at task closure: `npm run verify`.
   archived, created/updated; a Notas view filtered by the active section (and Todo), search,
   create/edit sheet, quick capture to notes, persisted in `kibco.notas`, included in backups.
   Includes review follow-ups of `83a5e29..a3a96be` (R3-001..R3-003).
-- [ ] **T09 Release 2.2.0 + docs** — version bump, CHANGELOG, LEEME, ARQUITECTURA, TESTING,
+- [x] **T08c Review follow-ups (review of a3a96be..802a5f3)** — R3-002: no reminder notification
+  while no template is chosen (its `recAvisado` cannot be saved, so it would repeat on every boot);
+  e2e asserts one notification across two ticks and a reload. R3-003: section delete moves notes
+  (and items, routines, missions, events) only when there is a destination; explicit and tested.
+  R3-004: a failed `nota:` capture shows `AVISO_NOTA` and keeps the text; e2e with `failWrites`.
+  R3-001 not applicable (confirm path ignores the return value). Gap from T08b: Escape on the
+  export sheet over Ajustes, then a file restore, left the restore unapplied. Plus a duplicate
+  `listaNotas` id (item comments painted into the Notas view), found during T09.
+- [x] **T09 Release 2.2.0 + docs** — version bump, CHANGELOG, LEEME, ARQUITECTURA, TESTING,
   CLAUDE.md; screenshot sweep 390/1366 light/dark.
 
 ## Acceptance criteria
@@ -241,7 +249,42 @@ Full check at task closure: `npm run verify`.
   them. Turning notes off keeps them stored. Screenshots: `tests/e2e/out/notes-mobile-dark.png`,
   `tests/e2e/out/notes-sheet-mobile-dark.png`, `tests/e2e/out/notes-desktop-light.png`. Gaps: notes are not in the
   universal search (`#tapaBuscar`) nor in Ahora/Diario; docs in T09.
+- T08c (delegated writer) — commit `e27c619`. RED: 3/4 new e2e failing on `802a5f3`: the reminder spec got a
+  notification while no template was chosen (`[ 'r1' ]` vs `[]`); the failed `nota:` capture showed only the generic
+  storage message; the Escape/restore spec failed `restore asks first` (an instrumented run showed the confirmation
+  open and then close on a late `popstate` with state `null`). The R3-003 spec (only an archived note → destination
+  required, note moved, still archived) passed as regression coverage: the empty-destination path was already
+  guarded by `registrosDe`; the code now says so explicitly (`if (destino !== '')` around every reassignment).
+  GREEN: es5 ok, 111 unit, 185 e2e. Decisions: R3-002 picks "no side effects when the write is skipped": while
+  `necesitaPlantillas` the `#recuerdo` banner still shows but `notificar` waits until a template exists, then fires
+  once and persists `recAvisado`. R3-004: `capturarNota` shows `AVISO_NOTA` (the template/read-only cases never reach
+  it: `capturar` handles them first). R3-001 not applicable (confirm path ignores the return value); not changed.
+  Escape gap: a real app bug, not a test artifact. The file restore closed Ajustes with `cerrarHoja` (a `history.go(-1)`
+  in flight) and opened the confirmation in the same tick; Chrome resolves that traversal to the base entry, so the
+  late `popstate` closed the confirmation. Fix: the import uses the relay (`cerrarParaRelevo('tapaAjustes')` +
+  `soltarRelevo()`), so the confirmation takes Ajustes' history entry and no traversal is in flight. Follow-up: other
+  `cerrarHoja(x)` + `abrirHoja(y)` in the same tick may share the race; worth an audit.
+  Also found while writing the docs: T08b reused the id `listaNotas` for the Notas view while the item sheet comments
+  already had it, so item comments were painted into the Notas list (and the sheet showed none). Commit `614b7f2`: the
+  comments container is `listaComentarios`; RED: new unit `index.html has no repeated id` (`['listaNotas']`) and e2e
+  `notes: item comments render in the item sheet` (comment missing from `#tapaItem`); GREEN: unit 112, notes e2e 16/16.
+
+- T09 (delegated writer) — commits `1ae1d13` (`chore(release): 2.2.0`: version 2.2.0 in `kco-app.js`, `sw.js` (cache
+  `kibco-2.2.0`) and `package.json`, checked by `tests/unit/version.test.js`; CHANGELOG 2.2.0) and `130a539` (LEEME,
+  ARQUITECTURA, TESTING; two screenshot specs). Passive docs: no RED applies; structural and functional checks only.
+  LEEME: "Apartados y captura" (templates, create/edit/archive/delete, purchases modes, capture destination), a
+  "Notas" section, `nota:` and `#<apartado>` marks, keys `kibco.apartados`/`kibco.notas`, shapes, schema 5 and the 4->5
+  migration, backups with sections and notes, limits. ARQUITECTURA: new "Apartados, plantillas y notas (esquema 5)"
+  section (registry shape, invariant, `pal-<color>` + `data-ctx`, migration, `sinGuardar`/`enAutomatico`, sheets,
+  notes, backups), palette tokens, core map, schema decision, the relay note for the import. TESTING: 112 unit / 188 e2e,
+  per-file and per-prefix tables, `freshInstall`, `failWrites`, the empty-seed behavior. Screenshot sweep (390/1366,
+  light/dark) in `tests/e2e/out/`: `plantillas-mobile-dark`, `plantillas-desktop-light`, `apartados-ajustes-mobile-dark`,
+  `apartados-ajustes-desktop-light`, `apartado-editor-mobile`, `apartado-editor-desktop-light`, `section-goal-mobile-dark`,
+  `section-goals-campaign-desktop-light`, `notes-mobile-dark`, `notes-sheet-mobile-dark`, `notes-desktop-light`
+  (the picker/manager/editor ones are new). Verify: es5 ok, 112 unit, 188 e2e. Follow-ups: several UI labels still say
+  "Contexto" (sidebar heading, item sheet, search placeholder); notes are not in the universal search; audit other
+  same-tick `cerrarHoja` + `abrirHoja` pairs for the late-`popstate` race.
 
 ## Next step
 
-T09.
+Feature complete. Push/PR decision is the user's (`chained-pr`: ~4.5k lines across slices recorded above).
