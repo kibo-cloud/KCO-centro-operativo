@@ -168,11 +168,32 @@ test('progresoMeta: counts completions of the section in the current ISO week or
     done(HOY, { estado: 'pendiente' }), done('2026-09-30')
   ];
   assert.deepEqual(C.progresoMeta({ id: 'trabajo', meta: { n: 3, periodo: 'semana' } }, items, HOY),
-    { hechas: 2, meta: 3, periodo: 'semana', desde: '2026-10-05' });
+    { hechas: 2, meta: 3, periodo: 'semana', desde: '2026-10-05', cumplida: false });
   assert.deepEqual(C.progresoMeta({ id: 'trabajo', meta: { n: 10, periodo: 'mes' } }, items, HOY),
-    { hechas: 4, meta: 10, periodo: 'mes', desde: '2026-10-01' });
+    { hechas: 4, meta: 10, periodo: 'mes', desde: '2026-10-01', cumplida: false });
   assert.equal(C.progresoMeta({ id: 'trabajo', meta: { n: 1, periodo: 'semana' } }, items, '2026-10-05').desde, '2026-10-05');
   assert.equal(C.progresoMeta({ id: 'trabajo', meta: { n: 1, periodo: 'semana' } }, items, '2026-10-11').desde, '2026-10-05');
+});
+
+test('progresoMeta: goal met at or above n, month boundary, future and undated completions ignored', () => {
+  const items = [done('2026-10-31'), done('2026-11-01'), done('2026-11-02'), done('2026-11-03'),
+    done('2026-11-02', { estadoDesde: '' }), done('2026-11-02', { estado: 'archivado' }), done('2026-11-02', { tipo: 'compra', estado: 'comprado' })];
+  // Month: from Nov 1 to today (Nov 2); the Oct 31 one and the future Nov 3 one do not count.
+  assert.deepEqual(C.progresoMeta({ id: 'trabajo', meta: { n: 3, periodo: 'mes' } }, items, '2026-11-02'),
+    { hechas: 3, meta: 3, periodo: 'mes', desde: '2026-11-01', cumplida: true });
+  // Week (Monday Oct 26 to Sunday Nov 1) seen on Sunday Nov 1: Oct 31 and Nov 1.
+  const w = C.progresoMeta({ id: 'trabajo', meta: { n: 1, periodo: 'semana' } }, items, '2026-11-01');
+  assert.equal(w.desde, '2026-10-26');
+  assert.equal(w.hechas, 2);
+  assert.equal(w.cumplida, true, 'over the goal is still met');
+  assert.equal(C.progresoMeta({ id: 'otro', meta: { n: 1, periodo: 'mes' } }, items, '2026-11-02').cumplida, false);
+});
+
+test('textoMeta: Spanish progress text, with the met state in words', () => {
+  assert.equal(C.textoMeta(null), '');
+  assert.equal(C.textoMeta({ hechas: 1, meta: 3, periodo: 'semana', cumplida: false }), '1/3 esta semana');
+  assert.equal(C.textoMeta({ hechas: 0, meta: 10, periodo: 'mes', cumplida: false }), '0/10 este mes');
+  assert.equal(C.textoMeta({ hechas: 4, meta: 3, periodo: 'semana', cumplida: true }), '4/3 esta semana · meta cumplida');
 });
 
 test('archived section: not contextoValido and #id, #name or #alias capture never routes to it', () => {

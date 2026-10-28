@@ -964,6 +964,50 @@
     $('ctxNombre').textContent = nomCtx(contexto);
   }
 
+  /* Objetivo de un apartado: texto (K.textoMeta, la meta cumplida se dice en
+     palabras) y barra accesible (role=progressbar). conNombre: con punto,
+     icono y nombre del apartado (lista de la campana). */
+  function nodoMeta(a, p, conNombre) {
+    var f = nodo('div', 'apmeta' + (p.cumplida ? ' cumplida' : '')), txt = K.textoMeta(p);
+    f.setAttribute('data-meta-ap', a.id);
+    if (conNombre) {
+      var cn = nodo('span', 'apmeta-nom', a.nom);
+      cn.insertBefore(icoApartado(a.id, 'apmeta-ico'), cn.firstChild);
+      cn.insertBefore(punto(a.id), cn.firstChild);
+      f.appendChild(cn);
+    }
+    var b = nodo('span', 'apmeta-barra');
+    b.setAttribute('role', 'progressbar');
+    b.setAttribute('aria-label', 'Objetivo de ' + a.nom);
+    b.setAttribute('aria-valuemin', '0');
+    b.setAttribute('aria-valuemax', '' + p.meta);
+    b.setAttribute('aria-valuenow', '' + Math.min(p.hechas, p.meta));
+    b.setAttribute('aria-valuetext', txt);
+    var i = nodo('i', '');
+    i.style.width = (p.meta > 0 ? Math.min(100, Math.round((p.hechas * 100) / p.meta)) : 0) + '%';
+    b.appendChild(i);
+    f.appendChild(b);
+    f.appendChild(nodo('span', 'mono apmeta-txt', txt));
+    return f;
+  }
+
+  /* Banda bajo la barra superior: descripcion y objetivo del apartado activo.
+     En Todo, o sin descripcion ni objetivo, no se muestra. */
+  function pintarInfoApartado() {
+    var caja = $('apInfo'), a = contexto === 'todo' ? null : K.infoContexto(contexto), p;
+    if (!caja) { return; }
+    vaciar(caja);
+    p = a ? K.progresoMeta(a, items, hoyClave()) : null;
+    caja.hidden = !a || (!a.desc && !p);
+    if (caja.hidden) { return; }
+    if (a.desc) {
+      var d = nodo('p', 'apinfo-desc', a.desc);
+      d.setAttribute('title', a.desc);
+      caja.appendChild(d);
+    }
+    if (p) { caja.appendChild(nodoMeta(a, p, false)); }
+  }
+
   function abrirSelectorContexto() {
     pintarSelectorContexto();
     abrirHoja('tapaCtx');
@@ -2438,6 +2482,7 @@
     }
     $('tituloVista').textContent = TITULO_VISTA[vista] || '';
     pintarSelectorContexto();
+    pintarInfoApartado();
     pintarNavLateral();
     $('segTareas').style.display = vista === 'tablero' || vista === 'compras' ? 'flex' : 'none';
     $('segBtnTareas').className = vista === 'tablero' ? 'segbtn on' : 'segbtn';
@@ -5324,6 +5369,7 @@
       cont.appendChild(vacioNuevo('div', { id: 'campana', ico: 'trophy', tit: 'La campa\u00F1a todav\u00EDa no empez\u00F3',
         txt: 'Complet\u00E1 tu primera tarea: desde ese d\u00EDa cuentan los d\u00EDas activos, la racha, el XP y los logros.',
         acc: 'Ir a Ahora', accIco: 'zap', alTocar: function () { irAVista('ahora'); } }));
+      pintarMetas(cont, hoy);
       pintarLogros(cont);
       return;
     }
@@ -5349,6 +5395,7 @@
     statTile(g, st.misionesFin, 'misiones cumplidas', st.hitos + ' hitos');
     cont.appendChild(g);
 
+    pintarMetas(cont, hoy);
     pintarSemanas(cont, st.semanas);
     pintarPorContexto(cont, st);
     pintarLogros(cont);
@@ -5400,6 +5447,28 @@
     graf.setAttribute('aria-label', 'Avances por semana: ' + resumen.join(', '));
     s.appendChild(graf);
     s.appendChild(cap);
+    cont.appendChild(s);
+  }
+
+  /* Objetivos: en Todo, cada apartado activo que tiene objetivo; en un
+     apartado, solo el suyo. Los apartados sin objetivo no se listan y, si
+     no queda ninguno, la seccion no aparece. */
+  function pintarMetas(cont, hoy) {
+    var defs = contexto === 'todo' ? K.CONTEXTOS : [K.infoContexto(contexto)], filas = [], cumplidas = 0, i, p;
+    for (i = 0; i < defs.length; i++) {
+      p = defs[i] ? K.progresoMeta(defs[i], items, hoy) : null;
+      if (!p) { continue; }
+      if (p.cumplida) { cumplidas++; }
+      filas.push(nodoMeta(defs[i], p, true));
+    }
+    if (filas.length === 0) { return; }
+    var s = nodo('section', 'sec');
+    s.id = 'secMetas';
+    var h = nodo('h3', 'sec-tit');
+    h.appendChild(nodo('span', '', 'Objetivos', 'target'));
+    h.appendChild(nodo('b', 'mono', cumplidas + '/' + filas.length + ' cumplidos'));
+    s.appendChild(h);
+    for (i = 0; i < filas.length; i++) { s.appendChild(filas[i]); }
     cont.appendChild(s);
   }
 

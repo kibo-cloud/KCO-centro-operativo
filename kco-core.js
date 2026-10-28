@@ -437,7 +437,15 @@
       dia = claveDeIso(it.estadoDesde);
       if (dia !== '' && dia >= desde && dia <= hoy) { hechas++; }
     }
-    return { hechas: hechas, meta: a.meta.n, periodo: a.meta.periodo, desde: desde };
+    return { hechas: hechas, meta: a.meta.n, periodo: a.meta.periodo, desde: desde, cumplida: hechas >= a.meta.n };
+  }
+
+  /* Texto del progreso: "2/3 esta semana"; cumplida se dice en palabras,
+     no solo con color. Vacio sin progreso. */
+  function textoMeta(p) {
+    if (!p) { return ''; }
+    var t = p.hechas + '/' + p.meta + (p.periodo === 'mes' ? ' este mes' : ' esta semana');
+    return p.cumplida ? t + ' \u00B7 meta cumplida' : t;
   }
 
   fijarApartados(apartadosLegado());
@@ -1468,6 +1476,7 @@
     infoTag: infoTag,
     emojiApartado: emojiApartado,
     progresoMeta: progresoMeta,
+    textoMeta: textoMeta,
     NIVELES: NIVELES,
     infoNivel: infoNivel,
     nivelDe: nivelDe,

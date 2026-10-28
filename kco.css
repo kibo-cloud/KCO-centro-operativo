@@ -713,6 +713,19 @@ input[type=time],input[type=date]{font-variant-numeric:tabular-nums}
 .avisover button{flex:0 0 auto;background:var(--accent);border:0;color:var(--accent-contrast);border-radius:var(--r-md);padding:9px 14px;min-height:var(--tap);font-size:var(--fs-sm);font-weight:700;cursor:pointer}
 .recuerdo{background:var(--surface);border:1px solid var(--warning);color:var(--warning);border-radius:10px;padding:11px var(--sp-3);margin-bottom:var(--sp-3);font-size:var(--fs-sm);display:none}
 .recuerdo.on{display:block}
+/* Apartado activo: descripcion (una linea, cortada) y objetivo con barra. */
+.apinfo{margin-bottom:var(--sp-3);min-width:0}
+.apinfo[hidden]{display:none}
+.apinfo-desc{margin:0 0 var(--sp-1);color:var(--text-muted);font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.apmeta{display:flex;align-items:center;gap:var(--sp-2);min-width:0;padding:4px 0;font-size:var(--fs-sm)}
+.apmeta-nom{flex:0 1 110px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.apmeta-nom .punto{margin-right:6px}
+.apmeta-ico{width:14px;height:14px;margin-right:4px;vertical-align:-2px}
+.apmeta-barra{flex:1 1 60px;min-width:40px;height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden}
+.apmeta-barra i{display:block;height:100%;background:var(--accent);border-radius:0 4px 4px 0;transition:width .3s ease}
+.apmeta-txt{flex:0 1 auto;min-width:0;color:var(--text);font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.apmeta.cumplida .apmeta-barra i{background:var(--success)}
+.apmeta.cumplida .apmeta-txt{color:var(--success);font-weight:600}
 /* ---------- centro de control ---------- */
 .sec{margin-top:var(--sp-4)}
 .sec-tit{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 var(--sp-2) 0;font-size:var(--fs-sm);font-weight:600;letter-spacing:.1px;color:var(--text-muted)}

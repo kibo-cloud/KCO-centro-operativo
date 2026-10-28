@@ -76,6 +76,25 @@ const CUSTOM_SECTIONS = JSON.stringify([
   { id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', orden: 2, compras: 'no' }
 ]);
 
+// Sections with goals/descriptions (T08): estudio (desc + 2/week), lectura (long desc + 1/month),
+// gym (neither). Items are dated relative to now so "this week/month" holds on any day.
+const GOAL_SECTIONS = JSON.stringify([
+  { id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', orden: 0, desc: 'Materias del cuatrimestre', meta: { n: 2, periodo: 'semana' } },
+  { id: 'lectura', nom: 'Lectura', ico: 'layers', color: 'violeta', orden: 1,
+    desc: 'Una descripcion larga que no entra en una sola linea del telefono y tiene que cortarse con puntos suspensivos', meta: { n: 1, periodo: 'mes' } },
+  { id: 'gym', nom: 'Gym', ico: 'trophy', color: 'lima', orden: 2 }
+]);
+const GOAL_ITEMS = () => {
+  const now = new Date().toISOString();
+  const old = new Date(Date.now() - 60 * 86400000).toISOString();
+  const it = (id, contexto, estado, estadoDesde) => ({ id, texto: id, contexto, tipo: 'tarea', estado, nivel: 'normal',
+    creado: old, estadoDesde: estadoDesde || old });
+  return JSON.stringify([
+    it('g-d1', 'estudio', 'completado', now), it('g-old', 'estudio', 'completado', old), it('g-p1', 'estudio', 'pendiente'),
+    it('g-p2', 'estudio', 'pendiente'), it('g-l1', 'lectura', 'completado', now), it('g-g1', 'gym', 'completado', now)
+  ]);
+};
+
 const CORRUPT_PROGRESO_SEED = (() => {
   const list = [];
   for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
@@ -775,6 +794,91 @@ export const tests = [
       await page.key('Escape');
       await capture(page, 'parcial #facultad');
       assert.equal((await items(page)).find((i) => i.texto === 'parcial').contexto, 'estudio', 'the new name captures');
+    }
+  },
+  {
+    name: 'sections: the active section shows its description and goal progress, live after completing an item',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'estudio', 'kibco.apartados': GOAL_SECTIONS, 'kibco.items': GOAL_ITEMS() },
+    async fn(page) {
+      await scheme(page, 'dark');
+      assert.equal(await page.visible('#apInfo'), true, 'the info band shows for a section with desc and goal');
+      assert.equal(await page.text('#apInfo .apinfo-desc'), 'Materias del cuatrimestre');
+      const bar = '#apInfo [role="progressbar"]';
+      const aria = (n) => page.eval(`document.querySelector(${JSON.stringify(bar)}).getAttribute(${JSON.stringify(n)})`);
+      assert.equal(await page.text('#apInfo .apmeta-txt'), '1/2 esta semana', 'only this week, this section, completed');
+      assert.deepEqual([await aria('aria-valuemin'), await aria('aria-valuemax'), await aria('aria-valuenow')], ['0', '2', '1']);
+      assert.equal(await aria('aria-valuetext'), '1/2 esta semana');
+      assert.match(await aria('aria-label'), /Estudio/);
+      assert.equal(await page.eval("document.querySelector('#apInfo .apmeta').className"), 'apmeta');
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal scroll at 390px');
+      await sleep(300);
+      await page.screenshot(path.join(OUT, 'section-goal-mobile-dark.png'));
+      // Completing a pending item of the section updates the progress and announces the met goal in words.
+      await toTasks(page);
+      await page.click('#lista li.item[data-id="g-p1"] .chk');
+      await sleep(80);
+      assert.equal(await page.text('#apInfo .apmeta-txt'), '2/2 esta semana · meta cumplida');
+      assert.equal(await aria('aria-valuenow'), '2');
+      assert.match(await aria('aria-valuetext'), /meta cumplida/);
+      assert.equal(await page.eval("document.querySelector('#apInfo .apmeta').className"), 'apmeta cumplida');
+      // A section without desc or goal, and Todo, show no band.
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="gym"]');
+      assert.equal(await page.visible('#apInfo'), false, 'no band without desc and goal');
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="todo"]');
+      assert.equal(await page.visible('#apInfo'), false, 'no band in Todo');
+      // A long description is cut to one line instead of overflowing.
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="lectura"]');
+      assert.equal(await page.eval("(function(){var d=document.querySelector('#apInfo .apinfo-desc');return d.scrollWidth>d.clientWidth&&getComputedStyle(d).textOverflow==='ellipsis';})()"), true, 'long desc truncated');
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true);
+    }
+  },
+  {
+    name: 'sections: editing the goal and description in Ajustes repaints the band live',
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'estudio', 'kibco.apartados': GOAL_SECTIONS, 'kibco.items': GOAL_ITEMS() },
+    async fn(page) {
+      assert.equal(await page.text('#apInfo .apmeta-txt'), '1/2 esta semana');
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      await page.type('#apDesc', 'Final de abril');
+      await page.click('#segMetaAp [data-meta="mes"]');
+      await page.type('#apMetaN', '6');
+      await page.click('#btnApGuardar');
+      assert.equal(await page.text('#apInfo .apinfo-desc'), 'Final de abril');
+      assert.match(await page.text('#apInfo .apmeta-txt'), /^\d+\/6 este mes$/);
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      await page.type('#apDesc', '');
+      await page.click('#segMetaAp [data-meta="no"]');
+      await page.click('#btnApGuardar');
+      assert.equal(await page.visible('#apInfo'), false, 'no desc and no goal: the band hides');
+    }
+  },
+  {
+    name: 'sections: Campaña in Todo lists every section goal with progress and met state; a section lists only its own',
+    width: 1366,
+    storage: { 'kibco.esquema': '5', 'kibco.contexto': 'todo', 'kibco.apartados': GOAL_SECTIONS, 'kibco.items': GOAL_ITEMS() },
+    async fn(page) {
+      await scheme(page, 'light');
+      await page.click('#tabRegistro');
+      await page.click('#btnModoCampana');
+      const rows = () => page.eval("Array.prototype.map.call(document.querySelectorAll('#secMetas [data-meta-ap]'),function(r){" +
+        "return r.getAttribute('data-meta-ap')+'|'+r.querySelector('.apmeta-nom').textContent+'|'+r.querySelector('.apmeta-txt').textContent+'|'+r.className+'|'+r.querySelector('[role=\"progressbar\"]').getAttribute('aria-valuenow');})");
+      assert.deepEqual(await rows(), [
+        'estudio|Estudio|1/2 esta semana|apmeta|1',
+        'lectura|Lectura|1/1 este mes · meta cumplida|apmeta cumplida|1'
+      ], 'sections without a goal are omitted');
+      assert.match(await page.text('#secMetas .sec-tit'), /Objetivos/);
+      assert.match(await page.text('#secMetas .sec-tit b'), /1\/2 cumplidos/);
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal scroll at 1366px');
+      await page.eval("document.getElementById('secMetas').scrollIntoView()");
+      await sleep(300);
+      await page.screenshot(path.join(OUT, 'section-goals-campaign-desktop-light.png'));
+      await page.click('#ctxLateral [data-ctx="estudio"]');
+      assert.deepEqual((await rows()).map((r) => r.split('|')[0]), ['estudio'], 'a section shows only its own goal');
+      await page.click('#ctxLateral [data-ctx="gym"]');
+      assert.equal(await page.count('#secMetas'), 0, 'no goal: no Objetivos section');
     }
   },
   {
