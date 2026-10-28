@@ -94,10 +94,11 @@ Full check at task closure: `npm run verify`.
   "Empezar de cero"); everything stays editable.
 - [x] **T08 Goals and description in the UI** — goal progress and description shown for the
   active section (selector/header and Campaña activity).
-- [ ] **T08b Notes ("Notas")** — added by the user 2026-10-26: a notes sub-annotation type that
+- [x] **T08b Notes ("Notas")** — added by the user 2026-10-26: a notes sub-annotation type that
   each section can enable (`notas: true`). Notes have title, body, section, tags, pinned,
   archived, created/updated; a Notas view filtered by the active section (and Todo), search,
   create/edit sheet, quick capture to notes, persisted in `kibco.notas`, included in backups.
+  Includes review follow-ups of `83a5e29..a3a96be` (R3-001..R3-003).
 - [ ] **T09 Release 2.2.0 + docs** — version bump, CHANGELOG, LEEME, ARQUITECTURA, TESTING,
   CLAUDE.md; screenshot sweep 390/1366 light/dark.
 
@@ -218,7 +219,29 @@ Full check at task closure: `npm run verify`.
   `tests/e2e/out/section-goals-campaign-desktop-light.png`. Gaps: bars use `--accent` (neutral gray
   in Todo), not each section's palette color; docs in T09.
   RDD T06b slice `83a5e29..64af61d`: medium, `under_budget` (263) — pending in slice.
+- RDD slice `83a5e29..a3a96be` (T06b+T08): medium, `slice_budget_reached` (507) → review-378e17d2b8462c78
+  **approved** (reliability), acknowledged/burned. Last reviewed boundary: `a3a96be`. Warnings → T08b part A.
+- T08b (delegated) — commits `3f7de7d` (part A, review follow-ups) and `add4a48` (notes). RED: part A 2/2 new e2e
+  failing (`#apError` showed `otro aviso` copied from `#aviso`; the 30 s reminder tick popped the template picker);
+  part B unit 7/7 failing (`C.normalizarNota is not a function`, `notas` undefined) and 13/13 new `notes` e2e failing
+  (`#segBtnNotas` not found, no `kibco.notas` in backups, no quarantine, no Nota chip). GREEN: es5 ok, 111 unit, 181 e2e.
+  Decisions: R3-001 `aplicarEdicionApartado` returns `''` or its reason (also read-only) and the editor shows it;
+  R3-002 automatic writes run inside `enAutomatico(fn)` (counter; wraps the 30 s tick: reminders + day rollover) and
+  `sinGuardar` skips them quietly while `necesitaPlantillas` (user actions still open the picker; boot was already
+  guarded by `arrancado`); R3-003 `cerrandoPlantillas` reset in `finally` (no test: no throwing path to force).
+  Notes: core `normalizarNota` (title ≤120, body ≤20000 keeps newlines, tags = slugs ≤10, archived section kept via
+  `contextoDeRegistro`), `usaNotas`, `notasVisibles` (Todo = sections with notes, archived toggle, every query word
+  accent/case-insensitive in title+body, pinned then `editada` desc), `parsearNota`. Capture syntax: a leading
+  `nota:` (case-insensitive) saves a note; `#section` still routes it (destination #tag > chip > view), nothing else is
+  parsed; the chip shows "Nota"; a section with notes off refuses and keeps the text; capture offers undo. Notas is a
+  third segment of Tareas (hidden and falls back to Tareas when the section has notes off; swipe skips it). Sheet
+  `#tapaNota` edits a draft (section, the section's tags, pin); archive saves the draft flipped; delete has undo, no
+  confirm. Notes do not log events nor give XP. Backups: `notas` included, absent → `[]`, non-array refused before
+  confirming, unknown `ctx` gets a generated section, all-or-nothing. Section delete moves notes; `registrosDe` counts
+  them. Turning notes off keeps them stored. Screenshots: `tests/e2e/out/notes-mobile-dark.png`,
+  `tests/e2e/out/notes-sheet-mobile-dark.png`, `tests/e2e/out/notes-desktop-light.png`. Gaps: notes are not in the
+  universal search (`#tapaBuscar`) nor in Ahora/Diario; docs in T09.
 
 ## Next step
 
-T08b, then T09.
+T09.
