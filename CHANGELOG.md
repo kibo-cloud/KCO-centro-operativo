@@ -3,6 +3,60 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.2.0 — 2026-10-28 — apartados propios y notas
+
+Cache `kibco-2.2.0`. Esquema de datos **5** (sube desde 4). Claves nuevas: `kibco.apartados`
+(el registro de apartados) y `kibco.notas`. Los datos de 2.1.0 migran solos y sin perder nada.
+
+**Para actualizar:** tocar "Nueva versión disponible · Actualizar". Al primer arranque con
+datos de 2.1.0 se crean los cinco apartados de siempre (Trabajo, Casa, Apps, Contenido,
+Personal) con los mismos ids, colores, etiquetas y modo de compras, y queda un evento
+`migracion` en el Registro. Todo queda editable. Un KCO anterior abre datos de esquema 5 en
+solo lectura y rechaza sus backups.
+
+### Agregado
+
+- **Apartados propios.** Los contextos fijos se reemplazan por apartados que define cada
+  persona: nombre, icono, color de una paleta curada de diez (contraste AA en claro y
+  oscuro), orden, descripcion, objetivo, alias de captura (`#alias`), modo de compras,
+  etiquetas propias y notas. "Todo" sigue siendo la vista de todos los apartados.
+- **Gestor de apartados** en Ajustes > Apartados: crear, editar, reordenar, archivar y
+  borrar. Borrar uno con registros pide a que apartado pasan (items, rutinas, misiones,
+  notas e historial). Siempre queda al menos un apartado activo.
+- **Plantillas del primer arranque.** Una instalacion nueva elige con que empezar: Vida
+  personal, Trabajo y casa, Creador de contenido, Estudiante o Empezar de cero. Hasta
+  elegir no se guarda nada; cerrar el selector empieza con un apartado General.
+- **Modo de compras por apartado.** No, Lista simple o Con seguimiento (cotizacion, orden
+  de compra y entrega, con pausa, alerta de +48 hs y catalogos). Pasar un apartado a No, o
+  mover una compra a uno asi, la convierte en tarea.
+- **Objetivo y descripcion.** Un objetivo medible (N completadas por semana o por mes) y
+  una descripcion por apartado: se ven en una franja arriba de cada vista y en Campaña >
+  Objetivos, con barra de progreso accesible.
+- **Notas.** Tercer segmento de Tareas: titulo, texto, etiquetas del apartado, fijadas y
+  archivadas, con busqueda. Se activan por apartado. Captura rapida con
+  `nota: texto #apartado`.
+
+### Cambiado
+
+- **Backups** con `apartados` y `notas`. Un backup de esquema 4 se importa con los
+  apartados de siempre; un id sin apartado declarado recibe uno generado; `apartados` o
+  `notas` inutilizables se rechazan antes de confirmar. Todo o nada.
+- **Identidad visual por apartado.** El cuerpo lleva `pal-<color>` y `data-ctx` en lugar de
+  `ctx-<id>`; selectores, barra lateral y graficos se arman desde el registro.
+- **Etiquetas, reporte y relevo** salen de cada apartado: no queda codigo atado a un id fijo
+  fuera de la siembra y la migracion.
+
+### Corregido
+
+- **Fallos al guardar con aviso propio.** Editar, reordenar o borrar un apartado, elegir una
+  plantilla, guardar una nota en su hoja o capturarla con `nota:` dicen que no se pudo y no
+  cambian nada (se vuelve atras todo lo tocado).
+- **Recordatorios antes de elegir apartados.** No se dispara una notificacion que se
+  repetiria en cada arranque; sale una sola vez despues de elegir la plantilla.
+- **Restaurar despues de Escape.** Cerrar con Escape la hoja de texto del backup y despues
+  restaurar desde archivo ya no deja la confirmacion cerrada sin restaurar.
+- **Comentarios de un item** vuelven a verse en su ficha (la vista Notas usaba el mismo id).
+
 ## 2.1.0 — 2026-10-26 — interfaz renovada y cero friccion
 
 Cache `kibco-2.1.0`. Esquema de datos sigue en **4**; los datos `kibco.` de 2.0.0 cargan sin

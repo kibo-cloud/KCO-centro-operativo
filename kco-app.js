@@ -3,7 +3,7 @@
   'use strict';
 
   var K = window.KCOCore;
-  var VERSION_APP = '2.1.0';
+  var VERSION_APP = '2.2.0';
   /* Esquema 5 (2.2.0): los contextos pasan a ser apartados del usuario
      (kibco.apartados). Subirlo sin motivo rompe la compatibilidad de backups. */
   var ESQUEMA = 5;
