@@ -284,6 +284,12 @@ Full check at task closure: `npm run verify`.
   (the picker/manager/editor ones are new). Verify: es5 ok, 112 unit, 188 e2e. Follow-ups: several UI labels still say
   "Contexto" (sidebar heading, item sheet, search placeholder); notes are not in the universal search; audit other
   same-tick `cerrarHoja` + `abrirHoja` pairs for the late-`popstate` race.
+- RDD slice `a3a96be..802a5f3` (T08b): medium, `slice_budget_reached` (1120) → review-2c657daf7346c0ab
+  **approved**, acknowledged/burned; warnings → T08c (R3-001 not applicable).
+- RDD slice `802a5f3..c079b9c` (T08c+T09): review-bd1100ed9a67a2ed **approved** (reliability),
+  acknowledged/burned. Last reviewed boundary: `c079b9c`. Suggestions (not scheduled): guard
+  `cerrarParaRelevo`/`soltarRelevo` around `procesarImportacion` with try/finally; harden the
+  duplicate-id regex in `html.test.js`; reminder spec should seed a past reminder and assert `#recuerdo`.
 
 ## Next step
 
