@@ -3738,6 +3738,21 @@ export const tests = [
     }
   },
   {
+    name: 'notes: item comments render in the item sheet, never in the Notas view',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'taller',
+      'kibco.items': JSON.stringify([{ id: 'i1', texto: 'torno', contexto: 'taller', tipo: 'tarea', estado: 'pendiente',
+        comentarios: [{ cuando: '2026-01-02T10:00:00.000Z', texto: 'pedir correa' }], creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openFirstItem(page);
+      await sleep(300);
+      assert.match(await page.text('#tapaItem'), /pedir correa/, 'the comment shows in the item sheet');
+      await page.key('Escape');
+      await page.click('#segBtnNotas');
+      assert.deepEqual(await noteRows(page), ['n2', 'n1']);
+      assert.doesNotMatch(await page.text('#vistaNotas'), /pedir correa|Sin comentarios/, 'no comment leaks into Notas');
+    }
+  },
+  {
     name: 'notes: a failed nota: capture says so and keeps the text in the bar',
     storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'taller' },
     async fn(page) {

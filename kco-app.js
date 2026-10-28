@@ -3126,7 +3126,7 @@
       $('itemSub').textContent = $('itemSub').textContent + ' \u00B7 en espera';
     }
 
-    var ln = $('listaNotas');
+    var ln = $('listaComentarios');
     while (ln.firstChild) { ln.removeChild(ln.firstChild); }
     var notas = notasDe(it);
     if (notas.length === 0) {
