@@ -171,6 +171,7 @@
       alias: normalizarAlias(a.alias),
       compras: MODOS_COMPRAS[a.compras] === 1 ? a.compras : 'lista',
       tags: normalizarTags(a.tags),
+      notas: a.notas !== false,
       activo: a.activo !== false
     };
   }
@@ -348,6 +349,89 @@
      captura, los selectores y las grillas usan normalizarContexto. */
   function contextoDeRegistro(id) {
     return infoContexto(id) ? id : normalizarContexto(id);
+  }
+
+  /* ---------- notas ----------
+     Una nota es texto libre de un apartado (no es un item: no tiene estado,
+     dia ni XP). Cada apartado decide si usa notas (campo notas, true por
+     defecto). Forma: {id, tit, txt, ctx, tags[], fijada, archivada, creada,
+     editada}. Titulo o cuerpo, al menos uno. */
+
+  var TOPE_TIT_NOTA = 120;
+  var TOPE_TXT_NOTA = 20000;
+
+  function esIso(x) { return typeof x === 'string' && x !== '' && !isNaN(new Date(x).getTime()); }
+
+  /* Una nota saneada o null. El cuerpo conserva los saltos de linea (solo se
+     recortan los bordes). Un apartado archivado se conserva (como cualquier
+     registro); uno desconocido cae en el primero activo. ahoraIso es opcional
+     (pruebas): la fecha si creada no se puede leer. */
+  function normalizarNota(n, ahoraIso) {
+    if (!n || typeof n !== 'object') { return null; }
+    var id = typeof n.id === 'string' ? n.id : '';
+    if (!/^[A-Za-z0-9_.-]{1,60}$/.test(id)) { return null; }
+    var tit = textoAcotado(n.tit, TOPE_TIT_NOTA);
+    var txt = typeof n.txt === 'string' ? n.txt.replace(/^\s+|\s+$/g, '').slice(0, TOPE_TXT_NOTA) : '';
+    if (tit === '' && txt === '') { return null; }
+    var tags = [], vistos = {}, i, t;
+    if (n.tags instanceof Array) {
+      for (i = 0; i < n.tags.length && tags.length < 10; i++) {
+        t = slug(n.tags[i]);
+        if (t === '' || vistos['#' + t]) { continue; }
+        vistos['#' + t] = true;
+        tags.push(t);
+      }
+    }
+    var creada = esIso(n.creada) ? n.creada : (esIso(ahoraIso) ? ahoraIso : new Date().toISOString());
+    return {
+      id: id, tit: tit, txt: txt, ctx: contextoDeRegistro(n.ctx), tags: tags,
+      fijada: n.fijada === true, archivada: n.archivada === true,
+      creada: creada, editada: esIso(n.editada) ? n.editada : creada
+    };
+  }
+
+  /* Si un apartado usa notas; en Todo, si alguno activo las usa. */
+  function usaNotas(ctx) {
+    var a, i;
+    if (ctx === 'todo') {
+      for (i = 0; i < CONTEXTOS.length; i++) { if (CONTEXTOS[i].notas) { return true; } }
+      return false;
+    }
+    a = infoContexto(ctx);
+    return !!a && a.notas;
+  }
+
+  /* Minusculas y sin acentos, para buscar. */
+  function plano(x) {
+    return (typeof x === 'string' ? x : '').toLowerCase().replace(/[^\x00-\x7F]/g, function (c) { return ACENTOS[c] || c; });
+  }
+
+  /* Las notas que se ven: o.ctx (un apartado, o 'todo' = los que usan notas,
+     tambien archivados), o.archivadas (true = solo archivadas; si no, solo
+     las otras) y o.q (cada palabra tiene que estar en el titulo o el cuerpo,
+     sin importar mayusculas ni acentos). Fijadas primero, despues la ultima
+     editada. Devuelve una lista nueva (no ordena la de entrada). */
+  function notasVisibles(lista, o) {
+    o = o || {};
+    var ctx = o.ctx || 'todo', arch = o.archivadas === true, r = [], palabras = [], i, j, n, a, h, ok;
+    var q = plano(o.q).split(/\s+/);
+    for (i = 0; i < q.length; i++) { if (q[i] !== '') { palabras.push(q[i]); } }
+    for (i = 0; i < (lista || []).length; i++) {
+      n = lista[i];
+      if (!n || n.archivada !== arch) { continue; }
+      a = infoContexto(n.ctx);
+      if (ctx === 'todo' ? (a && !a.notas) : (n.ctx !== ctx || !a || !a.notas)) { continue; }
+      h = plano(n.tit + '\n' + n.txt);
+      ok = true;
+      for (j = 0; j < palabras.length && ok; j++) { ok = h.indexOf(palabras[j]) >= 0; }
+      if (ok) { r.push(n); }
+    }
+    r.sort(function (x, y) {
+      if (x.fijada !== y.fijada) { return x.fijada ? -1 : 1; }
+      if (x.editada !== y.editada) { return x.editada < y.editada ? 1 : -1; }
+      return x.id < y.id ? -1 : (x.id > y.id ? 1 : 0);
+    });
+    return r;
   }
 
   function modoCompras(ctx) {
@@ -678,7 +762,12 @@
      mas un rotulo corto del dia (Hoy, Manana, Hoy 18:00). Asi lo que se
      ve al tipear es exactamente lo que queda guardado. */
   function resumenCaptura(entrada, ahora) {
+    var nota = parsearNota(entrada);
+    if (nota) {
+      return { texto: nota.texto, recordatorio: '', fecha: '', contexto: nota.contexto, nivel: '', dia: '', nota: true };
+    }
     var r = parsearCaptura(entrada || '', ahora), hoyK = claveDia(ahora), k = '', hora = '';
+    r.nota = false;
     if (r.recordatorio !== '') {
       var d = new Date(r.recordatorio);
       k = claveDia(d);
@@ -688,6 +777,22 @@
     else if (k === hoyK) { r.dia = 'Hoy' + hora; }
     else if (k === sumarDias(hoyK, 1)) { r.dia = 'Ma\u00F1ana' + hora; }
     else { r.dia = k + hora; }
+    return r;
+  }
+
+  /* Captura rapida de notas: el texto empieza con 'nota:' (sin importar
+     mayusculas). La #etiqueta de apartado se resuelve igual que en una tarea;
+     nada mas se interpreta (ni hora, ni dia, ni prioridad). null si no es nota. */
+  function parsearNota(entrada) {
+    var m = /^\s*nota:/i.exec(entrada || '');
+    if (!m) { return null; }
+    var texto = ' ' + entrada.slice(m[0].length) + ' ', r = { texto: '', contexto: '' };
+    var mc = etiquetaContexto(texto);
+    if (mc) {
+      r.contexto = aliasCtx['#' + slug(mc[1])];
+      texto = quitar(texto, mc);
+    }
+    r.texto = limpio(texto);
     return r;
   }
 
@@ -1492,6 +1597,10 @@
     priorizar: priorizar,
     parsearCaptura: parsearCaptura,
     resumenCaptura: resumenCaptura,
+    parsearNota: parsearNota,
+    normalizarNota: normalizarNota,
+    usaNotas: usaNotas,
+    notasVisibles: notasVisibles,
     quitarContextoCaptura: quitarContextoCaptura,
     nuevoId: nuevoId,
     dosDig: dosDig,

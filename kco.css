@@ -667,6 +667,7 @@ body.luz li.item{border-width:1px}
   border-radius:var(--r-pill);text-align:left;
 }
 .opciones .gbtn .punto{margin-right:var(--sp-2)}
+.opciones .gbtn .gbtn-ico{flex:0 0 auto;width:18px;height:18px;margin:0 var(--sp-1) 0 0}
 .bloque.sutil{width:auto;margin-top:var(--sp-1);padding:var(--sp-2) var(--sp-1);min-height:var(--tap);background:none;border:0;color:var(--text-muted);font-size:var(--fs-sm)}
 .gbtn.ancho{display:flex;align-items:center;width:100%;margin-top:var(--sp-2)}
 /* Campo + boton de agregar en una sola fila (checklist, comentarios). */
@@ -771,6 +772,29 @@ input[type=time],input[type=date]{font-variant-numeric:tabular-nums}
 .seg{display:flex;gap:0;margin-bottom:10px;border:1px solid var(--border-strong);border-radius:10px;overflow:hidden}
 .segbtn{flex:1;padding:10px 6px;min-height:42px;background:var(--surface);border:0;color:var(--text-muted);font-size:var(--fs-sm);font-weight:600;cursor:pointer}
 .segbtn.on{background:var(--accent-soft);color:var(--accent)}
+/* Notas (T08b): buscador + archivadas en una fila, tarjetas con titulo,
+   extracto, apartado (en Todo), etiquetas y fecha. */
+.notasbarra{display:flex;gap:var(--sp-2);align-items:stretch}
+.notasbarra input[type=search]{flex:1;min-width:0;padding:var(--sp-3);border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit;outline:none}
+.notasbarra .gbtn{flex:0 0 auto;display:inline-flex;align-items:center;min-height:var(--tap);padding:0 var(--sp-3)}
+.notaslista{list-style:none;margin:var(--sp-3) 0 0 0;padding:0}
+li.notacard{margin-bottom:var(--sp-2)}
+.nota-abrir{display:flex;flex-direction:column;gap:var(--sp-1);width:100%;min-height:var(--tap);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);color:var(--text);text-align:left;font-family:inherit;cursor:pointer}
+li.notacard.fijada .nota-abrir{border-color:var(--accent)}
+.nota-cab{display:flex;align-items:center;gap:var(--sp-2);min-width:0}
+.nota-pin{display:inline-flex;flex:0 0 auto;color:var(--accent)}
+.nota-pin .ico{width:16px;height:16px;margin:0}
+.nota-tit{flex:1;min-width:0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-snug);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nota-ext{color:var(--text-muted);font-size:var(--fs-sm);line-height:var(--lh-base);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nota-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);color:var(--text-muted);font-size:var(--fs-xs)}
+.nota-ap{display:inline-flex;align-items:center;gap:var(--sp-1)}
+.nota-ap .punto{margin:0}
+.nota-tag{padding:2px 7px;border:1px solid var(--border-strong);border-radius:var(--r-sm);color:var(--text-muted);white-space:nowrap}
+.nota-fecha{margin-left:auto;font-variant-numeric:tabular-nums}
+#notaTxt{min-height:140px}
+.notafijar{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:var(--tap);margin-top:var(--sp-3)}
+.notafijar .ico{width:18px;height:18px;margin:0}
+#cajaNotaExistente{margin-top:var(--sp-2)}
 .badge.ctx{border-color:transparent;padding:2px 2px}
 .badge.rut{border-color:transparent;padding:2px 2px}
 .badge.mot{color:var(--text-muted)}

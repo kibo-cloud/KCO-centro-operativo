@@ -69,9 +69,10 @@
     <div id="hoyCuerpo"></div>
   </div>
 
-  <div class="seg" id="segTareas" style="display:none" role="group" aria-label="Tareas o compras">
+  <div class="seg" id="segTareas" style="display:none" role="group" aria-label="Tareas, compras o notas">
     <button class="segbtn on" id="segBtnTareas" type="button" data-ico="tareas">Tareas</button>
     <button class="segbtn" id="segBtnCompras" type="button" data-ico="cart">Compras</button>
+    <button class="segbtn" id="segBtnNotas" type="button" data-ico="note">Notas</button>
   </div>
 
   <div id="vistaTablero" style="display:none">
@@ -95,6 +96,17 @@
     <div class="chips scroll-x" id="chipsCompra"></div>
     <ul id="listaCompras" class="lista"></ul>
     <div class="vacio" id="vacioCompras">Sin compras. Convertí una tarea en compra desde su ficha.</div>
+  </div>
+
+  <!-- Notas del apartado activo (Todo = los apartados con notas). kco-app pintarNotas. -->
+  <div id="vistaNotas" style="display:none">
+    <div class="notasbarra">
+      <input id="txtBuscaNotas" type="search" autocomplete="off" placeholder="Buscar en notas" aria-label="Buscar en notas">
+      <button class="gbtn" id="btnNotasArchivo" type="button" aria-pressed="false" data-ico="inbox">Archivadas</button>
+    </div>
+    <button class="bloque" id="btnNuevaNota" type="button" data-ico="plus">Nueva nota</button>
+    <ul id="listaNotas" class="notaslista" aria-label="Notas"></ul>
+    <div class="vacio" id="vacioNotas"></div>
   </div>
 
   <div id="vistaMisiones" style="display:none">
@@ -499,6 +511,12 @@
       <button class="gbtn" type="button" data-compras="fabrica">Con seguimiento</button>
     </div>
     <div class="pista" id="apComprasPista"></div>
+    <div class="rot" id="rotApNotas">Notas</div>
+    <div class="segctl" id="segNotasAp" role="group" aria-labelledby="rotApNotas">
+      <button class="gbtn" type="button" data-notas="si">Con notas</button>
+      <button class="gbtn" type="button" data-notas="no">Sin notas</button>
+    </div>
+    <div class="pista" id="apNotasPista"></div>
     <div class="rot" id="rotApTags">Etiquetas</div>
     <div class="aptags" id="apTags" role="list" aria-labelledby="rotApTags"></div>
     <div class="aplinea">
@@ -516,6 +534,29 @@
         <div class="opciones" id="apDestinos" role="group" aria-labelledby="rotApMover"></div>
       </div>
       <div class="pista" id="apUltimo"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Nota: titulo, texto, apartado, etiquetas del apartado y fijar. Archivar y
+     borrar (con deshacer) solo en una nota ya guardada. kco-app abrirNota. -->
+<div class="tapa" id="tapaNota">
+  <div class="hoja">
+    <h2 id="notaTitulo">Nota</h2>
+    <label class="rot" for="notaTit">T&iacute;tulo</label>
+    <input id="notaTit" type="text" autocomplete="off" autocapitalize="sentences" maxlength="120" placeholder="Opcional si hay texto">
+    <label class="rot" for="notaTxt">Texto</label>
+    <textarea id="notaTxt" rows="6" maxlength="20000" autocapitalize="sentences" placeholder="Lo que quieras anotar"></textarea>
+    <div class="rot" id="rotNotaCtx">Apartado</div>
+    <div class="opciones" id="notaCtxs" role="group" aria-labelledby="rotNotaCtx"></div>
+    <div class="rot" id="rotNotaTags">Etiquetas</div>
+    <div class="opciones" id="notaTags" role="group" aria-labelledby="rotNotaTags"></div>
+    <button class="gbtn notafijar" id="btnNotaFijar" type="button" aria-pressed="false" data-ico="pin">Fijar arriba</button>
+    <div class="pista aperror" id="notaError" role="alert"></div>
+    <button class="bloque pri" id="btnNotaGuardar" type="button">Guardar nota</button>
+    <div id="cajaNotaExistente">
+      <button class="bloque" id="btnNotaArchivar" type="button">Archivar</button>
+      <button class="bloque peli" id="btnNotaBorrar" type="button">Borrar nota</button>
     </div>
   </div>
 </div>

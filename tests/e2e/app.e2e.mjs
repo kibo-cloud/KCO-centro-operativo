@@ -95,6 +95,25 @@ const GOAL_ITEMS = () => {
   ]);
 };
 
+// Notes (T08b): taller and estudio use notes (estudio by default), mercado has them off.
+const NOTE_SECTIONS = JSON.stringify([
+  { id: 'taller', nom: 'Taller', ico: 'settings', color: 'naranja', orden: 0, compras: 'fabrica', notas: true,
+    tags: [{ id: 'tornos', nom: 'Tornos' }, { id: 'pedidos', nom: 'Pedidos' }] },
+  { id: 'mercado', nom: 'Mercado', ico: 'cart', color: 'verde', orden: 1, notas: false },
+  { id: 'estudio', nom: 'Estudio', ico: 'book', color: 'azul', orden: 2, compras: 'no' }
+]);
+function NOTE_LIST() {
+  const at = (d) => new Date(2026, 9, d, 12).toISOString();
+  return JSON.stringify([
+    { id: 'n1', tit: 'Ideas sueltas', txt: 'cambiar la correa', ctx: 'taller', creada: at(1), editada: at(5) },
+    { id: 'n2', tit: 'Pedido de rodamientos', txt: 'Llamar a Juan por el precio', ctx: 'taller', tags: ['pedidos'], fijada: true, creada: at(1), editada: at(2) },
+    { id: 'n3', tit: 'Reunión de cátedra', txt: 'llevar apuntes', ctx: 'estudio', creada: at(1), editada: at(3) },
+    { id: 'n4', tit: 'Yerba', txt: 'precio', ctx: 'mercado', creada: at(1), editada: at(9) },
+    { id: 'n5', tit: 'Vieja', txt: 'archivada', ctx: 'taller', archivada: true, creada: at(1), editada: at(8) }
+  ]);
+}
+const noteRows = (page) => page.eval("Array.prototype.map.call(document.querySelectorAll('#listaNotas [data-nota]'),function(r){return r.getAttribute('data-nota');})");
+
 const CORRUPT_PROGRESO_SEED = (() => {
   const list = [];
   for (let i = 0; i < 8; i++) list.push({ id: 'x' + i, texto: 'vieja ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
@@ -3439,6 +3458,277 @@ export const tests = [
       await capture(page, 'revisar bomba hidraulica');
       await capture(page, 'comprar guantes');
       await page.screenshot(path.join(OUT, 'mobile.png'));
+    }
+  },
+  {
+    name: 'notes: the Notas segment lists the active section notes (Todo = sections with notes), pinned first, archived on demand',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'todo' },
+    async fn(page) {
+      await page.click('#tabTareas');
+      assert.ok(await page.visible('#segBtnNotas'), 'Todo offers Notas (some section uses notes)');
+      await page.click('#segBtnNotas');
+      assert.ok(await page.visible('#vistaNotas'));
+      assert.equal(await page.text('#tituloVista'), 'Notas');
+      assert.deepEqual(await noteRows(page), ['n2', 'n1', 'n3'], 'pinned first, then last edited; mercado (notes off) and archived left out');
+      const card = await page.eval(`(function(){var c=document.querySelector('#listaNotas [data-nota="n2"]');
+        return {tit:c.querySelector('.nota-tit').textContent,ext:c.querySelector('.nota-ext').textContent,
+          tags:Array.prototype.map.call(c.querySelectorAll('.nota-tag'),function(t){return t.textContent;}),pin:!!c.querySelector('.nota-pin'),
+          label:c.querySelector('button').getAttribute('aria-label')};})()`);
+      assert.equal(card.tit, 'Pedido de rodamientos');
+      assert.match(card.ext, /^Llamar a Juan/);
+      assert.deepEqual(card.tags, ['Pedidos']);
+      assert.ok(card.pin, 'pin indicator');
+      assert.match(card.label, /fijada/i);
+      await page.click('#btnNotasArchivo');
+      assert.equal(await page.eval("document.getElementById('btnNotasArchivo').getAttribute('aria-pressed')"), 'true');
+      assert.deepEqual(await noteRows(page), ['n5']);
+      await page.click('#btnNotasArchivo');
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="taller"]');
+      assert.deepEqual(await noteRows(page), ['n2', 'n1'], 'a section shows only its own');
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="mercado"]');
+      assert.equal(await page.visible('#segBtnNotas'), false, 'hidden for a section with notes off');
+      assert.equal(await page.visible('#vistaNotas'), false, 'falls back to Tareas');
+      assert.ok(await page.visible('#vistaTablero'));
+    }
+  },
+  {
+    name: 'notes: create, edit and pin a note from its sheet; it persists in kibco.notas',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'taller' },
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      await emptyState(page, '#vacioNotas');
+      await page.click('#btnNuevaNota');
+      assert.ok(await isOpen(page, 'tapaNota'));
+      await page.click('#btnNotaGuardar');
+      assert.match(await page.text('#notaError'), /Título o texto/i, 'an empty note is refused');
+      await page.type('#notaTit', 'Medidas del torno');
+      await page.type('#notaTxt', 'Bancada 1,5 m\nVolteo 400 mm');
+      assert.deepEqual(await page.eval("Array.prototype.map.call(document.querySelectorAll('#notaTags [data-tag]'),function(b){return b.getAttribute('data-tag');})"), ['tornos', 'pedidos'], 'tags come from the section');
+      await page.click('#notaTags [data-tag="tornos"]');
+      await page.click('#btnNotaFijar');
+      assert.equal(await page.eval("document.getElementById('btnNotaFijar').getAttribute('aria-pressed')"), 'true');
+      await page.click('#btnNotaGuardar');
+      assert.equal(await isOpen(page, 'tapaNota'), false, 'the sheet closes');
+      let stored = JSON.parse(await page.storage('kibco.notas'));
+      assert.equal(stored.length, 1);
+      assert.deepEqual([stored[0].tit, stored[0].txt, stored[0].ctx, stored[0].tags, stored[0].fijada, stored[0].archivada],
+        ['Medidas del torno', 'Bancada 1,5 m\nVolteo 400 mm', 'taller', ['tornos'], true, false]);
+      await page.reload();
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      assert.equal(await noteRows(page).then((r) => r.length), 1, 'survives reload');
+      await page.click('#listaNotas li button');
+      assert.equal(await page.eval("document.getElementById('notaTit').value"), 'Medidas del torno', 'the sheet loads the note');
+      await page.type('#notaTit', 'Medidas torno grande');
+      await page.click('#notaCtxs [data-ctx="estudio"]');
+      await page.click('#btnNotaGuardar');
+      stored = JSON.parse(await page.storage('kibco.notas'));
+      assert.equal(stored[0].tit, 'Medidas torno grande');
+      assert.equal(stored[0].ctx, 'estudio', 'moved to another section');
+      assert.deepEqual(stored[0].tags, [], 'tags the new section does not have are dropped');
+      assert.ok(stored[0].editada >= stored[0].creada);
+      assert.deepEqual(await noteRows(page), [], 'no longer in Taller');
+    }
+  },
+  {
+    name: 'notes: archive from the sheet, unarchive from the archived list, delete with undo',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'taller' },
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      await page.click('#listaNotas [data-nota="n1"] button');
+      await page.click('#btnNotaArchivar');
+      assert.equal(await isOpen(page, 'tapaNota'), false);
+      assert.equal(JSON.parse(await page.storage('kibco.notas')).find((n) => n.id === 'n1').archivada, true);
+      assert.deepEqual(await noteRows(page), ['n2']);
+      await page.click('#btnNotasArchivo');
+      await page.click('#listaNotas [data-nota="n1"] button');
+      assert.equal(await page.text('#btnNotaArchivar'), 'Desarchivar');
+      await page.click('#btnNotaArchivar');
+      await page.click('#btnNotasArchivo');
+      assert.deepEqual(await noteRows(page), ['n2', 'n1']);
+      await page.click('#listaNotas [data-nota="n2"] button');
+      await page.click('#btnNotaBorrar');
+      assert.equal(await isOpen(page, 'tapaNota'), false);
+      assert.equal(JSON.parse(await page.storage('kibco.notas')).some((n) => n.id === 'n2'), false, 'deleted');
+      assert.match(await page.text('#qpaso'), /Pedido de rodamientos/);
+      await page.click('#btnDeshacer');
+      assert.equal(JSON.parse(await page.storage('kibco.notas')).some((n) => n.id === 'n2'), true, 'undo brings it back');
+      assert.deepEqual(await noteRows(page), ['n2', 'n1']);
+    }
+  },
+  {
+    name: 'notes: search matches title and body ignoring accents and case',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'todo' },
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      await page.type('#txtBuscaNotas', 'REUNIÓN');
+      assert.deepEqual(await noteRows(page), ['n3']);
+      await page.type('#txtBuscaNotas', 'juan');
+      assert.deepEqual(await noteRows(page), ['n2'], 'matches the body');
+      await page.type('#txtBuscaNotas', 'zzz');
+      assert.deepEqual(await noteRows(page), []);
+      assert.match(await page.text('#vacioNotas'), /zzz/);
+      await page.type('#txtBuscaNotas', '');
+      assert.deepEqual(await noteRows(page), ['n2', 'n1', 'n3']);
+    }
+  },
+  {
+    name: 'notes: nota: in the capture bar saves a note in the tagged section, with a Nota chip',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'taller' },
+    async fn(page) {
+      await page.type('#txtCaptura', 'nota: idea para el parcial #estudio 18:00');
+      assert.equal(await page.text('#capDia'), 'Nota', 'the chip says it is a note');
+      assert.match(await page.text('#capCtx'), /Estudio/);
+      await page.type('#txtCaptura', 'nota: idea para el parcial #estudio 18:00', true);
+      const stored = JSON.parse(await page.storage('kibco.notas'));
+      assert.deepEqual([stored.length, stored[0].tit, stored[0].ctx], [1, 'idea para el parcial 18:00', 'estudio']);
+      assert.equal(await page.storage('kibco.items'), null, 'no item');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), '', 'the bar clears');
+      // A section with notes off refuses and keeps the text.
+      await page.type('#txtCaptura', 'nota: precio yerba #mercado', true);
+      assert.match(await page.text('#aviso'), /Mercado no usa notas/);
+      assert.equal(JSON.parse(await page.storage('kibco.notas')).length, 1);
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'nota: precio yerba #mercado');
+    }
+  },
+  {
+    name: 'notes: the section editor toggles notes; off hides the Notas segment',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'estudio' },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      assert.match(await page.eval("document.querySelector('#segNotasAp [data-notas=\"si\"]').className"), /\bon\b/, 'on by default');
+      await page.click('#segNotasAp [data-notas="no"]');
+      await page.click('#btnApGuardar');
+      assert.equal(JSON.parse(await page.storage('kibco.apartados')).find((a) => a.id === 'estudio').notas, false);
+      await page.key('Escape');
+      await page.click('#tabTareas');
+      assert.equal(await page.visible('#segBtnNotas'), false);
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      assert.match(await page.eval("document.querySelector('#segNotasAp [data-notas=\"no\"]').className"), /\bon\b/);
+    }
+  },
+  {
+    name: 'notes: deleting a section moves its notes to the chosen section',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST() },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="taller"] .apfila-abrir');
+      await page.click('#btnApBorrar');
+      assert.match(await page.text('#apMoverPista'), /3 notas/, 'notes count as records');
+      await page.click('#apDestinos [data-ctx="estudio"]');
+      await page.click('#btnConfSi');
+      await sleep(150);
+      const stored = JSON.parse(await page.storage('kibco.notas'));
+      assert.deepEqual(stored.filter((n) => n.ctx === 'estudio').map((n) => n.id).sort(), ['n1', 'n2', 'n3', 'n5']);
+      assert.equal(stored.some((n) => n.ctx === 'taller'), false);
+    }
+  },
+  {
+    name: 'notes backup: export carries notes; restore brings them; without notas imports []; a bad notas field is refused',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST() },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#btnBackupTexto');
+      const data = JSON.parse(await page.eval("document.getElementById('txtSalida').value"));
+      assert.equal(data.notas.length, 5);
+      await page.reload();
+      const file = path.join(os.tmpdir(), 'kco-e2e-notas.json');
+      const base = { app: 'kco', schema: 5, apartados: JSON.parse(NOTE_SECTIONS), items: [] };
+      fs.writeFileSync(file, JSON.stringify({ ...base, notas: [{ id: 'b1', tit: 'Del backup', ctx: 'otro' }, { id: 'malo' }] }));
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      let stored = JSON.parse(await page.storage('kibco.notas'));
+      assert.deepEqual(stored.map((n) => [n.id, n.ctx]), [['b1', 'otro']], 'normalized; an unknown section gets a generated one');
+      assert.ok(await page.eval("!!KCOCore.infoContexto('otro')"));
+      fs.writeFileSync(file, JSON.stringify(base));
+      await page.reload();
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      assert.equal(await page.storage('kibco.notas'), '[]', 'a backup without notas restores none');
+      const before = await page.storage('kibco.apartados');
+      fs.writeFileSync(file, JSON.stringify({ ...base, notas: 'roto' }));
+      await page.reload();
+      await page.setFile('#archivoImport', file);
+      assert.match(await page.text('#aviso'), /notas/);
+      assert.equal(await isOpen(page, 'tapaConfirmar'), false, 'refused before confirming');
+      assert.equal(await page.storage('kibco.apartados'), before);
+    }
+  },
+  {
+    name: 'notes backup: a failed notes write rolls the whole restore back',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(),
+      'kibco.items': JSON.stringify([{ id: 'v1', texto: 'viejo', contexto: 'taller', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      const before = { notas: await page.storage('kibco.notas'), items: await page.storage('kibco.items') };
+      const file = path.join(os.tmpdir(), 'kco-e2e-notas-falla.json');
+      fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 5, apartados: JSON.parse(NOTE_SECTIONS), items: [], notas: [{ id: 'b1', tit: 'x', ctx: 'taller' }] }));
+      await failWrites(page, ['kibco.notas']);
+      await page.setFile('#archivoImport', file);
+      await page.click('#btnConfSi');
+      assert.match(await page.text('#aviso'), /No se pudo restaurar/);
+      assert.deepEqual({ notas: await page.storage('kibco.notas'), items: await page.storage('kibco.items') }, before);
+    }
+  },
+  {
+    name: 'notes: unreadable kibco.notas is quarantined and nothing is written over it',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': '{roto' },
+    async fn(page) {
+      assert.match(await page.text('#aviso'), /kibco\.notas/);
+      assert.ok(await page.eval("Object.keys(localStorage).some(function(k){return k.indexOf('kibco.notas.roto.')===0;})"), 'quarantined copy');
+      assert.equal(await page.storage('kibco.notas'), '{roto');
+    }
+  },
+  {
+    name: 'notes: a failed note write keeps the sheet open, says so and changes nothing',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'taller' },
+    async fn(page) {
+      const before = await page.storage('kibco.notas');
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      await page.click('#btnNuevaNota');
+      await page.type('#notaTit', 'no entra');
+      await failWrites(page, ['kibco.notas']);
+      await page.click('#btnNotaGuardar');
+      assert.ok(await isOpen(page, 'tapaNota'));
+      assert.match(await page.text('#notaError'), /No se pudo guardar la nota/);
+      assert.equal(await page.storage('kibco.notas'), before);
+      assert.deepEqual(await noteRows(page), ['n2', 'n1'], 'memory unchanged');
+    }
+  },
+  {
+    name: 'notes ui: the Notas view and sheet fit 390px (dark) without horizontal overflow',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'todo' },
+    async fn(page) {
+      await scheme(page, 'dark');
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal scroll at 390px');
+      assert.equal(await page.eval("Array.prototype.every.call(document.querySelectorAll('#listaNotas li'),function(l){return l.getBoundingClientRect().right<=window.innerWidth;})"), true);
+      await page.screenshot(path.join(OUT, 'notes-mobile-dark.png'));
+      await page.click('#listaNotas [data-nota="n2"] button');
+      await sleep(450);
+      assert.equal(await page.eval("document.querySelector('#tapaNota .hoja').scrollWidth <= document.querySelector('#tapaNota .hoja').clientWidth"), true, 'sheet fits');
+      await page.screenshot(path.join(OUT, 'notes-sheet-mobile-dark.png'));
+    }
+  },
+  {
+    name: 'notes ui: the Notas view fits 1366px (light)',
+    width: 1366,
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'todo' },
+    async fn(page) {
+      await scheme(page, 'light');
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal scroll at 1366px');
+      assert.deepEqual(await noteRows(page), ['n2', 'n1', 'n3']);
+      await page.screenshot(path.join(OUT, 'notes-desktop-light.png'));
     }
   }
 ];

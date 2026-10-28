@@ -37,6 +37,10 @@
   var rutinas = [];
   var K_PROYECTOS = 'kibco.proyectos';
   var proyectos = [];
+  /* Notas de los apartados (T08b, KCOCore.normalizarNota). Clave nueva del
+     esquema 5: se lee con fallback [] (sin migracion). */
+  var K_NOTAS = 'kibco.notas';
+  var notasAp = [];
   /* Memoria del progreso: que nivel ya se celebro y que logros se desbloquearon.
      El XP en si no se guarda: se recalcula siempre desde los datos. */
   var K_PROGRESO = 'kibco.progreso';
@@ -491,7 +495,7 @@
 
   /* Hay datos de antes si alguna lista guardada tiene algo (aunque este rota). */
   function hayDatos() {
-    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS], i, v;
+    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_NOTAS], i, v;
     for (i = 0; i < claves.length; i++) {
       v = leer(claves[i]);
       if (v !== null && v !== '' && v !== '[]') { return true; }
@@ -618,6 +622,7 @@
   }
 
   function guardarItems() { return sinGuardar() ? false : escribir(K_ITEMS, JSON.stringify(items)); }
+  function guardarNotas() { return sinGuardar() ? false : escribir(K_NOTAS, JSON.stringify(notasAp)); }
 
   function corteEventos() {
     var d = new Date();
@@ -759,6 +764,9 @@
     /* Sin plantilla elegida no se guarda nada: se pide elegir primero y lo
        tipeado queda en la barra para guardarlo despues. */
     if (necesitaPlantillas) { pedirPlantillas(); return; }
+    /* 'nota: ...' guarda una nota del apartado, no un item. */
+    var pn = K.parsearNota(crudo);
+    if (pn) { capturarNota(pn); return; }
     var p = K.parsearCaptura(crudo, new Date());
     var it = itemNuevo(p.texto, destinoCaptura(p), {
       recordatorio: p.recordatorio, fecha: p.fecha, nivel: p.nivel || 'normal'
@@ -1064,7 +1072,7 @@
     b.appendChild(nodo('span', 'capchip-nom', nomCtx(ctx)));
     b.appendChild(svgIco('chevron-down', 'capchip-chev'));
     b.setAttribute('aria-label', 'Guardar en ' + nomCtx(ctx) + '. Cambiar');
-    chipDato($('capDia'), r.dia, r.recordatorio !== '' ? 'clock' : 'calendar');
+    chipDato($('capDia'), r.nota ? 'Nota' : r.dia, r.nota ? 'note' : (r.recordatorio !== '' ? 'clock' : 'calendar'));
     chipDato($('capNivel'), r.nivel ? K.infoNivel(r.nivel).nom : '', 'flag');
     $('capNivel').className = r.nivel === 'urgente' ? 'capchip rojo' : 'capchip';
     ajustarAltoCaptura();
@@ -2391,9 +2399,9 @@
     return r;
   }
 
-  var ORDEN_VISTAS = ['ahora', 'hoy', 'tablero', 'compras', 'misiones', 'registro'];
-  var VISTA_DOM = { ahora: 'vistaAhora', hoy: 'vistaHoy', tablero: 'vistaTablero', compras: 'vistaCompras', misiones: 'vistaMisiones', registro: 'vistaRegistro' };
-  var VISTA_TAB = { ahora: 'tabAhora', hoy: 'tabHoy', tablero: 'tabTareas', compras: 'tabTareas', misiones: 'tabMisiones', registro: 'tabRegistro' };
+  var ORDEN_VISTAS = ['ahora', 'hoy', 'tablero', 'compras', 'notas', 'misiones', 'registro'];
+  var VISTA_DOM = { ahora: 'vistaAhora', hoy: 'vistaHoy', tablero: 'vistaTablero', compras: 'vistaCompras', notas: 'vistaNotas', misiones: 'vistaMisiones', registro: 'vistaRegistro' };
+  var VISTA_TAB = { ahora: 'tabAhora', hoy: 'tabHoy', tablero: 'tabTareas', compras: 'tabTareas', notas: 'tabTareas', misiones: 'tabMisiones', registro: 'tabRegistro' };
 
   /* Barra lateral de escritorio: las cinco vistas (Tareas cubre Compras). */
   var NAV_VISTAS = [
@@ -2403,7 +2411,7 @@
     { v: 'misiones', nom: 'Misiones', ico: 'target' },
     { v: 'registro', nom: 'Diario', ico: 'book' }
   ];
-  var TITULO_VISTA = { ahora: 'Ahora', hoy: 'Hoy', tablero: 'Tareas', compras: 'Compras', misiones: 'Misiones', registro: 'Diario' };
+  var TITULO_VISTA = { ahora: 'Ahora', hoy: 'Hoy', tablero: 'Tareas', compras: 'Compras', notas: 'Notas', misiones: 'Misiones', registro: 'Diario' };
 
   /* Cuentas baratas (una pasada): atencion en Ahora, lo de hoy, lo abierto y
      las misiones activas del contexto. El Diario no lleva cuenta. */
@@ -2430,7 +2438,7 @@
           x.appendChild(svgIco(d.ico));
           x.appendChild(nodo('span', 'lat-item-nom', d.nom));
           x.appendChild(nodo('span', 'lat-item-n' + (d.v === 'ahora' ? ' rojo' : ''), ''));
-          x.onclick = function () { irAVista(d.v === 'tablero' && vista === 'compras' ? 'compras' : d.v); };
+          x.onclick = function () { irAVista(d.v === 'tablero' && (vista === 'compras' || vista === 'notas') ? vista : d.v); };
           nav.appendChild(x);
         })(NAV_VISTAS[i]);
       }
@@ -2481,9 +2489,10 @@
   }
 
   function pintar() {
-    var v, conCompras = usaCompras(contexto);
-    /* Un apartado sin compras no tiene la vista Compras: vuelve a Tareas. */
+    var v, conCompras = usaCompras(contexto), conNotas = K.usaNotas(contexto);
+    /* Un apartado sin compras (o sin notas) no tiene esa vista: vuelve a Tareas. */
     if (vista === 'compras' && !conCompras) { vista = 'tablero'; }
+    if (vista === 'notas' && !conNotas) { vista = 'tablero'; }
     for (v in VISTA_DOM) {
       if (VISTA_DOM.hasOwnProperty(v)) { $(VISTA_DOM[v]).style.display = vista === v ? 'block' : 'none'; }
     }
@@ -2498,14 +2507,17 @@
     pintarSelectorContexto();
     pintarInfoApartado();
     pintarNavLateral();
-    $('segTareas').style.display = vista === 'tablero' || vista === 'compras' ? 'flex' : 'none';
+    $('segTareas').style.display = vista === 'tablero' || vista === 'compras' || vista === 'notas' ? 'flex' : 'none';
     $('segBtnTareas').className = vista === 'tablero' ? 'segbtn on' : 'segbtn';
     $('segBtnCompras').className = vista === 'compras' ? 'segbtn on' : 'segbtn';
     $('segBtnCompras').style.display = conCompras ? '' : 'none';
+    $('segBtnNotas').className = vista === 'notas' ? 'segbtn on' : 'segbtn';
+    $('segBtnNotas').style.display = conNotas ? '' : 'none';
     if (vista === 'ahora') { pintarAhora(); }
     else if (vista === 'hoy') { pintarHoy(); }
     else if (vista === 'tablero') { pintarTablero(); }
     else if (vista === 'compras') { pintarCompras(); }
+    else if (vista === 'notas') { pintarNotas(); }
     else if (vista === 'misiones') { pintarMisiones(); }
     else { pintarRegistro(); }
     actualizarAvisoBackup();
@@ -2934,7 +2946,9 @@
 
   function swipeVistas(sentido) {
     var i = posVista(vista);
-    var destino = sentido === 'izq' ? i + 1 : i - 1;
+    var paso = sentido === 'izq' ? 1 : -1, destino = i + paso;
+    /* Se saltean las vistas que el apartado no tiene (Compras, Notas). */
+    while ((ORDEN_VISTAS[destino] === 'compras' && !usaCompras(contexto)) || (ORDEN_VISTAS[destino] === 'notas' && !K.usaNotas(contexto))) { destino += paso; }
     if (destino < 0 || destino >= ORDEN_VISTAS.length) { return; }
     irAVista(ORDEN_VISTAS[destino]);
   }
@@ -3852,7 +3866,8 @@
       app: 'kco', schema: ESQUEMA, version: VERSION_APP,
       exportado: new Date().toISOString(), contexto: contexto,
       apartados: K.todosApartados(),
-      items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos, progreso: memProgreso
+      items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos, progreso: memProgreso,
+      notas: notasAp
     });
   }
 
@@ -3893,7 +3908,7 @@
      (nombre = id, color gris) por cada otro contexto que usen sus registros:
      ninguno se reasigna. */
   function apartadosDeBackup(datos) {
-    var l, extra = [], vistos = {}, listas, activo = false, i, j, x, a;
+    var l, extra = [], vistos = {}, listas, activo = false, i, j, x, a, c;
     if (datos.apartados !== undefined) {
       l = K.normalizarApartados(datos.apartados);
       for (i = 0; i < l.length; i++) { if (l[i].activo) { activo = true; } }
@@ -3902,14 +3917,16 @@
       l = K.apartadosLegado();
     }
     for (i = 0; i < l.length; i++) { vistos['#' + l[i].id] = true; }
-    listas = [datos.items, datos.rutinas, datos.proyectos, datos.eventos];
+    /* Las notas nombran su apartado en ctx; el resto de los registros, en contexto. */
+    listas = [datos.items, datos.rutinas, datos.proyectos, datos.eventos, datos.notas];
     for (j = 0; j < listas.length; j++) {
       if (!esArray(listas[j])) { continue; }
       for (i = 0; i < listas[j].length; i++) {
         x = listas[j][i];
-        if (!x || typeof x !== 'object' || typeof x.contexto !== 'string' || vistos['#' + x.contexto]) { continue; }
-        a = K.normalizarApartado({ id: x.contexto, nom: x.contexto, color: 'gris', orden: l.length + extra.length });
-        if (!a || a.id !== x.contexto) { continue; }
+        c = x && typeof x === 'object' ? (j === 4 ? x.ctx : x.contexto) : null;
+        if (typeof c !== 'string' || vistos['#' + c]) { continue; }
+        a = K.normalizarApartado({ id: c, nom: c, color: 'gris', orden: l.length + extra.length });
+        if (!a || a.id !== c) { continue; }
         vistos['#' + a.id] = true;
         extra.push(a);
       }
@@ -3922,7 +3939,7 @@
      (en memoria y en el almacenamiento) y se avisa que no cambio nada. */
   function aplicarBackup(datos) {
     if (esquemaFuturo) { avisar(AVISO_ESQUEMA_FUTURO); return false; }
-    var nuevosItems = [], nuevosEventos = [], nuevasRutinas = [], nuevosProyectos = [];
+    var nuevosItems = [], nuevosEventos = [], nuevasRutinas = [], nuevosProyectos = [], nuevasNotas = [];
     var nuevoProgreso, conProgreso, i, n;
     /* El registro del backup se fija antes de normalizar: asi cada item,
        rutina, mision y evento conserva su apartado. Si algo falla, vuelve el
@@ -3954,6 +3971,13 @@
           if (n) { nuevosProyectos.push(n); }
         }
       }
+      /* Sin notas (backup anterior a T08b) se restauran ninguna. */
+      if (esArray(datos.notas)) {
+        for (i = 0; i < datos.notas.length; i++) {
+          n = K.normalizarNota(datos.notas[i]);
+          if (n) { nuevasNotas.push(n); }
+        }
+      }
       conProgreso = esObjeto(datos.progreso);
       nuevoProgreso = normalizarProgreso(conProgreso ? datos.progreso : null);
     } catch (e) {
@@ -3964,15 +3988,16 @@
     /* Un progreso roto que no se pudo copiar se copia ahora; si tampoco se
        puede, la escritura del progreso falla y el restore se deshace entero. */
     if (progresoSinCopia && ponerEnCuarentena(K_PROGRESO, leer(K_PROGRESO))) { progresoSinCopia = false; }
-    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA, K_APARTADOS];
+    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA, K_APARTADOS, K_NOTAS];
     var crudos = [], j;
     for (j = 0; j < claves.length; j++) { crudos.push(leer(claves[j])); }
-    var antes = { items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos,
+    var antes = { items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos, notas: notasAp,
       progreso: memProgreso, soloLectura: soloLectura, plantillas: necesitaPlantillas };
     items = nuevosItems;
     eventos = nuevosEventos;
     rutinas = nuevasRutinas;
     proyectos = nuevosProyectos;
+    notasAp = nuevasNotas;
     memProgreso = nuevoProgreso;
     soloLectura = false;
     necesitaPlantillas = false;
@@ -3982,7 +4007,7 @@
       memProgreso.nivelVisto = K.nivelPorXP(xpTotal()).nivel;
       revisarLogros(true);
     }
-    var ok = guardarItems() && guardarEventos() && guardarRutinas() && guardarProyectos() &&
+    var ok = guardarItems() && guardarEventos() && guardarRutinas() && guardarProyectos() && guardarNotas() &&
       guardarProgreso() && guardarApartados() && escribir(K_ESQUEMA, '' + ESQUEMA);
     if (!ok) {
       for (j = 0; j < claves.length; j++) {
@@ -3992,6 +4017,7 @@
       eventos = antes.eventos;
       rutinas = antes.rutinas;
       proyectos = antes.proyectos;
+      notasAp = antes.notas;
       memProgreso = antes.progreso;
       soloLectura = antes.soloLectura;
       necesitaPlantillas = antes.plantillas;
@@ -4037,12 +4063,14 @@
       return;
     }
     if (!esArray(datos.items)) { avisar('El backup no trae la lista de items.'); return; }
+    if (datos.notas !== undefined && !esArray(datos.notas)) { avisar('El backup trae notas que no se pueden leer. No se cambio nada.'); return; }
     if (!apartadosDeBackup(datos)) { avisar(AVISO_APARTADOS_INVALIDOS); return; }
     pedirConfirmacion('Restaurar backup',
       'Trae ' + datos.items.length + ' items y ' + (esArray(datos.eventos) ? datos.eventos.length : 0) +
       ' movimientos' + (esArray(datos.rutinas) ? ', ' + datos.rutinas.length + ' rutinas' : '') +
       (esArray(datos.proyectos) ? ', ' + datos.proyectos.length + ' misiones' : '') +
       (esArray(datos.apartados) ? ', ' + datos.apartados.length + ' apartados' : '') +
+      (esArray(datos.notas) ? ', ' + datos.notas.length + ' notas' : '') +
       ', exportado el ' + (datos.exportado ? horaCorta(datos.exportado) : 'sin fecha') +
       '. Esto REEMPLAZA los ' + items.length + ' items que tenes ahora. No se puede deshacer.',
       function () { aplicarBackup(datos); });
@@ -4259,7 +4287,7 @@
   function abrirEditorApartado(id) {
     var a = id ? K.infoContexto(id) : null;
     borradorAp = a ? copiaApartado(a) : { id: '', nom: '', ico: 'layers', color: colorLibre(), orden: K.todosApartados().length,
-      desc: '', meta: null, alias: [], compras: 'lista', tags: [], activo: true };
+      desc: '', meta: null, alias: [], compras: 'lista', tags: [], notas: true, activo: true };
     $('apTitulo').textContent = a ? 'Editar apartado' : 'Nuevo apartado';
     $('apNom').value = borradorAp.nom;
     $('apDesc').value = borradorAp.desc;
@@ -4354,6 +4382,8 @@
     marcar($('segMetaAp'), 'data-meta', borradorAp.meta ? borradorAp.meta.periodo : 'no');
     $('cajaMetaN').style.display = borradorAp.meta ? '' : 'none';
     marcar($('segComprasAp'), 'data-compras', borradorAp.compras);
+    marcar($('segNotasAp'), 'data-notas', borradorAp.notas === false ? 'no' : 'si');
+    pintarPistaNotasAp();
     pintarAccionesAp();
     pintarTagsAp();
     pintarPistasAp();
@@ -4378,6 +4408,17 @@
       ? 'Es el \u00FAnico apartado activo: no se puede archivar ni borrar. Cre\u00E1 otro primero.'
       : (a.activo ? 'Archivado deja de ofrecerse para capturar y elegir; sus registros se quedan.'
         : 'Archivado: sus registros se quedan, pero no se ofrece para capturar ni elegir.');
+  }
+
+  /* Apagar las notas no borra ninguna: se guardan y vuelven al encenderlas. */
+  function pintarPistaNotasAp() {
+    var n = 0, i;
+    if (borradorAp.id !== '' && borradorAp.notas === false) {
+      for (i = 0; i < notasAp.length; i++) { if (notasAp[i].ctx === borradorAp.id) { n++; } }
+    }
+    $('apNotasPista').textContent = borradorAp.notas === false
+      ? 'Sin la vista Notas en este apartado.' + (n > 0 ? ' Sus ' + (n === 1 ? 'nota se guarda' : n + ' notas se guardan') + ' y vuelven al activarlas.' : '')
+      : 'Notas libres con t\u00EDtulo, texto y etiquetas, en Tareas \u203A Notas.';
   }
 
   function pintarTagsAp() {
@@ -4573,12 +4614,13 @@
   /* Registros que viven en un apartado. Los eventos (historial) cuentan
      aparte: no se pierden, pasan al mismo destino. */
   function registrosDe(ctx) {
-    var r = { items: 0, rutinas: 0, proyectos: 0, eventos: 0 }, i;
+    var r = { items: 0, rutinas: 0, proyectos: 0, notas: 0, eventos: 0 }, i;
     for (i = 0; i < items.length; i++) { if (items[i].contexto === ctx) { r.items++; } }
     for (i = 0; i < rutinas.length; i++) { if (rutinas[i].contexto === ctx) { r.rutinas++; } }
     for (i = 0; i < proyectos.length; i++) { if (proyectos[i].contexto === ctx) { r.proyectos++; } }
+    for (i = 0; i < notasAp.length; i++) { if (notasAp[i].ctx === ctx) { r.notas++; } }
     for (i = 0; i < eventos.length; i++) { if (eventos[i].contexto === ctx) { r.eventos++; } }
-    r.total = r.items + r.rutinas + r.proyectos + r.eventos;
+    r.total = r.items + r.rutinas + r.proyectos + r.notas + r.eventos;
     return r;
   }
 
@@ -4587,6 +4629,7 @@
     if (r.items) { p.push(r.items + (r.items === 1 ? ' item' : ' items')); }
     if (r.rutinas) { p.push(r.rutinas + (r.rutinas === 1 ? ' rutina' : ' rutinas')); }
     if (r.proyectos) { p.push(r.proyectos + (r.proyectos === 1 ? ' misi\u00F3n' : ' misiones')); }
+    if (r.notas) { p.push(r.notas + (r.notas === 1 ? ' nota' : ' notas')); }
     if (p.length === 0) { return 'historial'; }
     return p.length > 1 ? p.slice(0, -1).join(', ') + ' y ' + p[p.length - 1] : p[0];
   }
@@ -4651,8 +4694,8 @@
   function borrarApartado(id, destino) {
     if (soloLectura) { return; }
     var antes = K.todosApartados(), lista = [], activos = 0, i, it;
-    var claves = [K_ITEMS, K_RUTINAS, K_PROYECTOS, K_EVENTOS, K_APARTADOS], crudos = [];
-    var movidos = [], copias = [], otros = [], eventosAntes = eventos, plantillas = necesitaPlantillas, ok;
+    var claves = [K_ITEMS, K_RUTINAS, K_PROYECTOS, K_EVENTOS, K_APARTADOS, K_NOTAS], crudos = [];
+    var movidos = [], copias = [], otros = [], notasMovidas = [], eventosAntes = eventos, plantillas = necesitaPlantillas, ok;
     if (destino !== '' && (destino === id || !K.contextoValido(destino))) { return; }
     for (i = 0; i < antes.length; i++) {
       if (antes[i].id !== id) { lista.push(antes[i]); if (antes[i].activo) { activos++; } }
@@ -4676,11 +4719,13 @@
     sumarOtros(rutinas);
     sumarOtros(proyectos);
     sumarOtros(eventos);
-    ok = guardarItems() && guardarRutinas() && guardarProyectos() && guardarEventos() && guardarApartados();
+    for (i = 0; i < notasAp.length; i++) { if (notasAp[i].ctx === id) { notasMovidas.push(notasAp[i]); notasAp[i].ctx = destino; } }
+    ok = guardarItems() && guardarRutinas() && guardarProyectos() && guardarEventos() && guardarNotas() && guardarApartados();
     if (!ok) {
       for (i = 0; i < claves.length; i++) { if (leer(claves[i]) !== crudos[i]) { reponerCrudo(claves[i], crudos[i]); } }
       for (i = 0; i < movidos.length; i++) { reponerItem(movidos[i], copias[i]); }
       for (i = 0; i < otros.length; i++) { otros[i].contexto = id; }
+      for (i = 0; i < notasMovidas.length; i++) { notasMovidas[i].ctx = id; }
       eventos = eventosAntes;
       K.fijarApartados(antes);
       necesitaPlantillas = plantillas;
@@ -4693,6 +4738,282 @@
     }
     borradorAp = null;
     refrescarApartados();
+  }
+
+  /* ---------- notas (T08b) ----------
+     Vista Notas (tercer segmento de Tareas): las del apartado activo o, en
+     Todo, las de todos los apartados que usan notas (KCOCore.notasVisibles).
+     Buscador y archivadas a pedido. La hoja #tapaNota edita un borrador; nada
+     se guarda hasta Guardar (archivar guarda el borrador con el cambio).
+     Borrar ofrece deshacer. Una escritura que falla deja todo como estaba y
+     lo dice en la hoja. Las notas no pasan por el registro de eventos ni dan
+     XP: son texto de referencia, no actividad. */
+
+  var buscaNotas = '';
+  var verArchivadas = false;
+  var borradorNota = null;
+  var AVISO_NOTA = 'No se pudo guardar la nota (fallo al guardar). No se cambi\u00F3 nada.';
+
+  function buscarNota(id) {
+    var i;
+    for (i = 0; i < notasAp.length; i++) { if (notasAp[i].id === id) { return notasAp[i]; } }
+    return null;
+  }
+
+  function copiaNota(n) { return JSON.parse(JSON.stringify(n)); }
+
+  /* Reemplaza (mismo id) o agrega la nota y guarda; si no se puede guardar,
+     la lista vuelve a la de antes. */
+  function ponerNota(cand) {
+    var antes = notasAp, l = [], esta = false, i;
+    for (i = 0; i < notasAp.length; i++) {
+      if (notasAp[i].id === cand.id) { l.push(cand); esta = true; } else { l.push(notasAp[i]); }
+    }
+    if (!esta) { l.push(cand); }
+    notasAp = l;
+    if (guardarNotas()) { return true; }
+    notasAp = antes;
+    return false;
+  }
+
+  /* El titulo que se muestra: el propio o la primera linea del texto. */
+  function tituloNota(n) {
+    if (n.tit !== '') { return n.tit; }
+    return n.txt.split('\n')[0].slice(0, 80);
+  }
+
+  function extractoNota(n) {
+    var t = n.tit !== '' ? n.txt : n.txt.split('\n').slice(1).join(' ');
+    t = t.replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    return t.length > 140 ? t.slice(0, 140).replace(/\s+$/, '') + '\u2026' : t;
+  }
+
+  function nomTagNota(id, ctx) {
+    var t = tagInfo(id, ctx);
+    return t ? t.nom : id;
+  }
+
+  function filaNota(n) {
+    var li = nodo('li', n.fijada ? 'notacard fijada' : 'notacard'), b = document.createElement('button'), cab = nodo('span', 'nota-cab');
+    var ext = extractoNota(n), meta = nodo('span', 'nota-meta'), tit = tituloNota(n), i, pin, ap;
+    li.setAttribute('data-nota', n.id);
+    b.type = 'button';
+    b.className = 'nota-abrir';
+    b.setAttribute('aria-label', (n.fijada ? 'Nota fijada: ' : 'Nota: ') + tit + (n.archivada ? ' (archivada)' : ''));
+    if (n.fijada) {
+      pin = nodo('span', 'nota-pin');
+      pin.appendChild(svgIco('pin'));
+      cab.appendChild(pin);
+    }
+    cab.appendChild(nodo('span', 'nota-tit', tit));
+    b.appendChild(cab);
+    if (ext !== '') { b.appendChild(nodo('span', 'nota-ext', ext)); }
+    if (contexto === 'todo') {
+      ap = nodo('span', 'nota-ap');
+      ap.appendChild(punto(n.ctx));
+      ap.appendChild(nodo('span', '', nomCtx(n.ctx)));
+      meta.appendChild(ap);
+    }
+    for (i = 0; i < n.tags.length; i++) { meta.appendChild(nodo('span', 'nota-tag', nomTagNota(n.tags[i], n.ctx))); }
+    meta.appendChild(nodo('span', 'nota-fecha', horaCorta(n.editada)));
+    b.appendChild(meta);
+    b.onclick = function () { abrirNota(n.id); };
+    li.appendChild(b);
+    return li;
+  }
+
+  function pintarNotas() {
+    var cont = $('listaNotas'), l = K.notasVisibles(notasAp, { ctx: contexto, archivadas: verArchivadas, q: buscaNotas }), i;
+    var bA = $('btnNotasArchivo'), vacio = $('vacioNotas'), q = buscaNotas.replace(/^\s+|\s+$/g, '');
+    vaciar(cont);
+    for (i = 0; i < l.length; i++) { cont.appendChild(filaNota(l[i])); }
+    bA.className = verArchivadas ? 'gbtn on' : 'gbtn';
+    bA.setAttribute('aria-pressed', verArchivadas ? 'true' : 'false');
+    $('btnNuevaNota').style.display = verArchivadas ? 'none' : '';
+    $('btnNuevaNota').disabled = soloLectura;
+    vacio.style.display = l.length ? 'none' : 'block';
+    if (l.length) { return; }
+    if (q !== '') {
+      estadoVacio(vacio, { id: 'notas-busca', ico: 'search', tit: 'Sin resultados', txt: 'Ninguna nota dice \u201C' + q + '\u201D.',
+        acc: 'Borrar b\u00FAsqueda', alTocar: function () { $('txtBuscaNotas').value = ''; buscaNotas = ''; pintarNotas(); enfocar($('txtBuscaNotas')); } });
+    } else if (verArchivadas) {
+      estadoVacio(vacio, { id: 'notas-archivo', ico: 'inbox', tit: 'Sin notas archivadas',
+        txt: 'Archiv\u00E1 una nota desde su hoja para sacarla de la lista sin borrarla.',
+        acc: 'Ver notas', alTocar: function () { verArchivadas = false; pintarNotas(); } });
+    } else {
+      estadoVacio(vacio, { id: 'notas', ico: 'note', tit: 'Sin notas',
+        txt: 'Cre\u00E1 una o escrib\u00ED \u201Cnota:\u201D al principio de la barra de captura.',
+        acc: 'Nueva nota', accIco: 'plus', alTocar: function () { abrirNota(''); } });
+    }
+  }
+
+  /* Apartados que se ofrecen en la hoja: los activos con notas, mas el de la
+     nota si ya no se ofrece (archivado o sin notas), para no moverla sin querer. */
+  function apartadosDeNotas(actual) {
+    var l = K.apartados(), r = [], i;
+    for (i = 0; i < l.length; i++) { if (l[i].notas || l[i].id === actual) { r.push(l[i].id); } }
+    if (actual !== '' && r.indexOf(actual) < 0 && K.infoContexto(actual)) { r.push(actual); }
+    return r;
+  }
+
+  function abrirNota(id) {
+    var n = id ? buscarNota(id) : null, ctx = '', ofrecidos;
+    if (id && !n) { return; }
+    if (n) { ctx = n.ctx; }
+    else if (contexto !== 'todo' && K.usaNotas(contexto)) { ctx = contexto; }
+    else {
+      ofrecidos = apartadosDeNotas('');
+      ctx = ofrecidos.indexOf(ctxCaptura) >= 0 ? ctxCaptura : (ofrecidos[0] || '');
+    }
+    borradorNota = n ? copiaNota(n) : { id: '', tit: '', txt: '', ctx: ctx, tags: [], fijada: false, archivada: false, creada: '', editada: '' };
+    $('notaTitulo').textContent = n ? 'Editar nota' : 'Nueva nota';
+    $('notaTit').value = borradorNota.tit;
+    $('notaTxt').value = borradorNota.txt;
+    $('notaError').textContent = '';
+    $('btnNotaGuardar').disabled = soloLectura;
+    $('btnNotaArchivar').disabled = soloLectura;
+    $('btnNotaBorrar').disabled = soloLectura;
+    $('cajaNotaExistente').style.display = n ? '' : 'none';
+    $('btnNotaArchivar').textContent = n && n.archivada ? 'Desarchivar' : 'Archivar';
+    pintarHojaNota();
+    abrirHoja('tapaNota');
+  }
+
+  function leerBorradorNota() {
+    borradorNota.tit = $('notaTit').value;
+    borradorNota.txt = $('notaTxt').value;
+  }
+
+  /* Solo quedan las etiquetas que el apartado elegido tiene. */
+  function tagsValidosNota() {
+    var propios = K.tagsDe(borradorNota.ctx), ok = {}, r = [], i;
+    for (i = 0; i < propios.length; i++) { ok['#' + propios[i].id] = true; }
+    for (i = 0; i < borradorNota.tags.length; i++) { if (ok['#' + borradorNota.tags[i]]) { r.push(borradorNota.tags[i]); } }
+    return r;
+  }
+
+  function pintarHojaNota() {
+    var cs = $('notaCtxs'), ts = $('notaTags'), l = apartadosDeNotas(borradorNota.ctx), tags, i, f = $('btnNotaFijar');
+    vaciar(cs);
+    for (i = 0; i < l.length; i++) {
+      (function (id) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'gbtn';
+        b.setAttribute('data-ctx', id);
+        b.appendChild(punto(id));
+        b.appendChild(icoApartado(id, 'gbtn-ico'));
+        b.appendChild(document.createTextNode(nomCtx(id)));
+        b.onclick = function () {
+          leerBorradorNota();
+          borradorNota.ctx = id;
+          borradorNota.tags = tagsValidosNota();
+          pintarHojaNota();
+        };
+        cs.appendChild(b);
+      })(l[i]);
+    }
+    marcar(cs, 'data-ctx', borradorNota.ctx);
+    if (l.length === 0) { cs.appendChild(nodo('div', 'pista', 'Ning\u00FAn apartado usa notas. Activalas en Ajustes \u203A Apartados.')); }
+    tags = K.tagsDe(borradorNota.ctx);
+    vaciar(ts);
+    if (tags.length === 0) { ts.appendChild(nodo('div', 'pista', 'Este apartado no tiene etiquetas.')); }
+    for (i = 0; i < tags.length; i++) {
+      (function (t) {
+        var b = document.createElement('button'), on = borradorNota.tags.indexOf(t.id) >= 0;
+        b.type = 'button';
+        b.className = on ? 'gbtn on' : 'gbtn';
+        b.setAttribute('data-tag', t.id);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.textContent = t.nom;
+        b.onclick = function () {
+          var p = borradorNota.tags.indexOf(t.id);
+          if (p >= 0) { borradorNota.tags.splice(p, 1); } else { borradorNota.tags.push(t.id); }
+          leerBorradorNota();
+          pintarHojaNota();
+          enfocar($('notaTags').querySelector('[data-tag="' + t.id + '"]'));
+        };
+        ts.appendChild(b);
+      })(tags[i]);
+    }
+    f.className = borradorNota.fijada ? 'gbtn notafijar on' : 'gbtn notafijar';
+    f.setAttribute('aria-pressed', borradorNota.fijada ? 'true' : 'false');
+    rotular(f, borradorNota.fijada ? 'Fijada arriba' : 'Fijar arriba');
+  }
+
+  /* Guarda el borrador (archivar: con el estado de archivo invertido). */
+  function guardarNota(archivar) {
+    if (soloLectura || !borradorNota) { return; }
+    leerBorradorNota();
+    var previo = borradorNota.id !== '' ? buscarNota(borradorNota.id) : null, ahora = new Date().toISOString(), cand;
+    if (borradorNota.tit.replace(/\s+/g, '') === '' && borradorNota.txt.replace(/\s+/g, '') === '') {
+      $('notaError').textContent = 'Falta un t\u00EDtulo o texto.';
+      enfocar($('notaTit'));
+      return;
+    }
+    if (!K.infoContexto(borradorNota.ctx)) { $('notaError').textContent = 'Eleg\u00ED un apartado.'; return; }
+    cand = K.normalizarNota({
+      id: borradorNota.id || nuevoId('n'), tit: borradorNota.tit, txt: borradorNota.txt, ctx: borradorNota.ctx,
+      tags: tagsValidosNota(), fijada: borradorNota.fijada,
+      archivada: archivar ? !borradorNota.archivada : borradorNota.archivada,
+      creada: previo ? previo.creada : ahora, editada: ahora
+    });
+    if (!cand) { $('notaError').textContent = 'No se pudo guardar esa nota.'; return; }
+    if (!ponerNota(cand)) { $('notaError').textContent = AVISO_NOTA; return; }
+    borradorNota = null;
+    cerrarHoja('tapaNota');
+    pintar();
+  }
+
+  /* Borra la nota de la hoja y ofrece deshacer (vuelve a su lugar). */
+  function borrarNota() {
+    if (soloLectura || !borradorNota || borradorNota.id === '') { return; }
+    var pos = -1, i, copia;
+    for (i = 0; i < notasAp.length; i++) { if (notasAp[i].id === borradorNota.id) { pos = i; } }
+    if (pos < 0) { return; }
+    copia = notasAp[pos];
+    notasAp = notasAp.slice(0, pos).concat(notasAp.slice(pos + 1));
+    if (!guardarNotas()) {
+      notasAp = notasAp.slice(0, pos).concat([copia], notasAp.slice(pos));
+      $('notaError').textContent = AVISO_NOTA;
+      return;
+    }
+    borradorNota = null;
+    cerrarHoja('tapaNota');
+    pintar();
+    ofrecerDeshacer('Nota borrada: ' + tituloNota(copia), function () {
+      if (soloLectura || buscarNota(copia.id)) { return; }
+      var antes = notasAp, lugar = pos > notasAp.length ? notasAp.length : pos;
+      notasAp = notasAp.slice(0, lugar).concat([copia], notasAp.slice(lugar));
+      if (guardarNotas()) { pintar(); } else { notasAp = antes; }
+    });
+  }
+
+  /* Captura rapida: 'nota: texto #apartado' (KCOCore.parsearNota). Va al
+     destino de siempre (#etiqueta > chip > vista); un apartado sin notas la
+     rechaza y el texto queda en la barra. */
+  function capturarNota(p) {
+    var ctx = destinoCaptura(p), ahora = new Date().toISOString(), cand;
+    if (!K.infoContexto(ctx)) { return; }
+    if (!K.usaNotas(ctx)) {
+      avisar(nomCtx(ctx) + ' no usa notas. Activalas en Ajustes \u203A Apartados.');
+      return;
+    }
+    if (p.texto === '') { avisar('Escrib\u00ED la nota despu\u00E9s de \u201Cnota:\u201D.'); return; }
+    cand = K.normalizarNota({ id: nuevoId('n'), tit: p.texto, txt: p.texto.length > 120 ? p.texto : '', ctx: ctx, creada: ahora, editada: ahora });
+    if (!cand || !ponerNota(cand)) { return; }
+    $('txtCaptura').value = '';
+    ctxDestino = '';
+    pintarChipsCaptura();
+    pintar();
+    $('txtCaptura').focus();
+    ofrecerDeshacer('Nota en ' + nomCtx(ctx) + ': ' + tituloNota(cand), function () {
+      var antes = notasAp, l = [], i;
+      if (soloLectura) { return; }
+      for (i = 0; i < notasAp.length; i++) { if (notasAp[i].id !== cand.id) { l.push(notasAp[i]); } }
+      notasAp = l;
+      if (guardarNotas()) { pintar(); } else { notasAp = antes; }
+    });
   }
 
   /* ---------- contexto ---------- */
@@ -4840,9 +5161,10 @@
 
   $('tabAhora').onclick = function () { irAVista('ahora'); };
   $('tabHoy').onclick = function () { irAVista('hoy'); };
-  $('tabTareas').onclick = function () { irAVista(vista === 'compras' ? 'compras' : 'tablero'); };
+  $('tabTareas').onclick = function () { irAVista(vista === 'compras' || vista === 'notas' ? vista : 'tablero'); };
   $('segBtnTareas').onclick = function () { irAVista('tablero'); };
   $('segBtnCompras').onclick = function () { irAVista('compras'); };
+  $('segBtnNotas').onclick = function () { irAVista('notas'); };
   $('tabRegistro').onclick = function () { irAVista('registro'); };
   $('tabMisiones').onclick = function () { irAVista('misiones'); };
   $('btnModoDiario').onclick = function () { modoDiario = 'diario'; pintar(); };
@@ -5145,6 +5467,15 @@
         pintarEditorApartado();
       };
     }
+    m = $('segNotasAp').querySelectorAll('[data-notas]');
+    for (i = 0; i < m.length; i++) {
+      m[i].onclick = function () {
+        if (!borradorAp) { return; }
+        borradorAp.notas = this.getAttribute('data-notas') === 'si';
+        marcar($('segNotasAp'), 'data-notas', borradorAp.notas ? 'si' : 'no');
+        pintarPistaNotasAp();
+      };
+    }
   })();
 
   $('btnPermiso').onclick = function () {
@@ -5157,6 +5488,20 @@
   };
 
   $('btnDeshacer').onclick = function () { hacerDeshacer(); };
+
+  $('txtBuscaNotas').oninput = function () { buscaNotas = this.value; pintarNotas(); };
+  $('btnNotasArchivo').onclick = function () { verArchivadas = !verArchivadas; pintarNotas(); };
+  $('btnNuevaNota').onclick = function () { abrirNota(''); };
+  $('btnNotaGuardar').onclick = function () { guardarNota(false); };
+  $('btnNotaArchivar').onclick = function () { guardarNota(true); };
+  $('btnNotaBorrar').onclick = function () { borrarNota(); };
+  $('btnNotaFijar').onclick = function () {
+    if (!borradorNota) { return; }
+    leerBorradorNota();
+    borradorNota.fijada = !borradorNota.fijada;
+    pintarHojaNota();
+  };
+  $('notaTit').oninput = function () { $('notaError').textContent = ''; };
 
   $('btnPausa').onclick = function () {
     if (itemAbierto) { alternarPausa(itemAbierto); }
@@ -6409,6 +6754,7 @@
   eventos = cargarLista(K_EVENTOS, normalizarEvento);
   rutinas = cargarLista(K_RUTINAS, normRutina);
   proyectos = cargarLista(K_PROYECTOS, K.normalizarProyecto);
+  notasAp = cargarLista(K_NOTAS, K.normalizarNota);
   /* Primera vez con 2.0 (o progreso roto ya copiado): la historia ya cargada
      cuenta XP, pero no se festeja como si todo hubiera pasado hoy. Se parte del
      nivel que ya corresponde. cargarProgreso deja progresoNuevo. */
@@ -6466,7 +6812,7 @@
      catalogos) y copias de cuarentena no pisan nada. key null = se borro todo.
      El tema es la unica preferencia que se sincroniza en vivo: es visual, no
      pisa nada y dos ventanas con temas distintos se ven rotas. */
-  var CLAVES_DATOS = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA, K_APARTADOS];
+  var CLAVES_DATOS = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA, K_APARTADOS, K_NOTAS];
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('storage', function (ev) {
       var k = ev ? ev.key : null;
