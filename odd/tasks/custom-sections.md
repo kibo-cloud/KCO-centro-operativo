@@ -67,7 +67,7 @@ Full check at task closure: `npm run verify`.
 - [x] **T02 Persistence + migration 4→5** — `ESQUEMA=5`, load/save/quarantine of
   `kibco.apartados`, legacy seed, `CLAVES_DATOS`, migration event; app reads the registry.
 - [x] **T03 Backup/import** — include `apartados`, seed when absent, validate, all-or-nothing.
-- [ ] **T03b Review follow-ups (review of `1ed8a10..6a387c4`)** — (a) R3-002 + T06 gap: records
+- [x] **T03b Review follow-ups (review of `1ed8a10..6a387c4`)** — (a) R3-002 + T06 gap: records
   keep archived section ids (normalize records against all sections; capture/pickers use active
   ones) and a schema-5 backup that references ids missing from its `apartados` gets generated
   sections, like the legacy path; round-trip tests. (b) R3-003: do not bump the schema when the
@@ -77,12 +77,16 @@ Full check at task closure: `npm run verify`.
 - [x] **T04 Generic visual identity** — palette tokens + `pal-<key>` classes instead of
   `ctx-<id>`/`p-<id>`/`--ctx-<id>`; icons per section; selectors (`#ctxsel`, `#ctxLateral`,
   `#destsel`, grids) rebuilt from the registry; `index.html` defaults neutral.
-- [ ] **T05 Generic per-section features** — purchases mode, tags, report branches, catalogs
+- [x] **T05 Generic per-section features** — purchases mode, tags, report branches, catalogs
   visibility and Compras segment driven by section fields; no id checks remain.
-- [ ] **T06 Sections management UI** — "Apartados" in Ajustes: list, create, edit (name, icon,
+- [x] **T06 Sections management UI** — "Apartados" in Ajustes: list, create, edit (name, icon,
   color, description, goal, aliases, purchases mode, tags), reorder, archive, delete with
   reassignment.
-- [ ] **T07 First-run templates** — template picker on a fresh install (several presets plus
+- [ ] **T06b Review follow-ups (review of `0644c1f..373d151`)** — `aplicarEdicionApartado` must
+  tell the user when a write fails (both editor paths, like `borrarApartado`) and check the
+  rollback's own result; add e2e specs that force storage write failures for delete/move, edit
+  and `guardarRegistro` rollbacks.
+- [x] **T07 First-run templates** — template picker on a fresh install (several presets plus
   "Empezar de cero"); everything stays editable.
 - [ ] **T08 Goals and description in the UI** — goal progress and description shown for the
   active section (selector/header and Campaña activity).
@@ -134,7 +138,49 @@ Full check at task closure: `npm run verify`.
   Remaining legacy ids: purchases `esHogar` and report branches (T05). ARQUITECTURA still
   describes `body.ctx-*` (T09). T06 needs icon picker restricted to `KCOIconos.existe`.
   RDD: medium, `under_budget` (342) — pending in slice.
+- T03b (delegated) — commit `ef7ec99`. RED: `contextoDeRegistro` missing, archived id remapped,
+  schema bumped on failed seed. GREEN: 97 unit, 132 e2e. `K.contextoDeRegistro` keeps archived
+  ids for records; schema-5 backups generate sections for unlisted ids; failed seed keeps
+  schema 4. R3-001 deferred to T07.
+- T05 (delegated) — commit `0644c1f`. RED: 3/4 new `sections:` specs. GREEN: 97 unit, 136 e2e.
+  Purchases labels/report/relevo by `K.esFabrica`; `usaCompras(ctx)` hides Compras segment and
+  "Mover a Compras" for `compras:'no'`; catalogs in `#bloqueCatalogos` only with a fabrica
+  section. No runtime legacy-id checks remain (only seed + 3→4 migration).
+  Gaps for T06: switching a section to `compras:'no'` (or moving a purchase into one) leaves
+  `tipo:'compra'`; catalogs visibility must refresh after editing a mode inside Ajustes.
+  RDD slice `6a387c4..0644c1f`: medium, `slice_budget_reached` (621) → review **approved**,
+  acknowledged/burned. Last reviewed boundary: `0644c1f`. Follow-ups folded into T06: R3-001
+  purchases in a `compras:'no'` section converted to tasks at every entry point (mode edit,
+  move, restore, cross-tab); R3-002 e2e for destination-sheet rebuild.
+- T06 (delegated) — commits `b10cf2e` (list + editor) and `373d151` (archive, delete with
+  reassignment, purchase→task conversion, R3-001/R3-002). RED: `idUnico`/`estadoTareaDeCompra`
+  missing, 0/6 then 6 failing specs. GREEN: es5 ok, 99 unit, 150 e2e. Decisions: editor stacks
+  on Ajustes (back returns to Ajustes); delete moves events too (otherwise a restore would
+  regenerate the section); conversion also in `normalizarItem` (load + restore), logged as a
+  `conversion` event; saving a section ends the fresh-install bridge. Gaps: T07 must run the
+  template picker before the editor is reachable on a fresh install; T08 shows goal/desc;
+  T08b adds the `notas` toggle to the editor.
+  RDD slice `0644c1f..373d151`: medium, `slice_budget_reached` (1136) → review **approved**,
+  acknowledged/burned. Last reviewed boundary: `373d151`. Warnings → T06b.
+- 2026-10-26: usage limit reached. T07 writer stopped mid-work: its partial uncommitted
+  changes stay in the worktree (unverified). On resume: inspect `git diff`, finish T07 per its
+  entry, then T06b, T08, T08b, T09.
+- 2026-10-28: resumed. Reconciled: no T07 changes survived (no stash, no other worktree, source
+  mtimes predate `373d151`); T07 restarts from `373d151`. Engram mirror was missing; recreated.
+- T07 (delegated) — commit `ff2d5bd`. RED: `C.plantillas is not a function` (3 unit), 6 new
+  `sections:` e2e failing (`#tapaPlantillas` missing, `[data-plantilla]` not found, capture
+  persisted). GREEN: es5 ok, 102 unit, 155 e2e. Decisions: `K.plantillas()` = Vida personal,
+  Trabajo y casa (= `apartadosLegado()`), Creador de contenido, Estudiante, Empezar de cero
+  (one `General` section, opens its editor via relevo). Picker `#tapaPlantillas` opens at boot
+  when `necesitaPlantillas`. R3-001: while no template is chosen nothing is written
+  (`guardarItems/Eventos/Rutinas/Proyectos` refuse) and `capturar` reopens the picker keeping the
+  typed text, so a second boot is still a fresh install (no legacy seed, no `migracion`).
+  Dismiss (X, Escape, backdrop, gesture, back) applies the Empezar de cero section without the
+  editor (hook in `cerrarDom`); a failed write keeps the bridge and the picker comes back on
+  capture/next boot. E2E harness: an empty `storage` now stores the legacy registry (existing
+  user); fresh-install specs call `freshInstall`. Gaps: no "restore backup" entry inside the
+  picker (restore stays in Ajustes after choosing); docs (ARQUITECTURA/TESTING/LEEME) in T09.
 
 ## Next step
 
-T01.
+T06b, then T08, T08b, T09.
