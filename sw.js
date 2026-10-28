@@ -5,7 +5,7 @@
    kco-app.js y "version" de package.json (lo controla tests/unit/version.test.js).
    El nombre de la cache sale de aca: subir la version cambia los bytes de sw.js,
    el navegador detecta la actualizacion y la cache nueva reemplaza a la vieja. */
-var VERSION = '2.0.0';
+var VERSION = '2.2.0';
 var CACHE = 'kibco-' + VERSION;
 
 var ARCHIVOS = [

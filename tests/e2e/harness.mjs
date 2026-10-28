@@ -232,6 +232,15 @@ export async function openPage(browser, baseUrl) {
       await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
       await sleep(60);
     },
+    // Real printable key press through CDP (keydown listeners run; the character is
+    // inserted into the focused field unless a listener prevents it), e.g. 'n', '/'.
+    async press(ch) {
+      const vk = ch === '/' ? 191 : ch.toUpperCase().charCodeAt(0);
+      const base = { key: ch, text: ch, unmodifiedText: ch, windowsVirtualKeyCode: vk };
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...base });
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, windowsVirtualKeyCode: vk });
+      await sleep(60);
+    },
     // Touch tap at viewport coordinates (needs a mobile viewport: touch emulation on).
     async tap(x, y) {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
@@ -252,8 +261,12 @@ export async function openPage(browser, baseUrl) {
     // Bounding box of the first match, or null.
     rect(sel) { return page.eval(`(function(){var e=document.querySelector(${JSON.stringify(sel)});if(!e)return null;var r=e.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height,b:r.bottom,r:r.right};})()`); },
     storage(key) { return page.eval(`localStorage.getItem(${JSON.stringify(key)})`); },
+    // An empty seed stands for an existing user with the default sections: the
+    // legacy registry is stored, so the first-run template picker (fresh install
+    // only) stays out of the way. Fresh-install specs clear storage themselves.
     async setStorage(obj) {
-      await page.eval(`(function(){localStorage.clear();var o=${JSON.stringify(obj)};for(var k in o){localStorage.setItem(k,o[k]);}})()`);
+      const seed = Object.keys(obj).length ? '' : "localStorage.setItem('kibco.apartados',JSON.stringify(KCOCore.apartadosLegado()));";
+      await page.eval(`(function(){localStorage.clear();var o=${JSON.stringify(obj)};for(var k in o){localStorage.setItem(k,o[k]);}${seed}})()`);
     },
     async screenshot(file) {
       const r = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });

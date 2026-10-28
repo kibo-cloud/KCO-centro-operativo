@@ -1,7 +1,7 @@
-# Pruebas — KCO 2.0
+# Pruebas — KCO 2.2
 
 Tres controles, cero dependencias. `npm run verify` los corre en orden y falla al primero que
-no pasa. Conteo actual: **75 pruebas unitarias** y **92 specs E2E**, todas en verde.
+no pasa. Conteo actual (2.2.0): **112 pruebas unitarias** y **188 specs E2E**, todas en verde.
 
 ## Correr
 
@@ -31,13 +31,20 @@ Cargan `kco-core.js` con `require` y usan fechas fijas, asi no dependen del relo
 | Archivo | Pruebas | Cubre |
 |---|---|---|
 | `fechas.test.js` | 5 | claves de dia, fechas imposibles, cruce de meses, años bisiestos y horario de verano |
-| `modelo.test.js` | 8 | contextos y flujo de fabrica, prioridad heredada, cinco situaciones, +48 hs, puntaje del proximo movimiento, reglas de captura viejas y nuevas |
+| `captura.test.js` | 5 | chips de la barra de captura: `resumenCaptura` coincide campo a campo con `parsearCaptura` y rotula el dia (Hoy, Mañana, con hora); `quitarContextoCaptura` saca solo una #etiqueta de contexto conocida, la misma que resolvio el parser aunque no sea la primera (`ver #hashtag #casa`) |
+| `modelo.test.js` | 8 | apartados y flujo de fabrica, prioridad heredada, cinco situaciones, +48 hs, puntaje del proximo movimiento, reglas de captura viejas y nuevas |
 | `rutinas.test.js` | 11 | normalizacion, frecuencias diaria, cada N, semanal, cada dos semanas, mensual con dia 31, fin, plan de ocurrencias (solo la ultima, idempotente, vencidas), rachas |
 | `misiones.test.js` | 6 | normalizacion, progreso por hitos o tareas, proximo movimiento |
 | `diario.test.js` | 4 | solo actividad significativa, cierres reabiertos no figuran, rotulos de rutinas y compras, filtro de contexto y rango |
 | `xp.test.js` | 8 | XP por nivel, registro rapido, delegadas, rutinas y compras, anti-farmeo, XP derivado, misiones con sustancia, tope de hitos, niveles y titulos |
 | `logros.test.js` | 6 | racha global, dias activos, estadisticas, umbrales de logros, logros secretos |
+| `compactacion.test.js` | 8 | `compactarEventos`: XP, nivel, logros, rachas, campaña y diario identicos; eventos posteriores se leen igual; idempotente y sin mutar; lo reciente intacto; un resumen legible como evento comun; tipos desconocidos y fechas ilegibles nunca se quitan; sobrevive el ultimo cierre de cada item |
 | `judgment.test.js` | 11 | regresiones del Judgment Day `1f8a47e` (L6, L7a-c, L8, S3, S7) |
+| `apartados.test.js` | 17 | registro de apartados: normalizacion, ids unicos y slugs, alias de captura (sin acentos ni mayusculas, nunca a un archivado), `modoCompras`, etiquetas propias aunque dos apartados compartan un id, `contextoDeRegistro` (los registros conservan un apartado archivado), siembra legado, emoji por apartado, `progresoMeta` y `textoMeta` |
+| `notas.test.js` | 7 | `normalizarNota` (topes, saltos de linea, tags como slugs, apartado archivado), `usaNotas`, `notasVisibles` (Todo, archivadas, busqueda por palabras sin acentos, fijadas primero), `parsearNota` |
+| `paleta.test.js` | 3 | cada color de la paleta declarado en ambos temas y con contraste 4.5:1 sobre los fondos |
+| `plantillas.test.js` | 3 | plantillas del primer arranque: validas, ids unicos, "Trabajo y casa" igual a la siembra legado (con try/finally para el registro) |
+| `html.test.js` | 1 | `index.html` sin ids repetidos (`getElementById` toma el primero) |
 | `version.test.js` | 8 | misma version en `sw.js`, `kco-app.js` y `package.json`; cache derivada de `VERSION`; iconos precacheados; manifest (maskable propio, atajo Capturar); `kco.css` enlazado, precacheado y sin `<style>` en linea; tokens declarados en `:root`; `tema.js` bloqueante en `<head>` despues de los `theme-color`, precacheado y en el control ES5; `iconos.js` antes de `kco-app.js`, precacheado y en el control ES5 |
 
 ## E2E (`tests/e2e/`)
@@ -57,7 +64,11 @@ Cargan `kco-core.js` con `require` y usan fechas fijas, asi no dependen del relo
    `DevToolsActivePort`.
 3. Por cada spec abre una pestaña nueva por CDP, fija el viewport (390x844 movil por
    defecto), navega a `/`, carga el `localStorage` de la spec (`storage`) y recarga. Con
-   `keepStorage: true` no limpia nada.
+   `keepStorage: true` no limpia nada. **Semilla vacia:** una spec sin `storage` (o con `{}`)
+   no arranca como instalacion nueva: `setStorage` guarda `kibco.apartados` con los cinco
+   apartados de siempre (`KCOCore.apartadosLegado()`), como un usuario existente, asi no se
+   abre el selector de plantillas. Para probar una instalacion nueva de verdad, la spec llama
+   `freshInstall(page)`.
 4. Corre la spec. Si la pagina tiro errores de consola o excepciones, la spec falla, salvo
    los que liste `allowErrors`.
 5. Al final cierra el navegador con `Browser.close`; en Windows ademas mata los procesos
@@ -69,7 +80,7 @@ Una spec que compara colores fija el esquema con el helper `scheme(page, 'dark'|
 Helpers de pagina: `goto`, `reload`, `eval`, `click`, `clickText`, `type` (con Enter
 opcional), `text`, `count`, `visible`, `rect`, `storage`, `setStorage`, `screenshot`, `offline`,
 `setFile` y `viewport`. Entrada real por CDP: `key(nombre, {shift})` (`Input.dispatchKeyEvent`:
-Escape, Tab, Enter), `tap(x, y)` y `drag(x0, y0, x1, y1)` (`Input.dispatchTouchEvent`; con el
+Escape, Tab, Enter), `press(caracter)` (tecla imprimible con `text`: corre los listeners de keydown y escribe el caracter si nadie lo previene, p. ej. `n`, `/`), `tap(x, y)` y `drag(x0, y0, x1, y1)` (`Input.dispatchTouchEvent`; con el
 viewport movil la emulacion tactil esta activa y el navegador genera pointer + touch events).
 
 **Estado CDP por spec.** Lo que una spec cambia en la pestana por CDP pasa por el harness y
@@ -81,16 +92,33 @@ foco y sin esto `focus`/`blur` no se disparan). Ninguna spec llama esos metodos 
 
 **Capturas.** Algunas specs guardan PNG en `tests/e2e/out/` (ignorado por git) para revisar
 a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `campana.png`,
-`mobile.png`.
+`mobile.png`, `capture-mobile.png`, `capture-desktop.png`, `capture-320.png`, `empty-tareas-mobile.png`,
+`empty-campaign-mobile.png`, `empty-tareas-desktop.png`, `ajustes-mobile.png`. Apartados y notas (2.2):
+`plantillas-mobile-dark.png`, `plantillas-desktop-light.png`, `apartados-ajustes-mobile-dark.png`,
+`apartados-ajustes-desktop-light.png`, `apartado-editor-mobile.png`, `apartado-editor-desktop-light.png`,
+`section-goal-mobile-dark.png`, `section-goals-campaign-desktop-light.png`, `notes-mobile-dark.png`,
+`notes-sheet-mobile-dark.png`, `notes-desktop-light.png`.
+
+**Helpers de `app.e2e.mjs` para apartados y fallos.** `freshInstall(page)` borra todo el
+`localStorage` y recarga: una instalacion nueva real, con el selector de plantillas.
+`failWrites(page, keys, allow)` hace que `localStorage.setItem` tire (como un almacenamiento
+lleno) para las claves de `keys`, despues de dejar pasar `allow[clave]` escrituras;
+`restoreWrites(page)` lo deshace. Semillas: `LEGACY_SECTIONS`, `CUSTOM_SECTIONS` (un apartado
+por modo de compras), `GOAL_SECTIONS` + `GOAL_ITEMS()`, `NOTE_SECTIONS` + `NOTE_LIST()`.
 
 **Specs por area** (prefijo del nombre)
 
 | Prefijo | Specs | Cubre |
 |---|---|---|
-| `boot` | 2 | arranque sin errores, esquema 4; `kco.css` cargado y tokens resueltos (`--focus` sigue el acento del contexto) |
+| `boot` | 2 | arranque sin errores, esquema 5; `kco.css` cargado y tokens resueltos (`--focus` sigue el acento del apartado) |
 | `core` | 7 | captura y recarga, hora, completar y deshacer, reabrir, editar el titulo en la ficha (Enter o blur guarda, registra `edicion`, deshacer, vacio no se guarda), borrar y deshacer, mover a compras (desde el menu rapido) |
-| `data` | 7 | migracion de esquema 3, cuarentena y solo lectura, esquema futuro, progreso roto, una copia por valor, catalogos en solo lectura, progreso sin copia posible |
-| `backup` | 7 | ida y vuelta por archivo, backup ajeno, rechazo sobre esquema futuro, clave hostil en logros, rollback por fallo de escritura, backup sin progreso, "nunca" sin backup previo |
+| `data` | 12 | migracion 4 -> 5 (siembra legado y evento `migracion`, una sola vez; la siembra fallida no sube el esquema), apartados guardados manejan el selector, apartados cambiados en otra pestaña se re-aplican y frenan las escrituras, un esquema futuro 6 no siembra nada, migracion de esquema 3, cuarentena y solo lectura, esquema futuro, progreso roto, una copia por valor, catalogos en solo lectura, progreso sin copia posible |
+| `backup` | 17 | `apartados` en el backup y su restauracion, backup de esquema 4 siembra legado, ids sin apartado reciben uno generado, `apartados` inutilizables rechazados antes de confirmar, registro repuesto si falla, registros de un apartado archivado conservan su id, Escape en la hoja de texto y despues restaurar aplica la restauracion, ida y vuelta por archivo, backup ajeno, rechazo sobre esquema futuro, clave hostil en logros, rollback por fallo de escritura, backup sin progreso, "nunca" sin backup previo |
+| `sections` | 20 | selector de plantillas en una instalacion nueva (no con datos), elegir o cerrar (X, Escape, fondo, atras) guarda; nada se guarda antes de elegir y un segundo arranque sigue siendo nuevo; plantilla que no se puede guardar; escrituras automaticas salteadas sin abrir el selector; un recordatorio vencido notifica una sola vez y recien despues de elegir; modo de compras por apartado (sin segmento Compras, catalogos solo con seguimiento); color de paleta e icono del apartado, hoja de destino armada desde el registro; metas y descripcion (franja `#apInfo`, Campaña > Objetivos) |
+| `sections ui` | 22 | gestor en Ajustes: crear, editar (nombre, icono, color, alias, compras, etiquetas), reordenar, archivar, borrar con o sin destino, el ultimo activo no se archiva ni se borra; compras que pasan a tarea; fallos de escritura al editar, reordenar y borrar se avisan y vuelven atras; capturas a 390 (oscuro) y 1366 (claro) |
+| `notes` | 12 | vista Notas por apartado y en Todo, busqueda, fijadas, hoja con borrador, archivar y borrar con deshacer, `nota:` en la captura (chip "Nota", apartado sin notas rechaza), fallo al guardar en la hoja y en la captura (avisa y conserva el texto), activar/desactivar notas en el editor, borrar un apartado mueve sus notas (tambien archivadas), cuarentena de `kibco.notas`, los comentarios de un item quedan en la ficha |
+| `notes backup` | 2 | el backup lleva `notas`; sin `notas` restaura `[]`; `notas` invalido rechazado; fallo de escritura vuelve todo atras |
+| `notes ui` | 2 | la vista y la hoja entran a 390px (oscuro) y la vista a 1366px (claro) |
 | `security` | 1 | texto del usuario nunca se interpreta como HTML |
 | `pwa` | 4 | el service worker cachea (incluido `kco.css`) y la app arranca offline con estilos; aviso de version nueva (en espera y `updatefound`), recarga una sola vez y solo si se pidio; atajo `?capturar=1` |
 | `model` | 4 | marcas de captura, item viejo con fallback, compra de fabrica a Casa, vista Todo |
@@ -101,7 +129,7 @@ a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `camp
 | `journal` | 1 | registra avances y oculta cierres deshechos |
 | `xp` | 3 | +XP inmediato, subida de nivel una vez, nivel historico en silencio |
 | `achievements` | 2 | primer logro, anunciado una vez; si el diario no se guarda, el logro no se marca y se anuncia en la proxima accion |
-| `campaign` | 1 | estadisticas, semanas, contextos, logros secretos ocultos |
+| `campaign` | 1 | estadisticas, semanas, apartados, logros secretos ocultos |
 | `rollback` | 3 | escritura fallida no deja cambios, registro fallido conserva el item y avisa, borrado fallido sin deshacer |
 | `compaction` | 2 | registro lleno se compacta y reintenta una vez; si aun asi falla, avisa y la memoria no cambia |
 | `purchases` | 1 | compra hecha conserva su fecha al cambiar de contexto |
@@ -110,8 +138,15 @@ a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `camp
 | `ux` | 5 | las cinco pestañas inferiores entran a 390 y 340 px (fijas al borde, objetivos de 44px), captura movil, campos de al menos 16px (sin zoom de iOS), todo texto visible de AHORA de al menos 12px |
 | `shell` | 4 | a 390px la captura va justo arriba de la barra de pestañas y el contenido las despeja, al escribir la barra se aparta; el selector de contexto abre desde el chip (aria-expanded), marca el actual, muestra cuentas, elige Casa y la captura va a Casa; sin scroll horizontal ni botones cortados a 340/390 (tambien durante la transicion a Tareas); a 1366px barra lateral de 240px sin pestañas, columna centrada de hasta 760px, captura arriba, navega vistas (aria-current) y cambia de contexto |
 | `a11y` | 1 | todo boton solo-icono tiene `aria-label`; iconos SVG de `KCOIconos` (viewBox 24, currentColor, trazo 1.75, aria-hidden), sin emoji en barra, pestañas, lateral, hero, pulso y encabezados; ningun icono usado sin definir |
-| `sheets` | 7 | toda hoja es `role=dialog` + `aria-modal` + `aria-labelledby` con asa y X "Cerrar"; Escape cierra solo la de arriba, el foco vuelve a quien la abrio y el historial queda a la par (dos hojas apiladas); Tab/Shift+Tab giran dentro; tocar el fondo cierra la ficha y el selector de contexto (tocar dentro no); arrastrar la cabecera 160px cierra, 30px vuelve a su lugar; a 390x844 Hecho, Hoy, Mañana, Prioridad y Contexto se ven sin scrollear; a 1366px dialogo centrado de hasta 560px sin asa |
+| `sheets` | 13 | toda hoja es `role=dialog` + `aria-modal` + `aria-labelledby` con asa y X "Cerrar"; Escape cierra solo la de arriba, el foco vuelve a quien la abrio y el historial queda a la par (dos hojas apiladas); Tab/Shift+Tab giran dentro; tocar el fondo cierra la ficha y el selector de contexto (tocar dentro no); arrastrar la cabecera 160px cierra, 30px vuelve a su lugar; a 390x844 Hecho, Hoy, Mañana, Prioridad y Contexto se ven sin scrollear; a 1366px dialogo centrado de hasta 560px sin asa; el historial se reconcilia por estado: un `history.go` propio cuyo `popstate` no llega no deja a la hoja siguiente sin entrada; uno lento (600ms) no cierra la hoja abierta mientras tanto, tampoco despues de un `pageshow` persistido; el retroceso lento cae en la entrada propia de la primera hoja (`kcoSerie`) y la entrada de la segunda sigue alcanzable con `history.forward()`; una entrada vieja de un retroceso perdido absorbe a lo sumo un atras y despues cada atras cierra una hoja y vuelve a Ahora; despues de `reload()` un atras desde Tareas vuelve a Ahora (y con una hoja, la cierra y el siguiente vuelve); una entrada de KCO ajena (otra serie, o marcas sin serie) cuenta como la base: cierra las capas o, sin capas, vuelve a Ahora |
+| `quick menu` | 4 | "Más opciones" y "Borrar" pasan a la ficha / la confirmacion con su propia entrada de historial (`history.state.kcoCapa`) y atras la cierra; "Para hoy" saca un item del inbox para hoy y mueve uno que no es del inbox a hoy |
 | `cards` | 4 | circulo a la izquierda (44px de toque, 21px a la vista) con nombre "Completar: <texto>" armado con `setAttribute` (el texto nunca se interpreta como HTML), completa y deshacer restaura; ninguna tarjeta tiene boton de carrito ni botones cuadrados, el inbox conserva un solo "Para hoy"; deslizar a la derecha completa sin cambiar de vista ni abrir la ficha (deshacer restaura) y un arrastre vertical no hace nada; deslizar a la izquierda abre el menu rapido (`role=dialog`) con Hoy, Mañana, Prioridad, Mover a Compras y Borrar, que funcionan; la tarjeta se enfoca con Tab, Enter abre la ficha y "Mas opciones" tambien |
+| `capture bar` | 5 | chips en vivo de contexto, dia y prioridad (ocultos con la barra vacia, dentro de 390px, guardar guarda lo mismo y los limpia; recordatorio "Mañana 09:30"); el chip de contexto abre "Guardar en" (`#tapaDestino`, `role=dialog`, entrada en `history`, sin Todo), elegir cierra la hoja, vuelve el foco a la barra y guarda ahi sin cambiar la vista, vale para una captura y reemplaza una #etiqueta tipeada; `n` y `/` enfocan la barra a 1366px sin escribirse, pero no adentro de un campo ni con una hoja abierta; a 320px con "Mañana 09:30" + prioridad + Contenido los chips pueden ocupar dos filas y el contenido igual despeja la barra (alto medido); cambiar el ancho de la ventana con chips vuelve a medir `--capbar-h` |
+| `empty` | 3 | sin datos, Ahora (nombra el contexto), Hoy, Tareas, inbox, un filtro, Compras, Misiones, Diario, Registro, la campaña y la busqueda muestran icono SVG + titulo (+ accion): Capturar enfoca la barra, Ver activos vuelve el filtro, Nueva mision abre la hoja, Ver todo abre el rango, Ir a Ahora cambia de vista, Borrar busqueda limpia; campaña vacia sin `.stats`; a 1366px el estado queda centrado en la columna |
+| `settings` | 1 | Ajustes abre con Backup primero e Info al final (rotulos en orden), ningun ajuste se perdio (ids presentes), el pie cierra la hoja y Descargar backup se ve sin scroll a 390x844 |
+| `lists` | 2 | 120 tareas: 50 filas + "Ver más (70)", sumar un trozo conserva el scroll, completar una fila conserva el trozo, cambiar de filtro o de vista vuelve a 50; Compras, Diario, Registro y resultados de busqueda tambien van de a 50 |
+| `keyboard` | 1 | a 1366px `j`/`k` mueven la seleccion (foco, `kbsel`, anillo visible), `x` completa la elegida y deshacer restaura, Enter abre la ficha; con una hoja abierta o adentro de la captura `j`/`x` no se roban |
+| `motion` | 1 | con `prefers-reduced-motion: reduce` (`Emulation.setEmulatedMedia`) ninguna transicion ni animacion de la pagina dura mas de .01s; sin la preferencia hay movimiento |
 | `harness` | 1 | `teardown()` quita los scripts inyectados y devuelve el esquema de color real |
 
 ## Agregar una spec E2E
@@ -120,7 +155,7 @@ a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `camp
 
        {
          name: 'area: que comportamiento protege',
-         storage: { 'kibco.esquema': '4', 'kibco.items': JSON.stringify([...]) },
+         storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS, 'kibco.items': JSON.stringify([...]) },
          async fn(page) {
            await page.type('#txtCaptura', 'algo', true);
            assert.equal(await page.count('li.item'), 1);
@@ -129,7 +164,8 @@ a ojo: `ahora.png`, `hoy.png`, `mision.png`, `misiones.png`, `diario.png`, `camp
 
 2. Opcionales: `width`, `height`, `mobile: false`, `keepStorage: true`, `allowErrors: [...]`.
    Hay semillas listas (`seed()`, `rutinaSeed()`, `misionSeed()`) y helpers para simular un
-   almacenamiento lleno (`failItemWrites` / `restoreWrites`).
+   almacenamiento lleno (`failItemWrites`, `failWrites` / `restoreWrites`). Sin `storage` la
+   spec arranca con los apartados de siempre; `freshInstall(page)` para una instalacion nueva.
 3. Correrla sola con `node tests/e2e/run.mjs "<parte del nombre>"`.
 4. Usar un prefijo de area existente; el nombre es lo que se ve en el resumen y en el filtro.
 

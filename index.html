@@ -16,7 +16,7 @@
 <!-- Bloqueante a proposito: fija data-tema antes del primer pintado (sin destello). -->
 <script src="./tema.js"></script>
 </head>
-<body class="ctx-trabajo">
+<body class="pal-gris" data-ctx="todo">
 
 <!-- Escritorio (>= 1024px): barra lateral con vistas y contextos. En movil no se muestra. -->
 <aside class="lateral" id="lateral" aria-label="Navegaci&oacute;n">
@@ -28,7 +28,7 @@
 
 <header class="appbar">
   <button class="ctxchip" id="btnCtx" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="tapaCtx">
-    <span class="punto" id="ctxPunto" aria-hidden="true"></span><span class="ctxchip-nom" id="ctxNombre">Trabajo</span><span class="ctxchip-chev" data-ico="chevron-down"></span>
+    <span class="punto" id="ctxPunto" aria-hidden="true"></span><span class="ctxchip-nom" id="ctxNombre">Todo</span><span class="ctxchip-chev" data-ico="chevron-down"></span>
   </button>
   <h1 class="appbar-tit" id="tituloVista">Ahora</h1>
   <span class="crece"></span>
@@ -41,6 +41,13 @@
   <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
          autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="Capturar"
          placeholder="Escrib&iacute; y Enter &middot; 18:00 o @9:30 toma la hora">
+  <!-- Lo que se detecta al tipear (mismo parser que guardar). El chip de contexto
+       abre #tapaDestino para elegir donde cae esta captura. -->
+  <div class="capchips" id="capChips" role="group" aria-label="Detectado al tipear" hidden>
+    <button class="capchip capchip-ctx" id="capCtx" type="button" aria-label="Elegir d&oacute;nde se guarda" aria-expanded="false" aria-haspopup="dialog" aria-controls="tapaDestino"></button>
+    <span class="capchip" id="capDia" hidden></span>
+    <span class="capchip" id="capNivel" hidden></span>
+  </div>
 </div>
 
 <div class="aviso" id="aviso" role="alert"></div>
@@ -51,6 +58,8 @@
 
 <main>
   <div class="recuerdo" id="recuerdo"></div>
+  <!-- Descripcion y objetivo del apartado activo (kco-app pintarInfoApartado); oculto en Todo. -->
+  <div class="apinfo" id="apInfo" hidden></div>
 
   <div id="vistaAhora">
     <div id="ahoraCuerpo"></div>
@@ -60,9 +69,10 @@
     <div id="hoyCuerpo"></div>
   </div>
 
-  <div class="seg" id="segTareas" style="display:none" role="group" aria-label="Tareas o compras">
+  <div class="seg" id="segTareas" style="display:none" role="group" aria-label="Tareas, compras o notas">
     <button class="segbtn on" id="segBtnTareas" type="button" data-ico="tareas">Tareas</button>
     <button class="segbtn" id="segBtnCompras" type="button" data-ico="cart">Compras</button>
+    <button class="segbtn" id="segBtnNotas" type="button" data-ico="note">Notas</button>
   </div>
 
   <div id="vistaTablero" style="display:none">
@@ -86,6 +96,17 @@
     <div class="chips scroll-x" id="chipsCompra"></div>
     <ul id="listaCompras" class="lista"></ul>
     <div class="vacio" id="vacioCompras">Sin compras. Convertí una tarea en compra desde su ficha.</div>
+  </div>
+
+  <!-- Notas del apartado activo (Todo = los apartados con notas). kco-app pintarNotas. -->
+  <div id="vistaNotas" style="display:none">
+    <div class="notasbarra">
+      <input id="txtBuscaNotas" type="search" autocomplete="off" placeholder="Buscar en notas" aria-label="Buscar en notas">
+      <button class="gbtn" id="btnNotasArchivo" type="button" aria-pressed="false" data-ico="inbox">Archivadas</button>
+    </div>
+    <button class="bloque" id="btnNuevaNota" type="button" data-ico="plus">Nueva nota</button>
+    <ul id="listaNotas" class="notaslista" aria-label="Notas"></ul>
+    <div class="vacio" id="vacioNotas"></div>
   </div>
 
   <div id="vistaMisiones" style="display:none">
@@ -132,6 +153,14 @@
   <div class="hoja hoja-ctx">
     <h2 id="ctxTitulo">Contexto</h2>
     <div class="ctxlista" id="ctxsel" role="group" aria-labelledby="ctxTitulo"></div>
+  </div>
+</div>
+
+<!-- Destino de la captura en curso (chip de contexto de la barra): no cambia la vista. -->
+<div class="tapa" id="tapaDestino" role="dialog" aria-modal="true" aria-labelledby="destTitulo">
+  <div class="hoja hoja-ctx">
+    <h2 id="destTitulo">Guardar en</h2>
+    <div class="ctxlista" id="destsel" role="group" aria-labelledby="destTitulo"></div>
   </div>
 </div>
 
@@ -218,7 +247,7 @@
     </div>
 
     <div class="rot">Comentarios</div>
-    <div id="listaNotas"></div>
+    <div id="listaComentarios"></div>
     <div class="campo-boton">
       <input id="txtNota" type="text" autocomplete="off" autocapitalize="sentences"
              enterkeyhint="done" placeholder="Ej: proveedor confirm&oacute; stock para el viernes" aria-label="Nuevo comentario">
@@ -389,14 +418,16 @@
 <div class="tapa" id="tapaAjustes">
   <div class="hoja">
     <h2>Ajustes</h2>
-    <div class="dato"><span>Version app</span><span id="vApp">-</span></div>
-    <div class="dato"><span>Version service worker</span><span id="vSw">-</span></div>
-    <div class="dato"><span>Esquema de datos</span><span id="vEsquema">-</span></div>
-    <div class="dato"><span>Items guardados</span><span id="vTotal">-</span></div>
-    <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
-    <div class="dato"><span>Notificaciones</span><span id="vNotif">-</span></div>
-    <div class="dato"><span>Ultimo backup</span><span id="vBackup">-</span></div>
-    <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
+    <!-- Orden: lo que protege los datos primero (backup), lo informativo al final. -->
+    <div class="rot">Backup</div>
+    <div class="dato"><span>&Uacute;ltimo backup</span><span id="vBackup">-</span></div>
+    <button class="bloque" id="btnExportar" type="button" data-ico="download">Descargar backup (.json)</button>
+    <button class="bloque" id="btnBackupTexto" type="button" data-ico="share">Compartir backup como texto</button>
+    <button class="bloque" id="btnImportar" type="button" data-ico="upload">Restaurar backup</button>
+    <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
+    <div class="rot" id="rotApartados">Apartados</div>
+    <div class="aplista" id="listaApartados" role="list" aria-labelledby="rotApartados"></div>
+    <button class="bloque" id="btnNuevoApartado" type="button" data-ico="plus">Nuevo apartado</button>
     <div class="rot">Pantalla</div>
     <div class="seg" id="segTema" role="group" aria-label="Tema">
       <button class="segbtn" type="button" data-tema="sistema">Sistema</button>
@@ -406,9 +437,11 @@
     <button class="bloque" id="btnLuz" type="button" data-ico="sun">Modo luz de planta</button>
     <div class="pista" style="margin-top:8px">Sube el contraste y agranda los textos chicos para leer bajo el sol o los tubos de la planta.</div>
     <div class="rot">Recordatorios</div>
+    <div class="dato"><span>Notificaciones</span><span id="vNotif">-</span></div>
     <button class="bloque" id="btnPermiso" type="button" data-ico="bell">Activar notificaciones</button>
     <div class="pista" style="margin-top:8px">Suenan con KCO abierta o recien usada. Con la app cerrada Android no las dispara: al abrir KCO vas a ver los vencidos arriba.</div>
-    <div class="rot">Catalogos de compras</div>
+    <div id="bloqueCatalogos">
+    <div class="rot">Cat&aacute;logos de compras</div>
     <div class="pista" style="margin-top:0;margin-bottom:9px">Solicitantes y destinos que KCO fue aprendiendo sola. Borrar uno de aca no toca ninguna compra ya cargada.</div>
     <div class="dato"><span>Solicitantes</span><span id="vSolic">-</span></div>
     <div id="chipsSolic" class="catalogo"></div>
@@ -420,13 +453,111 @@
     <textarea id="txtNuevoDest" rows="3" autocomplete="off" autocapitalize="sentences"
               placeholder="Uno por renglon. Se puede pegar una lista entera."></textarea>
     <button class="bloque" id="btnSumarDest" type="button" data-ico="plus">Sumar destinos</button>
+    </div>
 
-    <div class="rot">Backup</div>
-    <button class="bloque" id="btnExportar" type="button" data-ico="download">Descargar backup (.json)</button>
-    <button class="bloque" id="btnBackupTexto" type="button" data-ico="share">Compartir backup como texto</button>
-    <button class="bloque" id="btnImportar" type="button" data-ico="upload">Restaurar backup</button>
-    <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
+    <div class="rot">Info</div>
+    <div class="dato"><span>Versi&oacute;n app</span><span id="vApp">-</span></div>
+    <div class="dato"><span>Versi&oacute;n service worker</span><span id="vSw">-</span></div>
+    <div class="dato"><span>Esquema de datos</span><span id="vEsquema">-</span></div>
+    <div class="dato"><span>Items guardados</span><span id="vTotal">-</span></div>
+    <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
+    <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
     <div class="pie">KCO v<span id="pieVersion">-</span> &middot; esquema <span id="pieEsquema">-</span><br>Desarrollado por Kevin V&aacute;squez</div>
+  </div>
+</div>
+
+<!-- Primera corrida (instalacion nueva): con que apartados empezar. kco-app.js
+     arma una tarjeta por plantilla (K.plantillas). Cerrar sin elegir empieza
+     con un apartado General. -->
+<div class="tapa" id="tapaPlantillas">
+  <div class="hoja">
+    <h2 id="plTitulo">&iquest;Con qu&eacute; apartados empez&aacute;s?</h2>
+    <div class="sub">Eleg&iacute; una plantilla. Despu&eacute;s pod&eacute;s cambiar todo en Ajustes &rsaquo; Apartados.</div>
+    <div class="pllista" id="listaPlantillas" role="list" aria-labelledby="plTitulo"></div>
+    <div class="pista aperror" id="plError" role="alert"></div>
+    <div class="pista">Si cerr&aacute;s sin elegir, empez&aacute;s con un apartado General.</div>
+  </div>
+</div>
+
+<div class="tapa" id="tapaApartado">
+  <div class="hoja">
+    <h2 id="apTitulo">Apartado</h2>
+    <label class="rot" for="apNom">Nombre</label>
+    <input id="apNom" type="text" autocomplete="off" autocapitalize="sentences" maxlength="40" placeholder="Ej: Taller">
+    <div class="pista" id="apSlug"></div>
+    <div class="rot" id="rotApIco">&Iacute;cono</div>
+    <div class="apicos" id="apIcos" role="group" aria-labelledby="rotApIco"></div>
+    <div class="rot" id="rotApColor">Color</div>
+    <div class="apcolores" id="apColores" role="group" aria-labelledby="rotApColor"></div>
+    <label class="rot" for="apDesc">Descripci&oacute;n</label>
+    <textarea id="apDesc" rows="2" maxlength="280" placeholder="Para qu&eacute; es este apartado (opcional)"></textarea>
+    <div class="rot" id="rotApMeta">Objetivo</div>
+    <div class="segctl" id="segMetaAp" role="group" aria-labelledby="rotApMeta">
+      <button class="gbtn" type="button" data-meta="no">Sin objetivo</button>
+      <button class="gbtn" type="button" data-meta="semana">Por semana</button>
+      <button class="gbtn" type="button" data-meta="mes">Por mes</button>
+    </div>
+    <div id="cajaMetaN" style="display:none">
+      <label class="pista" for="apMetaN">Completadas por per&iacute;odo</label>
+      <input id="apMetaN" type="number" inputmode="numeric" min="1" max="999" value="5">
+    </div>
+    <label class="rot" for="apAlias">Alias de captura</label>
+    <input id="apAlias" type="text" autocomplete="off" autocapitalize="none" placeholder="Separados por coma (opcional)">
+    <div class="pista" id="apAliasPista"></div>
+    <div class="rot" id="rotApCompras">Compras</div>
+    <div class="segctl" id="segComprasAp" role="group" aria-labelledby="rotApCompras">
+      <button class="gbtn" type="button" data-compras="no">No</button>
+      <button class="gbtn" type="button" data-compras="lista">Lista simple</button>
+      <button class="gbtn" type="button" data-compras="fabrica">Con seguimiento</button>
+    </div>
+    <div class="pista" id="apComprasPista"></div>
+    <div class="rot" id="rotApNotas">Notas</div>
+    <div class="segctl" id="segNotasAp" role="group" aria-labelledby="rotApNotas">
+      <button class="gbtn" type="button" data-notas="si">Con notas</button>
+      <button class="gbtn" type="button" data-notas="no">Sin notas</button>
+    </div>
+    <div class="pista" id="apNotasPista"></div>
+    <div class="rot" id="rotApTags">Etiquetas</div>
+    <div class="aptags" id="apTags" role="list" aria-labelledby="rotApTags"></div>
+    <div class="aplinea">
+      <input id="apTagNuevo" type="text" autocomplete="off" maxlength="30" placeholder="Nueva etiqueta" aria-label="Nueva etiqueta">
+      <button class="gbtn" id="btnApTag" type="button" data-ico="plus">Sumar</button>
+    </div>
+    <div class="pista aperror" id="apError" role="alert"></div>
+    <button class="bloque pri" id="btnApGuardar" type="button">Guardar apartado</button>
+    <div id="cajaApExistente">
+      <button class="bloque" id="btnApArchivar" type="button">Archivar</button>
+      <button class="bloque peli" id="btnApBorrar" type="button">Borrar apartado</button>
+      <div id="cajaApMover" style="display:none">
+        <div class="rot" id="rotApMover">Pasar sus registros a</div>
+        <div class="pista" id="apMoverPista" style="margin-top:0;margin-bottom:8px"></div>
+        <div class="opciones" id="apDestinos" role="group" aria-labelledby="rotApMover"></div>
+      </div>
+      <div class="pista" id="apUltimo"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Nota: titulo, texto, apartado, etiquetas del apartado y fijar. Archivar y
+     borrar (con deshacer) solo en una nota ya guardada. kco-app abrirNota. -->
+<div class="tapa" id="tapaNota">
+  <div class="hoja">
+    <h2 id="notaTitulo">Nota</h2>
+    <label class="rot" for="notaTit">T&iacute;tulo</label>
+    <input id="notaTit" type="text" autocomplete="off" autocapitalize="sentences" maxlength="120" placeholder="Opcional si hay texto">
+    <label class="rot" for="notaTxt">Texto</label>
+    <textarea id="notaTxt" rows="6" maxlength="20000" autocapitalize="sentences" placeholder="Lo que quieras anotar"></textarea>
+    <div class="rot" id="rotNotaCtx">Apartado</div>
+    <div class="opciones" id="notaCtxs" role="group" aria-labelledby="rotNotaCtx"></div>
+    <div class="rot" id="rotNotaTags">Etiquetas</div>
+    <div class="opciones" id="notaTags" role="group" aria-labelledby="rotNotaTags"></div>
+    <button class="gbtn notafijar" id="btnNotaFijar" type="button" aria-pressed="false" data-ico="pin">Fijar arriba</button>
+    <div class="pista aperror" id="notaError" role="alert"></div>
+    <button class="bloque pri" id="btnNotaGuardar" type="button">Guardar nota</button>
+    <div id="cajaNotaExistente">
+      <button class="bloque" id="btnNotaArchivar" type="button">Archivar</button>
+      <button class="bloque peli" id="btnNotaBorrar" type="button">Borrar nota</button>
+    </div>
   </div>
 </div>
 

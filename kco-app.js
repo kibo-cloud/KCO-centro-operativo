@@ -3,10 +3,10 @@
   'use strict';
 
   var K = window.KCOCore;
-  var VERSION_APP = '2.0.0';
-  /* El esquema sigue en 4: la v0.8 no cambia la forma de los datos.
-     Subirlo sin motivo rompe la compatibilidad de backups hacia atras. */
-  var ESQUEMA = 4;
+  var VERSION_APP = '2.2.0';
+  /* Esquema 5 (2.2.0): los contextos pasan a ser apartados del usuario
+     (kibco.apartados). Subirlo sin motivo rompe la compatibilidad de backups. */
+  var ESQUEMA = 5;
   var HORAS_ALERTA_ENTREGA = 48;
   var DIAS_AVISO_BACKUP = 14;
   var LARGO_CAMPO = 60;
@@ -21,6 +21,8 @@
   var VENTANA_EVENTOS_DIAS = 180;
   var AVISO_REGISTRO = 'No se pudo guardar el registro: almacenamiento lleno. Export\u00E1 un backup.';
   var K_ESQUEMA = 'kibco.esquema';
+  /* Registro de apartados (KCOCore.normalizarApartados). */
+  var K_APARTADOS = 'kibco.apartados';
   var K_FILTRO = 'kibco.filtro';
   var K_FILTROC = 'kibco.filtroCompra';
   var K_FILTROTAG = 'kibco.filtroTag';
@@ -35,6 +37,10 @@
   var rutinas = [];
   var K_PROYECTOS = 'kibco.proyectos';
   var proyectos = [];
+  /* Notas de los apartados (T08b, KCOCore.normalizarNota). Clave nueva del
+     esquema 5: se lee con fallback [] (sin migracion). */
+  var K_NOTAS = 'kibco.notas';
+  var notasAp = [];
   /* Memoria del progreso: que nivel ya se celebro y que logros se desbloquearon.
      El XP en si no se guarda: se recalcula siempre desde los datos. */
   var K_PROGRESO = 'kibco.progreso';
@@ -73,26 +79,9 @@
     { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
   ];
 
-  /* Catalogo completo de tags. tagInfo busca aca, asi un tag viejo
-     sigue mostrandose aunque ya no se ofrezca en ese contexto. */
-  var TAGS = [
-    { id: 'relevamiento', ico: '\uD83D\uDCCF', nom: 'Relevamiento' },
-    { id: 'limpieza', ico: '\uD83E\uDDF9', nom: 'Limpieza' },
-    { id: 'adm', ico: '\uD83D\uDCC4', nom: 'Adm / Legajos' },
-    { id: 'proveedor', ico: '\uD83C\uDFE2', nom: 'Alta Proveedor' },
-    { id: 'panol', ico: '\uD83E\uDDF0', nom: 'Pa\u00F1ol' },
-    { id: 'gestion', ico: '\uD83D\uDCCB', nom: 'Gestion' },
-    { id: 'comida', ico: '\uD83C\uDF7D', nom: 'Comida' },
-    { id: 'higiene', ico: '\uD83E\uDDFC', nom: 'Higiene' },
-    { id: 'mantenimiento', ico: '\uD83D\uDD27', nom: 'Mantenimiento' },
-    { id: 'hogar', ico: '\uD83C\uDFE0', nom: 'Hogar' }
-  ];
-
-  var TAGS_TRABAJO = ['relevamiento', 'limpieza', 'adm', 'proveedor', 'panol', 'gestion'];
-  var TAGS_HOGAR = ['comida', 'limpieza', 'higiene', 'mantenimiento', 'hogar'];
-  /* Apps, Contenido y Personal no traen clasificaciones propias: se ordenan por
-     prioridad, dia y mision. Si un item llega con un tag de otro contexto se
-     sigue viendo para poder sacarlo, igual que siempre. */
+  /* Los tags son de cada apartado (KCOCore.tagsDe). tagInfo busca en todos
+     los apartados, asi un tag viejo sigue mostrandose aunque ya no se ofrezca
+     en ese contexto y se puede sacar, igual que siempre. */
 
   var RANGOS = [
     { id: 'hoy', nom: 'Hoy', dias: 1 },
@@ -105,9 +94,13 @@
 
   var items = [];
   var eventos = [];
-  var contexto = 'trabajo';
+  /* Se fijan al arrancar, ya con el registro de apartados cargado. */
+  var contexto = 'todo';
   /* Donde cae lo que se captura mirando 'Todo': el ultimo contexto elegido. */
-  var ctxCaptura = 'trabajo';
+  var ctxCaptura = '';
+  /* Destino elegido con el chip de la barra para la captura en curso ('' = el
+     de la vista). Vale para una sola captura: guardar o cambiar de vista lo limpia. */
+  var ctxDestino = '';
   var filtro = 'activos';
   var filtroCompra = 'activos';
   var filtroTag = '';
@@ -121,6 +114,16 @@
      se restaura, porque pisaria datos que esta version no entiende. */
   var esquemaFuturo = false;
   var migrarComprasHogar = false;
+  /* Desde que esquema se sembraron los apartados de siempre ('' = no se sembro). */
+  var apartadosSembradosDesde = '';
+  /* Instalacion nueva sin apartados guardados: la primera corrida ofrece
+     plantillas (T07). Ver cargarApartados. */
+  var necesitaPlantillas = false;
+  /* arrancado: la carga inicial termino (antes, un guardado rechazado no abre
+     el selector: el arranque lo abre solo). cerrandoPlantillas: el selector se
+     esta cerrando y aplica la plantilla de "Empezar de cero". */
+  var arrancado = false;
+  var cerrandoPlantillas = false;
   var itemAbierto = null;
   var confAccion = null;
 
@@ -179,10 +182,12 @@
 
   function listaTags(ctx) {
     var r = [], i;
-    if (ctx === 'todo') { return TAGS.slice(0); }
-    var ids = ctx === 'hogar' ? TAGS_HOGAR : (ctx === 'trabajo' ? TAGS_TRABAJO : []);
-    for (i = 0; i < ids.length; i++) {
-      var t = tagInfo(ids[i]);
+    if (ctx === 'todo') { return K.todosTags(); }
+    /* Cada tag con el nombre de este apartado, aunque otro apartado use el
+       mismo id con otro nombre. */
+    var propios = K.tagsDe(ctx);
+    for (i = 0; i < propios.length; i++) {
+      var t = tagInfo(propios[i].id, ctx);
       if (t) { r.push(t); }
     }
     return r;
@@ -217,11 +222,8 @@
     return 'cotizando';
   }
 
-  function tagInfo(id) {
-    var i;
-    for (i = 0; i < TAGS.length; i++) { if (TAGS[i].id === id) { return TAGS[i]; } }
-    return null;
-  }
+  /* Con ctx, el tag como lo nombra ese apartado; si no, el del catalogo. */
+  function tagInfo(id, ctx) { return K.infoTag(id, ctx); }
 
   /* Los ids de estado de un evento vienen de datos importados: se consulta el
      mapa sin pasar por el prototipo ('constructor' no es un estado cerrado). */
@@ -391,14 +393,18 @@
   function normalizarItem(it) {
     if (!it || typeof it !== 'object') { return null; }
     var creado = it.creado ? '' + it.creado : new Date().toISOString();
-    var ctx = K.normalizarContexto(it.contexto);
+    var ctx = K.contextoDeRegistro(it.contexto);
     var tipo = it.tipo === 'compra' ? 'compra' : 'tarea';
     var est = it.estado ? '' + it.estado : (tipo === 'compra' ? (K.esFabrica(ctx) ? 'cotizando' : 'por_comprar') : 'entrada');
     var nivel = K.nivelDe(it);
+    /* Una compra en un apartado sin compras (modo cambiado, backup, otra
+       pestana) se lee como tarea: nunca queda una compra sin vista. */
+    var aTarea = tipo === 'compra' && K.modoCompras(ctx) === 'no';
+    if (aTarea) { tipo = 'tarea'; est = K.estadoTareaDeCompra(est); }
     est = estadoEquivalente(tipo, ctx, est);
     var act = it.actualizado ? '' + it.actualizado : creado;
     var tag = it.tag ? '' + it.tag : '';
-    if (tag !== '' && !tagInfo(tag)) { tag = ''; }
+    if (tag !== '' && !tagInfo(tag, ctx)) { tag = ''; }
     return {
       id: it.id ? '' + it.id : nuevoId(),
       texto: it.texto ? '' + it.texto : '',
@@ -414,8 +420,8 @@
       actualizado: act,
       estadoDesde: it.estadoDesde ? '' + it.estadoDesde : act,
       comentarios: normalizarNotas(it.comentarios),
-      pausado: it.pausado === true,
-      pausadoDesde: it.pausadoDesde ? '' + it.pausadoDesde : '',
+      pausado: !aTarea && it.pausado === true,
+      pausadoDesde: !aTarea && it.pausadoDesde ? '' + it.pausadoDesde : '',
       pasos: normalizarPasos(it.pasos),
       anclado: it.anclado === true,
       solicitante: limpiarTexto(it.solicitante, LARGO_CAMPO),
@@ -447,7 +453,7 @@
       tipo: ev.tipo ? '' + ev.tipo : 'nota',
       itemId: ev.itemId ? '' + ev.itemId : '',
       texto: ev.texto ? '' + ev.texto : '',
-      contexto: K.normalizarContexto(ev.contexto),
+      contexto: K.contextoDeRegistro(ev.contexto),
       desde: ev.desde ? '' + ev.desde : '',
       hasta: ev.hasta ? '' + ev.hasta : ''
     };
@@ -487,10 +493,19 @@
     return salida;
   }
 
+  /* Hay datos de antes si alguna lista guardada tiene algo (aunque este rota). */
+  function hayDatos() {
+    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_NOTAS], i, v;
+    for (i = 0; i < claves.length; i++) {
+      v = leer(claves[i]);
+      if (v !== null && v !== '' && v !== '[]') { return true; }
+    }
+    return false;
+  }
+
   function migrar() {
     var v = leer(K_ESQUEMA);
-    if (v === null) { escribir(K_ESQUEMA, '' + ESQUEMA); return; }
-    var n = parseInt(v, 10);
+    var n = v === null ? ESQUEMA : parseInt(v, 10);
     if (isNaN(n)) {
       soloLectura = true;
       avisar('El esquema de datos guardado no se entiende. No escribo nada.');
@@ -510,9 +525,76 @@
       /* 3 -> 4: Hogar deja de usar el flujo de compras de fabrica. Las compras de hogar
          que quedaron con estados de OC/OT se pasan a la lista simple. Se persiste aca
          porque el estado viejo ya no existe en ese contexto. Nada mas se toca. */
-      escribir(K_ESQUEMA, '' + ESQUEMA);
       migrarComprasHogar = n < 4;
     }
+    /* 4 -> 5: los contextos pasan a ser apartados del usuario. Con datos de
+       antes (o un esquema viejo) y sin kibco.apartados se siembran los cinco
+       de siempre, con los mismos ids, colores, tags y modo de compras: ningun
+       item cambia. Sin datos ni esquema es una instalacion nueva: no se siembra. */
+    if (leer(K_APARTADOS) === null && (n < 5 || hayDatos())) {
+      /* Si la siembra no se pudo guardar, el esquema queda como estaba: el
+         proximo arranque la vuelve a intentar. */
+      if (!escribir(K_APARTADOS, JSON.stringify(K.apartadosLegado()))) { return; }
+      apartadosSembradosDesde = v === null ? 'sin esquema' : 'esquema ' + n;
+    }
+    if (v === null || n < ESQUEMA) { escribir(K_ESQUEMA, '' + ESQUEMA); }
+  }
+
+  /* Registro de apartados. Lectura con cuarentena igual que las listas.
+     Sin apartados activos (instalacion nueva) queda necesitaPlantillas: al
+     arrancar se abre el selector de plantillas (#tapaPlantillas). Mientras
+     tanto la pantalla de atras se arma con los apartados de siempre SOLO en
+     memoria, y no se guarda ningun dato (ni items, ni registro, ni rutinas, ni
+     misiones): asi nada queda atado a apartados que la persona no eligio y el
+     proximo arranque sigue siendo una instalacion nueva (sin siembra ni evento
+     de migracion). Elegir una plantilla, cerrar el selector o restaurar un
+     backup terminan este estado. */
+  function cargarApartados() {
+    K.fijarApartados(cargarLista(K_APARTADOS, K.normalizarApartado));
+    necesitaPlantillas = false;
+    if (K.apartados().length === 0) {
+      necesitaPlantillas = !soloLectura;
+      K.fijarApartados(K.apartadosLegado());
+    }
+  }
+
+  /* Mientras no hay plantilla elegida ningun guardado se hace. Para que no
+     falle en silencio, el rechazo vuelve a pedir la plantilla (igual que la
+     captura): el selector se abre encima y, elegida, se puede reintentar. */
+  function sinGuardar() {
+    if (soloLectura) { return true; }
+    if (necesitaPlantillas) {
+      if (automatico === 0) { pedirPlantillas(); }
+      return true;
+    }
+    return false;
+  }
+
+  /* Escrituras que nadie pidio (el reloj de 30 s: recordatorios y rutinas del
+     dia nuevo) corren dentro de enAutomatico. Sin plantilla elegida se
+     saltean en silencio: el selector solo se abre por una accion de la
+     persona. Contador (no booleano) por si una anida a otra. */
+  var automatico = 0;
+
+  function enAutomatico(fn) {
+    automatico++;
+    try { return fn(); } finally { automatico--; }
+  }
+
+  function guardarApartados() {
+    if (soloLectura || necesitaPlantillas) { return false; }
+    return escribir(K_APARTADOS, JSON.stringify(K.todosApartados()));
+  }
+
+  /* Deja constancia en el registro de la siembra de apartados (necesita los
+     eventos ya cargados, por eso corre despues de migrar). */
+  function aplicarMigracion5() {
+    if (apartadosSembradosDesde === '' || soloLectura) { return; }
+    anotarEventos([{
+      id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'migracion', itemId: '',
+      texto: 'Apartados creados a partir de los 5 contextos de siempre',
+      contexto: K.normalizarContexto(''), desde: apartadosSembradosDesde, hasta: 'esquema 5'
+    }]);
   }
 
   function aplicarMigracion4() {
@@ -539,7 +621,8 @@
     }]);
   }
 
-  function guardarItems() { return soloLectura ? false : escribir(K_ITEMS, JSON.stringify(items)); }
+  function guardarItems() { return sinGuardar() ? false : escribir(K_ITEMS, JSON.stringify(items)); }
+  function guardarNotas() { return sinGuardar() ? false : escribir(K_NOTAS, JSON.stringify(notasAp)); }
 
   function corteEventos() {
     var d = new Date();
@@ -551,7 +634,7 @@
      una sola vez. La memoria solo toma la version
      compactada si quedo guardada: memoria y almacenamiento dicen lo mismo. */
   function guardarEventos() {
-    if (soloLectura) { return false; }
+    if (sinGuardar()) { return false; }
     var lista = eventos;
     if (escribir(K_EVENTOS, JSON.stringify(lista), true)) { eventos = lista; return true; }
     if (lista === eventos) {
@@ -627,10 +710,14 @@
     } catch (e) { return false; }
   }
 
+  /* Sin plantilla elegida (necesitaPlantillas) no se puede guardar recAvisado:
+     la notificacion se repetiria en cada arranque. El aviso #recuerdo se
+     muestra igual; la notificacion espera a que haya apartados guardados. */
   function chequearRecordatorios() {
     var ahora = Date.now();
     var vencidos = [];
     var cambio = false;
+    var notifica = !necesitaPlantillas;
     var i;
     for (i = 0; i < items.length; i++) {
       var it = items[i];
@@ -638,7 +725,7 @@
       var d = fechaObj(it.recordatorio);
       if (!d || d.getTime() > ahora) { continue; }
       vencidos.push(it);
-      if (!it.recAvisado) {
+      if (!it.recAvisado && notifica) {
         notificar(it);
         it.recAvisado = true;
         cambio = true;
@@ -678,8 +765,14 @@
   function capturar() {
     var crudo = $('txtCaptura').value.replace(/^\s+|\s+$/g, '');
     if (crudo === '' || soloLectura) { return; }
+    /* Sin plantilla elegida no se guarda nada: se pide elegir primero y lo
+       tipeado queda en la barra para guardarlo despues. */
+    if (necesitaPlantillas) { pedirPlantillas(); return; }
+    /* 'nota: ...' guarda una nota del apartado, no un item. */
+    var pn = K.parsearNota(crudo);
+    if (pn) { capturarNota(pn); return; }
     var p = K.parsearCaptura(crudo, new Date());
-    var it = itemNuevo(p.texto, p.contexto || ctxCaptura, {
+    var it = itemNuevo(p.texto, destinoCaptura(p), {
       recordatorio: p.recordatorio, fecha: p.fecha, nivel: p.nivel || 'normal'
     });
     items.push(it);
@@ -687,6 +780,8 @@
       registrar('captura', it, '', 'entrada');
       if (it.recordatorio !== '') { registrar('recordatorio', it, '', horaCorta(it.recordatorio)); }
       $('txtCaptura').value = '';
+      ctxDestino = '';
+      pintarChipsCaptura();
       pintar();
       $('txtCaptura').focus();
     } else {
@@ -754,22 +849,68 @@
   function nomCtx(id) {
     if (id === 'todo') { return 'Todo'; }
     var c = K.infoContexto(id);
-    return c ? c.nom : 'Trabajo';
+    return c ? c.nom : '' + id;
   }
 
+  /* Emoji para textos exportados: el icono de un apartado es un nombre de
+     iconos.js (SVG), que no sirve en texto plano; el nucleo lo traduce. */
   function icoCtx(id) {
-    if (id === 'todo') { return '\u2B50'; }
-    var c = K.infoContexto(id);
-    return c ? c.ico : '';
+    return id === 'todo' ? '\u2B50' : K.emojiApartado(id);
   }
 
-  /* Identidad visual de un contexto en la interfaz: un punto de su color
-     (kco.css, --ctx-*). El emoji queda solo en textos que se exportan. */
+  /* Compras segun el apartado: uno con modo 'no' no las usa. Todo las
+     muestra si algun apartado activo las usa. */
+  function usaCompras(ctx) {
+    var l = K.apartados(), i;
+    if (ctx !== 'todo') { return K.modoCompras(ctx) !== 'no'; }
+    for (i = 0; i < l.length; i++) { if (l[i].compras !== 'no') { return true; } }
+    return false;
+  }
+
+  /* Los catalogos (solicitantes, destinos) solo sirven al flujo de fabrica. */
+  function hayFabrica() {
+    var l = K.apartados(), i;
+    for (i = 0; i < l.length; i++) { if (l[i].compras === 'fabrica') { return true; } }
+    return false;
+  }
+
+  /* Identidad visual de un apartado: su color de paleta (kco.css, --pal-*) y
+     su icono de iconos.js. Todo es el agregado: acento neutro y una estrella.
+     El emoji queda solo en textos que se exportan. */
+  function colorCtx(id) {
+    var c = id === 'todo' ? null : K.infoContexto(id);
+    return c ? c.color : 'gris';
+  }
+
+  function nomIcoCtx(id) {
+    if (id === 'todo') { return 'star'; }
+    var c = K.infoContexto(id);
+    return c ? c.ico : 'layers';
+  }
+
   function punto(id) {
     var s = document.createElement('span');
-    s.className = 'punto p-' + id;
+    s.className = 'punto pal-' + colorCtx(id);
     s.setAttribute('aria-hidden', 'true');
     return s;
+  }
+
+  /* Icono del apartado; data-ico-nom deja ver cual es (pruebas, depuracion). */
+  function icoApartado(id, clase) {
+    var nom = nomIcoCtx(id), e = svgIco(nom, clase);
+    e.setAttribute('data-ico-nom', nom);
+    return e;
+  }
+
+  /* Firma de lo que se ve de cada apartado: si cambia (otro registro, otro
+     color, icono o nombre) las filas de un selector se arman de nuevo. */
+  function firmaApartados(defs) {
+    var r = [], i, id;
+    for (i = 0; i < defs.length; i++) {
+      id = defs[i].id;
+      r.push(id + ':' + colorCtx(id) + ':' + nomIcoCtx(id) + ':' + nomCtx(id));
+    }
+    return r.join('|');
   }
 
   function badgeCtx(id) {
@@ -798,6 +939,7 @@
     b.className = 'ctxfila';
     b.setAttribute('data-ctx', id);
     b.appendChild(punto(id));
+    b.appendChild(icoApartado(id, 'ctxfila-ico'));
     b.appendChild(nodo('span', 'ctxfila-nom', nomCtx(id)));
     b.appendChild(nodo('span', 'ctxfila-n', '0'));
     b.appendChild(svgIco('check', 'ctxfila-ok'));
@@ -811,9 +953,12 @@
   /* Las filas se arman una vez y despues solo se actualizan: repintar no le
      saca el foco de teclado al boton que se acaba de usar. */
   function filasContexto(cont, defs, n, enHoja) {
-    var i, b, id, on;
-    if (!cont.firstChild) {
+    var i, b, id, on, firma = firmaApartados(defs);
+    /* Las filas se arman de nuevo solo si cambio lo que muestran los apartados. */
+    if (cont.getAttribute('data-firma') !== firma) {
+      while (cont.firstChild) { cont.removeChild(cont.firstChild); }
       for (i = 0; i < defs.length; i++) { cont.appendChild(filaContexto(defs[i].id, enHoja)); }
+      cont.setAttribute('data-firma', firma);
     }
     for (b = cont.firstChild; b; b = b.nextSibling) {
       id = b.getAttribute('data-ctx');
@@ -830,8 +975,63 @@
     var defs = [{ id: 'todo' }].concat(K.CONTEXTOS), n = cuentasPorContexto();
     filasContexto($('ctxsel'), defs, n, true);
     filasContexto($('ctxLateral'), defs, n, false);
-    $('ctxPunto').className = 'punto p-' + contexto;
+    pintarChipContexto();
+    aplicarClaseCuerpo();
+  }
+
+  /* Chip de la barra superior: punto, icono y nombre del apartado actual. */
+  function pintarChipContexto() {
+    var p = $('ctxPunto'), nom = nomIcoCtx(contexto), viejo = p.parentNode.getElementsByClassName('ctxchip-ico')[0];
+    p.className = 'punto pal-' + colorCtx(contexto);
+    if (!viejo || viejo.getAttribute('data-ico-nom') !== nom) {
+      if (viejo) { viejo.parentNode.removeChild(viejo); }
+      p.parentNode.insertBefore(icoApartado(contexto, 'ctxchip-ico'), p.nextSibling);
+    }
     $('ctxNombre').textContent = nomCtx(contexto);
+  }
+
+  /* Objetivo de un apartado: texto (K.textoMeta, la meta cumplida se dice en
+     palabras) y barra accesible (role=progressbar). conNombre: con punto,
+     icono y nombre del apartado (lista de la campana). */
+  function nodoMeta(a, p, conNombre) {
+    var f = nodo('div', 'apmeta' + (p.cumplida ? ' cumplida' : '')), txt = K.textoMeta(p);
+    f.setAttribute('data-meta-ap', a.id);
+    if (conNombre) {
+      var cn = nodo('span', 'apmeta-nom', a.nom);
+      cn.insertBefore(icoApartado(a.id, 'apmeta-ico'), cn.firstChild);
+      cn.insertBefore(punto(a.id), cn.firstChild);
+      f.appendChild(cn);
+    }
+    var b = nodo('span', 'apmeta-barra');
+    b.setAttribute('role', 'progressbar');
+    b.setAttribute('aria-label', 'Objetivo de ' + a.nom);
+    b.setAttribute('aria-valuemin', '0');
+    b.setAttribute('aria-valuemax', '' + p.meta);
+    b.setAttribute('aria-valuenow', '' + Math.min(p.hechas, p.meta));
+    b.setAttribute('aria-valuetext', txt);
+    var i = nodo('i', '');
+    i.style.width = (p.meta > 0 ? Math.min(100, Math.round((p.hechas * 100) / p.meta)) : 0) + '%';
+    b.appendChild(i);
+    f.appendChild(b);
+    f.appendChild(nodo('span', 'mono apmeta-txt', txt));
+    return f;
+  }
+
+  /* Banda bajo la barra superior: descripcion y objetivo del apartado activo.
+     En Todo, o sin descripcion ni objetivo, no se muestra. */
+  function pintarInfoApartado() {
+    var caja = $('apInfo'), a = contexto === 'todo' ? null : K.infoContexto(contexto), p;
+    if (!caja) { return; }
+    vaciar(caja);
+    p = a ? K.progresoMeta(a, items, hoyClave()) : null;
+    caja.hidden = !a || (!a.desc && !p);
+    if (caja.hidden) { return; }
+    if (a.desc) {
+      var d = nodo('p', 'apinfo-desc', a.desc);
+      d.setAttribute('title', a.desc);
+      caja.appendChild(d);
+    }
+    if (p) { caja.appendChild(nodoMeta(a, p, false)); }
   }
 
   function abrirSelectorContexto() {
@@ -848,6 +1048,96 @@
     }
   }
 
+  /* ---------- chips de la barra de captura ----------
+     Al tipear se muestra lo que se va a guardar: contexto destino, dia y
+     prioridad. Sale de KCOCore.resumenCaptura, el mismo parser que capturar(). */
+
+  /* Una #etiqueta tipeada gana; si no, el chip elegido; si no, la vista. */
+  function destinoCaptura(p) { return p.contexto || ctxDestino || ctxCaptura; }
+
+  function chipDato(el, texto, ico) {
+    vaciar(el);
+    el.hidden = texto === '';
+    if (texto !== '') { conIcono(el, ico, texto); }
+  }
+
+  function pintarChipsCaptura() {
+    var inp = $('txtCaptura'), caja = $('capChips'), raiz = document.documentElement;
+    if (!inp || !caja) { return; }
+    var crudo = inp.value.replace(/^\s+|\s+$/g, '');
+    var hay = crudo !== '' || ctxDestino !== '';
+    caja.hidden = !hay;
+    /* La barra crece: el contenido deja libre ese alto extra (kco.css). */
+    if (hay) { raiz.setAttribute('data-capchips', '1'); } else { raiz.removeAttribute('data-capchips'); }
+    if (!hay) { ajustarAltoCaptura(); return; }
+    var r = K.resumenCaptura(crudo, new Date()), ctx = destinoCaptura(r), b = $('capCtx');
+    vaciar(b);
+    b.appendChild(punto(ctx));
+    b.appendChild(nodo('span', 'capchip-nom', nomCtx(ctx)));
+    b.appendChild(svgIco('chevron-down', 'capchip-chev'));
+    b.setAttribute('aria-label', 'Guardar en ' + nomCtx(ctx) + '. Cambiar');
+    chipDato($('capDia'), r.nota ? 'Nota' : r.dia, r.nota ? 'note' : (r.recordatorio !== '' ? 'clock' : 'calendar'));
+    chipDato($('capNivel'), r.nivel ? K.infoNivel(r.nivel).nom : '', 'flag');
+    $('capNivel').className = r.nivel === 'urgente' ? 'capchip rojo' : 'capchip';
+    ajustarAltoCaptura();
+  }
+
+  /* Los chips pueden ocupar dos filas en pantallas angostas (Ma\u00F1ana 09:30 +
+     prioridad + un contexto largo): --capbar-h toma el alto medido de la barra
+     para que el contenido y el deshacer no queden tapados. Sin chips vuelve al
+     valor de kco.css. */
+  function ajustarAltoCaptura() {
+    var raiz = document.documentElement, barra = document.querySelector('.captura'), h;
+    if (!raiz.style || typeof raiz.style.setProperty !== 'function') { return; }
+    if (!barra || !raiz.hasAttribute('data-capchips')) { raiz.style.removeProperty('--capbar-h'); return; }
+    h = Math.ceil(barra.getBoundingClientRect().height);
+    if (h > 0) { raiz.style.setProperty('--capbar-h', h + 'px'); }
+  }
+
+  function filaDestino(id) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ctxfila';
+    b.setAttribute('data-ctx', id);
+    b.appendChild(punto(id));
+    b.appendChild(icoApartado(id, 'ctxfila-ico'));
+    b.appendChild(nodo('span', 'ctxfila-nom', nomCtx(id)));
+    b.appendChild(svgIco('check', 'ctxfila-ok'));
+    b.onclick = function () { elegirDestino(id); };
+    return b;
+  }
+
+  /* Hoja "Guardar en": los apartados activos (Todo no es un destino). Se arma
+     de nuevo si cambio lo que muestran. */
+  function abrirDestinoCaptura() {
+    var cont = $('destsel'), i, b, on, firma = firmaApartados(K.CONTEXTOS);
+    var actual = destinoCaptura(K.parsearCaptura($('txtCaptura').value, new Date()));
+    if (cont.getAttribute('data-firma') !== firma) {
+      while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+      for (i = 0; i < K.CONTEXTOS.length; i++) { cont.appendChild(filaDestino(K.CONTEXTOS[i].id)); }
+      cont.setAttribute('data-firma', firma);
+    }
+    for (b = cont.firstChild; b; b = b.nextSibling) {
+      on = b.getAttribute('data-ctx') === actual;
+      b.className = on ? 'ctxfila on' : 'ctxfila';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    abrirHoja('tapaDestino');
+    b = cont.getElementsByClassName('on')[0];
+    if (b) { enfocar(b); }
+  }
+
+  /* Elegir destino saca la #etiqueta tipeada (si no, ganaria al guardar) y
+     devuelve el foco a la barra para seguir escribiendo o dar Enter. */
+  function elegirDestino(id) {
+    var inp = $('txtCaptura');
+    ctxDestino = id;
+    inp.value = K.quitarContextoCaptura(inp.value);
+    cerrarHoja('tapaDestino');
+    pintarChipsCaptura();
+    enfocar(inp);
+  }
+
   /* Grilla de opciones de un toque para la ficha: nivel, contexto. */
   function pintarOpciones(idGrid, defs, actual, rotulo, alElegir, atributo) {
     var g = $(idGrid);
@@ -860,7 +1150,10 @@
         b.className = (actual === def.id ? 'gbtn on' : 'gbtn') + (def.id === 'urgente' ? ' rojo' : '');
         b.setAttribute(atributo, def.id);
         b.textContent = rotulo(def);
-        if (atributo === 'data-ctx') { b.insertBefore(punto(def.id), b.firstChild); }
+        if (atributo === 'data-ctx') {
+          b.insertBefore(icoApartado(def.id, 'gbtn-ico'), b.firstChild);
+          b.insertBefore(punto(def.id), b.firstChild);
+        }
         b.onclick = function () { alElegir(def); };
         g.appendChild(b);
       })(defs[i]);
@@ -901,13 +1194,15 @@
 
   /* Cambiar de contexto conserva todo el item. Si cambia el tipo de flujo de
      compras (fabrica <-> lista simple) el estado se traduce al equivalente y la
-     pausa se suelta, porque fuera de Trabajo no existe. Se puede deshacer. */
+     pausa se suelta, porque fuera del flujo de fabrica no existe. Se puede deshacer. */
   function moverDeContexto(id, ctx) {
     var it = buscarItem(id);
     if (!it || soloLectura || it.contexto === ctx || !K.contextoValido(ctx)) { return; }
     var foto = fotoDe(it), antes = copiaItem(it);
     var previo = it.contexto;
     it.contexto = ctx;
+    /* A un apartado sin compras una compra llega como tarea. */
+    if (it.tipo === 'compra' && K.modoCompras(ctx) === 'no') { compraATarea(it); }
     var est = estadoEquivalente(it.tipo, ctx, it.estado);
     /* Una compra ya hecha solo cambia de nombre de casillero (comprado <->
        recibido): no se la vuelve a fechar como si se hubiera hecho ahora. */
@@ -927,6 +1222,17 @@
     } else {
       reponerItem(it, antes);
     }
+  }
+
+  /* Compra -> tarea (apartado sin compras): abierta pasa a pendiente,
+     comprada o recibida a completada, cancelada sigue cancelada. Texto,
+     fechas, comentarios y pasos quedan; la pausa es del flujo de compras. */
+  function compraATarea(it) {
+    it.tipo = 'tarea';
+    it.estado = K.estadoTareaDeCompra(it.estado);
+    it.espera = '';
+    it.pausado = false;
+    it.pausadoDesde = '';
   }
 
   /* Lo anclado va primero, por encima incluso de la prioridad alta. El filtro
@@ -1107,7 +1413,7 @@
     if (it.estado !== 'pendiente') { l2.appendChild(badge('est', inf.nom)); }
     if (it.pausado === true) { l2.appendChild(badge('pausa', 'En espera', 'pause')); }
     if (it.tag !== '') {
-      var t = tagInfo(it.tag);
+      var t = tagInfo(it.tag, it.contexto);
       if (t) { l2.appendChild(badge('tag', t.ico + ' ' + t.nom)); }
     }
     if (it.recordatorio !== '') {
@@ -1264,7 +1570,7 @@
     $('rapTitulo').textContent = it.texto;
     $('rapNivel').style.display = 'none';
     $('btnRapNivel').setAttribute('aria-expanded', 'false');
-    $('btnRapCompras').style.display = it.tipo === 'tarea' && it.rutinaId === '' ? '' : 'none';
+    $('btnRapCompras').style.display = it.tipo === 'tarea' && it.rutinaId === '' && usaCompras(it.contexto) ? '' : 'none';
     pintarOpciones('rapNivel', K.NIVELES, it.nivel, function (n) { return n.nom; }, function (n) {
       cerrarHoja('tapaRapido');
       fijarNivel(id, n.id);
@@ -1281,7 +1587,8 @@
       $('btnRapNivel').setAttribute('aria-expanded', abierto ? 'false' : 'true');
       return;
     }
-    cerrarHoja('tapaRapido');
+    /* La hoja que siga (ficha, confirmar) ocupa la entrada del menu rapido. */
+    cerrarParaRelevo('tapaRapido');
     if (cual === 'hoy') {
       if (it.estado === 'entrada') { sacarDeInbox(id, true); } else { fijarFecha(id, hoyClave()); }
     } else if (cual === 'manana') {
@@ -1293,6 +1600,7 @@
     } else if (cual === 'ficha') {
       abrirItem(id);
     }
+    soltarRelevo();
   }
 
   /* Filtro por clasificacion: encontrar sin abrir el teclado.
@@ -1338,10 +1646,65 @@
     }
   }
 
+  /* ---------- listas largas ----------
+     Una lista larga pinta de a TROZO filas; "Ver mas" al pie suma el trozo
+     siguiente. Cada lista recuerda su trozo mientras no cambie su clave
+     (contexto + filtro, o la busqueda): repintar despues de una edicion lo
+     conserva; cambiar de filtro o de vista (irAVista) vuelve a TROZO. */
+  var TROZO = 50;
+  var trozos = {};
+
+  function limiteTrozo(lista, clave) {
+    var t = trozos[lista];
+    if (!t || t.clave !== clave) {
+      t = { clave: clave, n: TROZO };
+      trozos[lista] = t;
+    }
+    return t.n;
+  }
+
+  /* La hoja (.hoja) que contiene a el, si hay: su scroll tambien se conserva. */
+  function hojaDe(el) {
+    while (el && el.nodeType === 1) {
+      if (el.classList && el.classList.contains('hoja')) { return el; }
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  /* El boton va al final de cont (un <li> si cont es una lista). Al tocarlo se
+     repinta con un trozo mas, se conserva el scroll (de la pagina y de la hoja
+     que lo contenga) y el foco pasa a la primera fila nueva. */
+  function botonVerMas(cont, lista, quedan, repintar) {
+    var pie = document.createElement(cont.tagName === 'UL' ? 'li' : 'div');
+    pie.className = 'vermas-fila';
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'vermas';
+    b.setAttribute('data-vermas', lista);
+    b.textContent = 'Ver m\u00E1s (' + quedan + ')';
+    b.onclick = function () {
+      var y = window.pageYOffset || 0, hoja = hojaDe(cont), sy = hoja ? hoja.scrollTop : 0;
+      var antes = trozos[lista] ? trozos[lista].n : TROZO;
+      if (trozos[lista]) { trozos[lista].n = antes + TROZO; }
+      repintar();
+      if (typeof window.scrollTo === 'function') { window.scrollTo(0, y); }
+      if (hoja) { hoja.scrollTop = sy; }
+      var filas = cont.querySelectorAll('li.item, .ev');
+      if (filas[antes]) {
+        if (!filas[antes].hasAttribute('tabindex')) { filas[antes].setAttribute('tabindex', '-1'); }
+        enfocar(filas[antes]);
+      }
+    };
+    pie.appendChild(b);
+    cont.appendChild(pie);
+  }
+
   function pintarLista(tipo, filtroActual, listaId, vacioId) {
     var lista = $(listaId);
     while (lista.firstChild) { lista.removeChild(lista.firstChild); }
     var arr = ordenar(delContexto(tipo));
+    var lim = limiteTrozo(listaId, tipo + '|' + contexto + '|' + filtroActual + '|' + (tipo === 'tarea' ? filtroTag : ''));
     var i, visibles = 0;
     for (i = 0; i < arr.length; i++) {
       var it = arr[i];
@@ -1350,8 +1713,9 @@
       } else if (it.estado !== filtroActual) { continue; }
       if (tipo === 'tarea' && filtroTag !== '' && it.tag !== filtroTag) { continue; }
       visibles++;
-      lista.appendChild(nodoItem(it));
+      if (visibles <= lim) { lista.appendChild(nodoItem(it)); }
     }
+    if (visibles > lim) { botonVerMas(lista, listaId, visibles - lim, pintar); }
     $(vacioId).style.display = visibles === 0 ? 'block' : 'none';
     return visibles;
   }
@@ -1363,19 +1727,35 @@
       filtro = id; escribir(K_FILTRO, filtro); pintar();
     });
     pintarChipsTag();
-    pintarLista('tarea', filtro, 'lista', 'vacioTablero');
+    if (pintarLista('tarea', filtro, 'lista', 'vacioTablero') === 0) { vacioTareas(); }
+  }
+
+  function vacioTareas() {
+    var el = $('vacioTablero'), t;
     if (filtroTag !== '') {
-      var t = tagInfo(filtroTag);
-      $('vacioTablero').textContent = 'Nada en ' + (t ? t.nom : 'esa clasificacion') + ' con este filtro.';
+      t = tagInfo(filtroTag, contexto);
+      estadoVacio(el, { id: 'etiqueta', ico: 'list', tit: 'Nada en ' + (t ? t.nom : 'esa clasificaci\u00F3n'),
+        txt: 'Ninguna tarea de este filtro tiene esa etiqueta.', acc: 'Quitar etiqueta',
+        alTocar: function () { filtroTag = ''; escribir(K_FILTROTAG, filtroTag); pintar(); } });
+    } else if (filtro === 'activos') {
+      estadoVacio(el, { id: 'tareas', ico: 'tareas',
+        tit: contexto === 'todo' ? 'Sin tareas activas' : 'Sin tareas activas en ' + nomCtx(contexto),
+        txt: 'Escrib\u00ED en la barra de captura y toc\u00E1 Enter. Termin\u00E1 con "hoy" o "ma\u00F1ana" para agendarla.',
+        acc: 'Capturar', accIco: 'plus', alTocar: irACaptura });
+    } else if (filtro === 'entrada') {
+      estadoVacio(el, { id: 'inbox', ico: 'inbox', tit: 'Inbox vac\u00EDo',
+        txt: 'Lo que captures cae ac\u00E1 hasta que decidas: para hoy, otro d\u00EDa u otro estado.',
+        acc: 'Capturar', accIco: 'plus', alTocar: irACaptura });
     } else {
-      $('vacioTablero').textContent = filtro === 'activos'
-        ? 'Nada activo ac\u00E1. Escrib\u00ED abajo y toc\u00E1 Enter.'
-        : 'No hay items en este filtro.';
+      estadoVacio(el, { id: 'filtro', ico: 'list', tit: 'Nada en ' + estadoInfo(filtro).nom,
+        txt: 'Ninguna tarea est\u00E1 en ese estado ahora.', acc: 'Ver activos',
+        alTocar: function () { filtro = 'activos'; escribir(K_FILTRO, filtro); pintar(); } });
     }
   }
 
   function pintarCompras() {
-    var esHogar = contexto !== 'trabajo' && contexto !== 'todo';
+    /* Los rotulos siguen el modo del apartado; Todo junta los dos flujos. */
+    var esHogar = contexto !== 'todo' && !K.esFabrica(contexto);
     progreso('compra', '', 'progCompraTxt', 'progCompraBarra');
     $('rotCompras').textContent = esHogar ? 'Lista de compras' : (contexto === 'todo' ? 'Compras cerradas' : 'Material recibido');
     var base = esHogar ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
@@ -1385,10 +1765,18 @@
     pintarChipsGen('chipsCompra', defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
       filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
     });
-    pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras');
-    $('vacioCompras').textContent = esHogar
-      ? 'Lista vac\u00EDa. Escrib\u00ED en la barra de captura y toc\u00E1 Mover a Compras.'
-      : 'Sin compras. Toca Mover a Compras en cualquier tarea.';
+    if (pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras') > 0) { return; }
+    if (filtroCompra !== 'activos') {
+      estadoVacio($('vacioCompras'), { id: 'compras-filtro', ico: 'cart', tit: 'Nada en ' + estadoInfo(filtroCompra).nom,
+        txt: 'Ninguna compra est\u00E1 en ese paso ahora.', acc: esHogar ? 'Ver por comprar' : 'Ver abiertas',
+        alTocar: function () { filtroCompra = 'activos'; escribir(K_FILTROC, filtroCompra); pintar(); } });
+      return;
+    }
+    estadoVacio($('vacioCompras'), { id: 'compras', ico: 'cart', tit: esHogar ? 'Lista de compras vac\u00EDa' : 'Sin compras abiertas',
+      txt: esHogar
+        ? 'Captur\u00E1 lo que falta y movelo a Compras desde su men\u00FA (desliz\u00E1 a la izquierda) o su ficha.'
+        : 'Cualquier tarea pasa a compra desde su men\u00FA o su ficha (Mover a Compras) y sigue ac\u00E1 hasta recibirla.',
+      acc: 'Capturar', accIco: 'plus', alTocar: irACaptura });
   }
 
   function desdeRango() {
@@ -1448,6 +1836,7 @@
     if (ev.tipo === 'recordatorio') { return ev.hasta === '' ? 'Sacaste el recordatorio' : 'Recordatorio ' + ev.hasta; }
     if (ev.tipo === 'compra') { return 'Moviste a Compras'; }
     if (ev.tipo === 'vuelta') { return 'Volviste a tarea'; }
+    if (ev.tipo === 'conversion') { return 'Pas\u00F3 de compra a tarea'; }
     if (ev.tipo === 'pausa') { return ev.hasta === 'reanudada' ? 'Reanudaste la compra' : 'Pusiste la compra en espera'; }
     if (ev.tipo === 'comentario') { return 'Comentaste'; }
     if (ev.tipo === 'anclado') { return ev.hasta === 'anclado' ? 'Anclaste arriba' : 'Sacaste el ancla'; }
@@ -1482,15 +1871,20 @@
     var corte = desdeRango();
     var dias = K.diario(eventos, items, { desde: corte ? corte.toISOString() : '', contexto: contexto });
     $('vacioRegistro').style.display = dias.length === 0 ? 'block' : 'none';
-    $('vacioRegistro').textContent = 'Sin actividad significativa en este periodo. Lo que completes, los hitos y las misiones quedan aca solos.';
-    var i, j;
-    for (i = 0; i < dias.length; i++) {
+    if (dias.length === 0) {
+      vacioRango('diario', 'book', 'Nada en el diario', 'Lo que completes, los hitos y las misiones quedan ac\u00E1 solos, d\u00EDa por d\u00EDa.');
+    }
+    var i, j, total = 0, pintadas = 0;
+    var lim = limiteTrozo('diarioCuerpo', contexto + '|' + rango);
+    for (i = 0; i < dias.length; i++) { total = total + dias[i].entradas.length; }
+    for (i = 0; i < dias.length && pintadas < lim; i++) {
       var g = dias[i];
       var cab = nodo('div', 'dia diario-dia');
       cab.appendChild(nodo('span', '', cabeceraDiaDiario(g.dia)));
       cab.appendChild(nodo('span', 'mono diario-cuenta', resumenDia(g.cuenta)));
       cont.appendChild(cab);
-      for (j = 0; j < g.entradas.length; j++) {
+      for (j = 0; j < g.entradas.length && pintadas < lim; j++) {
+        pintadas++;
         (function (e) {
           var f = nodo('div', 'ev diario-ev ' + e.clase);
           f.appendChild(nodo('div', 'ico', e.ico));
@@ -1508,6 +1902,15 @@
         })(g.entradas[j]);
       }
     }
+    if (total > lim) { botonVerMas(cont, 'diarioCuerpo', total - lim, pintar); }
+  }
+
+  /* Diario o registro sin nada en el rango: si el rango es corto, la accion
+     lo abre a Todo. */
+  function vacioRango(id, ico, tit, txt) {
+    var todo = rango === 'todo';
+    estadoVacio($('vacioRegistro'), { id: id, ico: ico, tit: tit + (todo ? ' todav\u00EDa' : ' en este per\u00EDodo'), txt: txt,
+      acc: todo ? '' : 'Ver todo', alTocar: function () { rango = 'todo'; pintar(); } });
   }
 
   function pintarRegistro() {
@@ -1521,14 +1924,19 @@
     if (modoDiario === 'campana') { $('vacioRegistro').style.display = 'none'; pintarCampana(); return; }
     pintarChipsGen('chipsRango', RANGOS, rango, function () { return ''; }, function (id) { rango = id; pintar(); });
     if (modoDiario === 'diario') { pintarDiario(); return; }
-    $('vacioRegistro').textContent = 'Sin movimientos en este periodo.';
     var cont = $('timeline');
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
     var lista = eventosFiltrados();
-    if (lista.length === 0) { $('vacioRegistro').style.display = 'block'; return; }
+    if (lista.length === 0) {
+      vacioRango('registro', 'list', 'Sin movimientos', 'Cada captura, cambio de estado y cierre queda anotado ac\u00E1.');
+      $('vacioRegistro').style.display = 'block';
+      return;
+    }
     $('vacioRegistro').style.display = 'none';
     var diaActual = '', i;
-    for (i = lista.length - 1; i >= 0; i--) {
+    var lim = limiteTrozo('timeline', contexto + '|' + rango);
+    var hasta = Math.max(0, lista.length - lim);
+    for (i = lista.length - 1; i >= hasta; i--) {
       var ev = lista[i];
       var d = fechaObj(ev.ts);
       var cl = claveDia(d);
@@ -1556,6 +1964,7 @@
       fila.appendChild(cd);
       cont.appendChild(fila);
     }
+    if (hasta > 0) { botonVerMas(cont, 'timeline', hasta, pintar); }
   }
 
   /* ---------- centro de control: AHORA y HOY ---------- */
@@ -1580,6 +1989,34 @@
     }
     return e;
   }
+
+  /* ---------- estados vacios ----------
+     Toda vista sin nada muestra lo mismo: un icono de iconos.js, un titulo
+     corto, una linea que dice que hacer y, si sirve, una accion. el puede ser
+     un contenedor fijo (#vacioTablero) o uno nuevo (vacioNuevo). */
+  function estadoVacio(el, o) {
+    vaciar(el);
+    el.className = 'vacio est-vacio';
+    el.setAttribute('data-vacio', o.id);
+    var ic = nodo('div', 'vacio-ico');
+    ic.appendChild(svgIco(o.ico));
+    el.appendChild(ic);
+    el.appendChild(nodo('div', 'vacio-tit', o.tit));
+    if (o.txt) { el.appendChild(nodo('div', 'vacio-txt', o.txt)); }
+    if (o.acc) {
+      var b = nodo('button', 'vacio-acc', o.acc, o.accIco || '');
+      b.type = 'button';
+      if (o.accId) { b.id = o.accId; }
+      b.onclick = o.alTocar;
+      el.appendChild(b);
+    }
+    return el;
+  }
+
+  function vacioNuevo(tag, o) { return estadoVacio(document.createElement(tag), o); }
+
+  /* La accion "Capturar" de un estado vacio: el cursor en la barra. */
+  function irACaptura() { enfocar($('txtCaptura')); }
 
   function nodo(tag, clase, texto, ico) {
     var e = document.createElement(tag);
@@ -1778,12 +2215,14 @@
     cont.appendChild(pulso);
 
     var mostrados = {};
-    if (ranking.length === 0) {
+    if (lista.length === 0) {
+      cont.appendChild(vacioNuevo('div', { id: 'ahora', ico: 'check-circle', tit: 'Todo en orden',
+        txt: 'Nada pendiente en ' + nomCtx(contexto) + '. Captur\u00E1 lo pr\u00F3ximo que aparezca y KCO te dice qu\u00E9 sigue.',
+        acc: 'Capturar', accIco: 'plus', alTocar: irACaptura }));
+    } else if (ranking.length === 0) {
       var calma = nodo('div', 'hero calma');
       calma.appendChild(nodo('div', 'hero-rot', 'Todo en orden', 'check-circle'));
-      calma.appendChild(nodo('div', 'hero-txt', lista.length === 0
-        ? 'Nada pendiente en ' + nomCtx(contexto) + '. Captur\u00E1 lo pr\u00F3ximo que aparezca.'
-        : 'Lo que queda esta esperando a otros o tiene dia mas adelante.'));
+      calma.appendChild(nodo('div', 'hero-txt', 'Lo que queda esta esperando a otros o tiene dia mas adelante.'));
       cont.appendChild(calma);
     } else {
       var sig = [];
@@ -1913,7 +2352,9 @@
     for (i = 0; i < deHoy.length; i++) { if (deHoy[i].rutinaId === '') { noRut.push(deHoy[i]); } }
     var ulH = seccion(cont, 'secParaHoy', 'Para hoy', noRut.length, '', 'calendar');
     if (noRut.length === 0) {
-      ulH.appendChild(nodo('li', 'vacio chico', 'Nada agendado para hoy. Desde AHORA ves que conviene hacer.'));
+      ulH.appendChild(vacioNuevo('li', { id: 'hoy', ico: 'calendar', tit: 'Nada agendado para hoy',
+        txt: 'Termin\u00E1 una captura con "hoy" o eleg\u00ED un d\u00EDa en la ficha. Desde Ahora ves qu\u00E9 conviene hacer.',
+        acc: 'Capturar', accIco: 'plus', alTocar: irACaptura }));
     }
     for (i = 0; i < noRut.length; i++) { ulH.appendChild(nodoItem(noRut[i], '')); }
     if (hechas.length > 0) {
@@ -1962,9 +2403,9 @@
     return r;
   }
 
-  var ORDEN_VISTAS = ['ahora', 'hoy', 'tablero', 'compras', 'misiones', 'registro'];
-  var VISTA_DOM = { ahora: 'vistaAhora', hoy: 'vistaHoy', tablero: 'vistaTablero', compras: 'vistaCompras', misiones: 'vistaMisiones', registro: 'vistaRegistro' };
-  var VISTA_TAB = { ahora: 'tabAhora', hoy: 'tabHoy', tablero: 'tabTareas', compras: 'tabTareas', misiones: 'tabMisiones', registro: 'tabRegistro' };
+  var ORDEN_VISTAS = ['ahora', 'hoy', 'tablero', 'compras', 'notas', 'misiones', 'registro'];
+  var VISTA_DOM = { ahora: 'vistaAhora', hoy: 'vistaHoy', tablero: 'vistaTablero', compras: 'vistaCompras', notas: 'vistaNotas', misiones: 'vistaMisiones', registro: 'vistaRegistro' };
+  var VISTA_TAB = { ahora: 'tabAhora', hoy: 'tabHoy', tablero: 'tabTareas', compras: 'tabTareas', notas: 'tabTareas', misiones: 'tabMisiones', registro: 'tabRegistro' };
 
   /* Barra lateral de escritorio: las cinco vistas (Tareas cubre Compras). */
   var NAV_VISTAS = [
@@ -1974,7 +2415,7 @@
     { v: 'misiones', nom: 'Misiones', ico: 'target' },
     { v: 'registro', nom: 'Diario', ico: 'book' }
   ];
-  var TITULO_VISTA = { ahora: 'Ahora', hoy: 'Hoy', tablero: 'Tareas', compras: 'Compras', misiones: 'Misiones', registro: 'Diario' };
+  var TITULO_VISTA = { ahora: 'Ahora', hoy: 'Hoy', tablero: 'Tareas', compras: 'Compras', notas: 'Notas', misiones: 'Misiones', registro: 'Diario' };
 
   /* Cuentas baratas (una pasada): atencion en Ahora, lo de hoy, lo abierto y
      las misiones activas del contexto. El Diario no lleva cuenta. */
@@ -2001,7 +2442,7 @@
           x.appendChild(svgIco(d.ico));
           x.appendChild(nodo('span', 'lat-item-nom', d.nom));
           x.appendChild(nodo('span', 'lat-item-n' + (d.v === 'ahora' ? ' rojo' : ''), ''));
-          x.onclick = function () { irAVista(d.v === 'tablero' && vista === 'compras' ? 'compras' : d.v); };
+          x.onclick = function () { irAVista(d.v === 'tablero' && (vista === 'compras' || vista === 'notas') ? vista : d.v); };
           nav.appendChild(x);
         })(NAV_VISTAS[i]);
       }
@@ -2035,21 +2476,27 @@
     if (v === vista) { return; }
     var dir = posVista(v) > posVista(vista) ? 'der' : 'izq';
     vista = v;
+    trozos = {};
     animarMain(dir);
     pintar();
     if (sinHistorial) { return; }
     if (v !== 'ahora') {
-      if (!anclaPuesta && pilaCapas.length === 0) {
-        anclaPuesta = empujarHistorial({ kcoAncla: true });
+      if (anclaSerie === '' && pilaCapas.length === 0) {
+        var s = nuevaSerie();
+        if (empujarHistorial({ kcoAncla: true, kcoNivel: 0, kcoSerie: s })) { anclaSerie = s; }
       }
-    } else if (anclaPuesta && pilaCapas.length === 0) {
-      anclaPuesta = false;
+    } else if (anclaSerie !== '' && pilaCapas.length === 0) {
+      anotarResiduo(anclaSerie);
+      anclaSerie = '';
       retrocederHistorial(1);
     }
   }
 
   function pintar() {
-    var v;
+    var v, conCompras = usaCompras(contexto), conNotas = K.usaNotas(contexto);
+    /* Un apartado sin compras (o sin notas) no tiene esa vista: vuelve a Tareas. */
+    if (vista === 'compras' && !conCompras) { vista = 'tablero'; }
+    if (vista === 'notas' && !conNotas) { vista = 'tablero'; }
     for (v in VISTA_DOM) {
       if (VISTA_DOM.hasOwnProperty(v)) { $(VISTA_DOM[v]).style.display = vista === v ? 'block' : 'none'; }
     }
@@ -2062,14 +2509,19 @@
     }
     $('tituloVista').textContent = TITULO_VISTA[vista] || '';
     pintarSelectorContexto();
+    pintarInfoApartado();
     pintarNavLateral();
-    $('segTareas').style.display = vista === 'tablero' || vista === 'compras' ? 'flex' : 'none';
+    $('segTareas').style.display = vista === 'tablero' || vista === 'compras' || vista === 'notas' ? 'flex' : 'none';
     $('segBtnTareas').className = vista === 'tablero' ? 'segbtn on' : 'segbtn';
     $('segBtnCompras').className = vista === 'compras' ? 'segbtn on' : 'segbtn';
+    $('segBtnCompras').style.display = conCompras ? '' : 'none';
+    $('segBtnNotas').className = vista === 'notas' ? 'segbtn on' : 'segbtn';
+    $('segBtnNotas').style.display = conNotas ? '' : 'none';
     if (vista === 'ahora') { pintarAhora(); }
     else if (vista === 'hoy') { pintarHoy(); }
     else if (vista === 'tablero') { pintarTablero(); }
     else if (vista === 'compras') { pintarCompras(); }
+    else if (vista === 'notas') { pintarNotas(); }
     else if (vista === 'misiones') { pintarMisiones(); }
     else { pintarRegistro(); }
     actualizarAvisoBackup();
@@ -2087,27 +2539,129 @@
      el siguiente "atras" hace lo de siempre. */
 
   var pilaCapas = [];
-  var ignorarPop = 0;
-  var anclaPuesta = false;
+  /* Identidad de la entrada de historial de cada capa abierta, a la par de
+     pilaCapas ('' = la capa no tiene entrada: history no anda). Cada entrada
+     lleva { kcoCapa, kcoNivel, kcoSerie }; la serie es unica en la sesion. */
+  var seriesCapas = [];
+  /* Serie de la entrada "ancla" (pestaña distinta de Ahora); '' = no hay. */
+  var anclaSerie = '';
+  var semillaSerie = (new Date()).getTime().toString(36) + '.' + Math.floor(Math.random() * 1e6).toString(36);
+  var cuentaSerie = 0;
+  /* Relevo: una hoja se cerro para que otra la reemplace en el mismo toque
+     (menu rapido -> ficha). Su entrada no se retrocede: la proxima entrada que
+     se empuje la reemplaza con replaceState. Asi no queda ningun retroceso en
+     vuelo. soltarRelevo() retrocede si al final nadie la reuso. */
+  var relevo = false;
+  var relevoSerie = '';
+  /* Residuos: series de las entradas de las que se fue un retroceso propio
+     (capas cerradas, ancla abandonada). Si ese retroceso llega tarde o se
+     pierde, el historial cae en una de ellas: es lo unico que se absorbe en
+     silencio. Cualquier otra entrada desconocida cuenta como la base. */
+  var residuos = [];
+  var MAX_RESIDUOS = 20;
+
+  function anotarResiduo(s) {
+    if (!s) { return; }
+    residuos.push(s);
+    if (residuos.length > MAX_RESIDUOS) { residuos.shift(); }
+  }
+
+  function nuevaSerie() {
+    cuentaSerie = cuentaSerie + 1;
+    return semillaSerie + '.' + cuentaSerie;
+  }
 
   function empujarHistorial(dato) {
+    var reemplazar = relevo;
+    relevo = false;
     try {
       if (window.history && typeof window.history.pushState === 'function') {
-        window.history.pushState(dato, '');
+        if (reemplazar) { window.history.replaceState(dato, ''); } else { window.history.pushState(dato, ''); }
         return true;
       }
     } catch (e) { /* sin history: la app sigue andando igual */ }
     return false;
   }
 
+  /* Retroceso propio. No se cuenta ni se espera: su popstate, llegue cuando
+     llegue (o nunca), pasa por reconciliarHistorial y ahi no cierra nada. */
   function retrocederHistorial(n) {
     try {
-      if (window.history && typeof window.history.go === 'function') {
-        ignorarPop = ignorarPop + n;
-        window.history.go(-n);
+      if (window.history && typeof window.history.go === 'function') { window.history.go(-n); }
+    } catch (e) { /* nada: el historial queda con una entrada vieja, que se asienta sola */ }
+  }
+
+  /* La entrada de historial de una hoja recien abierta. */
+  function anotarCapa(id) {
+    var s = nuevaSerie();
+    return empujarHistorial({ kcoCapa: id, kcoNivel: pilaCapas.length, kcoSerie: s }) ? s : '';
+  }
+
+  /* Cierra (sin tocar el historial) todas las capas por encima de la posicion
+     pos de la pila; -1 = todas. Devuelve cuantas cerro. */
+  function cerrarCapasSobre(pos) {
+    var n = 0;
+    while (pilaCapas.length - 1 > pos) {
+      cerrarDom(pilaCapas[pilaCapas.length - 1]);
+      pilaCapas.pop();
+      seriesCapas.pop();
+      n++;
+    }
+    return n;
+  }
+
+  /* Reconciliacion: el popstate (o un pageshow restaurado) dice en que entrada
+     esta el historial; las capas se ajustan a eso. Es idempotente y no lleva
+     cuentas ni timers:
+     - entrada de una capa abierta: se cierran las que estan encima (si es la de
+       arriba, fue un retroceso propio y no pasa nada);
+     - el ancla vigente: se cierran todas las capas;
+     - la entrada base (sin datos de KCO): se cierran todas; si no habia
+       ninguna, una pestaña que no es Ahora vuelve a Ahora;
+     - un residuo de un retroceso propio (entrada de la que ese retroceso se
+       fue): se asienta en silencio, una sola vez. Es donde cae un retroceso
+       propio que llego tarde, despues de que se abrio otra hoja, y esa hoja no
+       se toca. Si en cambio el retroceso se perdio, el primer "atras" del
+       usuario cae en esa entrada y no cierra nada; el siguiente ya anda;
+     - cualquier otra entrada de KCO desconocida (de antes de recargar, de
+       otro formato): cuenta como la base, asi cada "atras" se nota.
+     sinConsumir (pageshow restaurado): no es un aterrizaje de un retroceso, asi
+     que un residuo se respeta pero queda anotado para cuando ese retroceso llegue. */
+  function reconciliarHistorial(st, sinConsumir) {
+    var serie = st && typeof st.kcoSerie === 'string' ? st.kcoSerie : '';
+    var pos;
+    if (serie !== '') {
+      pos = seriesCapas.indexOf(serie);
+      if (pos > -1) { cerrarCapasSobre(pos); return; }
+      if (anclaSerie !== '' && serie === anclaSerie) { cerrarCapasSobre(-1); return; }
+      pos = residuos.indexOf(serie);
+      if (pos > -1) {
+        if (!sinConsumir) { residuos.splice(pos, 1); }
         return;
       }
-    } catch (e) { ignorarPop = 0; }
+    }
+    anclaSerie = '';
+    if (cerrarCapasSobre(-1) > 0) { return; }
+    if (vista !== 'ahora') { irAVista('ahora', true); }
+    /* Nada abierto y ya estamos en Ahora: se deja salir. */
+  }
+
+  /* Cierra id (la capa de arriba) para que la proxima hoja ocupe su entrada.
+     Si id no esta arriba o no tiene entrada, es un cierre comun. */
+  function cerrarParaRelevo(id) {
+    var top = pilaCapas.length - 1;
+    if (top < 0 || pilaCapas[top] !== id || seriesCapas[top] === '') { cerrarHoja(id); return; }
+    cerrarDom(id);
+    pilaCapas.pop();
+    relevoSerie = seriesCapas.pop();
+    relevo = true;
+  }
+
+  function soltarRelevo() {
+    if (!relevo) { return; }
+    relevo = false;
+    anotarResiduo(relevoSerie);
+    retrocederHistorial(1);
   }
 
   /* Foco: al abrir una hoja se recuerda quien la abrio y al cerrarla el foco
@@ -2150,12 +2704,27 @@
     if (id === 'tapaItem') { itemAbierto = null; }
     if (id === 'tapaConfirmar') { confAccion = null; }
     if (id === 'tapaCtx') { $('btnCtx').setAttribute('aria-expanded', 'false'); }
+    if (id === 'tapaDestino') { $('capCtx').setAttribute('aria-expanded', 'false'); }
+    /* Cerrar el selector de plantillas sin elegir (X, Escape, fondo, gesto o
+       atras) empieza con el apartado generico de "Empezar de cero", sin abrir
+       su editor: la app nunca queda sin apartados guardados. */
+    if (id === 'tapaPlantillas' && necesitaPlantillas) {
+      /* Si no se pudo guardar se avisa: la app sigue sin guardar nada y el
+         selector vuelve con el proximo guardado (sinGuardar) o al arrancar. */
+      cerrandoPlantillas = true;
+      try {
+        if (!aplicarPlantilla(K.plantillas().pop())) { avisar(AVISO_PLANTILLA); }
+      } finally {
+        cerrandoPlantillas = false;
+      }
+    }
     devolverFoco(id);
   }
 
   function abrirHoja(id) {
     var i;
     if (id === 'tapaCtx') { $('btnCtx').setAttribute('aria-expanded', 'true'); }
+    if (id === 'tapaDestino') { $('capCtx').setAttribute('aria-expanded', 'true'); }
     for (i = 0; i < pilaCapas.length; i++) {
       if (pilaCapas[i] === id) { $(id).className = 'tapa on'; return; }
     }
@@ -2164,7 +2733,7 @@
     $(id).style.zIndex = '' + (30 + pilaCapas.length);
     $(id).querySelector('.hoja').scrollTop = 0;
     pilaCapas.push(id);
-    empujarHistorial({ kcoCapa: id });
+    seriesCapas.push(anotarCapa(id));
     enfocarHoja(id);
   }
 
@@ -2301,38 +2870,23 @@
     var pos = -1, i;
     for (i = 0; i < pilaCapas.length; i++) { if (pilaCapas[i] === id) { pos = i; } }
     if (pos === -1) { cerrarDom(id); return; }
-    /* Se cierran tambien las capas que quedaron por encima de esta. */
-    var cuantas = pilaCapas.length - pos;
+    /* Se cierran tambien las capas que quedaron por encima de esta. Solo se
+       retroceden las que tienen entrada en el historial. */
+    var cuantas = 0;
     for (i = pilaCapas.length - 1; i >= pos; i--) {
-      cerrarDom(pilaCapas[i]);
-      pilaCapas.pop();
+      if (seriesCapas[i] !== '') { cuantas++; anotarResiduo(seriesCapas[i]); }
     }
-    retrocederHistorial(cuantas);
+    cerrarCapasSobre(pos - 1);
+    if (cuantas > 0) { retrocederHistorial(cuantas); }
   }
 
   function cerrarTodasLasCapas() {
-    var cuantas = pilaCapas.length;
-    if (cuantas === 0) { return; }
-    var i;
-    for (i = pilaCapas.length - 1; i >= 0; i--) { cerrarDom(pilaCapas[i]); }
-    pilaCapas = [];
-    retrocederHistorial(cuantas);
+    if (pilaCapas.length === 0) { return; }
+    cerrarHoja(pilaCapas[0]);
   }
 
-  function alVolverAtras() {
-    if (ignorarPop > 0) { ignorarPop = ignorarPop - 1; return; }
-    if (pilaCapas.length > 0) {
-      cerrarDom(pilaCapas[pilaCapas.length - 1]);
-      pilaCapas.pop();
-      return;
-    }
-    if (vista !== 'ahora') {
-      irAVista('ahora', true);
-      anclaPuesta = false;
-      return;
-    }
-    anclaPuesta = false;
-    /* Nada abierto y ya estamos en el tablero: se deja salir. */
+  function alVolverAtras(ev) {
+    reconciliarHistorial(ev && ev.state !== undefined ? ev.state : window.history.state);
   }
 
   /* ---------- gestos ----------
@@ -2396,7 +2950,9 @@
 
   function swipeVistas(sentido) {
     var i = posVista(vista);
-    var destino = sentido === 'izq' ? i + 1 : i - 1;
+    var paso = sentido === 'izq' ? 1 : -1, destino = i + paso;
+    /* Se saltean las vistas que el apartado no tiene (Compras, Notas). */
+    while ((ORDEN_VISTAS[destino] === 'compras' && !usaCompras(contexto)) || (ORDEN_VISTAS[destino] === 'notas' && !K.usaNotas(contexto))) { destino += paso; }
     if (destino < 0 || destino >= ORDEN_VISTAS.length) { return; }
     irAVista(ORDEN_VISTAS[destino]);
   }
@@ -2528,10 +3084,10 @@
     var tg = listaTags(it.contexto);
     /* Si el item arrastra un tag que ya no se ofrece en este contexto, se agrega
        al final para poder verlo y sacarlo, en vez de perderlo en silencio. */
-    if (it.tag !== '' && tagInfo(it.tag)) {
+    if (it.tag !== '' && tagInfo(it.tag, it.contexto)) {
       var presente = false;
       for (i = 0; i < tg.length; i++) { if (tg[i].id === it.tag) { presente = true; } }
-      if (!presente) { tg = tg.concat([tagInfo(it.tag)]); }
+      if (!presente) { tg = tg.concat([tagInfo(it.tag, it.contexto)]); }
     }
     for (i = 0; i < tg.length; i++) {
       (function (t) {
@@ -2570,7 +3126,7 @@
       $('itemSub').textContent = $('itemSub').textContent + ' \u00B7 en espera';
     }
 
-    var ln = $('listaNotas');
+    var ln = $('listaComentarios');
     while (ln.firstChild) { ln.removeChild(ln.firstChild); }
     var notas = notasDe(it);
     if (notas.length === 0) {
@@ -2651,7 +3207,7 @@
     }
     pintarMisionEnFicha(it);
     $('btnHacerRutina').style.display = it.rutinaId === '' && it.tipo === 'tarea' ? '' : 'none';
-    $('btnAcompra').style.display = it.tipo === 'compra' || it.rutinaId !== '' ? 'none' : '';
+    $('btnAcompra').style.display = it.tipo === 'compra' || it.rutinaId !== '' || !usaCompras(it.contexto) ? 'none' : '';
     $('btnVolverTarea').style.display = it.tipo === 'compra' ? '' : 'none';
   }
 
@@ -2660,7 +3216,7 @@
   function moverACompras(id) {
     var it = buscarItem(id);
     /* Una ocurrencia de rutina no es una compra: se completa o se omite. */
-    if (!it || soloLectura || it.tipo === 'compra' || it.rutinaId !== '') { return; }
+    if (!it || soloLectura || it.tipo === 'compra' || it.rutinaId !== '' || !usaCompras(it.contexto)) { return; }
     var foto = fotoDe(it), antes = copiaItem(it);
     var ahora = new Date().toISOString();
     it.tipo = 'compra';
@@ -2801,6 +3357,7 @@
   /* ---------- catalogos en Ajustes ---------- */
 
   function pintarCatalogos() {
+    $('bloqueCatalogos').style.display = hayFabrica() ? '' : 'none';
     pintarCatalogo('chipsSolic', 'vSolic', solicitantes, K_SOLIC, 'solicitante');
     pintarCatalogo('chipsDest', 'vDest', destinos, K_DEST, 'destino');
   }
@@ -3081,16 +3638,18 @@
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
     if (q === '') {
       $('vacioBusca').style.display = 'block';
-      $('vacioBusca').textContent = 'Escrib\u00ED para buscar.';
+      estadoVacio($('vacioBusca'), { id: 'buscar', ico: 'search', tit: 'Busc\u00E1 en todo KCO',
+        txt: 'Tareas y compras de todos los contextos, por texto o etiqueta.' });
       return;
     }
-    var i, n = 0;
+    var i, n = 0, lim = limiteTrozo('resultados', q);
     for (i = items.length - 1; i >= 0; i--) {
       var it = items[i];
-      var t = tagInfo(it.tag);
+      var t = tagInfo(it.tag, it.contexto);
       var heno = it.texto.toLowerCase() + ' ' + (t ? t.nom.toLowerCase() : '');
       if (heno.indexOf(q) === -1) { continue; }
       n++;
+      if (n > lim) { continue; }
       (function (item) {
         var li = document.createElement('li');
         li.className = 'item st-' + item.estado + claseNivel(item);
@@ -3110,16 +3669,22 @@
         li.appendChild(tx);
         li.appendChild(l2);
         li.onclick = function () {
-          cerrarHoja('tapaBuscar');
+          cerrarParaRelevo('tapaBuscar');
           if (item.contexto !== contexto) { aplicarContexto(item.contexto, true); }
           if (item.tipo === 'compra') { irAVista('compras'); }
           abrirItem(item.id);
+          soltarRelevo();
         };
         cont.appendChild(li);
       })(it);
     }
+    if (n > lim) { botonVerMas(cont, 'resultados', n - lim, pintarBusqueda); }
     $('vacioBusca').style.display = n === 0 ? 'block' : 'none';
-    $('vacioBusca').textContent = 'Sin resultados para esa busqueda.';
+    if (n === 0) {
+      estadoVacio($('vacioBusca'), { id: 'sin-resultados', ico: 'search', tit: 'Sin resultados',
+        txt: 'Nada coincide con \u201C' + $('txtBusca').value.replace(/^\s+|\s+$/g, '') + '\u201D. Prob\u00E1 con otra palabra.',
+        acc: 'Borrar b\u00FAsqueda', alTocar: function () { $('txtBusca').value = ''; pintarBusqueda(); enfocar($('txtBusca')); } });
+    }
   }
 
   /* ---------- resumen ---------- */
@@ -3169,7 +3734,7 @@
       else { pend.push(it.texto); }
     }
     bloque('URGENTE:', urgentes);
-    bloque(contexto === 'trabajo' ? 'COMPRAS ABIERTAS:' : 'LISTA DE COMPRAS:', compras);
+    bloque(K.esFabrica(contexto) ? 'COMPRAS ABIERTAS:' : 'LISTA DE COMPRAS:', compras);
     bloque('ESPERANDO:', esp);
     bloque('QUEDA ABIERTO:', pend);
 
@@ -3184,7 +3749,7 @@
     var ahora = new Date();
     var hoy = claveDia(ahora);
     var lineas = [];
-    lineas.push((contexto === 'trabajo' ? '\uD83D\uDD27' : icoCtx(contexto)) + ' RELEVO DE TURNO \u00B7 ' + nomCtx(contexto));
+    lineas.push((K.esFabrica(contexto) ? '\uD83D\uDD27' : icoCtx(contexto)) + ' RELEVO DE TURNO \u00B7 ' + nomCtx(contexto));
     lineas.push('\uD83D\uDCC5 ' + dosDig(ahora.getDate()) + '/' + dosDig(ahora.getMonth() + 1) + '/' +
       ahora.getFullYear() + ' \u00B7 ' + hhmm(ahora));
 
@@ -3230,7 +3795,7 @@
     }
 
     bloque('\u2705 COMPLETADAS', hechas);
-    bloque(contexto === 'trabajo' ? '\uD83D\uDED2 COMPRAS PENDIENTES' : '\uD83D\uDED2 LISTA DE COMPRAS', compras);
+    bloque(K.esFabrica(contexto) ? '\uD83D\uDED2 COMPRAS PENDIENTES' : '\uD83D\uDED2 LISTA DE COMPRAS', compras);
     bloque('\uD83D\uDCAC NOTAS DEL DIA', notas);
     bloque('\uD83D\uDCCC ANCLADO Y URGENTE', ancladas);
 
@@ -3304,7 +3869,9 @@
     return JSON.stringify({
       app: 'kco', schema: ESQUEMA, version: VERSION_APP,
       exportado: new Date().toISOString(), contexto: contexto,
-      items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos, progreso: memProgreso
+      apartados: K.todosApartados(),
+      items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos, progreso: memProgreso,
+      notas: notasAp
     });
   }
 
@@ -3337,13 +3904,54 @@
 
   function esObjeto(x) { return !!x && typeof x === 'object' && !esArray(x); }
 
+  var AVISO_APARTADOS_INVALIDOS = 'El backup trae apartados que no se pueden usar (ninguno activo y valido). No se cambio nada.';
+
+  /* Apartados que deja un backup, o null si trae el campo pero no sirve
+     (ningun apartado activo valido). Sin el campo (esquema 4 o anterior) se
+     siembran los cinco de siempre. En los dos casos se suma uno generico
+     (nombre = id, color gris) por cada otro contexto que usen sus registros:
+     ninguno se reasigna. */
+  function apartadosDeBackup(datos) {
+    var l, extra = [], vistos = {}, listas, activo = false, i, j, x, a, c;
+    if (datos.apartados !== undefined) {
+      l = K.normalizarApartados(datos.apartados);
+      for (i = 0; i < l.length; i++) { if (l[i].activo) { activo = true; } }
+      if (!activo) { return null; }
+    } else {
+      l = K.apartadosLegado();
+    }
+    for (i = 0; i < l.length; i++) { vistos['#' + l[i].id] = true; }
+    /* Las notas nombran su apartado en ctx; el resto de los registros, en contexto. */
+    listas = [datos.items, datos.rutinas, datos.proyectos, datos.eventos, datos.notas];
+    for (j = 0; j < listas.length; j++) {
+      if (!esArray(listas[j])) { continue; }
+      for (i = 0; i < listas[j].length; i++) {
+        x = listas[j][i];
+        c = x && typeof x === 'object' ? (j === 4 ? x.ctx : x.contexto) : null;
+        if (typeof c !== 'string' || vistos['#' + c]) { continue; }
+        a = K.normalizarApartado({ id: c, nom: c, color: 'gris', orden: l.length + extra.length });
+        if (!a || a.id !== c) { continue; }
+        vistos['#' + a.id] = true;
+        extra.push(a);
+      }
+    }
+    return K.normalizarApartados(l.concat(extra));
+  }
+
   /* Todo o nada: primero se normaliza todo el backup sin tocar nada; recien
      despues se escribe. Si alguna escritura falla, se repone lo que habia
      (en memoria y en el almacenamiento) y se avisa que no cambio nada. */
   function aplicarBackup(datos) {
     if (esquemaFuturo) { avisar(AVISO_ESQUEMA_FUTURO); return false; }
-    var nuevosItems = [], nuevosEventos = [], nuevasRutinas = [], nuevosProyectos = [];
+    var nuevosItems = [], nuevosEventos = [], nuevasRutinas = [], nuevosProyectos = [], nuevasNotas = [];
     var nuevoProgreso, conProgreso, i, n;
+    /* El registro del backup se fija antes de normalizar: asi cada item,
+       rutina, mision y evento conserva su apartado. Si algo falla, vuelve el
+       registro de antes. */
+    var nuevosApartados = apartadosDeBackup(datos);
+    if (!nuevosApartados) { avisar(AVISO_APARTADOS_INVALIDOS); return false; }
+    var apartadosAntes = K.todosApartados();
+    K.fijarApartados(nuevosApartados);
     try {
       for (i = 0; i < datos.items.length; i++) {
         n = normalizarItem(datos.items[i]);
@@ -3367,34 +3975,44 @@
           if (n) { nuevosProyectos.push(n); }
         }
       }
+      /* Sin notas (backup anterior a T08b) se restauran ninguna. */
+      if (esArray(datos.notas)) {
+        for (i = 0; i < datos.notas.length; i++) {
+          n = K.normalizarNota(datos.notas[i]);
+          if (n) { nuevasNotas.push(n); }
+        }
+      }
       conProgreso = esObjeto(datos.progreso);
       nuevoProgreso = normalizarProgreso(conProgreso ? datos.progreso : null);
     } catch (e) {
+      K.fijarApartados(apartadosAntes);
       avisar('El backup trae datos que no se pueden leer. No se cambio nada.');
       return false;
     }
     /* Un progreso roto que no se pudo copiar se copia ahora; si tampoco se
        puede, la escritura del progreso falla y el restore se deshace entero. */
     if (progresoSinCopia && ponerEnCuarentena(K_PROGRESO, leer(K_PROGRESO))) { progresoSinCopia = false; }
-    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA];
+    var claves = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA, K_APARTADOS, K_NOTAS];
     var crudos = [], j;
     for (j = 0; j < claves.length; j++) { crudos.push(leer(claves[j])); }
-    var antes = { items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos,
-      progreso: memProgreso, soloLectura: soloLectura };
+    var antes = { items: items, eventos: eventos, rutinas: rutinas, proyectos: proyectos, notas: notasAp,
+      progreso: memProgreso, soloLectura: soloLectura, plantillas: necesitaPlantillas };
     items = nuevosItems;
     eventos = nuevosEventos;
     rutinas = nuevasRutinas;
     proyectos = nuevosProyectos;
+    notasAp = nuevasNotas;
     memProgreso = nuevoProgreso;
     soloLectura = false;
+    necesitaPlantillas = false;
     /* Backup anterior a 2.0 (sin progreso): se siembra en silencio, igual que
        la primera vez, para no festejar de nuevo toda la historia. */
     if (!conProgreso) {
       memProgreso.nivelVisto = K.nivelPorXP(xpTotal()).nivel;
       revisarLogros(true);
     }
-    var ok = guardarItems() && guardarEventos() && guardarRutinas() && guardarProyectos() &&
-      guardarProgreso() && escribir(K_ESQUEMA, '' + ESQUEMA);
+    var ok = guardarItems() && guardarEventos() && guardarRutinas() && guardarProyectos() && guardarNotas() &&
+      guardarProgreso() && guardarApartados() && escribir(K_ESQUEMA, '' + ESQUEMA);
     if (!ok) {
       for (j = 0; j < claves.length; j++) {
         if (leer(claves[j]) !== crudos[j]) { reponerCrudo(claves[j], crudos[j]); }
@@ -3403,19 +4021,24 @@
       eventos = antes.eventos;
       rutinas = antes.rutinas;
       proyectos = antes.proyectos;
+      notasAp = antes.notas;
       memProgreso = antes.progreso;
       soloLectura = antes.soloLectura;
+      necesitaPlantillas = antes.plantillas;
+      K.fijarApartados(apartadosAntes);
       avisar('No se pudo restaurar el backup (fallo al guardar). No se cambio nada.');
       pintar();
       return false;
     }
     generarOcurrencias();
     $('aviso').className = 'aviso';
+    /* Los selectores y el contexto actual siguen al registro restaurado. */
+    ctxCaptura = K.normalizarContexto(ctxCaptura);
     anotarEventos([{
       id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'restauracion', itemId: '',
       texto: nuevosItems.length + ' items restaurados', contexto: ctxCaptura, desde: '', hasta: ''
     }]);
-    pintar();
+    aplicarContexto(contexto, true);
     return true;
   }
 
@@ -3444,20 +4067,978 @@
       return;
     }
     if (!esArray(datos.items)) { avisar('El backup no trae la lista de items.'); return; }
+    if (datos.notas !== undefined && !esArray(datos.notas)) { avisar('El backup trae notas que no se pueden leer. No se cambio nada.'); return; }
+    if (!apartadosDeBackup(datos)) { avisar(AVISO_APARTADOS_INVALIDOS); return; }
     pedirConfirmacion('Restaurar backup',
       'Trae ' + datos.items.length + ' items y ' + (esArray(datos.eventos) ? datos.eventos.length : 0) +
       ' movimientos' + (esArray(datos.rutinas) ? ', ' + datos.rutinas.length + ' rutinas' : '') +
       (esArray(datos.proyectos) ? ', ' + datos.proyectos.length + ' misiones' : '') +
+      (esArray(datos.apartados) ? ', ' + datos.apartados.length + ' apartados' : '') +
+      (esArray(datos.notas) ? ', ' + datos.notas.length + ' notas' : '') +
       ', exportado el ' + (datos.exportado ? horaCorta(datos.exportado) : 'sin fecha') +
       '. Esto REEMPLAZA los ' + items.length + ' items que tenes ahora. No se puede deshacer.',
       function () { aplicarBackup(datos); });
   }
 
+  /* ---------- apartados en Ajustes ----------
+     Lista de todos los apartados (activos primero, despues los archivados),
+     con orden manual y un editor (#tapaApartado) que se abre encima de
+     Ajustes: atras cierra el editor y deja Ajustes; otro atras cierra Ajustes.
+     Lo que cambia datos (quitar etiquetas usadas) pide confirmacion con un
+     relevo: la confirmacion ocupa la entrada del editor y al terminar queda
+     Ajustes. Cada cambio fija el registro, lo guarda y repinta selectores,
+     catalogos y la vista actual; si no se puede guardar vuelve el de antes. */
+
+  /* Iconos que se ofrecen: existen en iconos.js y tienen emoji para los
+     textos exportados (KCOCore.emojiApartado). */
+  var ICONOS_APARTADO = ['layers', 'clipboard', 'users', 'play', 'target', 'book', 'star', 'compass',
+    'cart', 'settings', 'calendar', 'clock', 'flag', 'trophy', 'trending-up', 'zap', 'bell', 'message',
+    'sun', 'pin', 'inbox', 'list', 'tareas', 'repeat', 'search'];
+  var NOMBRES_COLOR = { azul: 'Azul', verde: 'Verde', ambar: '\u00C1mbar', rosa: 'Rosa', violeta: 'Violeta',
+    cian: 'Cian', naranja: 'Naranja', rojo: 'Rojo', lima: 'Lima', gris: 'Gris' };
+  var PISTA_COMPRAS = {
+    no: 'Este apartado no usa compras.',
+    lista: 'Lista simple: por comprar, comprado o cancelado.',
+    fabrica: 'Con seguimiento: cotizaci\u00F3n, OC y entrega (con alerta de +48 hs).'
+  };
+  /* Borrador del editor: copia del apartado que se edita (id '' = nuevo). */
+  var borradorAp = null;
+
+  function copiaApartado(a) { return JSON.parse(JSON.stringify(a)); }
+
+  function iconosApartado() {
+    var r = [], i;
+    for (i = 0; i < ICONOS_APARTADO.length; i++) {
+      if (!window.KCOIconos || window.KCOIconos.existe(ICONOS_APARTADO[i])) { r.push(ICONOS_APARTADO[i]); }
+    }
+    return r;
+  }
+
+  /* Orden de la lista: activos y despues archivados, cada grupo por su orden. */
+  function apartadosEnLista() {
+    var l = K.todosApartados(), act = [], arch = [], i;
+    for (i = 0; i < l.length; i++) { (l[i].activo ? act : arch).push(l[i]); }
+    return act.concat(arch);
+  }
+
+  function pintarApartados() {
+    var cont = $('listaApartados'), l = apartadosEnLista(), i;
+    if (!cont) { return; }
+    vaciar(cont);
+    for (i = 0; i < l.length; i++) { cont.appendChild(filaApartado(l, i)); }
+    $('btnNuevoApartado').disabled = soloLectura;
+  }
+
+  function botonOrden(a, dir, tope) {
+    var b = document.createElement('button'), rot = (dir === 'subir' ? 'Subir ' : 'Bajar ') + a.nom;
+    b.type = 'button';
+    b.className = 'iconobtn apfila-orden';
+    b.setAttribute('data-' + dir, '');
+    b.setAttribute('aria-label', rot);
+    b.setAttribute('title', rot);
+    b.appendChild(svgIco(dir === 'subir' ? 'chevron-up' : 'chevron-down'));
+    b.disabled = tope || soloLectura;
+    b.onclick = function () { moverApartado(a.id, dir === 'subir' ? -1 : 1); };
+    return b;
+  }
+
+  /* Fila: punto, icono y nombre (tocar edita) mas subir y bajar dentro de su
+     grupo (activos o archivados). */
+  function filaApartado(l, i) {
+    var a = l[i], f = nodo('div', a.activo ? 'apfila' : 'apfila archivado'), b = document.createElement('button');
+    var arriba = i > 0 && l[i - 1].activo === a.activo, abajo = i < l.length - 1 && l[i + 1].activo === a.activo;
+    f.setAttribute('role', 'listitem');
+    f.setAttribute('data-ap', a.id);
+    b.type = 'button';
+    b.className = 'apfila-abrir';
+    b.appendChild(punto(a.id));
+    b.appendChild(icoApartado(a.id, 'apfila-ico'));
+    b.appendChild(nodo('span', 'apfila-nom', a.nom));
+    if (!a.activo) { b.appendChild(nodo('span', 'badge apfila-arch', 'Archivado')); }
+    b.setAttribute('aria-label', 'Editar ' + a.nom + (a.activo ? '' : ' (archivado)'));
+    b.onclick = function () { abrirEditorApartado(a.id); };
+    f.appendChild(b);
+    f.appendChild(botonOrden(a, 'subir', !arriba));
+    f.appendChild(botonOrden(a, 'bajar', !abajo));
+    return f;
+  }
+
+  /* Despues de cambiar el registro: el contexto de la vista y el de captura
+     siguen siendo validos (uno que ya no se ofrece pasa a Todo), y se
+     repinta todo lo que muestra apartados. */
+  function refrescarApartados() {
+    ctxCaptura = K.normalizarContexto(ctxCaptura);
+    if (contexto !== 'todo' && !K.contextoValido(contexto)) { contexto = 'todo'; }
+    aplicarContexto(contexto, !soloLectura);
+    pintarCatalogos();
+    pintarApartados();
+  }
+
+  /* Fija y guarda un registro nuevo; si no se puede guardar vuelve el de
+     antes. Guardar a mano tambien cierra el puente de instalacion nueva:
+     la persona ya eligio sus apartados. */
+  function guardarRegistro(lista) {
+    if (soloLectura) { return false; }
+    var antes = K.todosApartados(), plantillas = necesitaPlantillas;
+    K.fijarApartados(lista);
+    necesitaPlantillas = false;
+    if (!guardarApartados()) {
+      K.fijarApartados(antes);
+      necesitaPlantillas = plantillas;
+      refrescarApartados();
+      return false;
+    }
+    refrescarApartados();
+    return true;
+  }
+
+  /* ---------- primera corrida: plantillas ----------
+     Instalacion nueva: antes de guardar nada se elige con que apartados
+     empezar (K.plantillas). Todo queda editable despues en Ajustes. */
+
+  function abrirPlantillas() {
+    pintarPlantillas();
+    abrirHoja('tapaPlantillas');
+  }
+
+  var AVISO_PLANTILLA = 'No se pudo guardar el apartado General. Revis\u00E1 el espacio del navegador: ' +
+    'hasta elegir con qu\u00E9 apartados empezar no se guarda nada.';
+
+  /* Un guardado rechazado por falta de plantilla (o una captura) la pide: el
+     selector se abre encima de lo que haya, con el motivo. No durante el
+     arranque (ya se abre al final) ni mientras el propio selector se cierra. */
+  function pedirPlantillas() {
+    var i;
+    if (!arrancado || cerrandoPlantillas || soloLectura) { return; }
+    for (i = 0; i < pilaCapas.length; i++) { if (pilaCapas[i] === 'tapaPlantillas') { return; } }
+    abrirPlantillas();
+    $('plError').textContent = 'Eleg\u00ED con qu\u00E9 apartados empezar para poder guardar.';
+  }
+
+  function pintarPlantillas() {
+    var cont = $('listaPlantillas'), l = K.plantillas(), i;
+    vaciar(cont);
+    for (i = 0; i < l.length; i++) { cont.appendChild(filaPlantilla(l[i])); }
+    $('plError').textContent = '';
+  }
+
+  /* Tarjeta: nombre, para que sirve y los apartados que crea (punto de color,
+     icono y nombre de cada uno). */
+  function filaPlantilla(p) {
+    var f = nodo('div', 'plfila'), b = document.createElement('button'), aps = nodo('span', 'plfila-aps'), i, a, chip, pt;
+    f.setAttribute('role', 'listitem');
+    b.type = 'button';
+    b.className = 'plfila-abrir';
+    b.setAttribute('data-plantilla', p.id);
+    b.appendChild(nodo('span', 'plfila-nom', p.nom));
+    b.appendChild(nodo('span', 'plfila-desc', p.desc));
+    for (i = 0; i < p.apartados.length; i++) {
+      a = p.apartados[i];
+      chip = nodo('span', 'plfila-ap');
+      pt = nodo('span', 'punto pal-' + a.color);
+      pt.setAttribute('aria-hidden', 'true');
+      chip.appendChild(pt);
+      chip.appendChild(svgIco(a.ico, 'plfila-ico'));
+      chip.appendChild(nodo('span', '', a.nom));
+      aps.appendChild(chip);
+    }
+    b.appendChild(aps);
+    b.onclick = function () { elegirPlantilla(p.id); };
+    f.appendChild(b);
+    return f;
+  }
+
+  /* Guarda los apartados de la plantilla (cierra el estado de instalacion
+     nueva). Si no se pudo guardar, todo sigue como estaba. */
+  function aplicarPlantilla(p) {
+    if (!necesitaPlantillas || soloLectura) { return false; }
+    return guardarRegistro(p.apartados);
+  }
+
+  function elegirPlantilla(id) {
+    var l = K.plantillas(), p = null, i;
+    for (i = 0; i < l.length; i++) { if (l[i].id === id) { p = l[i]; } }
+    /* Ya no hace falta (otra ventana eligio, o se restauro un backup): se cierra. */
+    if (!p || !necesitaPlantillas || soloLectura) { cerrarHoja('tapaPlantillas'); return; }
+    if (!aplicarPlantilla(p)) {
+      $('plError').textContent = 'No se pudo guardar. Revis\u00E1 el espacio del navegador y prob\u00E1 de nuevo.';
+      return;
+    }
+    if (p.editar) {
+      /* Empezar de cero: el editor del apartado nuevo ocupa la entrada del selector. */
+      cerrarParaRelevo('tapaPlantillas');
+      abrirEditorApartado(p.apartados[0].id);
+      soltarRelevo();
+      return;
+    }
+    cerrarHoja('tapaPlantillas');
+  }
+
+  function moverApartado(id, paso) {
+    if (soloLectura) { return; }
+    var l = apartadosEnLista(), pos = -1, otro, i, x;
+    for (i = 0; i < l.length; i++) { if (l[i].id === id) { pos = i; } }
+    otro = pos + paso;
+    if (pos < 0 || otro < 0 || otro >= l.length || l[otro].activo !== l[pos].activo) { return; }
+    x = l[pos]; l[pos] = l[otro]; l[otro] = x;
+    for (i = 0; i < l.length; i++) { l[i] = copiaApartado(l[i]); l[i].orden = i; }
+    if (guardarRegistro(l)) {
+      x = document.querySelector('#listaApartados [data-ap="' + id + '"] [data-' + (paso < 0 ? 'subir' : 'bajar') + ']');
+      if (x && !x.disabled) { enfocar(x); } else { enfocar(document.querySelector('#listaApartados [data-ap="' + id + '"] .apfila-abrir')); }
+    }
+  }
+
+  function abrirEditorApartado(id) {
+    var a = id ? K.infoContexto(id) : null;
+    borradorAp = a ? copiaApartado(a) : { id: '', nom: '', ico: 'layers', color: colorLibre(), orden: K.todosApartados().length,
+      desc: '', meta: null, alias: [], compras: 'lista', tags: [], notas: true, activo: true };
+    $('apTitulo').textContent = a ? 'Editar apartado' : 'Nuevo apartado';
+    $('apNom').value = borradorAp.nom;
+    $('apDesc').value = borradorAp.desc;
+    $('apAlias').value = borradorAp.alias.join(', ');
+    $('apMetaN').value = borradorAp.meta ? '' + borradorAp.meta.n : '5';
+    $('apTagNuevo').value = '';
+    $('apError').textContent = '';
+    $('btnApGuardar').disabled = soloLectura;
+    pintarEditorApartado();
+    abrirHoja('tapaApartado');
+  }
+
+  /* Un color que ningun apartado activo use todavia (si hay). */
+  function colorLibre() {
+    var l = K.apartados(), usados = {}, i;
+    for (i = 0; i < l.length; i++) { usados[l[i].color] = true; }
+    for (i = 0; i < K.COLORES.length; i++) { if (!usados[K.COLORES[i]]) { return K.COLORES[i]; } }
+    return 'gris';
+  }
+
+  /* Lo tipeado en el editor pasa al borrador (las grillas lo actualizan al tocar). */
+  function leerBorradorAp() {
+    var filas = $('apTags').querySelectorAll('[data-tag]'), i, j, inp;
+    borradorAp.nom = $('apNom').value;
+    borradorAp.desc = $('apDesc').value;
+    borradorAp.alias = $('apAlias').value.split(',');
+    for (i = 0; i < filas.length; i++) {
+      inp = filas[i].getElementsByTagName('input')[0];
+      for (j = 0; j < borradorAp.tags.length; j++) {
+        if (borradorAp.tags[j].id === filas[i].getAttribute('data-tag') && inp) { borradorAp.tags[j].nom = inp.value; }
+      }
+    }
+    if (borradorAp.meta) { borradorAp.meta.n = parseInt($('apMetaN').value, 10); }
+  }
+
+  function marcar(cont, atributo, valor) {
+    var l = cont.querySelectorAll('[' + atributo + ']'), i, on;
+    for (i = 0; i < l.length; i++) {
+      on = l[i].getAttribute(atributo) === valor;
+      l[i].className = on ? 'gbtn on' : 'gbtn';
+      l[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  function etiquetasCaptura(lista) {
+    var r = [], vistos = {}, i, s;
+    for (i = 0; i < lista.length; i++) {
+      s = K.slug(lista[i]);
+      if (s !== '' && s !== 'todo' && !vistos['#' + s]) { vistos['#' + s] = true; r.push('#' + s); }
+    }
+    return r.join(' ');
+  }
+
+  function pintarPistasAp() {
+    var nom = $('apNom').value, tags = etiquetasCaptura([borradorAp.id, nom]);
+    $('apSlug').textContent = tags === '' ? 'Con un nombre se captura con su #etiqueta.' : 'Se captura con ' + tags;
+    tags = etiquetasCaptura($('apAlias').value.split(','));
+    $('apAliasPista').textContent = tags === '' ? 'Otras #etiquetas que tambi\u00E9n guardan en este apartado.' : 'Tambi\u00E9n con ' + tags;
+  }
+
+  function pintarEditorApartado() {
+    var g = $('apIcos'), c = $('apColores'), l = iconosApartado(), i;
+    vaciar(g);
+    for (i = 0; i < l.length; i++) {
+      (function (nom) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-ico-ap', nom);
+        b.setAttribute('aria-label', 'Icono ' + nom);
+        b.setAttribute('title', nom);
+        b.appendChild(svgIco(nom));
+        b.onclick = function () { borradorAp.ico = nom; marcar(g, 'data-ico-ap', nom); };
+        g.appendChild(b);
+      })(l[i]);
+    }
+    marcar(g, 'data-ico-ap', borradorAp.ico);
+    vaciar(c);
+    for (i = 0; i < K.COLORES.length; i++) {
+      (function (col) {
+        var b = document.createElement('button'), p = nodo('span', 'punto pal-' + col);
+        b.type = 'button';
+        b.setAttribute('data-color', col);
+        b.setAttribute('aria-label', 'Color ' + NOMBRES_COLOR[col]);
+        b.setAttribute('title', NOMBRES_COLOR[col]);
+        p.setAttribute('aria-hidden', 'true');
+        b.appendChild(p);
+        b.onclick = function () { borradorAp.color = col; marcar(c, 'data-color', col); };
+        c.appendChild(b);
+      })(K.COLORES[i]);
+    }
+    marcar(c, 'data-color', borradorAp.color);
+    marcar($('segMetaAp'), 'data-meta', borradorAp.meta ? borradorAp.meta.periodo : 'no');
+    $('cajaMetaN').style.display = borradorAp.meta ? '' : 'none';
+    marcar($('segComprasAp'), 'data-compras', borradorAp.compras);
+    marcar($('segNotasAp'), 'data-notas', borradorAp.notas === false ? 'no' : 'si');
+    pintarPistaNotasAp();
+    pintarAccionesAp();
+    pintarTagsAp();
+    pintarPistasAp();
+  }
+
+  /* Pista de compras (cuantas pasan a tareas si queda en 'no') y acciones
+     de un apartado ya guardado: archivar o desarchivar y borrar. El ultimo
+     apartado activo no se archiva ni se borra. */
+  function pintarAccionesAp() {
+    var a = borradorAp.id !== '' ? K.infoContexto(borradorAp.id) : null, nc = 0, ultimo;
+    if (a && a.compras !== 'no' && borradorAp.compras === 'no') { nc = comprasDe(a.id).length; }
+    $('apComprasPista').textContent = PISTA_COMPRAS[borradorAp.compras] + (nc > 0 ? ' Al guardar, sus ' +
+      (nc === 1 ? 'compra pasa a tarea' : nc + ' compras pasan a tareas') + '.' : '');
+    $('cajaApExistente').style.display = a ? '' : 'none';
+    $('cajaApMover').style.display = 'none';
+    if (!a) { return; }
+    ultimo = a.activo && K.apartados().length <= 1;
+    $('btnApArchivar').textContent = a.activo ? 'Archivar' : 'Desarchivar';
+    $('btnApArchivar').disabled = ultimo || soloLectura;
+    $('btnApBorrar').disabled = ultimo || soloLectura;
+    $('apUltimo').textContent = ultimo
+      ? 'Es el \u00FAnico apartado activo: no se puede archivar ni borrar. Cre\u00E1 otro primero.'
+      : (a.activo ? 'Archivado deja de ofrecerse para capturar y elegir; sus registros se quedan.'
+        : 'Archivado: sus registros se quedan, pero no se ofrece para capturar ni elegir.');
+  }
+
+  /* Apagar las notas no borra ninguna: se guardan y vuelven al encenderlas. */
+  function pintarPistaNotasAp() {
+    var n = 0, i;
+    if (borradorAp.id !== '' && borradorAp.notas === false) {
+      for (i = 0; i < notasAp.length; i++) { if (notasAp[i].ctx === borradorAp.id) { n++; } }
+    }
+    $('apNotasPista').textContent = borradorAp.notas === false
+      ? 'Sin la vista Notas en este apartado.' + (n > 0 ? ' Sus ' + (n === 1 ? 'nota se guarda' : n + ' notas se guardan') + ' y vuelven al activarlas.' : '')
+      : 'Notas libres con t\u00EDtulo, texto y etiquetas, en Tareas \u203A Notas.';
+  }
+
+  function pintarTagsAp() {
+    var cont = $('apTags'), i;
+    vaciar(cont);
+    if (borradorAp.tags.length === 0) {
+      cont.appendChild(nodo('div', 'pista aptags-vacio', 'Sin etiquetas. Sirven para clasificar los items de este apartado.'));
+    }
+    for (i = 0; i < borradorAp.tags.length; i++) {
+      (function (t) {
+        var f = nodo('div', 'aptag'), inp = document.createElement('input'), x = document.createElement('button');
+        f.setAttribute('role', 'listitem');
+        f.setAttribute('data-tag', t.id);
+        inp.type = 'text';
+        inp.maxLength = 30;
+        inp.value = t.nom;
+        inp.setAttribute('autocomplete', 'off');
+        inp.setAttribute('aria-label', 'Nombre de la etiqueta ' + t.nom);
+        x.type = 'button';
+        x.className = 'iconobtn';
+        x.setAttribute('data-quitar', '');
+        x.setAttribute('aria-label', 'Quitar la etiqueta ' + t.nom);
+        x.setAttribute('title', 'Quitar');
+        x.appendChild(svgIco('x'));
+        x.onclick = function () { quitarTagAp(t.id); };
+        f.appendChild(inp);
+        f.appendChild(x);
+        cont.appendChild(f);
+      })(borradorAp.tags[i]);
+    }
+  }
+
+  function sumarTagAp() {
+    if (!borradorAp) { return; }
+    leerBorradorAp();
+    var nom = $('apTagNuevo').value.replace(/^\s+|\s+$/g, ''), ids = [], i;
+    if (nom === '') { enfocar($('apTagNuevo')); return; }
+    if (borradorAp.tags.length >= 30) { $('apError').textContent = 'Hasta 30 etiquetas por apartado.'; return; }
+    for (i = 0; i < borradorAp.tags.length; i++) { ids.push(borradorAp.tags[i].id); }
+    borradorAp.tags.push({ id: K.idUnico(nom, ids, 'etiqueta'), nom: nom.slice(0, 30) });
+    $('apTagNuevo').value = '';
+    $('apError').textContent = '';
+    pintarTagsAp();
+    enfocar($('apTagNuevo'));
+  }
+
+  function quitarTagAp(id) {
+    var r = [], i;
+    leerBorradorAp();
+    for (i = 0; i < borradorAp.tags.length; i++) { if (borradorAp.tags[i].id !== id) { r.push(borradorAp.tags[i]); } }
+    borradorAp.tags = r;
+    pintarTagsAp();
+  }
+
+  /* Items del apartado que usan alguno de los tags quitados. */
+  function itemsConTags(ctx, ids) {
+    var r = [], i;
+    for (i = 0; i < items.length; i++) {
+      if (items[i].contexto === ctx && items[i].tag !== '' && ids['#' + items[i].tag]) { r.push(items[i]); }
+    }
+    return r;
+  }
+
+  function guardarEditorApartado() {
+    if (soloLectura || !borradorAp) { return; }
+    leerBorradorAp();
+    var todos = K.todosApartados(), ids = [], lista = [], quitados = {}, hayQuitados = false, detalle = [], previo, cand, i, n, nc;
+    var nom = borradorAp.nom.replace(/^\s+|\s+$/g, '');
+    if (nom === '') {
+      $('apError').textContent = 'Falta el nombre del apartado.';
+      enfocar($('apNom'));
+      return;
+    }
+    if (borradorAp.meta && !(borradorAp.meta.n >= 1)) {
+      $('apError').textContent = 'El objetivo necesita un n\u00FAmero de completadas (1 o m\u00E1s).';
+      enfocar($('apMetaN'));
+      return;
+    }
+    for (i = 0; i < todos.length; i++) { ids.push(todos[i].id); }
+    cand = copiaApartado(borradorAp);
+    if (cand.id === '') { cand.id = K.idUnico(nom, ids, 'apartado'); }
+    cand = K.normalizarApartado(cand);
+    if (!cand) { $('apError').textContent = 'No se pudo guardar ese apartado.'; return; }
+    previo = K.infoContexto(cand.id);
+    for (i = 0; i < todos.length; i++) { lista.push(todos[i].id === cand.id ? cand : todos[i]); }
+    if (!previo) { lista.push(cand); }
+    if (previo) {
+      for (i = 0; i < previo.tags.length; i++) { quitados['#' + previo.tags[i].id] = true; }
+      for (i = 0; i < cand.tags.length; i++) { delete quitados['#' + cand.tags[i].id]; }
+      for (i in quitados) { if (quitados.hasOwnProperty(i)) { hayQuitados = true; } }
+    }
+    n = hayQuitados ? itemsConTags(cand.id, quitados).length : 0;
+    nc = previo && previo.compras !== 'no' && cand.compras === 'no' ? comprasDe(cand.id).length : 0;
+    function aplicar() { return aplicarEdicionApartado(cand, lista, quitados); }
+    if (n > 0 || nc > 0) {
+      if (n > 0) {
+        detalle.push(n + (n === 1 ? ' item usa una etiqueta que se quita: se queda' : ' items usan etiquetas que se quitan: se quedan') +
+          ' sin etiqueta.');
+      }
+      if (nc > 0) {
+        detalle.push(nc + (nc === 1 ? ' compra' : ' compras') + ' de ' + cand.nom + (nc === 1 ? ' pasa' : ' pasan') +
+          ' a tareas: las abiertas quedan pendientes, las compradas completadas y las canceladas, canceladas.');
+      }
+      cerrarParaRelevo('tapaApartado');
+      pedirConfirmacion('Guardar ' + cand.nom, detalle.join(' '), aplicar);
+      soltarRelevo();
+      return;
+    }
+    /* El motivo real del fallo va al editor (#aviso queda debajo de las hojas
+       y puede mostrar otra cosa). */
+    var motivo = aplicar();
+    if (motivo === '') { cerrarHoja('tapaApartado'); return; }
+    $('apError').textContent = motivo;
+  }
+
+  function comprasDe(ctx) {
+    var r = [], i;
+    for (i = 0; i < items.length; i++) { if (items[i].contexto === ctx && items[i].tipo === 'compra') { r.push(items[i]); } }
+    return r;
+  }
+
+  /* Guarda el apartado editado y ajusta sus items: saca las etiquetas
+     quitadas, pasa sus compras a tareas si el modo quedo en 'no' y traduce
+     los estados si cambio entre lista simple y seguimiento. Si algo no se
+     puede guardar, todo vuelve como estaba. */
+  var AVISO_AP_GUARDAR = 'No se pudo guardar el apartado (fallo al guardar). No se cambi\u00F3 nada.';
+
+  var AVISO_AP_SOLO_LECTURA = 'No se guard\u00F3 el apartado: los datos est\u00E1n en solo lectura. Recarg\u00E1 la app.';
+
+  /* Avisa y devuelve el mismo motivo, para que el editor lo muestre tal cual. */
+  function avisarAp(motivo) {
+    avisar(motivo);
+    return motivo;
+  }
+
+  /* Devuelve '' si se guardo; si no, el motivo (ya avisado). */
+  function aplicarEdicionApartado(cand, lista, quitados) {
+    if (soloLectura) { return avisarAp(AVISO_AP_SOLO_LECTURA); }
+    var antes = K.todosApartados(), tocados = [], copias = [], ahora = new Date().toISOString(), i, it, copia, cambio;
+    if (!guardarRegistro(lista)) { return avisarAp(AVISO_AP_GUARDAR); }
+    for (i = 0; i < items.length; i++) {
+      it = items[i];
+      if (it.contexto !== cand.id) { continue; }
+      copia = copiaItem(it);
+      cambio = false;
+      if (it.tag !== '' && quitados['#' + it.tag]) { it.tag = ''; cambio = true; }
+      if (it.tipo === 'compra' && cand.compras === 'no') {
+        compraATarea(it);
+        cambio = true;
+      } else if (it.tipo === 'compra' && !estadoValido('compra', cand.id, it.estado)) {
+        it.estado = estadoEquivalente('compra', cand.id, it.estado);
+        if (!K.esFabrica(cand.id)) { it.pausado = false; it.pausadoDesde = ''; }
+        cambio = true;
+      }
+      if (cambio) { it.actualizado = ahora; tocados.push(it); copias.push(copia); }
+    }
+    if (tocados.length && !guardarItems()) {
+      for (i = 0; i < tocados.length; i++) { reponerItem(tocados[i], copias[i]); }
+      /* Si tampoco se puede volver el registro, memoria y almacenamiento
+         quedan con el apartado editado (guardarRegistro deja el que esta
+         guardado) y los items sin tocar; se dice eso y que conviene recargar. */
+      if (guardarRegistro(antes)) { return avisarAp(AVISO_AP_GUARDAR); }
+      return avisarAp('No se pudieron guardar los items de ' + cand.nom + ' (fallo al guardar). El apartado qued\u00F3 ' +
+        'guardado con los cambios y sus items como estaban. Recarg\u00E1 la app.');
+    }
+    for (i = 0; i < tocados.length; i++) {
+      if (copias[i].tag !== tocados[i].tag) { registrar('tag', tocados[i], copias[i].tag, ''); }
+      if (copias[i].tipo !== tocados[i].tipo) { registrar('conversion', tocados[i], 'compra', tocados[i].estado); }
+    }
+    if (tocados.length) { pintar(); }
+    borradorAp = null;
+    return '';
+  }
+
+  /* Archivar (o desarchivar) el apartado del editor. Sus registros se quedan
+     con su id (KCOCore.contextoDeRegistro); deja de ofrecerse para capturar,
+     en los selectores y en las grillas. El ultimo activo no se archiva. */
+  function archivarApartado() {
+    if (soloLectura || !borradorAp || borradorAp.id === '') { return; }
+    var a = K.infoContexto(borradorAp.id), l = K.todosApartados(), lista = [], i, c;
+    if (!a || (a.activo && K.apartados().length <= 1)) { return; }
+    for (i = 0; i < l.length; i++) {
+      c = l[i];
+      if (c.id === a.id) { c = copiaApartado(c); c.activo = !a.activo; }
+      lista.push(c);
+    }
+    if (guardarRegistro(lista)) {
+      borradorAp = null;
+      cerrarHoja('tapaApartado');
+    }
+  }
+
+  /* Registros que viven en un apartado. Los eventos (historial) cuentan
+     aparte: no se pierden, pasan al mismo destino. */
+  function registrosDe(ctx) {
+    var r = { items: 0, rutinas: 0, proyectos: 0, notas: 0, eventos: 0 }, i;
+    for (i = 0; i < items.length; i++) { if (items[i].contexto === ctx) { r.items++; } }
+    for (i = 0; i < rutinas.length; i++) { if (rutinas[i].contexto === ctx) { r.rutinas++; } }
+    for (i = 0; i < proyectos.length; i++) { if (proyectos[i].contexto === ctx) { r.proyectos++; } }
+    for (i = 0; i < notasAp.length; i++) { if (notasAp[i].ctx === ctx) { r.notas++; } }
+    for (i = 0; i < eventos.length; i++) { if (eventos[i].contexto === ctx) { r.eventos++; } }
+    r.total = r.items + r.rutinas + r.proyectos + r.notas + r.eventos;
+    return r;
+  }
+
+  function textoRegistros(r) {
+    var p = [];
+    if (r.items) { p.push(r.items + (r.items === 1 ? ' item' : ' items')); }
+    if (r.rutinas) { p.push(r.rutinas + (r.rutinas === 1 ? ' rutina' : ' rutinas')); }
+    if (r.proyectos) { p.push(r.proyectos + (r.proyectos === 1 ? ' misi\u00F3n' : ' misiones')); }
+    if (r.notas) { p.push(r.notas + (r.notas === 1 ? ' nota' : ' notas')); }
+    if (p.length === 0) { return 'historial'; }
+    return p.length > 1 ? p.slice(0, -1).join(', ') + ' y ' + p[p.length - 1] : p[0];
+  }
+
+  /* Borrar: sin registros, solo se confirma. Con registros (o historial) hay
+     que elegir a que apartado activo pasan; despues se confirma. */
+  function pedirBorrarApartado() {
+    if (soloLectura || !borradorAp || borradorAp.id === '') { return; }
+    var a = K.infoContexto(borradorAp.id), l = K.apartados(), cont = $('apDestinos'), r, i;
+    if (!a || (a.activo && l.length <= 1)) { return; }
+    r = registrosDe(a.id);
+    if (r.total === 0) { confirmarBorradoApartado(a, ''); return; }
+    vaciar(cont);
+    for (i = 0; i < l.length; i++) { if (l[i].id !== a.id) { cont.appendChild(botonDestinoAp(a, l[i].id)); } }
+    $('apMoverPista').textContent = a.nom + ' tiene ' + textoRegistros(r) + '.' +
+      (r.eventos ? ' Su historial tambi\u00E9n pasa.' : '') + ' Eleg\u00ED a qu\u00E9 apartado van antes de borrarlo.';
+    $('cajaApMover').style.display = '';
+    enfocar(cont.firstChild);
+  }
+
+  function botonDestinoAp(a, id) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'gbtn';
+    b.setAttribute('data-ctx', id);
+    b.appendChild(punto(id));
+    b.appendChild(icoApartado(id, 'gbtn-ico'));
+    b.appendChild(document.createTextNode(nomCtx(id)));
+    b.onclick = function () { confirmarBorradoApartado(a, id); };
+    return b;
+  }
+
+  function confirmarBorradoApartado(a, destino) {
+    var r = registrosDe(a.id);
+    cerrarParaRelevo('tapaApartado');
+    pedirConfirmacion('Borrar ' + a.nom, destino === ''
+      ? 'Se borra el apartado ' + a.nom + '. No tiene registros. No se puede deshacer.'
+      : 'Se borra el apartado ' + a.nom + ' y sus ' + textoRegistros(r) + ' pasan a ' + nomCtx(destino) +
+        (r.eventos ? ', con su historial' : '') + '. No se puede deshacer.',
+      function () { borrarApartado(a.id, destino); });
+    soltarRelevo();
+  }
+
+  /* Pasa un item a otro apartado: estado equivalente en el modo de compras
+     del destino (o tarea, si no usa compras) y sin etiqueta que el destino
+     no conozca. */
+  function pasarItemA(it, ctx) {
+    it.contexto = ctx;
+    if (it.tipo === 'compra' && K.modoCompras(ctx) === 'no') { compraATarea(it); }
+    var est = estadoEquivalente(it.tipo, ctx, it.estado);
+    if (est !== it.estado) {
+      if (!K.esHecho(it.estado)) { it.estadoDesde = new Date().toISOString(); }
+      it.estado = est;
+    }
+    if (!K.esFabrica(ctx)) { it.pausado = false; it.pausadoDesde = ''; }
+    if (it.tag !== '' && !tagInfo(it.tag, ctx)) { it.tag = ''; }
+  }
+
+  /* Borra el apartado y pasa sus items, rutinas, misiones y eventos al
+     destino. Todo o nada: si una escritura falla, cada clave vuelve a su
+     valor crudo y la memoria a como estaba. */
+  function borrarApartado(id, destino) {
+    if (soloLectura) { return; }
+    var antes = K.todosApartados(), lista = [], activos = 0, i, it;
+    var claves = [K_ITEMS, K_RUTINAS, K_PROYECTOS, K_EVENTOS, K_APARTADOS, K_NOTAS], crudos = [];
+    var movidos = [], copias = [], otros = [], notasMovidas = [], eventosAntes = eventos, plantillas = necesitaPlantillas, ok;
+    if (destino !== '' && (destino === id || !K.contextoValido(destino))) { return; }
+    for (i = 0; i < antes.length; i++) {
+      if (antes[i].id !== id) { lista.push(antes[i]); if (antes[i].activo) { activos++; } }
+    }
+    if (activos === 0 || lista.length === antes.length) { return; }
+    if (destino === '' && registrosDe(id).total > 0) { return; }
+    for (i = 0; i < claves.length; i++) { crudos.push(leer(claves[i])); }
+    K.fijarApartados(lista);
+    necesitaPlantillas = false;
+    function sumarOtros(l) {
+      var j;
+      for (j = 0; j < l.length; j++) { if (l[j].contexto === id) { otros.push(l[j]); l[j].contexto = destino; } }
+    }
+    /* Sin destino ('') el apartado no tiene ningun registro (items, rutinas,
+       misiones, notas ni eventos: registrosDe, arriba), asi que no hay nada
+       que mover. Con destino pasan todos, notas incluidas (archivadas tambien). */
+    if (destino !== '') {
+      for (i = 0; i < items.length; i++) {
+        it = items[i];
+        if (it.contexto !== id) { continue; }
+        copias.push(copiaItem(it));
+        pasarItemA(it, destino);
+        movidos.push(it);
+      }
+      sumarOtros(rutinas);
+      sumarOtros(proyectos);
+      sumarOtros(eventos);
+      for (i = 0; i < notasAp.length; i++) { if (notasAp[i].ctx === id) { notasMovidas.push(notasAp[i]); notasAp[i].ctx = destino; } }
+    }
+    ok = guardarItems() && guardarRutinas() && guardarProyectos() && guardarEventos() && guardarNotas() && guardarApartados();
+    if (!ok) {
+      for (i = 0; i < claves.length; i++) { if (leer(claves[i]) !== crudos[i]) { reponerCrudo(claves[i], crudos[i]); } }
+      for (i = 0; i < movidos.length; i++) { reponerItem(movidos[i], copias[i]); }
+      for (i = 0; i < otros.length; i++) { otros[i].contexto = id; }
+      for (i = 0; i < notasMovidas.length; i++) { notasMovidas[i].ctx = id; }
+      eventos = eventosAntes;
+      K.fijarApartados(antes);
+      necesitaPlantillas = plantillas;
+      avisar('No se pudo borrar el apartado (fallo al guardar). No se cambi\u00F3 nada.');
+      refrescarApartados();
+      return;
+    }
+    for (i = 0; i < movidos.length; i++) {
+      if (copias[i].tipo !== movidos[i].tipo) { registrar('conversion', movidos[i], 'compra', movidos[i].estado); }
+    }
+    borradorAp = null;
+    refrescarApartados();
+  }
+
+  /* ---------- notas (T08b) ----------
+     Vista Notas (tercer segmento de Tareas): las del apartado activo o, en
+     Todo, las de todos los apartados que usan notas (KCOCore.notasVisibles).
+     Buscador y archivadas a pedido. La hoja #tapaNota edita un borrador; nada
+     se guarda hasta Guardar (archivar guarda el borrador con el cambio).
+     Borrar ofrece deshacer. Una escritura que falla deja todo como estaba y
+     lo dice en la hoja. Las notas no pasan por el registro de eventos ni dan
+     XP: son texto de referencia, no actividad. */
+
+  var buscaNotas = '';
+  var verArchivadas = false;
+  var borradorNota = null;
+  var AVISO_NOTA = 'No se pudo guardar la nota (fallo al guardar). No se cambi\u00F3 nada.';
+
+  function buscarNota(id) {
+    var i;
+    for (i = 0; i < notasAp.length; i++) { if (notasAp[i].id === id) { return notasAp[i]; } }
+    return null;
+  }
+
+  function copiaNota(n) { return JSON.parse(JSON.stringify(n)); }
+
+  /* Reemplaza (mismo id) o agrega la nota y guarda; si no se puede guardar,
+     la lista vuelve a la de antes. */
+  function ponerNota(cand) {
+    var antes = notasAp, l = [], esta = false, i;
+    for (i = 0; i < notasAp.length; i++) {
+      if (notasAp[i].id === cand.id) { l.push(cand); esta = true; } else { l.push(notasAp[i]); }
+    }
+    if (!esta) { l.push(cand); }
+    notasAp = l;
+    if (guardarNotas()) { return true; }
+    notasAp = antes;
+    return false;
+  }
+
+  /* El titulo que se muestra: el propio o la primera linea del texto. */
+  function tituloNota(n) {
+    if (n.tit !== '') { return n.tit; }
+    return n.txt.split('\n')[0].slice(0, 80);
+  }
+
+  function extractoNota(n) {
+    var t = n.tit !== '' ? n.txt : n.txt.split('\n').slice(1).join(' ');
+    t = t.replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    return t.length > 140 ? t.slice(0, 140).replace(/\s+$/, '') + '\u2026' : t;
+  }
+
+  function nomTagNota(id, ctx) {
+    var t = tagInfo(id, ctx);
+    return t ? t.nom : id;
+  }
+
+  function filaNota(n) {
+    var li = nodo('li', n.fijada ? 'notacard fijada' : 'notacard'), b = document.createElement('button'), cab = nodo('span', 'nota-cab');
+    var ext = extractoNota(n), meta = nodo('span', 'nota-meta'), tit = tituloNota(n), i, pin, ap;
+    li.setAttribute('data-nota', n.id);
+    b.type = 'button';
+    b.className = 'nota-abrir';
+    b.setAttribute('aria-label', (n.fijada ? 'Nota fijada: ' : 'Nota: ') + tit + (n.archivada ? ' (archivada)' : ''));
+    if (n.fijada) {
+      pin = nodo('span', 'nota-pin');
+      pin.appendChild(svgIco('pin'));
+      cab.appendChild(pin);
+    }
+    cab.appendChild(nodo('span', 'nota-tit', tit));
+    b.appendChild(cab);
+    if (ext !== '') { b.appendChild(nodo('span', 'nota-ext', ext)); }
+    if (contexto === 'todo') {
+      ap = nodo('span', 'nota-ap');
+      ap.appendChild(punto(n.ctx));
+      ap.appendChild(nodo('span', '', nomCtx(n.ctx)));
+      meta.appendChild(ap);
+    }
+    for (i = 0; i < n.tags.length; i++) { meta.appendChild(nodo('span', 'nota-tag', nomTagNota(n.tags[i], n.ctx))); }
+    meta.appendChild(nodo('span', 'nota-fecha', horaCorta(n.editada)));
+    b.appendChild(meta);
+    b.onclick = function () { abrirNota(n.id); };
+    li.appendChild(b);
+    return li;
+  }
+
+  function pintarNotas() {
+    var cont = $('listaNotas'), l = K.notasVisibles(notasAp, { ctx: contexto, archivadas: verArchivadas, q: buscaNotas }), i;
+    var bA = $('btnNotasArchivo'), vacio = $('vacioNotas'), q = buscaNotas.replace(/^\s+|\s+$/g, '');
+    vaciar(cont);
+    for (i = 0; i < l.length; i++) { cont.appendChild(filaNota(l[i])); }
+    bA.className = verArchivadas ? 'gbtn on' : 'gbtn';
+    bA.setAttribute('aria-pressed', verArchivadas ? 'true' : 'false');
+    $('btnNuevaNota').style.display = verArchivadas ? 'none' : '';
+    $('btnNuevaNota').disabled = soloLectura;
+    vacio.style.display = l.length ? 'none' : 'block';
+    if (l.length) { return; }
+    if (q !== '') {
+      estadoVacio(vacio, { id: 'notas-busca', ico: 'search', tit: 'Sin resultados', txt: 'Ninguna nota dice \u201C' + q + '\u201D.',
+        acc: 'Borrar b\u00FAsqueda', alTocar: function () { $('txtBuscaNotas').value = ''; buscaNotas = ''; pintarNotas(); enfocar($('txtBuscaNotas')); } });
+    } else if (verArchivadas) {
+      estadoVacio(vacio, { id: 'notas-archivo', ico: 'inbox', tit: 'Sin notas archivadas',
+        txt: 'Archiv\u00E1 una nota desde su hoja para sacarla de la lista sin borrarla.',
+        acc: 'Ver notas', alTocar: function () { verArchivadas = false; pintarNotas(); } });
+    } else {
+      estadoVacio(vacio, { id: 'notas', ico: 'note', tit: 'Sin notas',
+        txt: 'Cre\u00E1 una o escrib\u00ED \u201Cnota:\u201D al principio de la barra de captura.',
+        acc: 'Nueva nota', accIco: 'plus', alTocar: function () { abrirNota(''); } });
+    }
+  }
+
+  /* Apartados que se ofrecen en la hoja: los activos con notas, mas el de la
+     nota si ya no se ofrece (archivado o sin notas), para no moverla sin querer. */
+  function apartadosDeNotas(actual) {
+    var l = K.apartados(), r = [], i;
+    for (i = 0; i < l.length; i++) { if (l[i].notas || l[i].id === actual) { r.push(l[i].id); } }
+    if (actual !== '' && r.indexOf(actual) < 0 && K.infoContexto(actual)) { r.push(actual); }
+    return r;
+  }
+
+  function abrirNota(id) {
+    var n = id ? buscarNota(id) : null, ctx = '', ofrecidos;
+    if (id && !n) { return; }
+    if (n) { ctx = n.ctx; }
+    else if (contexto !== 'todo' && K.usaNotas(contexto)) { ctx = contexto; }
+    else {
+      ofrecidos = apartadosDeNotas('');
+      ctx = ofrecidos.indexOf(ctxCaptura) >= 0 ? ctxCaptura : (ofrecidos[0] || '');
+    }
+    borradorNota = n ? copiaNota(n) : { id: '', tit: '', txt: '', ctx: ctx, tags: [], fijada: false, archivada: false, creada: '', editada: '' };
+    $('notaTitulo').textContent = n ? 'Editar nota' : 'Nueva nota';
+    $('notaTit').value = borradorNota.tit;
+    $('notaTxt').value = borradorNota.txt;
+    $('notaError').textContent = '';
+    $('btnNotaGuardar').disabled = soloLectura;
+    $('btnNotaArchivar').disabled = soloLectura;
+    $('btnNotaBorrar').disabled = soloLectura;
+    $('cajaNotaExistente').style.display = n ? '' : 'none';
+    $('btnNotaArchivar').textContent = n && n.archivada ? 'Desarchivar' : 'Archivar';
+    pintarHojaNota();
+    abrirHoja('tapaNota');
+  }
+
+  function leerBorradorNota() {
+    borradorNota.tit = $('notaTit').value;
+    borradorNota.txt = $('notaTxt').value;
+  }
+
+  /* Solo quedan las etiquetas que el apartado elegido tiene. */
+  function tagsValidosNota() {
+    var propios = K.tagsDe(borradorNota.ctx), ok = {}, r = [], i;
+    for (i = 0; i < propios.length; i++) { ok['#' + propios[i].id] = true; }
+    for (i = 0; i < borradorNota.tags.length; i++) { if (ok['#' + borradorNota.tags[i]]) { r.push(borradorNota.tags[i]); } }
+    return r;
+  }
+
+  function pintarHojaNota() {
+    var cs = $('notaCtxs'), ts = $('notaTags'), l = apartadosDeNotas(borradorNota.ctx), tags, i, f = $('btnNotaFijar');
+    vaciar(cs);
+    for (i = 0; i < l.length; i++) {
+      (function (id) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'gbtn';
+        b.setAttribute('data-ctx', id);
+        b.appendChild(punto(id));
+        b.appendChild(icoApartado(id, 'gbtn-ico'));
+        b.appendChild(document.createTextNode(nomCtx(id)));
+        b.onclick = function () {
+          leerBorradorNota();
+          borradorNota.ctx = id;
+          borradorNota.tags = tagsValidosNota();
+          pintarHojaNota();
+        };
+        cs.appendChild(b);
+      })(l[i]);
+    }
+    marcar(cs, 'data-ctx', borradorNota.ctx);
+    if (l.length === 0) { cs.appendChild(nodo('div', 'pista', 'Ning\u00FAn apartado usa notas. Activalas en Ajustes \u203A Apartados.')); }
+    tags = K.tagsDe(borradorNota.ctx);
+    vaciar(ts);
+    if (tags.length === 0) { ts.appendChild(nodo('div', 'pista', 'Este apartado no tiene etiquetas.')); }
+    for (i = 0; i < tags.length; i++) {
+      (function (t) {
+        var b = document.createElement('button'), on = borradorNota.tags.indexOf(t.id) >= 0;
+        b.type = 'button';
+        b.className = on ? 'gbtn on' : 'gbtn';
+        b.setAttribute('data-tag', t.id);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.textContent = t.nom;
+        b.onclick = function () {
+          var p = borradorNota.tags.indexOf(t.id);
+          if (p >= 0) { borradorNota.tags.splice(p, 1); } else { borradorNota.tags.push(t.id); }
+          leerBorradorNota();
+          pintarHojaNota();
+          enfocar($('notaTags').querySelector('[data-tag="' + t.id + '"]'));
+        };
+        ts.appendChild(b);
+      })(tags[i]);
+    }
+    f.className = borradorNota.fijada ? 'gbtn notafijar on' : 'gbtn notafijar';
+    f.setAttribute('aria-pressed', borradorNota.fijada ? 'true' : 'false');
+    rotular(f, borradorNota.fijada ? 'Fijada arriba' : 'Fijar arriba');
+  }
+
+  /* Guarda el borrador (archivar: con el estado de archivo invertido). */
+  function guardarNota(archivar) {
+    if (soloLectura || !borradorNota) { return; }
+    leerBorradorNota();
+    var previo = borradorNota.id !== '' ? buscarNota(borradorNota.id) : null, ahora = new Date().toISOString(), cand;
+    if (borradorNota.tit.replace(/\s+/g, '') === '' && borradorNota.txt.replace(/\s+/g, '') === '') {
+      $('notaError').textContent = 'Falta un t\u00EDtulo o texto.';
+      enfocar($('notaTit'));
+      return;
+    }
+    if (!K.infoContexto(borradorNota.ctx)) { $('notaError').textContent = 'Eleg\u00ED un apartado.'; return; }
+    cand = K.normalizarNota({
+      id: borradorNota.id || nuevoId('n'), tit: borradorNota.tit, txt: borradorNota.txt, ctx: borradorNota.ctx,
+      tags: tagsValidosNota(), fijada: borradorNota.fijada,
+      archivada: archivar ? !borradorNota.archivada : borradorNota.archivada,
+      creada: previo ? previo.creada : ahora, editada: ahora
+    });
+    if (!cand) { $('notaError').textContent = 'No se pudo guardar esa nota.'; return; }
+    if (!ponerNota(cand)) { $('notaError').textContent = AVISO_NOTA; return; }
+    borradorNota = null;
+    cerrarHoja('tapaNota');
+    pintar();
+  }
+
+  /* Borra la nota de la hoja y ofrece deshacer (vuelve a su lugar). */
+  function borrarNota() {
+    if (soloLectura || !borradorNota || borradorNota.id === '') { return; }
+    var pos = -1, i, copia;
+    for (i = 0; i < notasAp.length; i++) { if (notasAp[i].id === borradorNota.id) { pos = i; } }
+    if (pos < 0) { return; }
+    copia = notasAp[pos];
+    notasAp = notasAp.slice(0, pos).concat(notasAp.slice(pos + 1));
+    if (!guardarNotas()) {
+      notasAp = notasAp.slice(0, pos).concat([copia], notasAp.slice(pos));
+      $('notaError').textContent = AVISO_NOTA;
+      return;
+    }
+    borradorNota = null;
+    cerrarHoja('tapaNota');
+    pintar();
+    ofrecerDeshacer('Nota borrada: ' + tituloNota(copia), function () {
+      if (soloLectura || buscarNota(copia.id)) { return; }
+      var antes = notasAp, lugar = pos > notasAp.length ? notasAp.length : pos;
+      notasAp = notasAp.slice(0, lugar).concat([copia], notasAp.slice(lugar));
+      if (guardarNotas()) { pintar(); } else { notasAp = antes; }
+    });
+  }
+
+  /* Captura rapida: 'nota: texto #apartado' (KCOCore.parsearNota). Va al
+     destino de siempre (#etiqueta > chip > vista); un apartado sin notas la
+     rechaza y el texto queda en la barra. */
+  function capturarNota(p) {
+    var ctx = destinoCaptura(p), ahora = new Date().toISOString(), cand;
+    if (!K.infoContexto(ctx)) { return; }
+    if (!K.usaNotas(ctx)) {
+      avisar(nomCtx(ctx) + ' no usa notas. Activalas en Ajustes \u203A Apartados.');
+      return;
+    }
+    if (p.texto === '') { avisar('Escrib\u00ED la nota despu\u00E9s de \u201Cnota:\u201D.'); return; }
+    cand = K.normalizarNota({ id: nuevoId('n'), tit: p.texto, txt: p.texto.length > 120 ? p.texto : '', ctx: ctx, creada: ahora, editada: ahora });
+    if (!cand) { return; }
+    /* Fallo al guardar: se dice (como en la hoja) y el texto queda en la barra. */
+    if (!ponerNota(cand)) { avisar(AVISO_NOTA); return; }
+    $('txtCaptura').value = '';
+    ctxDestino = '';
+    pintarChipsCaptura();
+    pintar();
+    $('txtCaptura').focus();
+    ofrecerDeshacer('Nota en ' + nomCtx(ctx) + ': ' + tituloNota(cand), function () {
+      var antes = notasAp, l = [], i;
+      if (soloLectura) { return; }
+      for (i = 0; i < notasAp.length; i++) { if (notasAp[i].id !== cand.id) { l.push(notasAp[i]); } }
+      notasAp = l;
+      if (guardarNotas()) { pintar(); } else { notasAp = antes; }
+    });
+  }
+
   /* ---------- contexto ---------- */
 
-  function aplicarLuz(guardar) {
-    var base = 'ctx-' + contexto;
+  /* body lleva el color de paleta del apartado actual (pal-<clave>, Todo es
+     neutro) y su id en data-ctx, mas 'luz' si el modo luz de planta esta activo. */
+  function aplicarClaseCuerpo() {
+    var base = 'pal-' + colorCtx(contexto);
     document.body.className = modoLuz ? base + ' luz' : base;
+    document.body.setAttribute('data-ctx', contexto);
+  }
+
+  function aplicarLuz(guardar) {
+    aplicarClaseCuerpo();
     var b = $('btnLuz');
     if (b) {
       rotular(b, modoLuz ? 'Modo luz de planta: activado' : 'Modo luz de planta');
@@ -3486,10 +5067,12 @@
   }
 
   function aplicarContexto(nuevo, guardar) {
-    contexto = nuevo === 'todo' || K.contextoValido(nuevo) ? nuevo : 'trabajo';
+    contexto = nuevo === 'todo' ? 'todo' : (K.normalizarContexto(nuevo) || 'todo');
     if (contexto !== 'todo') { ctxCaptura = contexto; }
+    ctxDestino = '';
     aplicarLuz(false);
     pintarPistaCaptura();
+    pintarChipsCaptura();
     if (guardar) {
       escribir(K_CTX, contexto);
       escribir(K_CTXCAP, ctxCaptura);
@@ -3518,12 +5101,81 @@
     var k = ev.key || ev.keyCode;
     if (k === 'Enter' || k === 13) { ev.preventDefault(); capturar(); }
   };
+  $('txtCaptura').addEventListener('input', pintarChipsCaptura);
+  $('capCtx').onclick = function () { abrirDestinoCaptura(); };
+
+  /* n o / llevan a la barra de captura (Todoist, Gmail), salvo que ya se este
+     escribiendo en un campo o haya una hoja abierta: nunca se roba una tecla. */
+  function esEditable(el) {
+    if (!el || !el.tagName) { return false; }
+    var t = el.tagName.toLowerCase();
+    return t === 'input' || t === 'textarea' || t === 'select' || el.isContentEditable === true;
+  }
+
+  /* Filas de la vista actual que se ven (las de una hoja no cuentan: con una
+     hoja abierta no hay atajos). */
+  function filasVisibles() {
+    var l = document.querySelectorAll('main li.item'), r = [], i;
+    for (i = 0; i < l.length; i++) { if (l[i].offsetParent !== null) { r.push(l[i]); } }
+    return r;
+  }
+
+  /* Seleccion de teclado: la fila elegida recibe el foco (todas son
+     tabbables) y la clase kbsel, que le da el anillo de foco visible. */
+  function seleccionarFila(li) {
+    var l = document.querySelectorAll('li.item.kbsel'), i;
+    for (i = 0; i < l.length; i++) { l[i].classList.remove('kbsel'); }
+    if (!li) { return; }
+    li.classList.add('kbsel');
+    enfocar(li);
+    try { li.scrollIntoView({ block: 'nearest' }); } catch (e) { /* sin scroll */ }
+  }
+
+  /* j / k bajan y suben por las filas, x completa o reabre la elegida (con
+     deshacer, como el circulo), Enter la abre (onkeydown de la fila). */
+  function atajoLista(k) {
+    var filas = filasVisibles(), pos = -1, i, it, ah;
+    if (filas.length === 0) { return false; }
+    for (i = 0; i < filas.length; i++) { if (filas[i] === document.activeElement) { pos = i; } }
+    if (pos === -1) {
+      for (i = 0; i < filas.length; i++) { if (filas[i].classList.contains('kbsel')) { pos = i; } }
+    }
+    if (k === 'x') {
+      if (pos === -1) { return false; }
+      it = buscarItem(filas[pos].getAttribute('data-id'));
+      ah = it ? accionHecho(it) : null;
+      if (!ah) { return false; }
+      ah.fn();
+      filas = filasVisibles();
+      if (filas.length > 0) { seleccionarFila(filas[Math.min(pos, filas.length - 1)]); }
+      return true;
+    }
+    if (pos === -1) { pos = 0; } else if (k === 'j') { pos = Math.min(pos + 1, filas.length - 1); } else { pos = Math.max(pos - 1, 0); }
+    seleccionarFila(filas[pos]);
+    return true;
+  }
+
+  /* n, /, j, k, x: nunca con modificadores, con una hoja abierta ni adentro
+     de un campo editable. */
+  document.addEventListener('keydown', function (ev) {
+    var k = ev.key || '';
+    if (k !== 'n' && k !== '/' && k !== 'j' && k !== 'k' && k !== 'x') { return; }
+    if (ev.defaultPrevented || ev.ctrlKey || ev.metaKey || ev.altKey) { return; }
+    if (capaArriba() || esEditable(ev.target) || esEditable(document.activeElement)) { return; }
+    if (k === 'j' || k === 'k' || k === 'x') {
+      if (atajoLista(k)) { ev.preventDefault(); }
+      return;
+    }
+    ev.preventDefault();
+    enfocar($('txtCaptura'));
+  });
 
   $('tabAhora').onclick = function () { irAVista('ahora'); };
   $('tabHoy').onclick = function () { irAVista('hoy'); };
-  $('tabTareas').onclick = function () { irAVista(vista === 'compras' ? 'compras' : 'tablero'); };
+  $('tabTareas').onclick = function () { irAVista(vista === 'compras' || vista === 'notas' ? vista : 'tablero'); };
   $('segBtnTareas').onclick = function () { irAVista('tablero'); };
   $('segBtnCompras').onclick = function () { irAVista('compras'); };
+  $('segBtnNotas').onclick = function () { irAVista('notas'); };
   $('tabRegistro').onclick = function () { irAVista('registro'); };
   $('tabMisiones').onclick = function () { irAVista('misiones'); };
   $('btnModoDiario').onclick = function () { modoDiario = 'diario'; pintar(); };
@@ -3792,8 +5444,50 @@
     $('vEventos').textContent = '' + eventos.length;
     $('vNotif').textContent = estadoNotif();
     pintarTema();
+    pintarApartados();
     abrirHoja('tapaAjustes');
   };
+
+  $('btnNuevoApartado').onclick = function () { if (!soloLectura) { abrirEditorApartado(''); } };
+  $('btnApGuardar').onclick = function () { guardarEditorApartado(); };
+  $('btnApTag').onclick = function () { sumarTagAp(); };
+  $('btnApArchivar').onclick = function () { archivarApartado(); };
+  $('btnApBorrar').onclick = function () { pedirBorrarApartado(); };
+  $('apTagNuevo').onkeydown = function (ev) {
+    var k = ev.key || ev.keyCode;
+    if (k === 'Enter' || k === 13) { ev.preventDefault(); sumarTagAp(); }
+  };
+  $('apNom').oninput = function () { if (borradorAp) { $('apError').textContent = ''; pintarPistasAp(); } };
+  $('apAlias').oninput = function () { if (borradorAp) { pintarPistasAp(); } };
+  (function () {
+    var l = $('segMetaAp').querySelectorAll('[data-meta]'), m = $('segComprasAp').querySelectorAll('[data-compras]'), i;
+    for (i = 0; i < l.length; i++) {
+      l[i].onclick = function () {
+        var p = this.getAttribute('data-meta');
+        if (!borradorAp) { return; }
+        leerBorradorAp();
+        borradorAp.meta = p === 'no' ? null : { n: parseInt($('apMetaN').value, 10) || 5, periodo: p };
+        pintarEditorApartado();
+      };
+    }
+    for (i = 0; i < m.length; i++) {
+      m[i].onclick = function () {
+        if (!borradorAp) { return; }
+        leerBorradorAp();
+        borradorAp.compras = this.getAttribute('data-compras');
+        pintarEditorApartado();
+      };
+    }
+    m = $('segNotasAp').querySelectorAll('[data-notas]');
+    for (i = 0; i < m.length; i++) {
+      m[i].onclick = function () {
+        if (!borradorAp) { return; }
+        borradorAp.notas = this.getAttribute('data-notas') === 'si';
+        marcar($('segNotasAp'), 'data-notas', borradorAp.notas ? 'si' : 'no');
+        pintarPistaNotasAp();
+      };
+    }
+  })();
 
   $('btnPermiso').onclick = function () {
     if (!hayNotificacion()) { avisar('Este navegador no tiene notificaciones.'); return; }
@@ -3805,6 +5499,20 @@
   };
 
   $('btnDeshacer').onclick = function () { hacerDeshacer(); };
+
+  $('txtBuscaNotas').oninput = function () { buscaNotas = this.value; pintarNotas(); };
+  $('btnNotasArchivo').onclick = function () { verArchivadas = !verArchivadas; pintarNotas(); };
+  $('btnNuevaNota').onclick = function () { abrirNota(''); };
+  $('btnNotaGuardar').onclick = function () { guardarNota(false); };
+  $('btnNotaArchivar').onclick = function () { guardarNota(true); };
+  $('btnNotaBorrar').onclick = function () { borrarNota(); };
+  $('btnNotaFijar').onclick = function () {
+    if (!borradorNota) { return; }
+    leerBorradorNota();
+    borradorNota.fijada = !borradorNota.fijada;
+    pintarHojaNota();
+  };
+  $('notaTit').oninput = function () { $('notaError').textContent = ''; };
 
   $('btnPausa').onclick = function () {
     if (itemAbierto) { alternarPausa(itemAbierto); }
@@ -3886,9 +5594,13 @@
     var f = ev.target.files && ev.target.files[0];
     if (!f) { return; }
     var lector = new FileReader();
+    /* Ajustes cede su entrada de historial a la confirmacion (relevo): con
+       cerrarHoja + abrirHoja el retroceso de Ajustes queda en vuelo y, al
+       llegar despues de abrir la confirmacion, la cerraba sin restaurar. */
     lector.onload = function () {
-      cerrarHoja('tapaAjustes');
+      cerrarParaRelevo('tapaAjustes');
       procesarImportacion('' + lector.result);
+      soltarRelevo();
       ev.target.value = '';
     };
     lector.onerror = function () { avisar('No se pudo leer el archivo.'); };
@@ -4035,6 +5747,18 @@
     var st = K.estadisticas(items, proyectos, rutinas, hoy);
     var nv = K.nivelPorXP(st.xp);
 
+    /* Campana vacia: sin un primer dia activo no hay racha, semanas ni
+       contextos que mostrar; en vez de una pared de ceros, que hacer y los
+       logros que esperan. */
+    if (!st.primerDia) {
+      cont.appendChild(vacioNuevo('div', { id: 'campana', ico: 'trophy', tit: 'La campa\u00F1a todav\u00EDa no empez\u00F3',
+        txt: 'Complet\u00E1 tu primera tarea: desde ese d\u00EDa cuentan los d\u00EDas activos, la racha, el XP y los logros.',
+        acc: 'Ir a Ahora', accIco: 'zap', alTocar: function () { irAVista('ahora'); } }));
+      pintarMetas(cont, hoy);
+      pintarLogros(cont);
+      return;
+    }
+
     var cab = nodo('div', 'camp-cab');
     cab.appendChild(nodo('div', 'camp-nv', 'Nivel ' + nv.nivel, 'star'));
     cab.appendChild(nodo('div', 'camp-tit', nv.titulo));
@@ -4056,6 +5780,7 @@
     statTile(g, st.misionesFin, 'misiones cumplidas', st.hitos + ' hitos');
     cont.appendChild(g);
 
+    pintarMetas(cont, hoy);
     pintarSemanas(cont, st.semanas);
     pintarPorContexto(cont, st);
     pintarLogros(cont);
@@ -4110,6 +5835,28 @@
     cont.appendChild(s);
   }
 
+  /* Objetivos: en Todo, cada apartado activo que tiene objetivo; en un
+     apartado, solo el suyo. Los apartados sin objetivo no se listan y, si
+     no queda ninguno, la seccion no aparece. */
+  function pintarMetas(cont, hoy) {
+    var defs = contexto === 'todo' ? K.CONTEXTOS : [K.infoContexto(contexto)], filas = [], cumplidas = 0, i, p;
+    for (i = 0; i < defs.length; i++) {
+      p = defs[i] ? K.progresoMeta(defs[i], items, hoy) : null;
+      if (!p) { continue; }
+      if (p.cumplida) { cumplidas++; }
+      filas.push(nodoMeta(defs[i], p, true));
+    }
+    if (filas.length === 0) { return; }
+    var s = nodo('section', 'sec');
+    s.id = 'secMetas';
+    var h = nodo('h3', 'sec-tit');
+    h.appendChild(nodo('span', '', 'Objetivos', 'target'));
+    h.appendChild(nodo('b', 'mono', cumplidas + '/' + filas.length + ' cumplidos'));
+    s.appendChild(h);
+    for (i = 0; i < filas.length; i++) { s.appendChild(filas[i]); }
+    cont.appendChild(s);
+  }
+
   /* Donde se fue el esfuerzo: completadas y XP por contexto, rotulo en texto. */
   function pintarPorContexto(cont, st) {
     var s = nodo('section', 'sec');
@@ -4124,6 +5871,7 @@
       var xp = st.xpPorContexto['#' + c.id] || 0;
       var f = nodo('div', 'ctxbar' + (n === 0 ? ' cero' : ''));
       var cn = nodo('span', 'ctxbar-nom', c.nom);
+      cn.insertBefore(icoApartado(c.id, 'ctxbar-ico'), cn.firstChild);
       cn.insertBefore(punto(c.id), cn.firstChild);
       f.appendChild(cn);
       var pista = nodo('span', 'ctxbar-pista');
@@ -4161,10 +5909,10 @@
         c.appendChild(nodo('div', 'logro-ico', l.ico));
         c.appendChild(nodo('b', '', l.nom));
         c.appendChild(nodo('small', '', l.desc));
-        var v = Math.min(st[l.campo] || 0, l.meta);
+        var meta = K.metaLogro(l, st), v = Math.min(st[l.campo] || 0, meta);
         c.appendChild(nodo('small', 'mono logro-est', gano
           ? '\u2714 ' + fechaNota(memProgreso.logros[l.id])
-          : (l.meta > 1 ? v + '/' + l.meta : 'pendiente')));
+          : (meta > 1 ? v + '/' + meta : 'pendiente')));
       }
       g.appendChild(c);
     }
@@ -4176,7 +5924,7 @@
      kibco.proyectos guarda las misiones. Las tareas se vinculan con proyectoId.
      El progreso y la proxima accion los calcula KCOCore. */
 
-  function guardarProyectos() { return soloLectura ? false : escribir(K_PROYECTOS, JSON.stringify(proyectos)); }
+  function guardarProyectos() { return sinGuardar() ? false : escribir(K_PROYECTOS, JSON.stringify(proyectos)); }
 
   function buscarProyecto(id) {
     var i;
@@ -4270,8 +6018,10 @@
     nueva.onclick = function () { abrirMision(null); };
     var act = misionesVisibles('activo'), pau = misionesVisibles('pausado'), fin = misionesVisibles('terminado'), i;
     if (act.length + pau.length + fin.length === 0) {
-      cont.appendChild(nodo('div', 'vacio', 'Una mision es un objetivo con hitos y tareas. KCO te dice cual es el proximo movimiento de cada una.'));
-      cont.appendChild(nueva);
+      cont.appendChild(vacioNuevo('div', { id: 'misiones', ico: 'target',
+        tit: contexto === 'todo' ? 'Sin misiones todav\u00EDa' : 'Sin misiones en ' + nomCtx(contexto),
+        txt: 'Una misi\u00F3n es un objetivo con hitos y tareas. KCO te dice cu\u00E1l es el pr\u00F3ximo movimiento de cada una.',
+        acc: 'Nueva misi\u00F3n', accIco: 'plus', accId: 'btnNuevaMision', alTocar: function () { abrirMision(null); } }));
       return;
     }
     cont.appendChild(nueva);
@@ -4294,7 +6044,7 @@
   /* ---------- hoja de mision ---------- */
 
   var misionAbierta = null;
-  var misBorradorCtx = 'trabajo';
+  var misBorradorCtx = '';
 
   function abrirMision(id) {
     var p = id ? buscarProyecto(id) : null;
@@ -4602,7 +6352,7 @@
      otro item. Nunca se reutiliza el mismo registro. */
 
   function normRutina(r) { return K.normalizarRutina(r, hoyClave()); }
-  function guardarRutinas() { return soloLectura ? false : escribir(K_RUTINAS, JSON.stringify(rutinas)); }
+  function guardarRutinas() { return sinGuardar() ? false : escribir(K_RUTINAS, JSON.stringify(rutinas)); }
 
   function buscarRutina(id) {
     var i;
@@ -4838,7 +6588,7 @@
         f.appendChild(nodo('span', 'mono h', p[2] + '/' + p[1]));
         f.appendChild(nodo('span', 's', simboloOcurrencia(it)));
         f.appendChild(nodo('span', 'd', it.motivo ? textoMotivo(it.motivo) : estadoInfo(it.estado).nom));
-        f.onclick = function () { cerrarHoja('tapaRutina'); abrirItem(it.id); };
+        f.onclick = function () { cerrarParaRelevo('tapaRutina'); abrirItem(it.id); soltarRelevo(); };
         cont.appendChild(f);
       })(occ[i]);
     }
@@ -5013,16 +6763,20 @@
   }
 
   migrar();
+  /* Antes que las listas: normalizarItem valida el contexto contra el registro. */
+  cargarApartados();
   items = cargarLista(K_ITEMS, normalizarItem);
   eventos = cargarLista(K_EVENTOS, normalizarEvento);
   rutinas = cargarLista(K_RUTINAS, normRutina);
   proyectos = cargarLista(K_PROYECTOS, K.normalizarProyecto);
+  notasAp = cargarLista(K_NOTAS, K.normalizarNota);
   /* Primera vez con 2.0 (o progreso roto ya copiado): la historia ya cargada
      cuenta XP, pero no se festeja como si todo hubiera pasado hoy. Se parte del
      nivel que ya corresponde. cargarProgreso deja progresoNuevo. */
   memProgreso = cargarProgreso();
   cargarCatalogos();
   aplicarMigracion4();
+  aplicarMigracion5();
   generarOcurrencias();
   /* Sin copia posible tambien se siembra, pero solo en memoria (guardarProgreso
      no escribe): asi no se festejan logros y niveles viejos en cada carga. */
@@ -5039,22 +6793,33 @@
      no "en que pestaña me quede". */
   vista = 'ahora';
   var cc = leer(K_CTXCAP);
-  ctxCaptura = K.contextoValido(cc) ? cc : 'trabajo';
+  ctxCaptura = K.normalizarContexto(cc);
   aplicarContexto(leer(K_CTX) || 'todo', false);
   pintarFirma();
 
   if (typeof window.setInterval === 'function') {
     window.setInterval(function () {
-      chequearRecordatorios();
-      /* Paso la medianoche con la app abierta: tocan las rutinas del dia nuevo. */
-      if (hoyClave() !== diaGenerado) {
-        generarOcurrencias();
-        if (pilaCapas.length === 0) { pintar(); }
-      }
+      enAutomatico(function () {
+        chequearRecordatorios();
+        /* Paso la medianoche con la app abierta: tocan las rutinas del dia nuevo. */
+        if (hoyClave() !== diaGenerado) {
+          generarOcurrencias();
+          if (pilaCapas.length === 0) { pintar(); }
+        }
+      });
     }, 30000);
   }
 
-  window.onpopstate = function () { alVolverAtras(); };
+  window.onpopstate = function (ev) { alVolverAtras(ev); };
+  /* Girar o achicar la ventana cambia cuantas filas ocupan los chips. */
+  window.addEventListener('resize', function () {
+    if (document.documentElement.hasAttribute('data-capchips')) { ajustarAltoCaptura(); }
+  });
+  /* Volver desde el bfcache: las capas se reconcilian contra la entrada en la
+     que quedo el historial (un retroceso propio en vuelo no cambia nada). */
+  window.addEventListener('pageshow', function (ev) {
+    if (ev && ev.persisted && window.history) { reconciliarHistorial(window.history.state, true); }
+  });
 
   /* Otra pestaña o ventana de KCO cambio los datos: lo que esta en memoria aca
      ya es viejo y guardarlo pisaria lo nuevo. Se deja de escribir hasta recargar.
@@ -5062,13 +6827,29 @@
      catalogos) y copias de cuarentena no pisan nada. key null = se borro todo.
      El tema es la unica preferencia que se sincroniza en vivo: es visual, no
      pisa nada y dos ventanas con temas distintos se ven rotas. */
-  var CLAVES_DATOS = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA];
+  var CLAVES_DATOS = [K_ITEMS, K_EVENTOS, K_RUTINAS, K_PROYECTOS, K_PROGRESO, K_ESQUEMA, K_APARTADOS, K_NOTAS];
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('storage', function (ev) {
       var k = ev ? ev.key : null;
       if ((k === K_TEMA || k === null) && window.KCOTema) { window.KCOTema.releer(); pintarTema(); }
       if (k !== null && CLAVES_DATOS.indexOf(k) < 0) { return; }
       soloLectura = true;
+      /* Los apartados se releen en vivo: los selectores muestran los nuevos
+         (igual se deja de escribir hasta recargar). */
+      if (k === K_APARTADOS || k === null) {
+        cargarApartados();
+        /* Una compra que quedo en un apartado sin compras se ve como tarea
+           (solo en memoria: aca ya no se escribe). */
+        for (var ic = 0; ic < items.length; ic++) {
+          if (items[ic].tipo === 'compra' && K.modoCompras(items[ic].contexto) === 'no') { compraATarea(items[ic]); }
+        }
+        ctxCaptura = K.normalizarContexto(ctxCaptura);
+        aplicarContexto(contexto, false);
+        pintarCatalogos();
+      }
+      /* Ajustes muestra el registro nuevo; el editor ya no guarda. */
+      pintarApartados();
+      if ($('btnApGuardar')) { $('btnApGuardar').disabled = true; }
       avisar('Los datos cambiaron en otra ventana de KCO. Recarga para seguir sin pisar nada.');
     });
   }
@@ -5076,6 +6857,17 @@
   conectarSwipe(document.getElementsByTagName('main')[0], swipeVistas);
   conectarSwipe(document.getElementsByTagName('header')[0], swipeContexto);
 
+
+  /* Recargar deja el historial parado en una entrada de la carga anterior
+     (capa o ancla de otra serie). Al arrancar no hay ninguna capa abierta y la
+     vista es Ahora: esa entrada pasa a ser la base. */
+  try {
+    var stArranque = window.history ? window.history.state : null;
+    if (stArranque && (stArranque.kcoCapa || stArranque.kcoAncla || stArranque.kcoSerie) &&
+        typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '');
+    }
+  } catch (e) { /* sin history: nada que normalizar */ }
 
   /* Atajo "Capturar" del manifest (./?capturar=1): abre con el cursor en la
      captura. La query se limpia para que recargar no repita el foco. */
@@ -5085,6 +6877,11 @@
       window.history.replaceState(window.history.state, '', window.location.pathname);
     }
   }
+
+  /* Instalacion nueva: lo primero es elegir con que apartados empezar (antes
+     de que se pueda capturar o abrir el editor de apartados). */
+  arrancado = true;
+  if (necesitaPlantillas) { abrirPlantillas(); }
 
   /* ---------- actualizacion de la app (service worker) ----------
      Una version nueva queda esperando (sw.js no hace skipWaiting al instalarse).
