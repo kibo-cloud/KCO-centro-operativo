@@ -45,11 +45,15 @@ test('plantillas: every section is valid, normalized and uses real icons and pal
       const tagIds = a.tags.map((t) => t.id);
       assert.equal(new Set(tagIds).size, tagIds.length, a.id + ': tag ids are unique');
     });
-    // Registering a template yields that many active sections.
-    C.fijarApartados(p.apartados);
-    assert.equal(C.apartados().length, p.apartados.length, p.id + ': all sections active');
+    // Registering a template yields that many active sections; the shared
+    // registry is restored even when an assertion fails (other tests use it).
+    try {
+      C.fijarApartados(p.apartados);
+      assert.equal(C.apartados().length, p.apartados.length, p.id + ': all sections active');
+    } finally {
+      C.fijarApartados(C.apartadosLegado());
+    }
   }
-  C.fijarApartados(C.apartadosLegado());
 });
 
 test('plantillas: the work and home preset is the legacy set; calls return fresh copies', () => {

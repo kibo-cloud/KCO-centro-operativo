@@ -45,6 +45,12 @@ async function freshInstall(page) {
   await page.eval('localStorage.clear()');
   await page.reload();
 }
+// Makes localStorage.setItem throw for the given keys (after letting allow[key]
+// writes through), like a full storage; restoreWrites (below) undoes it.
+async function failWrites(page, keys, allow = {}) {
+  await page.eval(`(function(){var o=window.__setItem||Storage.prototype.setItem,ks=${JSON.stringify(keys)},left=${JSON.stringify(allow)};window.__setItem=o;
+    Storage.prototype.setItem=function(k,v){if(ks.indexOf(k)>-1){if(left[k]>0){left[k]--;}else{throw new Error('quota');}}return o.call(this,k,v);};})()`);
+}
 const migrations = async (page) => (await events(page)).filter((e) => e.tipo === 'migracion');
 const storedSectionIds = async (page) => JSON.parse(await page.storage('kibco.apartados')).map((a) => a.id);
 
@@ -319,6 +325,161 @@ export const tests = [
       await page.reload();
       assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'no picker on the next boot');
       assert.equal((await migrations(page)).length, 0);
+    }
+  },
+  {
+    name: 'sections: dismissing the template picker with the X, the backdrop or back also starts with one generic section',
+    async fn(page) {
+      const routes = {
+        x: () => page.click('#tapaPlantillas .hoja-x'),
+        backdrop: () => page.click('#tapaPlantillas'),
+        back: async () => { await page.eval('history.back()'); await sleep(250); }
+      };
+      for (const [route, dismiss] of Object.entries(routes)) {
+        await freshInstall(page);
+        assert.ok(await isOpen(page, 'tapaPlantillas'), route + ': picker open');
+        await dismiss();
+        await sleep(150);
+        assert.ok(!(await isOpen(page, 'tapaPlantillas')), route + ': picker closed');
+        const secs = JSON.parse(await page.storage('kibco.apartados'));
+        assert.equal(secs.length, 1, route + ': one generic section saved');
+        assert.equal(secs[0].activo, true);
+        assert.ok(!(await isOpen(page, 'tapaApartado')), route + ': no editor on dismiss');
+        assert.equal(await page.eval('history.state && history.state.kcoCapa || null'), null, route + ': no layer left in history');
+      }
+    }
+  },
+  {
+    name: 'sections: a failed template write shows the error, keeps the picker open and persists nothing',
+    async fn(page) {
+      await freshInstall(page);
+      await failWrites(page, ['kibco.apartados']);
+      await page.click('[data-plantilla="estudiante"]');
+      assert.match(await page.text('#plError'), /No se pudo guardar/);
+      assert.ok(await isOpen(page, 'tapaPlantillas'), 'picker stays open');
+      assert.equal(await page.storage('kibco.apartados'), null, 'no sections persisted');
+      assert.equal(await page.storage('kibco.items'), null, 'no items persisted');
+      await restoreWrites(page);
+      await page.click('[data-plantilla="estudiante"]');
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'a retry works');
+      assert.deepEqual(await storedSectionIds(page), ['estudio', 'proyectos', 'casa', 'personal']);
+    }
+  },
+  {
+    name: 'sections: a failed write when dismissing the picker is reported, and later saves ask for a template again',
+    async fn(page) {
+      await freshInstall(page);
+      await failWrites(page, ['kibco.apartados']);
+      await page.click('#tapaPlantillas .hoja-x');
+      await sleep(150);
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'picker closed');
+      assert.equal(await page.storage('kibco.apartados'), null, 'nothing persisted');
+      assert.match(await page.eval("document.getElementById('aviso').className"), /\bon\b/, 'the failure is shown');
+      assert.match(await page.text('#aviso'), /apartado/);
+      await restoreWrites(page);
+      // Another writer (a new mission) does not fail silently: it asks for a template first.
+      await page.click('#tabMisiones');
+      await page.click('#btnNuevaMision');
+      await page.type('#txtMisNombre', 'Mudanza');
+      await page.click('#btnGuardarMision');
+      assert.ok(await isOpen(page, 'tapaPlantillas'), 'the picker comes back');
+      assert.match(await page.text('#plError'), /Eleg/);
+      assert.equal(await page.storage('kibco.proyectos'), null, 'nothing persisted before choosing');
+      await page.click('[data-plantilla="personal"]');
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'picker closed after choosing');
+      assert.ok(await isOpen(page, 'tapaMision'), 'the mission sheet is still there');
+      await page.click('#btnGuardarMision');
+      assert.equal(JSON.parse(await page.storage('kibco.proyectos')).length, 1, 'the retry saves');
+    }
+  },
+  {
+    name: 'sections ui: a failed write while reordering keeps the order in memory and in storage',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      await openAjustes(page);
+      await failWrites(page, ['kibco.apartados']);
+      await page.click('#listaApartados [data-ap="estudio"] [data-subir]');
+      assert.deepEqual(await apRows(page), ['taller', 'mercado', 'estudio'], 'rows unchanged');
+      assert.deepEqual(await page.eval('KCOCore.apartados().map(function(a){return a.id;})'), ['taller', 'mercado', 'estudio'], 'registry rolled back');
+      assert.deepEqual(await storedSectionIds(page), ['taller', 'mercado', 'estudio']);
+      assert.match(await page.text('#aviso'), /No se pudo guardar/);
+    }
+  },
+  {
+    name: 'sections ui: a failed write while deleting a section rolls everything back and says so',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'm1', texto: 'ordenar alacena', contexto: 'mercado', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]),
+      'kibco.proyectos': JSON.stringify([{ id: 'p1', nombre: 'Despensa', contexto: 'mercado', estado: 'activo', hitos: [] }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.click('#btnApBorrar');
+      await page.click('#apDestinos [data-ctx="estudio"]');
+      await failWrites(page, ['kibco.proyectos']);
+      await page.click('#btnConfSi');
+      await sleep(150);
+      assert.match(await page.text('#aviso'), /No se pudo borrar el apartado/);
+      assert.deepEqual(await storedSectionIds(page), ['taller', 'mercado', 'estudio'], 'registry untouched in storage');
+      assert.deepEqual(await apRows(page), ['taller', 'mercado', 'estudio'], 'and in memory');
+      assert.equal((await items(page))[0].contexto, 'mercado', 'items untouched');
+      assert.equal(JSON.parse(await page.storage('kibco.proyectos'))[0].contexto, 'mercado');
+      assert.equal(await page.eval("KCOCore.infoContexto('mercado') ? 'ok' : 'gone'"), 'ok');
+    }
+  },
+  {
+    name: 'sections ui: a failed item write while editing a section rolls the section back and says so',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'y1', texto: 'yerba', contexto: 'mercado', tipo: 'compra', estado: 'por_comprar', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.click('#segComprasAp [data-compras="fabrica"]');
+      await failWrites(page, ['kibco.items']);
+      await page.click('#btnApGuardar');
+      assert.ok(await isOpen(page, 'tapaApartado'), 'the editor stays open');
+      assert.match(await page.text('#apError'), /No se pudo guardar/);
+      assert.match(await page.text('#aviso'), /No se pudo guardar el apartado/);
+      assert.equal(JSON.parse(await page.storage('kibco.apartados')).find((a) => a.id === 'mercado').compras, 'lista', 'registry rolled back in storage');
+      assert.equal(await page.eval("KCOCore.infoContexto('mercado').compras"), 'lista', 'and in memory');
+      assert.equal((await items(page))[0].estado, 'por_comprar');
+    }
+  },
+  {
+    name: 'sections ui: a failed item write after confirming a section edit rolls it back and says so',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'c1', texto: 'rodamiento', contexto: 'taller', tipo: 'compra', estado: 'cotizando', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="taller"] .apfila-abrir');
+      await page.click('#segComprasAp [data-compras="no"]');
+      await page.click('#btnApGuardar');
+      assert.ok(await isOpen(page, 'tapaConfirmar'));
+      await failWrites(page, ['kibco.items']);
+      await page.click('#btnConfSi');
+      await sleep(150);
+      assert.match(await page.text('#aviso'), /No se pudo guardar el apartado/);
+      assert.equal(JSON.parse(await page.storage('kibco.apartados')).find((a) => a.id === 'taller').compras, 'fabrica');
+      assert.equal(await page.eval("KCOCore.infoContexto('taller').compras"), 'fabrica');
+      const [c1] = await items(page);
+      assert.deepEqual([c1.tipo, c1.estado], ['compra', 'cotizando']);
+    }
+  },
+  {
+    name: 'sections ui: when the rollback of a section edit also fails the message says what was kept',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'y1', texto: 'yerba', contexto: 'mercado', tipo: 'compra', estado: 'por_comprar', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.click('#segComprasAp [data-compras="fabrica"]');
+      // Items never save; the registry saves once (the edit) and then fails (the rollback).
+      await failWrites(page, ['kibco.items', 'kibco.apartados'], { 'kibco.apartados': 1 });
+      await page.click('#btnApGuardar');
+      assert.match(await page.text('#aviso'), /Recarg/);
+      const stored = JSON.parse(await page.storage('kibco.apartados')).find((a) => a.id === 'mercado').compras;
+      assert.equal(stored, 'fabrica', 'the edit stayed in storage');
+      assert.equal(await page.eval("KCOCore.infoContexto('mercado').compras"), stored, 'memory matches storage');
+      assert.equal((await items(page))[0].estado, 'por_comprar', 'items unchanged');
     }
   },
   {

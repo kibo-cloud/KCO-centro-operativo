@@ -115,6 +115,11 @@
   /* Instalacion nueva sin apartados guardados: la primera corrida ofrece
      plantillas (T07). Ver cargarApartados. */
   var necesitaPlantillas = false;
+  /* arrancado: la carga inicial termino (antes, un guardado rechazado no abre
+     el selector: el arranque lo abre solo). cerrandoPlantillas: el selector se
+     esta cerrando y aplica la plantilla de "Empezar de cero". */
+  var arrancado = false;
+  var cerrandoPlantillas = false;
   var itemAbierto = null;
   var confAccion = null;
 
@@ -549,6 +554,15 @@
     }
   }
 
+  /* Mientras no hay plantilla elegida ningun guardado se hace. Para que no
+     falle en silencio, el rechazo vuelve a pedir la plantilla (igual que la
+     captura): el selector se abre encima y, elegida, se puede reintentar. */
+  function sinGuardar() {
+    if (soloLectura) { return true; }
+    if (necesitaPlantillas) { pedirPlantillas(); return true; }
+    return false;
+  }
+
   function guardarApartados() {
     if (soloLectura || necesitaPlantillas) { return false; }
     return escribir(K_APARTADOS, JSON.stringify(K.todosApartados()));
@@ -589,7 +603,7 @@
     }]);
   }
 
-  function guardarItems() { return soloLectura || necesitaPlantillas ? false : escribir(K_ITEMS, JSON.stringify(items)); }
+  function guardarItems() { return sinGuardar() ? false : escribir(K_ITEMS, JSON.stringify(items)); }
 
   function corteEventos() {
     var d = new Date();
@@ -601,7 +615,7 @@
      una sola vez. La memoria solo toma la version
      compactada si quedo guardada: memoria y almacenamiento dicen lo mismo. */
   function guardarEventos() {
-    if (soloLectura || necesitaPlantillas) { return false; }
+    if (sinGuardar()) { return false; }
     var lista = eventos;
     if (escribir(K_EVENTOS, JSON.stringify(lista), true)) { eventos = lista; return true; }
     if (lista === eventos) {
@@ -730,7 +744,7 @@
     if (crudo === '' || soloLectura) { return; }
     /* Sin plantilla elegida no se guarda nada: se pide elegir primero y lo
        tipeado queda en la barra para guardarlo despues. */
-    if (necesitaPlantillas) { abrirPlantillas(); return; }
+    if (necesitaPlantillas) { pedirPlantillas(); return; }
     var p = K.parsearCaptura(crudo, new Date());
     var it = itemNuevo(p.texto, destinoCaptura(p), {
       recordatorio: p.recordatorio, fecha: p.fecha, nivel: p.nivel || 'normal'
@@ -2619,7 +2633,13 @@
     /* Cerrar el selector de plantillas sin elegir (X, Escape, fondo, gesto o
        atras) empieza con el apartado generico de "Empezar de cero", sin abrir
        su editor: la app nunca queda sin apartados guardados. */
-    if (id === 'tapaPlantillas' && necesitaPlantillas) { aplicarPlantilla(K.plantillas().pop()); }
+    if (id === 'tapaPlantillas' && necesitaPlantillas) {
+      /* Si no se pudo guardar se avisa: la app sigue sin guardar nada y el
+         selector vuelve con el proximo guardado (sinGuardar) o al arrancar. */
+      cerrandoPlantillas = true;
+      if (!aplicarPlantilla(K.plantillas().pop())) { avisar(AVISO_PLANTILLA); }
+      cerrandoPlantillas = false;
+    }
     devolverFoco(id);
   }
 
@@ -4087,6 +4107,20 @@
     abrirHoja('tapaPlantillas');
   }
 
+  var AVISO_PLANTILLA = 'No se pudo guardar el apartado General. Revis\u00E1 el espacio del navegador: ' +
+    'hasta elegir con qu\u00E9 apartados empezar no se guarda nada.';
+
+  /* Un guardado rechazado por falta de plantilla (o una captura) la pide: el
+     selector se abre encima de lo que haya, con el motivo. No durante el
+     arranque (ya se abre al final) ni mientras el propio selector se cierra. */
+  function pedirPlantillas() {
+    var i;
+    if (!arrancado || cerrandoPlantillas || soloLectura) { return; }
+    for (i = 0; i < pilaCapas.length; i++) { if (pilaCapas[i] === 'tapaPlantillas') { return; } }
+    abrirPlantillas();
+    $('plError').textContent = 'Eleg\u00ED con qu\u00E9 apartados empezar para poder guardar.';
+  }
+
   function pintarPlantillas() {
     var cont = $('listaPlantillas'), l = K.plantillas(), i;
     vaciar(cont);
@@ -4390,7 +4424,8 @@
       soltarRelevo();
       return;
     }
-    if (aplicar()) { cerrarHoja('tapaApartado'); }
+    if (aplicar()) { cerrarHoja('tapaApartado'); return; }
+    $('apError').textContent = $('aviso').textContent;
   }
 
   function comprasDe(ctx) {
@@ -4403,10 +4438,12 @@
      quitadas, pasa sus compras a tareas si el modo quedo en 'no' y traduce
      los estados si cambio entre lista simple y seguimiento. Si algo no se
      puede guardar, todo vuelve como estaba. */
+  var AVISO_AP_GUARDAR = 'No se pudo guardar el apartado (fallo al guardar). No se cambi\u00F3 nada.';
+
   function aplicarEdicionApartado(cand, lista, quitados) {
     if (soloLectura) { return false; }
     var antes = K.todosApartados(), tocados = [], copias = [], ahora = new Date().toISOString(), i, it, copia, cambio;
-    if (!guardarRegistro(lista)) { return false; }
+    if (!guardarRegistro(lista)) { avisar(AVISO_AP_GUARDAR); return false; }
     for (i = 0; i < items.length; i++) {
       it = items[i];
       if (it.contexto !== cand.id) { continue; }
@@ -4425,7 +4462,15 @@
     }
     if (tocados.length && !guardarItems()) {
       for (i = 0; i < tocados.length; i++) { reponerItem(tocados[i], copias[i]); }
-      guardarRegistro(antes);
+      /* Si tampoco se puede volver el registro, memoria y almacenamiento
+         quedan con el apartado editado (guardarRegistro deja el que esta
+         guardado) y los items sin tocar; se dice eso y que conviene recargar. */
+      if (guardarRegistro(antes)) {
+        avisar(AVISO_AP_GUARDAR);
+      } else {
+        avisar('No se pudieron guardar los items de ' + cand.nom + ' (fallo al guardar). El apartado qued\u00F3 ' +
+          'guardado con los cambios y sus items como estaban. Recarg\u00E1 la app.');
+      }
       return false;
     }
     for (i = 0; i < tocados.length; i++) {
@@ -5425,7 +5470,7 @@
      kibco.proyectos guarda las misiones. Las tareas se vinculan con proyectoId.
      El progreso y la proxima accion los calcula KCOCore. */
 
-  function guardarProyectos() { return soloLectura || necesitaPlantillas ? false : escribir(K_PROYECTOS, JSON.stringify(proyectos)); }
+  function guardarProyectos() { return sinGuardar() ? false : escribir(K_PROYECTOS, JSON.stringify(proyectos)); }
 
   function buscarProyecto(id) {
     var i;
@@ -5853,7 +5898,7 @@
      otro item. Nunca se reutiliza el mismo registro. */
 
   function normRutina(r) { return K.normalizarRutina(r, hoyClave()); }
-  function guardarRutinas() { return soloLectura || necesitaPlantillas ? false : escribir(K_RUTINAS, JSON.stringify(rutinas)); }
+  function guardarRutinas() { return sinGuardar() ? false : escribir(K_RUTINAS, JSON.stringify(rutinas)); }
 
   function buscarRutina(id) {
     var i;
@@ -6378,6 +6423,7 @@
 
   /* Instalacion nueva: lo primero es elegir con que apartados empezar (antes
      de que se pueda capturar o abrir el editor de apartados). */
+  arrancado = true;
   if (necesitaPlantillas) { abrirPlantillas(); }
 
   /* ---------- actualizacion de la app (service worker) ----------
