@@ -85,7 +85,11 @@ Full check at task closure: `npm run verify`.
 - [ ] **T06b Review follow-ups (review of `0644c1f..373d151`)** — `aplicarEdicionApartado` must
   tell the user when a write fails (both editor paths, like `borrarApartado`) and check the
   rollback's own result; add e2e specs that force storage write failures for delete/move, edit
-  and `guardarRegistro` rollbacks.
+  and `guardarRegistro` rollbacks. Plus review of `373d151..83a5e29` (T07): R3-001 dismissing
+  the picker must surface a failed `aplicarPlantilla` write (and other writers must not fail
+  silently while `necesitaPlantillas` is true); R3-002 e2e for a failed template write
+  (`#plError`, picker stays open, nothing persisted); R3-003 dismiss specs for X, backdrop and
+  back, not only Escape; R3-004 restore the registry in `plantillas.test.js` with try/finally.
 - [x] **T07 First-run templates** — template picker on a fresh install (several presets plus
   "Empezar de cero"); everything stays editable.
 - [ ] **T08 Goals and description in the UI** — goal progress and description shown for the
@@ -180,6 +184,9 @@ Full check at task closure: `npm run verify`.
   capture/next boot. E2E harness: an empty `storage` now stores the legacy registry (existing
   user); fresh-install specs call `freshInstall`. Gaps: no "restore backup" entry inside the
   picker (restore stays in Ajustes after choosing); docs (ARQUITECTURA/TESTING/LEEME) in T09.
+  Parent spot check: `npm test` 102/102. RDD slice `373d151..83a5e29`: medium,
+  `slice_budget_reached` (430) → review-e30d330db0cf97bf **approved** (1 lens, reliability),
+  acknowledged/burned. Last reviewed boundary: `83a5e29`. Warnings → T06b.
 
 ## Next step
 
