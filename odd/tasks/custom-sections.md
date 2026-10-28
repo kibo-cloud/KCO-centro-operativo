@@ -82,7 +82,7 @@ Full check at task closure: `npm run verify`.
 - [x] **T06 Sections management UI** — "Apartados" in Ajustes: list, create, edit (name, icon,
   color, description, goal, aliases, purchases mode, tags), reorder, archive, delete with
   reassignment.
-- [ ] **T06b Review follow-ups (review of `0644c1f..373d151`)** — `aplicarEdicionApartado` must
+- [x] **T06b Review follow-ups (review of `0644c1f..373d151`)** — `aplicarEdicionApartado` must
   tell the user when a write fails (both editor paths, like `borrarApartado`) and check the
   rollback's own result; add e2e specs that force storage write failures for delete/move, edit
   and `guardarRegistro` rollbacks. Plus review of `373d151..83a5e29` (T07): R3-001 dismissing
@@ -187,7 +187,20 @@ Full check at task closure: `npm run verify`.
   Parent spot check: `npm test` 102/102. RDD slice `373d151..83a5e29`: medium,
   `slice_budget_reached` (430) → review-e30d330db0cf97bf **approved** (1 lens, reliability),
   acknowledged/burned. Last reviewed boundary: `83a5e29`. Warnings → T06b.
+- T06b (delegated) — commit `af05746`. RED: 4/8 new e2e failing (dismiss failure shown only as the
+  generic storage message, edit failures with no section message / empty `#apError`, no "Recarg"
+  message when the rollback fails); the other 4 (dismiss by X/backdrop/back, template write failure,
+  delete and reorder rollbacks) passed as regression coverage. GREEN: es5 ok, 102 unit, 163 e2e.
+  Decisions: guarded writers (`guardarItems/Eventos/Rutinas/Proyectos`) go through `sinGuardar()`,
+  which reopens the picker on top of the current sheet with "Elegí con qué apartados empezar
+  para poder guardar" (same as capture; not during boot nor while the picker itself closes);
+  after choosing, the user retries. A failed dismiss shows `AVISO_PLANTILLA` in `#aviso`.
+  `aplicarEdicionApartado` shows "No se pudo guardar el apartado... No se cambió nada." (also
+  in `#apError` on the direct path, since `#aviso` sits under the sheets); if the registry
+  rollback also fails, memory keeps the stored (edited) registry and the message says items
+  were not changed and to reload. All dismiss routes already went through `cerrarDom`; no fix
+  needed. E2E helper `failWrites(page, keys, allow)` in `app.e2e.mjs` (reuses `restoreWrites`).
 
 ## Next step
 
-T06b, then T08, T08b, T09.
+T08, then T08b, T09.
