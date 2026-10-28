@@ -559,8 +559,22 @@
      captura): el selector se abre encima y, elegida, se puede reintentar. */
   function sinGuardar() {
     if (soloLectura) { return true; }
-    if (necesitaPlantillas) { pedirPlantillas(); return true; }
+    if (necesitaPlantillas) {
+      if (automatico === 0) { pedirPlantillas(); }
+      return true;
+    }
     return false;
+  }
+
+  /* Escrituras que nadie pidio (el reloj de 30 s: recordatorios y rutinas del
+     dia nuevo) corren dentro de enAutomatico. Sin plantilla elegida se
+     saltean en silencio: el selector solo se abre por una accion de la
+     persona. Contador (no booleano) por si una anida a otra. */
+  var automatico = 0;
+
+  function enAutomatico(fn) {
+    automatico++;
+    try { return fn(); } finally { automatico--; }
   }
 
   function guardarApartados() {
@@ -2682,8 +2696,11 @@
       /* Si no se pudo guardar se avisa: la app sigue sin guardar nada y el
          selector vuelve con el proximo guardado (sinGuardar) o al arrancar. */
       cerrandoPlantillas = true;
-      if (!aplicarPlantilla(K.plantillas().pop())) { avisar(AVISO_PLANTILLA); }
-      cerrandoPlantillas = false;
+      try {
+        if (!aplicarPlantilla(K.plantillas().pop())) { avisar(AVISO_PLANTILLA); }
+      } finally {
+        cerrandoPlantillas = false;
+      }
     }
     devolverFoco(id);
   }
@@ -4469,8 +4486,11 @@
       soltarRelevo();
       return;
     }
-    if (aplicar()) { cerrarHoja('tapaApartado'); return; }
-    $('apError').textContent = $('aviso').textContent;
+    /* El motivo real del fallo va al editor (#aviso queda debajo de las hojas
+       y puede mostrar otra cosa). */
+    var motivo = aplicar();
+    if (motivo === '') { cerrarHoja('tapaApartado'); return; }
+    $('apError').textContent = motivo;
   }
 
   function comprasDe(ctx) {
@@ -4485,10 +4505,19 @@
      puede guardar, todo vuelve como estaba. */
   var AVISO_AP_GUARDAR = 'No se pudo guardar el apartado (fallo al guardar). No se cambi\u00F3 nada.';
 
+  var AVISO_AP_SOLO_LECTURA = 'No se guard\u00F3 el apartado: los datos est\u00E1n en solo lectura. Recarg\u00E1 la app.';
+
+  /* Avisa y devuelve el mismo motivo, para que el editor lo muestre tal cual. */
+  function avisarAp(motivo) {
+    avisar(motivo);
+    return motivo;
+  }
+
+  /* Devuelve '' si se guardo; si no, el motivo (ya avisado). */
   function aplicarEdicionApartado(cand, lista, quitados) {
-    if (soloLectura) { return false; }
+    if (soloLectura) { return avisarAp(AVISO_AP_SOLO_LECTURA); }
     var antes = K.todosApartados(), tocados = [], copias = [], ahora = new Date().toISOString(), i, it, copia, cambio;
-    if (!guardarRegistro(lista)) { avisar(AVISO_AP_GUARDAR); return false; }
+    if (!guardarRegistro(lista)) { return avisarAp(AVISO_AP_GUARDAR); }
     for (i = 0; i < items.length; i++) {
       it = items[i];
       if (it.contexto !== cand.id) { continue; }
@@ -4510,13 +4539,9 @@
       /* Si tampoco se puede volver el registro, memoria y almacenamiento
          quedan con el apartado editado (guardarRegistro deja el que esta
          guardado) y los items sin tocar; se dice eso y que conviene recargar. */
-      if (guardarRegistro(antes)) {
-        avisar(AVISO_AP_GUARDAR);
-      } else {
-        avisar('No se pudieron guardar los items de ' + cand.nom + ' (fallo al guardar). El apartado qued\u00F3 ' +
-          'guardado con los cambios y sus items como estaban. Recarg\u00E1 la app.');
-      }
-      return false;
+      if (guardarRegistro(antes)) { return avisarAp(AVISO_AP_GUARDAR); }
+      return avisarAp('No se pudieron guardar los items de ' + cand.nom + ' (fallo al guardar). El apartado qued\u00F3 ' +
+        'guardado con los cambios y sus items como estaban. Recarg\u00E1 la app.');
     }
     for (i = 0; i < tocados.length; i++) {
       if (copias[i].tag !== tocados[i].tag) { registrar('tag', tocados[i], copias[i].tag, ''); }
@@ -4524,7 +4549,7 @@
     }
     if (tocados.length) { pintar(); }
     borradorAp = null;
-    return true;
+    return '';
   }
 
   /* Archivar (o desarchivar) el apartado del editor. Sus registros se quedan
@@ -6413,12 +6438,14 @@
 
   if (typeof window.setInterval === 'function') {
     window.setInterval(function () {
-      chequearRecordatorios();
-      /* Paso la medianoche con la app abierta: tocan las rutinas del dia nuevo. */
-      if (hoyClave() !== diaGenerado) {
-        generarOcurrencias();
-        if (pilaCapas.length === 0) { pintar(); }
-      }
+      enAutomatico(function () {
+        chequearRecordatorios();
+        /* Paso la medianoche con la app abierta: tocan las rutinas del dia nuevo. */
+        if (hoyClave() !== diaGenerado) {
+          generarOcurrencias();
+          if (pilaCapas.length === 0) { pintar(); }
+        }
+      });
     }, 30000);
   }
 

@@ -502,6 +502,52 @@ export const tests = [
     }
   },
   {
+    name: 'sections ui: a direct section save failure shows its own reason in #apError, not whatever #aviso holds',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.type('#apNom', 'Super');
+      await failWrites(page, ['kibco.apartados']);
+      // The global notice keeps showing something unrelated (writes to it are ignored).
+      await page.eval("Object.defineProperty(document.getElementById('aviso'),'textContent',{configurable:true,get:function(){return 'otro aviso';},set:function(){}})");
+      await page.click('#btnApGuardar');
+      assert.ok(await isOpen(page, 'tapaApartado'), 'the editor stays open');
+      const msg = await page.text('#apError');
+      assert.match(msg, /No se pudo guardar el apartado/);
+      assert.doesNotMatch(msg, /otro aviso/);
+      assert.equal(await page.eval("KCOCore.infoContexto('mercado').nom"), 'Mercado', 'nothing changed');
+    }
+  },
+  {
+    name: 'sections: an automatic write while no template is chosen is skipped quietly and never opens the picker',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': '[]' },
+    async fn(page) {
+      // Keep the app's 30 s tick (reminders + day rollover) callable on demand.
+      await page.addInitScript("(function(){var si=window.setInterval;window.__ticks=[];window.setInterval=function(f,ms){if(ms===30000){window.__ticks.push(f);}return si.apply(window,arguments);};})()");
+      const soon = new Date(Date.now() + 2500).toISOString();
+      await page.eval(`localStorage.setItem('kibco.items',JSON.stringify([{id:'r1',texto:'llamar',contexto:'trabajo',tipo:'tarea',estado:'pendiente',
+        creado:'2026-01-01T10:00:00.000Z',recordatorio:${JSON.stringify(soon)},recAvisado:false}]))`);
+      await page.reload();
+      assert.ok(await isOpen(page, 'tapaPlantillas'), 'no active section: the picker opens at boot');
+      await failWrites(page, ['kibco.apartados']);
+      await page.click('#tapaPlantillas .hoja-x');
+      await sleep(150);
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'dismissed (and the template write failed)');
+      await restoreWrites(page);
+      await sleep(2600);
+      assert.equal(await page.eval('window.__ticks.length'), 1);
+      const before = await page.storage('kibco.items');
+      await page.eval('window.__ticks[0]()');
+      await sleep(100);
+      assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'the automatic reminder write does not pop the picker');
+      assert.equal(await page.storage('kibco.items'), before, 'and writes nothing');
+      // A user save still asks for a template.
+      await capture(page, 'algo nuevo');
+      assert.ok(await isOpen(page, 'tapaPlantillas'), 'a user action still asks for a template');
+    }
+  },
+  {
     name: 'sections: an existing user never sees the template picker',
     async fn(page) {
       assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'stored sections: no picker');
