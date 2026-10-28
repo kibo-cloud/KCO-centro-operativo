@@ -710,10 +710,14 @@
     } catch (e) { return false; }
   }
 
+  /* Sin plantilla elegida (necesitaPlantillas) no se puede guardar recAvisado:
+     la notificacion se repetiria en cada arranque. El aviso #recuerdo se
+     muestra igual; la notificacion espera a que haya apartados guardados. */
   function chequearRecordatorios() {
     var ahora = Date.now();
     var vencidos = [];
     var cambio = false;
+    var notifica = !necesitaPlantillas;
     var i;
     for (i = 0; i < items.length; i++) {
       var it = items[i];
@@ -721,7 +725,7 @@
       var d = fechaObj(it.recordatorio);
       if (!d || d.getTime() > ahora) { continue; }
       vencidos.push(it);
-      if (!it.recAvisado) {
+      if (!it.recAvisado && notifica) {
         notificar(it);
         it.recAvisado = true;
         cambio = true;
@@ -4705,21 +4709,26 @@
     for (i = 0; i < claves.length; i++) { crudos.push(leer(claves[i])); }
     K.fijarApartados(lista);
     necesitaPlantillas = false;
-    for (i = 0; i < items.length; i++) {
-      it = items[i];
-      if (it.contexto !== id) { continue; }
-      copias.push(copiaItem(it));
-      pasarItemA(it, destino);
-      movidos.push(it);
-    }
     function sumarOtros(l) {
       var j;
       for (j = 0; j < l.length; j++) { if (l[j].contexto === id) { otros.push(l[j]); l[j].contexto = destino; } }
     }
-    sumarOtros(rutinas);
-    sumarOtros(proyectos);
-    sumarOtros(eventos);
-    for (i = 0; i < notasAp.length; i++) { if (notasAp[i].ctx === id) { notasMovidas.push(notasAp[i]); notasAp[i].ctx = destino; } }
+    /* Sin destino ('') el apartado no tiene ningun registro (items, rutinas,
+       misiones, notas ni eventos: registrosDe, arriba), asi que no hay nada
+       que mover. Con destino pasan todos, notas incluidas (archivadas tambien). */
+    if (destino !== '') {
+      for (i = 0; i < items.length; i++) {
+        it = items[i];
+        if (it.contexto !== id) { continue; }
+        copias.push(copiaItem(it));
+        pasarItemA(it, destino);
+        movidos.push(it);
+      }
+      sumarOtros(rutinas);
+      sumarOtros(proyectos);
+      sumarOtros(eventos);
+      for (i = 0; i < notasAp.length; i++) { if (notasAp[i].ctx === id) { notasMovidas.push(notasAp[i]); notasAp[i].ctx = destino; } }
+    }
     ok = guardarItems() && guardarRutinas() && guardarProyectos() && guardarEventos() && guardarNotas() && guardarApartados();
     if (!ok) {
       for (i = 0; i < claves.length; i++) { if (leer(claves[i]) !== crudos[i]) { reponerCrudo(claves[i], crudos[i]); } }
@@ -5001,7 +5010,9 @@
     }
     if (p.texto === '') { avisar('Escrib\u00ED la nota despu\u00E9s de \u201Cnota:\u201D.'); return; }
     cand = K.normalizarNota({ id: nuevoId('n'), tit: p.texto, txt: p.texto.length > 120 ? p.texto : '', ctx: ctx, creada: ahora, editada: ahora });
-    if (!cand || !ponerNota(cand)) { return; }
+    if (!cand) { return; }
+    /* Fallo al guardar: se dice (como en la hoja) y el texto queda en la barra. */
+    if (!ponerNota(cand)) { avisar(AVISO_NOTA); return; }
     $('txtCaptura').value = '';
     ctxDestino = '';
     pintarChipsCaptura();
@@ -5583,9 +5594,13 @@
     var f = ev.target.files && ev.target.files[0];
     if (!f) { return; }
     var lector = new FileReader();
+    /* Ajustes cede su entrada de historial a la confirmacion (relevo): con
+       cerrarHoja + abrirHoja el retroceso de Ajustes queda en vuelo y, al
+       llegar despues de abrir la confirmacion, la cerraba sin restaurar. */
     lector.onload = function () {
-      cerrarHoja('tapaAjustes');
+      cerrarParaRelevo('tapaAjustes');
       procesarImportacion('' + lector.result);
+      soltarRelevo();
       ev.target.value = '';
     };
     lector.onerror = function () { avisar('No se pudo leer el archivo.'); };

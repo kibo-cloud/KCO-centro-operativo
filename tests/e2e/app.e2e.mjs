@@ -567,6 +567,41 @@ export const tests = [
     }
   },
   {
+    name: 'sections: a due reminder before choosing a template notifies once, after the template, across ticks and reloads',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': '[]' },
+    async fn(page) {
+      // Granted notifications that count, and the 30 s tick callable on demand (both survive reloads).
+      await page.addInitScript("(function(){var si=window.setInterval;window.__ticks=[];window.setInterval=function(f,ms){if(ms===30000){window.__ticks.push(f);}return si.apply(window,arguments);};" +
+        "var N=function(t,o){var l=JSON.parse(sessionStorage.getItem('__notifs')||'[]');l.push(o&&o.tag);sessionStorage.setItem('__notifs',JSON.stringify(l));};N.permission='granted';N.requestPermission=function(){return Promise.resolve('granted');};window.Notification=N;})()");
+      const soon = new Date(Date.now() + 1500).toISOString();
+      await page.eval(`localStorage.setItem('kibco.items',JSON.stringify([{id:'r1',texto:'llamar',contexto:'personal',tipo:'tarea',estado:'pendiente',
+        creado:'2026-01-01T10:00:00.000Z',recordatorio:${JSON.stringify(soon)},recAvisado:false}]))`);
+      await page.reload();
+      assert.ok(await isOpen(page, 'tapaPlantillas'), 'no active section: the picker opens at boot');
+      await sleep(1700);
+      const notifs = async () => JSON.parse((await page.eval("sessionStorage.getItem('__notifs')")) || '[]');
+      await page.eval('window.__ticks[0]()');
+      await page.eval('window.__ticks[0]()');
+      await sleep(100);
+      assert.deepEqual(await notifs(), [], 'nothing can be saved yet: no notification that would repeat on every boot');
+      await page.reload();
+      await page.eval('window.__ticks[0]()');
+      await sleep(100);
+      assert.deepEqual(await notifs(), [], 'still none after a reload');
+      await page.click('[data-plantilla="personal"]');
+      await sleep(150);
+      await page.eval('window.__ticks[0]()');
+      await page.eval('window.__ticks[0]()');
+      await sleep(100);
+      assert.deepEqual(await notifs(), ['r1'], 'with a template: one notification across two ticks');
+      assert.equal((await items(page))[0].recAvisado, true, 'and it is persisted');
+      await page.reload();
+      await page.eval('window.__ticks[0]()');
+      await sleep(100);
+      assert.deepEqual(await notifs(), ['r1'], 'not repeated after a reload');
+    }
+  },
+  {
     name: 'sections: an existing user never sees the template picker',
     async fn(page) {
       assert.ok(!(await isOpen(page, 'tapaPlantillas')), 'stored sections: no picker');
@@ -3700,6 +3735,56 @@ export const tests = [
       assert.match(await page.text('#notaError'), /No se pudo guardar la nota/);
       assert.equal(await page.storage('kibco.notas'), before);
       assert.deepEqual(await noteRows(page), ['n2', 'n1'], 'memory unchanged');
+    }
+  },
+  {
+    name: 'notes: a failed nota: capture says so and keeps the text in the bar',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'taller' },
+    async fn(page) {
+      const before = await page.storage('kibco.notas');
+      await failWrites(page, ['kibco.notas']);
+      await page.type('#txtCaptura', 'nota: no entra', true);
+      assert.match(await page.text('#aviso'), /No se pudo guardar la nota/);
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'nota: no entra', 'text kept');
+      assert.equal(await page.storage('kibco.notas'), before);
+    }
+  },
+  {
+    name: 'notes: deleting a section with only an archived note asks for a destination and moves it there',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS,
+      'kibco.notas': JSON.stringify([{ id: 'na', tit: 'Guardada', ctx: 'mercado', archivada: true }, { id: 'nb', tit: 'Otra', ctx: 'estudio' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.click('#btnApBorrar');
+      assert.equal(await isOpen(page, 'tapaConfirmar'), false, 'a note is a record: no straight confirmation');
+      assert.match(await page.text('#apMoverPista'), /1 nota/);
+      await page.click('#apDestinos [data-ctx="taller"]');
+      await page.click('#btnConfSi');
+      await sleep(150);
+      const stored = JSON.parse(await page.storage('kibco.notas'));
+      assert.deepEqual(stored.map((n) => [n.id, n.ctx, !!n.archivada]), [['na', 'taller', true], ['nb', 'estudio', false]]);
+      assert.equal(stored.some((n) => !n.ctx), false, 'no note without a section');
+    }
+  },
+  {
+    name: 'backup: Escape on the export sheet over Ajustes, then a file restore, applies the restore',
+    async fn(page) {
+      await capture(page, 'item uno');
+      await page.click('#btnAjustes');
+      await page.click('#btnBackupTexto');
+      const json = await page.eval("document.getElementById('txtSalida').value");
+      const data = JSON.parse(json);
+      data.items[0].texto = 'restaurado';
+      const file = path.join(os.tmpdir(), 'kco-e2e-backup-escape.json');
+      fs.writeFileSync(file, JSON.stringify(data));
+      await page.key('Escape');
+      await page.setFile('#archivoImport', file);
+      assert.ok(await isOpen(page, 'tapaConfirmar'), 'restore asks first');
+      await page.click('#btnConfSi');
+      await sleep(150);
+      assert.deepEqual((await items(page)).map((i) => i.texto), ['restaurado'], 'restore applied');
+      assert.ok((await events(page)).some((e) => e.tipo === 'restauracion'));
     }
   },
   {
