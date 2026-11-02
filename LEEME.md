@@ -7,7 +7,9 @@ un centro de control de cinco contextos de vida, con rutinas, misiones, diario y
 2.1 renueva la interfaz (tema claro y oscuro, pestañas abajo, hojas accesibles, gestos y
 atajos de teclado) para que capturar, decidir y editar cueste menos toques. La 2.2 saca los
 contextos fijos: cada persona arma sus **apartados** (con plantillas para empezar), con
-objetivo, descripcion, modo de compras y **notas**.
+objetivo, descripcion, modo de compras y **notas**. La 2.3 hace que la barra capture segun la
+pestaña (una compra en Compras, una nota en Notas) y deja ordenar a mano el Ahora de cada
+apartado.
 
 Ciclo: capturar -> decidir -> ejecutar -> registrar -> mirar hacia atras.
 
@@ -31,9 +33,9 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-2.2.0` (`'kibco-' + VERSION` en `sw.js`) |
+| Nombre de cache | `kibco-2.3.0` (`'kibco-' + VERSION` en `sw.js`) |
 | Esquema de datos | `5` (desde 2.2: apartados y notas) |
-| Version de la app | `2.2.0` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
+| Version de la app | `2.3.0` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
 | Tema | Sistema (sigue `prefers-color-scheme`), Claro u Oscuro; colores como tokens en `kco.css`. Oscuro: fondo `#0D0F12`, tarjetas `#161920`, bordes `rgba(255,255,255,.07)` |
 | Acentos por apartado | el color elegido para cada apartado, de una paleta de diez (`azul`, `verde`, `ambar`, `rosa`, `violeta`, `cian`, `naranja`, `rojo`, `lima`, `gris`) con variante clara y oscura; Todo es neutro. Los cinco apartados de siempre conservan sus colores (Trabajo naranja, Casa cian, Apps violeta, Contenido rosa, Personal verde) |
 | Tipografia | sans del sistema para todo el texto, minimo 12 px; `ui-monospace` solo para numeros |
@@ -136,6 +138,19 @@ conviene llevarlo en lista simple.
 - Cambiar un item de apartado conserva todo el item. Si cambia el modo de compras el estado
   se traduce al equivalente y la pausa se suelta. Se puede deshacer.
 
+### Captura segun la pestaña
+
+La barra guarda lo que corresponde a donde estas mirando, en el apartado de la vista:
+
+| Pestaña | Se guarda como | Aviso en la barra |
+|---|---|---|
+| Tareas (o cualquier otra vista) | tarea en Entrada | "Capturar en ..." |
+| Tareas > Compras | compra (Cotizando con seguimiento, Por comprar en lista simple) | "Compra en ..." y chip "Compra" |
+| Tareas > Notas | nota del apartado, sin escribir `nota:` | "Nota en ..." y chip "Nota" |
+
+Una `#etiqueta` o el chip "Guardar en" siguen eligiendo el apartado. Si el apartado elegido no
+usa compras, la compra queda como tarea.
+
 ### Marcas al capturar
 
 Todas son opcionales y cuentan solo como **palabra suelta**. Se sacan del texto guardado.
@@ -215,6 +230,19 @@ abrir es que hago ahora, no en que pestaña me quede.
 - **Requiere atencion**, **A continuacion** (las seis que mas pesan, sin contar el inbox),
   **Inbox** (hasta ocho), **Esperando** (hasta ocho) y **Misiones activas** (hasta cuatro).
 - Si no hay nada accionable aparece **TODO EN ORDEN**.
+
+**Orden manual por apartado.** Mirando un apartado (no Todo), Ahora tiene el selector
+**Orden: Automatico / Manual**, que cada apartado recuerda. Automatico usa el puntaje de abajo.
+En Manual, "A continuacion" pasa a ser una lista de hasta 20 que empieza con el siguiente
+movimiento y se ordena a mano:
+
+- **Arrastrar:** mantener apretada una fila (tactil o mouse) y moverla; un hueco marca donde
+  cae. Moverse enseguida sigue siendo scroll o swipe, y el swipe de la fila sigue completando.
+- **Teclado:** con la fila enfocada, Alt+Flecha arriba o abajo la mueve un lugar.
+- La primera fila es el siguiente movimiento. Lo que nunca se ordeno va al final por puntaje.
+  "Requiere atencion" sigue aparte y el inbox no entra.
+- El orden se guarda en cada item (`ordenManual`) y vuelve al pasar de Automatico a Manual.
+  Mover un item a otro apartado le borra el lugar. Si no se puede guardar, queda como estaba.
 
 **Puntaje.** Solo compite lo que esta en Requiere atencion o Proximo: lo que espera a otro
 o cae otro dia nunca se propone. Cada regla suma y la **primera que aplica da el motivo**
@@ -533,7 +561,8 @@ dia ni XP y no pasan por el Diario.
 - **Crear y editar:** "Nueva nota" o tocar una nota abre su hoja: titulo, texto (con saltos
   de linea), apartado, etiquetas del apartado y fijar. Nada se guarda hasta tocar Guardar.
   Archivar y desarchivar estan en la misma hoja; borrar ofrece deshacer.
-- **Captura rapida:** `nota: texto` en la barra guarda una nota. Una `#etiqueta` de apartado
+- **Captura rapida:** en el segmento Notas la barra guarda una nota sin prefijo; desde
+  cualquier otra vista, `nota: texto` guarda una nota. Una `#etiqueta` de apartado
   elige el apartado (como con los items); el chip de la barra dice "Nota". Se puede deshacer.
 - **Por apartado:** cada apartado decide si usa notas (Ajustes > Apartados > Notas; vienen
   activadas). Un apartado sin notas no muestra el segmento y rechaza `nota:` dejando el texto
@@ -658,6 +687,7 @@ sin migracion.
 | `fecha` | `''` si no es un dia valido `AAAA-MM-DD` | dia en que cae el item | 2.0 |
 | `proyectoId` | `''` si no es un id seguro | mision vinculada | 2.0 |
 | `rutinaId` | `''` si no es un id seguro | rutina de la que es ocurrencia | 2.0 |
+| `ordenManual` | `0` (sin ordenar) si no es un entero positivo | lugar en el orden manual de Ahora de su apartado | 2.3 |
 | `ocurrencia` | `''` si no es un dia valido | dia de la ocurrencia | 2.0 |
 | `motivo` | `''` si no es `omitida`, `no_corresponde`, `delegada` o `vencida` | motivo de cierre de una ocurrencia | 2.0 |
 
@@ -669,7 +699,7 @@ arrastra un tag de otro apartado, se muestra igual al final de la lista para pod
 `nom` (hasta 40), `ico` (nombre de icono), `color` (clave de la paleta), `orden`, `desc`
 (hasta 280), `meta` (`{n, periodo}` con `periodo` `semana` o `mes`, o `null`), `alias` (lista),
 `compras` (`no`, `lista` o `fabrica`), `tags` (lista de `{id, nom}`), `notas` (`true` por
-defecto), `activo` (`false` = archivado). Sin `id` valido o sin nombre, se descarta.
+defecto), `activo` (`false` = archivado), `ordenAhora` (`auto` por defecto o `manual`, 2.3). Sin `id` valido o sin nombre, se descarta.
 
 **Nota** (`kibco.notas`): `id`, `tit` (hasta 120), `txt` (hasta 20000), `ctx` (apartado),
 `tags` (hasta 10), `fijada`, `archivada`, `creada`, `editada`. Sin titulo ni texto, se descarta.
@@ -732,7 +762,7 @@ preferencias (apartado elegido, filtros, luz, catalogos) o copias de cuarentena 
 Desde Ajustes se descarga o comparte un `.json` (`kco-backup-AAAAMMDD-HHMM.json`):
 
     {
-      "app": "kco", "schema": 5, "version": "2.2.0",
+      "app": "kco", "schema": 5, "version": "2.3.0",
       "exportado": "<fecha ISO>", "contexto": "<apartado actual o todo>",
       "apartados": [...],
       "items": [...], "eventos": [...], "rutinas": [...], "proyectos": [...],
@@ -799,6 +829,12 @@ cambio no aparece nunca. Con la version nueva, la app muestra el aviso "Actualiz
 # CHANGELOG
 
 Desde 2.1.0 el detalle de cada version esta en `CHANGELOG.md`.
+
+## 2.3.0 — captura por pestaña y orden manual
+
+Cache `kibco-2.3.0`. Esquema 5 sin cambios: `ordenAhora` (apartado) y `ordenManual` (item) son
+campos nuevos con fallback. La barra guarda una compra en Compras y una nota en Notas; cada
+apartado puede ordenar su Ahora a mano (arrastrar con pulsacion larga o Alt+Flecha).
 
 ## 2.2.0 — apartados propios y notas
 
