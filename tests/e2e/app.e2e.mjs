@@ -3994,6 +3994,52 @@ export const tests = [
       assert.equal(await page.eval('document.activeElement && document.activeElement.getAttribute("data-id")'), 'C');
       assert.equal(await page.text('.hero .hero-txt'), 'tarea A');
     }
+  },
+  {
+    name: 'ahora order: a repaint during the long-press hold cancels it and leaves no stuck drag',
+    storage: ORDER_SEED('manual'),
+    async fn(page) {
+      // Press B (the hold timer starts), then a keyboard move on C repaints the list before 350 ms.
+      await page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="B"]'),r=b.getBoundingClientRect();
+        b.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,isPrimary:true,pointerId:41,pointerType:'touch',button:0,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));
+        var c=document.querySelector('#secSigue li.item[data-id="C"]');c.focus();
+        c.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,altKey:true,bubbles:true,cancelable:true}));})()`);
+      await sleep(600);
+      assert.deepEqual(await orderRows(page), ['A', 'B', 'D', 'C'], 'the keyboard move repainted the list');
+      assert.equal(await page.eval("document.documentElement.hasAttribute('data-ordenando')"), false, 'no drag started on the replaced row');
+      assert.equal(await page.count('#secSigue .orden-fantasma, #secSigue .orden-hueco'), 0, 'no floating copy or placeholder');
+      // A new long-press drag still works.
+      await page.eval("document.getElementById('secSigue').scrollIntoView(true)");
+      const c = await page.rect('#secSigue li.item[data-id="C"]'), a = await page.rect('#secSigue li.item[data-id="A"]');
+      await page.drag(c.x + c.w / 2, c.y + c.h / 2, c.x + c.w / 2, a.y + 4, 12, 500);
+      assert.deepEqual(await orderRows(page), ['C', 'A', 'B', 'D'], 'a later long-press drag reorders');
+      // And a row swipe still completes.
+      const d = await page.rect('#secSigue li.item[data-id="D"]');
+      await page.drag(d.x + 60, d.y + d.h / 2, d.x + 300, d.y + d.h / 2 + 6);
+      assert.equal((await items(page)).find((i) => i.id === 'D').estado, 'completado', 'swipe still works');
+    }
+  },
+  {
+    name: 'ahora order: a failed save restores the previous manual ranks and order',
+    storage: ORDER_SEED('manual'),
+    async fn(page) {
+      const altUp = `(function(){var l=document.querySelector('#secSigue li.item[data-id="C"]');l.focus();
+        l.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',keyCode:38,altKey:true,bubbles:true,cancelable:true}));})()`;
+      const before = await page.storage('kibco.items');
+      await failWrites(page, ['kibco.items']);
+      await page.eval(altUp);
+      await sleep(80);
+      assert.deepEqual(await orderRows(page), ['A', 'B', 'C', 'D'], 'the in-memory ranks were rolled back');
+      assert.equal(await page.storage('kibco.items'), before, 'nothing stored');
+      await restoreWrites(page);
+      await page.eval(altUp);
+      await sleep(80);
+      assert.deepEqual(await orderRows(page), ['A', 'C', 'B', 'D'], 'the same move works once saving works');
+      const list = await items(page);
+      assert.deepEqual(['A', 'B', 'C', 'D'].map((id) => list.find((i) => i.id === id).ordenManual), [1, 3, 2, 4]);
+      await page.reload();
+      assert.deepEqual(await orderRows(page), ['A', 'C', 'B', 'D'], 'kept after reload');
+    }
   }
 ];
 
