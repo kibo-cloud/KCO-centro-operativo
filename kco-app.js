@@ -1590,6 +1590,9 @@
   var MOVER_ANTES = 8;
   var TOPE_ORDEN = 20;
   var ordenActivo = null;
+  /* Espera de pulsacion larga en curso (una a la vez): pintar() la corta,
+     porque la fila que la empezo deja de existir. */
+  var esperaOrden = null;
 
   function fijarOrdenAhora(modo) {
     if (soloLectura || contexto === 'todo' || K.ordenAhora(contexto) === modo) { return; }
@@ -1681,7 +1684,11 @@
     });
     if (typeof window.PointerEvent === 'undefined') { return; }
     function soltarEspera() {
-      if (espera) { clearTimeout(espera); espera = null; }
+      if (espera) {
+        clearTimeout(espera);
+        if (esperaOrden === espera) { esperaOrden = null; }
+        espera = null;
+      }
     }
     function esDeOrden(ev) { return ordenActivo && ordenActivo.li === li && ev.pointerId === ordenActivo.idP; }
     li.addEventListener('pointerdown', function (ev) {
@@ -1692,8 +1699,10 @@
       soltarEspera();
       espera = setTimeout(function () {
         espera = null;
+        esperaOrden = null;
         empezarOrden(li, ul, id, idP, y0, orden, visibles);
       }, LARGA_ORDEN);
+      esperaOrden = espera;
     });
     li.addEventListener('pointermove', function (ev) {
       if (esDeOrden(ev)) { moverOrden(ev.clientY); return; }
@@ -1719,7 +1728,9 @@
   /* La fila que se arrastra no sale del DOM (perderia el puntero): se pliega
      (orden-origen) y en su lugar queda el hueco que se va moviendo. */
   function empezarOrden(li, ul, id, idP, y, orden, visibles) {
-    if (!li.parentNode || pilaCapas.length > 0 || ordenActivo) { return; }
+    /* La fila tiene que seguir en la pagina: una lista vieja (ya repintada)
+       sigue teniendo padre aunque no se vea. */
+    if (!document.documentElement.contains(li) || pilaCapas.length > 0 || ordenActivo) { return; }
     var r = li.getBoundingClientRect();
     var hueco = document.createElement('li');
     hueco.className = 'orden-hueco';
@@ -2728,6 +2739,7 @@
     /* Un repintado a mitad de un arrastre (reloj, otra pestana) lo cancela:
        las filas que se movian ya no existen. */
     if (ordenActivo) { terminarOrden(true); }
+    if (esperaOrden) { clearTimeout(esperaOrden); esperaOrden = null; }
     /* Un apartado sin compras (o sin notas) no tiene esa vista: vuelve a Tareas. */
     if (vista === 'compras' && !conCompras) { vista = 'tablero'; }
     if (vista === 'notas' && !conNotas) { vista = 'tablero'; }
