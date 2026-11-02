@@ -52,6 +52,7 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
 
 ## Route declaration
 
+- T05, T06: delegated direct (one writer) — `kco-app.js`, `kco.css`, `iconos.js`, E2E, docs (writer trigger).
 - T01-T04, T03b: delegated direct (one writer) — touches `kco-core.js`, `kco-app.js`, `index.html`,
   `kco.css`, tests: 2+ non-trivial files (writer trigger).
 
@@ -71,6 +72,14 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
       failed save restores the previous manual ranks.
 - [x] T04 Version 2.3.0 (`VERSION_APP`, `sw.js`, `package.json`), docs (`LEEME.md`,
       `docs/ARQUITECTURA.md` if needed), full `npm run verify`; `versiones/KCO v2.3.0` copy (done by parent).
+- [x] T05 Quick-menu kebab button + reliable drag (added 2026-11-02, reason: user report on a real
+      Android phone after 2.3.0 publish: in Manual, long-pressing a task opened the quick menu). Kebab
+      (vertical three dots) on every active card opens the quick menu; in a Manual Ahora list
+      long-press only drags (contextmenu suppressed unconditionally); touch drag driven by touch
+      events so a browser `pointercancel` does not kill the hold; no text selection/callout on
+      draggable rows; E2E.
+- [ ] T06 Release 2.3.1 (added 2026-11-02, same reason): version bump, CHANGELOG 2.3.1 entry,
+      LEEME quick menu / long-press text, TESTING totals.
 
 ## Acceptance
 
@@ -95,6 +104,8 @@ iteration), `npm run verify` at closure.
 - 2026-11-02: T04 done (commit: see `git log`, `chore(release): bump version to 2.3.0`). `VERSION_APP`, `sw.js` `VERSION` and `package.json` at 2.3.0 (no package-lock.json; `tests/unit/version.test.js` checks equality, no pinned value). LEEME: intro, identity table, "Captura segun la pestaña", Ahora manual order (drag, long-press, Alt+Arrow), Notas capture, `ordenManual`/`ordenAhora` fields, backup sample, 2.3.0 changelog entry. TESTING.md totals 121 unit / 195 E2E. `npm run verify` green: ES5 ok, unit 121/121, E2E 195/195. Pending for parent: `versiones/KCO v2.3.0` copy and `CHANGELOG.md` 2.3.0 entry (CHANGELOG.md outside the writer edit surface).
 
 - 2026-11-02: parent closure. `CHANGELOG.md` 2.3.0 entry (`e42d107`). Spot check: `npm test` 121/121. RDD assess `df2b360..HEAD`: medium, 163 lines, review_due=false (under_budget). `versiones/KCO v2.3.0` created with robocopy (rc=0), verified `VERSION_APP` and `package.json` = 2.3.0.
+
+- 2026-11-02: T05 done (commit: see `git log`, `fix(ahora): keep long-press as drag in Manual and add a quick-menu button`). Root cause (confirmed in code and by RED E2E): `li.oncontextmenu` in `nodoItem` only skipped the quick menu while `ordenActivo` was set or within 500 ms of a gesture; the long-press drag ran on pointer events only, so when Android Chrome claims the touch (`pointercancel`, e.g. long-press text selection/callout or scroll start) the 350 ms hold timer is cleared (or a started drag cancelled) and the later `contextmenu` finds no drag and opens `abrirMenuRapido`. CDP touches never send that pointercancel, so 195 E2E passed. Fix: rows of a Manual list carry `data-ordenable` and their `contextmenu` never opens the menu; touch drag uses touch events (pointer touch ignored when `ontouchstart` exists; `ordenActivo.fuente` `toque`/`puntero`, pointer capture only for pointer); `.lista.ordenable` rows get `user-select:none` + `-webkit-touch-callout:none`; kebab `.mas-fila` (`more-vertical` icon, 44px, `aria-haspopup=dialog`, label "Más opciones: <texto>") on every active card opens the quick menu (click stops propagation; hold excluded by `dentroDeBoton`). Repaint spec now starts its hold with a TouchEvent; inbox-buttons spec expects `listo,parahoy,mas`. RED: both new `kebab:` specs failed (no kebab; `tapa on` after pointercancel + contextmenu). GREEN: `npm run check` ok; `npm test` 121/121; `npm run e2e` 196/197 then the one failure (expected card button list) fixed and re-run 1/1; `kebab:` 2/2. Known gap: "Requiere atencion" and Inbox rows in Ahora are not draggable and keep long-press = quick menu.
 
 Last reviewed boundary: df2b360 (review-649668425611a68f, medium, approved+acknowledged).
 
