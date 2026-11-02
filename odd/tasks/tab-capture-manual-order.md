@@ -31,7 +31,7 @@
   2.3.0 (`VERSION_APP`, `sw.js` `VERSION`, `package.json`).
 - Defaults (parent decision, low consequence): "Todo" view always stays automatic; items never
   ordered go to the end of the manual list ordered by score; "Requiere atencion" stays as an
-  alert section; a `compra` captured in a section whose purchase mode is `no` falls back to a
+  alert section (reversed for Manual by T07); a `compra` captured in a section whose purchase mode is `no` falls back to a
   task (existing rule `compraATarea`).
 - Out: reordering in Hoy/Tareas lists, cross-section drag, push/PR.
 
@@ -52,6 +52,7 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
 
 ## Route declaration
 
+- T07, T08: delegated direct (one writer) - `kco-app.js`, E2E, docs, release files (writer trigger).
 - T05, T06: delegated direct (one writer) — `kco-app.js`, `kco.css`, `iconos.js`, E2E, docs (writer trigger).
 - T01-T04, T03b: delegated direct (one writer) — touches `kco-core.js`, `kco-app.js`, `index.html`,
   `kco.css`, tests: 2+ non-trivial files (writer trigger).
@@ -80,6 +81,13 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
       draggable rows; E2E.
 - [x] T06 Release 2.3.1 (added 2026-11-02, same reason): version bump, CHANGELOG 2.3.1 entry,
       LEEME quick menu / long-press text, TESTING totals.
+- [x] T07 Manual mode includes attention items (added 2026-11-02, reason: user report on a real
+      Android phone with 2.3.1: in Trabajo, Manual, most tasks were overdue and sat in the fixed
+      "Requiere atencion" section, so they could not be ordered; the original T03 decision "Requiere
+      atencion stays as an alert section" is reversed). In Manual there is no `#secAtencion`: attention
+      items join the draggable `#secSigue` list (keeping their red motive), cap `TOPE_ORDEN` 20 -> 40,
+      the Atencion tile points to `#secSigue`; Automatico, Inbox and Esperando unchanged; E2E.
+- [ ] T08 Release 2.3.2: version bump, CHANGELOG 2.3.2, LEEME Manual/atencion text, TESTING totals.
 
 ## Acceptance
 
@@ -109,8 +117,10 @@ iteration), `npm run verify` at closure.
 
 - 2026-11-02: T06 done (commit: see `git log`, `chore(release): bump version to 2.3.1`). `VERSION_APP`, `sw.js` `VERSION`, `package.json` at 2.3.1; CHANGELOG 2.3.1 entry (Agregado: boton de tres puntos; Corregido: en Manual mantener apretado abria el menu rapido en Android); LEEME identity table, backup sample, Ahora manual-order drag note, card gestures row, 2.3.1 summary; TESTING totals 121 unit / 197 E2E. `npm run verify` green: ES5 ok, unit 121/121, E2E 197/197. Pending for parent: `versiones/KCO v2.3.1` copy, root `CLAUDE.md` version line, RDD assess of `df2b360..HEAD`.
 
+- 2026-11-02: T07 done (commit: see `git log`, `fix(ahora): let attention items be ordered in Manual`). `pintarAhora` skips the `secAtencion` section when the section is Manual, so overdue/urgent items fall into the manual list (`K.ordenarManual` order, hero first, red motive such as "Vencida hace 17 d" kept); `TOPE_ORDEN` 20 -> 40 (attention items now count against it; above it the note says the rest is in Tareas); the Atencion tile targets `secSigue` in Manual. ARQUITECTURA updated. New E2E (`ATTENTION_SEED`: ORDER_SEED + overdue V1 -17 d, V2 -3 d): no `#secAtencion` in Manual, overdue rows lead the list, label kept, tile target/count, contextmenu on an overdue row opens no quick menu, long-press drag of A above them, Alt+ArrowDown moves an overdue row below another, persists after reload, Automatico shows `#secAtencion` again. No existing spec assumed atencion stays separate in Manual (ORDER_SEED has no attention items). RED: the new spec failed (`#secAtencion` count 1 !== 0). GREEN: `npm run check` ok; `npm test` 121/121; `ahora order` 6/6; `npm run e2e` 198/198.
+
 Last reviewed boundary: df2b360 (review-649668425611a68f, medium, approved+acknowledged).
 
 ## Next step
 
-T05-T06 done (2.3.1). Parent: RDD assess `df2b360..HEAD` (now over the slice budget with T05), `versiones/KCO v2.3.1` copy, delivery decisions (push/PR are user decisions). Validate on a real Android phone: long-press drag in Manual and the three-dots button.
+T07 done; next T08 (release 2.3.2). T05-T06 done (2.3.1). Parent: RDD assess `df2b360..HEAD` (now over the slice budget with T05), `versiones/KCO v2.3.1` copy, delivery decisions (push/PR are user decisions). Validate on a real Android phone: long-press drag in Manual and the three-dots button.
