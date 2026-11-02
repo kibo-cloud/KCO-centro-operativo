@@ -1,7 +1,7 @@
 # Pruebas — KCO 2.3
 
 Tres controles, cero dependencias. `npm run verify` los corre en orden y falla al primero que
-no pasa. Conteo actual (2.3.1): **121 pruebas unitarias** y **197 specs E2E**, todas en verde.
+no pasa. Conteo actual (2.3.2): **121 pruebas unitarias** y **198 specs E2E**, todas en verde.
 
 ## Correr
 

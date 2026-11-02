@@ -33,9 +33,9 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-2.3.1` (`'kibco-' + VERSION` en `sw.js`) |
+| Nombre de cache | `kibco-2.3.2` (`'kibco-' + VERSION` en `sw.js`) |
 | Esquema de datos | `5` (desde 2.2: apartados y notas) |
-| Version de la app | `2.3.1` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
+| Version de la app | `2.3.2` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
 | Tema | Sistema (sigue `prefers-color-scheme`), Claro u Oscuro; colores como tokens en `kco.css`. Oscuro: fondo `#0D0F12`, tarjetas `#161920`, bordes `rgba(255,255,255,.07)` |
 | Acentos por apartado | el color elegido para cada apartado, de una paleta de diez (`azul`, `verde`, `ambar`, `rosa`, `violeta`, `cian`, `naranja`, `rojo`, `lima`, `gris`) con variante clara y oscura; Todo es neutro. Los cinco apartados de siempre conservan sus colores (Trabajo naranja, Casa cian, Apps violeta, Contenido rosa, Personal verde) |
 | Tipografia | sans del sistema para todo el texto, minimo 12 px; `ui-monospace` solo para numeros |
@@ -242,7 +242,8 @@ movimiento y se ordena a mano:
   la tarjeta o deslizando a la izquierda.
 - **Teclado:** con la fila enfocada, Alt+Flecha arriba o abajo la mueve un lugar.
 - La primera fila es el siguiente movimiento. Lo que nunca se ordeno va al final por puntaje.
-  "Requiere atencion" sigue aparte y el inbox no entra.
+  Lo que requiere atencion (vencido, urgente) entra en esta misma lista con su aviso en rojo y
+  se arrastra igual; la lista muestra hasta 40 tareas. El inbox y Esperando no entran.
 - El orden se guarda en cada item (`ordenManual`) y vuelve al pasar de Automatico a Manual.
   Mover un item a otro apartado le borra el lugar. Si no se puede guardar, queda como estaba.
 
@@ -764,7 +765,7 @@ preferencias (apartado elegido, filtros, luz, catalogos) o copias de cuarentena 
 Desde Ajustes se descarga o comparte un `.json` (`kco-backup-AAAAMMDD-HHMM.json`):
 
     {
-      "app": "kco", "schema": 5, "version": "2.3.1",
+      "app": "kco", "schema": 5, "version": "2.3.2",
       "exportado": "<fecha ISO>", "contexto": "<apartado actual o todo>",
       "apartados": [...],
       "items": [...], "eventos": [...], "rutinas": [...], "proyectos": [...],
@@ -831,6 +832,12 @@ cambio no aparece nunca. Con la version nueva, la app muestra el aviso "Actualiz
 # CHANGELOG
 
 Desde 2.1.0 el detalle de cada version esta en `CHANGELOG.md`.
+
+## 2.3.2 — ordenar tambien lo que requiere atencion
+
+Cache `kibco-2.3.2`. Esquema 5 sin cambios. En Ahora con orden Manual, lo que requiere
+atencion ya no queda fijo en una seccion aparte: entra en la lista ordenable con su aviso en
+rojo. Ver `CHANGELOG.md`.
 
 ## 2.3.1 — boton de tres puntos y arrastre en Android
 
