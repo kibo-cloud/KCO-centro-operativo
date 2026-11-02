@@ -70,7 +70,7 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
       drag on a detached row, leaving `ordenActivo` stuck. Plus R3-002 (SUGGESTION): E2E proving a
       failed save restores the previous manual ranks.
 - [x] T04 Version 2.3.0 (`VERSION_APP`, `sw.js`, `package.json`), docs (`LEEME.md`,
-      `docs/ARQUITECTURA.md` if needed), full `npm run verify`; `versiones/KCO v2.3.0` copy (pending, parent).
+      `docs/ARQUITECTURA.md` if needed), full `npm run verify`; `versiones/KCO v2.3.0` copy (done by parent).
 
 ## Acceptance
 
@@ -94,8 +94,10 @@ iteration), `npm run verify` at closure.
 - 2026-11-02: T03b done (commit: see `git log`, `fix(ahora): cancel a pending long-press when Ahora repaints`). `esperaOrden` holds the one pending long-press timer; `pintar()` clears it, and `empezarOrden` requires `document.documentElement.contains(li)` instead of `li.parentNode`. New E2E: repaint during the hold leaves no stuck drag (later long-press drag and swipe still work); failed `kibco.items` write restores previous ranks and order (R3-002). RED: the repaint spec failed (`data-ordenando` stayed set) before the fix; the rollback spec passed already (coverage only). GREEN: `npm run check` ok; `npm test` 121/121; `npm run e2e` 195/195.
 - 2026-11-02: T04 done (commit: see `git log`, `chore(release): bump version to 2.3.0`). `VERSION_APP`, `sw.js` `VERSION` and `package.json` at 2.3.0 (no package-lock.json; `tests/unit/version.test.js` checks equality, no pinned value). LEEME: intro, identity table, "Captura segun la pestaña", Ahora manual order (drag, long-press, Alt+Arrow), Notas capture, `ordenManual`/`ordenAhora` fields, backup sample, 2.3.0 changelog entry. TESTING.md totals 121 unit / 195 E2E. `npm run verify` green: ES5 ok, unit 121/121, E2E 195/195. Pending for parent: `versiones/KCO v2.3.0` copy and `CHANGELOG.md` 2.3.0 entry (CHANGELOG.md outside the writer edit surface).
 
+- 2026-11-02: parent closure. `CHANGELOG.md` 2.3.0 entry (`e42d107`). Spot check: `npm test` 121/121. RDD assess `df2b360..HEAD`: medium, 163 lines, review_due=false (under_budget). `versiones/KCO v2.3.0` created with robocopy (rc=0), verified `VERSION_APP` and `package.json` = 2.3.0.
+
 Last reviewed boundary: df2b360 (review-649668425611a68f, medium, approved+acknowledged).
 
 ## Next step
 
-Parent: native review of `56da9f7`..HEAD from boundary `df2b360`; create `versiones/KCO v2.3.0`; add the 2.3.0 entry to `CHANGELOG.md`; push/PR remain user decisions.
+Feature complete. Push/PR are user decisions; branch holds ~918 authored lines over `release/2.2.0`, so the `ask-on-risk` chain question (`stacked-to-main` or `feature-branch-chain`) applies before PR planning. Pending slice `df2b360..e42d107` (163 lines, medium, under_budget) is reviewed when a later commit reaches the budget or at PR slicing.
