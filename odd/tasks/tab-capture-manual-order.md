@@ -78,7 +78,7 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
       long-press only drags (contextmenu suppressed unconditionally); touch drag driven by touch
       events so a browser `pointercancel` does not kill the hold; no text selection/callout on
       draggable rows; E2E.
-- [ ] T06 Release 2.3.1 (added 2026-11-02, same reason): version bump, CHANGELOG 2.3.1 entry,
+- [x] T06 Release 2.3.1 (added 2026-11-02, same reason): version bump, CHANGELOG 2.3.1 entry,
       LEEME quick menu / long-press text, TESTING totals.
 
 ## Acceptance
@@ -107,8 +107,10 @@ iteration), `npm run verify` at closure.
 
 - 2026-11-02: T05 done (commit: see `git log`, `fix(ahora): keep long-press as drag in Manual and add a quick-menu button`). Root cause (confirmed in code and by RED E2E): `li.oncontextmenu` in `nodoItem` only skipped the quick menu while `ordenActivo` was set or within 500 ms of a gesture; the long-press drag ran on pointer events only, so when Android Chrome claims the touch (`pointercancel`, e.g. long-press text selection/callout or scroll start) the 350 ms hold timer is cleared (or a started drag cancelled) and the later `contextmenu` finds no drag and opens `abrirMenuRapido`. CDP touches never send that pointercancel, so 195 E2E passed. Fix: rows of a Manual list carry `data-ordenable` and their `contextmenu` never opens the menu; touch drag uses touch events (pointer touch ignored when `ontouchstart` exists; `ordenActivo.fuente` `toque`/`puntero`, pointer capture only for pointer); `.lista.ordenable` rows get `user-select:none` + `-webkit-touch-callout:none`; kebab `.mas-fila` (`more-vertical` icon, 44px, `aria-haspopup=dialog`, label "Más opciones: <texto>") on every active card opens the quick menu (click stops propagation; hold excluded by `dentroDeBoton`). Repaint spec now starts its hold with a TouchEvent; inbox-buttons spec expects `listo,parahoy,mas`. RED: both new `kebab:` specs failed (no kebab; `tapa on` after pointercancel + contextmenu). GREEN: `npm run check` ok; `npm test` 121/121; `npm run e2e` 196/197 then the one failure (expected card button list) fixed and re-run 1/1; `kebab:` 2/2. Known gap: "Requiere atencion" and Inbox rows in Ahora are not draggable and keep long-press = quick menu.
 
+- 2026-11-02: T06 done (commit: see `git log`, `chore(release): bump version to 2.3.1`). `VERSION_APP`, `sw.js` `VERSION`, `package.json` at 2.3.1; CHANGELOG 2.3.1 entry (Agregado: boton de tres puntos; Corregido: en Manual mantener apretado abria el menu rapido en Android); LEEME identity table, backup sample, Ahora manual-order drag note, card gestures row, 2.3.1 summary; TESTING totals 121 unit / 197 E2E. `npm run verify` green: ES5 ok, unit 121/121, E2E 197/197. Pending for parent: `versiones/KCO v2.3.1` copy, root `CLAUDE.md` version line, RDD assess of `df2b360..HEAD`.
+
 Last reviewed boundary: df2b360 (review-649668425611a68f, medium, approved+acknowledged).
 
 ## Next step
 
-Feature complete. Push/PR are user decisions; branch holds ~918 authored lines over `release/2.2.0`, so the `ask-on-risk` chain question (`stacked-to-main` or `feature-branch-chain`) applies before PR planning. Pending slice `df2b360..e42d107` (163 lines, medium, under_budget) is reviewed when a later commit reaches the budget or at PR slicing.
+T05-T06 done (2.3.1). Parent: RDD assess `df2b360..HEAD` (now over the slice budget with T05), `versiones/KCO v2.3.1` copy, delivery decisions (push/PR are user decisions). Validate on a real Android phone: long-press drag in Manual and the three-dots button.

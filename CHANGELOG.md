@@ -3,6 +3,24 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.3.1 — 2026-11-02 — boton de tres puntos y arrastre confiable
+
+Cache `kibco-2.3.1`. Esquema de datos **5** (sin cambios). Sin campos nuevos.
+
+### Agregado
+
+- **Boton de tres puntos en cada tarjeta.** Toda tarea o compra activa muestra un boton de
+  tres puntos a la derecha que abre el menu rapido (Hoy, Mañana, Prioridad, Mover a Compras,
+  Borrar, Mas opciones) sin tener que deslizar ni mantener apretado.
+
+### Corregido
+
+- **En Manual, mantener apretada una tarea abria el menu rapido en Android.** En Ahora con
+  orden Manual, mantener apretada una tarea ahora solo la levanta para arrastrarla: el
+  arrastre con el dedo ya no se corta cuando el navegador reclama el toque, y la fila no
+  selecciona texto ni muestra el globo del sistema. Fuera de esa lista (orden Automatico,
+  Hoy, Tareas) mantener apretado sigue abriendo el menu rapido.
+
 ## 2.3.0 — 2026-11-02 — captura segun la pestaña y orden manual
 
 Cache `kibco-2.3.0`. Esquema de datos **5** (sin cambios). Campos nuevos, leidos con valor por
