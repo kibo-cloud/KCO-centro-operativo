@@ -81,7 +81,7 @@ Una spec que compara colores fija el esquema con el helper `scheme(page, 'dark'|
 Helpers de pagina: `goto`, `reload`, `eval`, `click`, `clickText`, `type` (con Enter
 opcional), `text`, `count`, `visible`, `rect`, `storage`, `setStorage`, `screenshot`, `offline`,
 `setFile` y `viewport`. Entrada real por CDP: `key(nombre, {shift})` (`Input.dispatchKeyEvent`:
-Escape, Tab, Enter), `press(caracter)` (tecla imprimible con `text`: corre los listeners de keydown y escribe el caracter si nadie lo previene, p. ej. `n`, `/`), `tap(x, y)` y `drag(x0, y0, x1, y1)` (`Input.dispatchTouchEvent`; con el
+Escape, Tab, Enter), `press(caracter)` (tecla imprimible con `text`: corre los listeners de keydown y escribe el caracter si nadie lo previene, p. ej. `n`, `/`), `tap(x, y)`, `drag(x0, y0, x1, y1, pasos, hold)` (`Input.dispatchTouchEvent`; `hold` deja el dedo quieto esos ms antes de mover: arrastre con pulsacion larga) y `mouseDrag(x0, y0, x1, y1, pasos, hold)` (lo mismo con el mouse, `Input.dispatchMouseEvent`) (con el
 viewport movil la emulacion tactil esta activa y el navegador genera pointer + touch events).
 
 **Estado CDP por spec.** Lo que una spec cambia en la pestana por CDP pasa por el harness y
@@ -124,6 +124,7 @@ por modo de compras), `GOAL_SECTIONS` + `GOAL_ITEMS()`, `NOTE_SECTIONS` + `NOTE_
 | `pwa` | 4 | el service worker cachea (incluido `kco.css`) y la app arranca offline con estilos; aviso de version nueva (en espera y `updatefound`), recarga una sola vez y solo si se pidio; atajo `?capturar=1` |
 | `model` | 4 | marcas de captura, item viejo con fallback, compra de fabrica a Casa, vista Todo |
 | `ahora` | 4 | proximo movimiento con motivo, Hecho desde el hero, Mañana con deshacer, triaje del inbox |
+| `ahora order` | 3 | selector Automatico/Manual por apartado (se guarda en `kibco.apartados`, sobrevive a recargar, otro apartado conserva el suyo, Todo no lo muestra); en Manual una pulsacion larga y arrastre reordena, el hero sigue a la primera fila, persiste, otros apartados sin tocar, un arrastre vertical sin pulsacion larga es scroll, el swipe a la derecha sigue completando, Automatico vuelve al puntaje y Manual recuerda el orden; arrastre con mouse y Alt+Flecha en escritorio |
 | `hoy` | 1 | hoy, vencidas y proximos dias |
 | `recurring` | 9 | crear rutina, historial y racha, vencida, excepcion "no tocaba", previstas, hacer recurrente, backup, borrar la vigente, sin Mover a Compras |
 | `missions` | 5 | crear con hitos y tareas, vincular desde la ficha, completar con tareas abiertas, borrar conserva tareas, backup |

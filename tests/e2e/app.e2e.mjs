@@ -3918,8 +3918,106 @@ export const tests = [
       assert.equal(await page.count('#listaNotas [data-nota]'), 1, 'visible in the notes list');
       assert.equal(await page.eval("document.getElementById('txtCaptura').value"), '', 'the bar clears');
     }
+  },
+  {
+    name: 'ahora order: the Automatico/Manual switch is per section, persists after reload, and Todo has none',
+    storage: ORDER_SEED(),
+    async fn(page) {
+      assert.ok(await page.visible('#ordenAhora'), 'switch shown in a section');
+      assert.equal(await orderOn(page), 'auto', 'automatic by default');
+      await page.click('#ordenAhora [data-orden="manual"]');
+      assert.equal(await orderOn(page), 'manual');
+      await page.screenshot(path.join(OUT, 'ahora-orden-switch.png'));
+      const stored = JSON.parse(await page.storage('kibco.apartados'));
+      assert.deepEqual(stored.map((a) => [a.id, a.ordenAhora]), [['taller', 'manual'], ['mercado', 'auto']]);
+      await page.reload();
+      assert.equal(await orderOn(page), 'manual', 'kept after reload');
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"mercado\"]').click()");
+      assert.equal(await orderOn(page), 'auto', 'the other section keeps its own mode');
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
+      assert.equal(await page.count('#ordenAhora'), 0, 'Todo is always automatic, no switch');
+    }
+  },
+  {
+    name: 'ahora order: in Manual a long-press drag reorders, the hero follows and it persists; a plain vertical drag does not; Automatico restores the score order',
+    storage: ORDER_SEED('manual'),
+    async fn(page) {
+      assert.deepEqual(await orderRows(page), ['A', 'B', 'C', 'D'], 'manual list starts in score order, hero included');
+      assert.equal(await page.text('.hero .hero-txt'), 'tarea A');
+      const show = () => page.eval("document.getElementById('secSigue').scrollIntoView(true)");
+      await show();
+      // A quick vertical drag (no long-press) is a scroll: nothing changes.
+      let b = await page.rect('#secSigue li.item[data-id="B"]');
+      await page.drag(b.x + b.w / 2, b.y + b.h / 2, b.x + b.w / 2, b.y + b.h / 2 + 90, 8, 0);
+      assert.deepEqual(await orderRows(page), ['A', 'B', 'C', 'D'], 'a plain drag is a scroll');
+      // Long-press D and drag it above A.
+      await show();
+      const d = await page.rect('#secSigue li.item[data-id="D"]'), a = await page.rect('#secSigue li.item[data-id="A"]');
+      await page.drag(d.x + d.w / 2, d.y + d.h / 2, d.x + d.w / 2, a.y + 4, 12, 500);
+      assert.deepEqual(await orderRows(page), ['D', 'A', 'B', 'C'], 'long-press drag to the top');
+      assert.equal(await page.text('.hero .hero-txt'), 'tarea D', 'the first one is the next move');
+      const list = await items(page);
+      assert.deepEqual(['A', 'B', 'C', 'D'].map((id) => list.find((i) => i.id === id).ordenManual), [2, 3, 4, 1]);
+      assert.deepEqual(list.filter((i) => i.contexto === 'mercado').map((i) => i.ordenManual), [0, 0], 'other sections unaffected');
+      assert.ok(list.every((i) => i.estado === 'pendiente' || i.id === 'B'), 'the drag did not complete anything');
+      assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa', 'no quick menu');
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'no item sheet');
+      await page.reload();
+      assert.deepEqual(await orderRows(page), ['D', 'A', 'B', 'C'], 'kept after reload');
+      await page.click('#ordenAhora [data-orden="auto"]');
+      assert.equal(await page.text('.hero .hero-txt'), 'tarea A', 'Automatico: score order again');
+      assert.deepEqual(await orderRows(page), ['B', 'C', 'D']);
+      await page.click('#ordenAhora [data-orden="manual"]');
+      assert.deepEqual(await orderRows(page), ['D', 'A', 'B', 'C'], 'the manual order is remembered');
+      await show();
+      await page.screenshot(path.join(OUT, 'ahora-orden-manual.png'));
+      // Swipe right on a manual row still completes it.
+      const c = await page.rect('#secSigue li.item[data-id="C"]');
+      await page.drag(c.x + 60, c.y + c.h / 2, c.x + 300, c.y + c.h / 2 + 6);
+      assert.equal((await items(page)).find((i) => i.id === 'C').estado, 'completado', 'swipe still works');
+    }
+  },
+  {
+    name: 'ahora order: mouse long-press drag and Alt+Arrow keys reorder too (desktop)',
+    storage: ORDER_SEED('manual'),
+    width: 1366, height: 900, mobile: false,
+    async fn(page) {
+      const c = await page.rect('#secSigue li.item[data-id="C"]'), a = await page.rect('#secSigue li.item[data-id="A"]');
+      await page.mouseDrag(c.x + c.w / 2, c.y + c.h / 2, c.x + c.w / 2, a.y + 4, 10, 500);
+      assert.deepEqual(await orderRows(page), ['C', 'A', 'B', 'D']);
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'the drop is not a click');
+      // Keyboard: Alt+ArrowDown moves the focused row one place down, focus stays on it.
+      await page.eval(`(function(){var l=document.querySelector('#secSigue li.item[data-id="C"]');l.focus();
+        l.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,altKey:true,bubbles:true,cancelable:true}));})()`);
+      await sleep(80);
+      assert.deepEqual(await orderRows(page), ['A', 'C', 'B', 'D']);
+      assert.equal(await page.eval('document.activeElement && document.activeElement.getAttribute("data-id")'), 'C');
+      assert.equal(await page.text('.hero .hero-txt'), 'tarea A');
+    }
   }
 ];
+
+// Ahora manual order: Taller with four tasks in a clear score order (A > B > C > D), Mercado with two.
+function ORDER_SEED(mode) {
+  const iso = new Date(Date.now() - 86400000).toISOString();
+  const it = (id, ctx, o) => Object.assign({ id, texto: 'tarea ' + id, contexto: ctx, tipo: 'tarea', estado: 'pendiente',
+    nivel: 'normal', creado: iso, actualizado: iso, estadoDesde: iso }, o);
+  return {
+    'kibco.esquema': '5',
+    'kibco.contexto': 'taller',
+    'kibco.apartados': JSON.stringify([
+      Object.assign({ id: 'taller', nom: 'Taller', ico: 'settings', color: 'naranja', orden: 0, compras: 'fabrica' }, mode ? { ordenAhora: mode } : {}),
+      { id: 'mercado', nom: 'Mercado', ico: 'cart', color: 'verde', orden: 1 }
+    ]),
+    'kibco.items': JSON.stringify([
+      it('A', 'taller', { nivel: 'importante' }), it('B', 'taller', { estado: 'proceso' }), it('C', 'taller'),
+      it('D', 'taller', { nivel: 'baja' }), it('M1', 'mercado'), it('M2', 'mercado')
+    ]),
+    'kibco.eventos': '[]'
+  };
+}
+const orderRows = (page) => page.eval("Array.prototype.map.call(document.querySelectorAll('#secSigue li.item'),function(l){return l.getAttribute('data-id');})");
+const orderOn = (page) => page.eval("(function(){var b=document.querySelector('#ordenAhora .segbtn.on');return b?b.getAttribute('data-orden'):null;})()");
 
 function ymd(offset) {
   const d = new Date();
