@@ -4109,8 +4109,55 @@ export const tests = [
       await page.click('#ordenAhora [data-orden="auto"]');
       await openQuickMenu(page, '#secSigue li.item[data-id="B"]');
     }
+  },
+  {
+    name: 'ahora order: in Manual the items that need attention join the draggable list (no separate section); Automatico keeps the alert section',
+    storage: ATTENTION_SEED('manual'),
+    async fn(page) {
+      assert.equal(await page.count('#secAtencion'), 0, 'no separate attention section in Manual');
+      const rows = await orderRows(page);
+      assert.deepEqual(rows.slice(0, 2).sort(), ['V1', 'V2'], 'overdue items lead the manual list by score');
+      assert.deepEqual(rows.slice(2), ['A', 'B', 'C', 'D']);
+      assert.match(await page.text('#secSigue li.item[data-id="V1"]'), /Vencida hace 17 d/, 'the urgency label stays on the card');
+      assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo').getAttribute('data-tile')"), 'secSigue', 'the Atencion tile points to the manual list');
+      assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo b').textContent"), '2', 'the Atencion count still works');
+      // contextmenu on an overdue row never opens the quick menu in Manual.
+      await page.eval(`document.querySelector('#secSigue li.item[data-id="V2"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
+      await sleep(80);
+      assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa', 'no quick menu on an overdue row');
+      // Long-press drag A above the first overdue item.
+      await page.eval("document.getElementById('secSigue').scrollIntoView(true)");
+      const first = rows[0], second = rows[1];
+      const a = await page.rect('#secSigue li.item[data-id="A"]'), v = await page.rect('#secSigue li.item[data-id="' + first + '"]');
+      await page.drag(a.x + a.w / 2, a.y + a.h / 2, a.x + a.w / 2, v.y + 4, 12, 500);
+      assert.deepEqual(await orderRows(page), ['A', first, second, 'B', 'C', 'D'], 'a task dragged above the overdue ones');
+      assert.equal(await page.text('.hero .hero-txt'), 'tarea A', 'the hero follows');
+      // An overdue item moves below another one (keyboard alternative of the drag).
+      await page.eval(`(function(){var l=document.querySelector('#secSigue li.item[data-id="${first}"]');l.focus();
+        l.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,altKey:true,bubbles:true,cancelable:true}));})()`);
+      await sleep(80);
+      assert.deepEqual(await orderRows(page), ['A', second, first, 'B', 'C', 'D']);
+      await page.reload();
+      assert.deepEqual(await orderRows(page), ['A', second, first, 'B', 'C', 'D'], 'kept after reload');
+      assert.equal(await page.count('#secAtencion'), 0);
+      // Automatico: the alert section is back.
+      await page.click('#ordenAhora [data-orden="auto"]');
+      assert.equal(await page.count('#secAtencion'), 1, 'Automatico keeps Requiere atencion');
+      assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo').getAttribute('data-tile')"), 'secAtencion');
+    }
   }
 ];
+
+// ORDER_SEED plus two overdue Taller tasks (17 and 3 days).
+function ATTENTION_SEED(mode) {
+  const s = ORDER_SEED(mode);
+  const list = JSON.parse(s['kibco.items']);
+  const base = list[0];
+  list.push(Object.assign({}, base, { id: 'V1', texto: 'vencida vieja', nivel: 'normal', fecha: ymd(-17) }));
+  list.push(Object.assign({}, base, { id: 'V2', texto: 'vencida nueva', nivel: 'normal', fecha: ymd(-3) }));
+  s['kibco.items'] = JSON.stringify(list);
+  return s;
+}
 
 // Ahora manual order: Taller with four tasks in a clear score order (A > B > C > D), Mercado with two.
 function ORDER_SEED(mode) {

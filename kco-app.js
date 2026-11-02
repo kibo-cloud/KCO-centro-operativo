@@ -1607,7 +1607,10 @@
      abajo mueve la fila enfocada un lugar. */
   var LARGA_ORDEN = 350;
   var MOVER_ANTES = 8;
-  var TOPE_ORDEN = 20;
+  /* Filas de la lista manual en Ahora: entran tambien las que requieren
+     atencion, por eso el tope es mas alto que el de A continuacion en
+     Automatico; si hay mas, la nota avisa que el resto esta en Tareas. */
+  var TOPE_ORDEN = 40;
   var ordenActivo = null;
   /* Espera de pulsacion larga en curso (una a la vez): pintar() la corta,
      porque la fila que la empezo deja de existir. */
@@ -2510,7 +2513,8 @@
     pintarProgresoArriba(cont);
 
     var pulso = nodo('div', 'pulso');
-    tile(pulso, 'alert-circle', nAt, 'Atenci\u00F3n', 'secAtencion', nAt > 0 ? 'rojo' : '');
+    /* En Manual no hay seccion de atencion aparte: el tile lleva a la lista ordenable. */
+    tile(pulso, 'alert-circle', nAt, 'Atenci\u00F3n', manual ? 'secSigue' : 'secAtencion', nAt > 0 ? 'rojo' : '');
     tile(pulso, 'calendar', nHoy, 'Hoy', 'secSigue', '');
     tile(pulso, 'inbox', inbox.length, 'Inbox', 'secInbox', '');
     tile(pulso, 'hourglass', esperando.length, 'Esperando', 'secEsperando', '');
@@ -2534,8 +2538,10 @@
       mostrados['#' + ranking[0].item.id] = true;
     }
 
+    /* En Manual lo que requiere atencion entra en la lista ordenable (con su
+       motivo en rojo) en vez de quedar en una seccion fija que no se arrastra. */
     var at = [];
-    for (i = 0; i < ranking.length; i++) {
+    for (i = 0; i < ranking.length && !manual; i++) {
       if (ranking[i].situacion === 'atencion' && !mostrados['#' + ranking[i].item.id]) { at.push(ranking[i]); }
     }
     if (at.length > 0) {
