@@ -3,6 +3,15 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.3.3 — 2026-11-02 — arrastre tactil mas firme
+
+Cache `kibco-2.3.3`. Esquema 5 sin cambios.
+
+### Corregido
+
+- En Android, el arrastre en orden Manual ya no se corta si el navegador cancela el toque con un
+  numero de puntero igual al del dedo (la espera del toque largo solo la suelta un puntero real).
+
 ## 2.3.2 — 2026-11-02 — ordenar tambien lo que requiere atencion
 
 Cache `kibco-2.3.2`. Esquema de datos **5** (sin cambios). Sin campos nuevos.
