@@ -172,7 +172,10 @@
       compras: MODOS_COMPRAS[a.compras] === 1 ? a.compras : 'lista',
       tags: normalizarTags(a.tags),
       notas: a.notas !== false,
-      activo: a.activo !== false
+      activo: a.activo !== false,
+      /* Agregado en 2.3: orden de Ahora (auto = puntaje, manual = el de la
+         persona). Fuera del esquema, con fallback. */
+      ordenAhora: a.ordenAhora === 'manual' ? 'manual' : 'auto'
     };
   }
 
@@ -663,6 +666,61 @@
     if (edad > 0) { p += Math.min(edad, 30); }
     if (motivo === '') { motivo = edad > 0 ? 'Pendiente hace ' + edad + ' d' : 'Pendiente'; }
     return { puntos: p, motivo: motivo, situacion: sit };
+  }
+
+  /* ---------- orden manual de Ahora ----------
+     Cada apartado elige si Ahora sigue el puntaje (auto) o el orden de la
+     persona (manual). El orden vive en cada item (ordenManual: 1, 2, ...; 0 =
+     sin orden) y como un item es de un solo apartado, es el orden de ese
+     apartado. Todo siempre es auto. */
+
+  function ordenAhora(ctx) {
+    var a = ctx === 'todo' ? null : infoContexto(ctx);
+    return a && a.ordenAhora === 'manual' ? 'manual' : 'auto';
+  }
+
+  function rangoManual(it) {
+    var n = it ? it.ordenManual : 0;
+    return typeof n === 'number' && isFinite(n) && n >= 1 && Math.floor(n) === n ? n : 0;
+  }
+
+  /* Un ranking de priorizar en orden manual: primero lo ordenado por su
+     rango, despues lo que nunca se ordeno en el orden del puntaje. Estable
+     (un empate respeta el puntaje) y sin tocar la lista de entrada. rangos
+     ({id: rango}) es opcional: si viene, es la fuente completa de rangos (lo
+     que no figura queda sin orden); si no, se lee ordenManual de cada item. */
+  function ordenarManual(ranking, rangos) {
+    var r = [], i, k;
+    for (i = 0; i < (ranking || []).length; i++) {
+      k = rangos ? rangoManual({ ordenManual: rangos.hasOwnProperty(ranking[i].item.id) ? rangos[ranking[i].item.id] : 0 }) : rangoManual(ranking[i].item);
+      r.push({ e: ranking[i], k: k, i: i });
+    }
+    r.sort(function (a, b) {
+      if ((a.k > 0) !== (b.k > 0)) { return a.k > 0 ? -1 : 1; }
+      if (a.k !== b.k) { return a.k - b.k; }
+      return a.i - b.i;
+    });
+    for (i = 0; i < r.length; i++) { r[i] = r[i].e; }
+    return r;
+  }
+
+  /* Rangos nuevos (1..n para todo orden) despues de llevar id al lugar indice
+     de visibles (las filas que se pueden arrastrar; por defecto, todo orden).
+     Lo que no esta en visibles conserva su lugar en orden. */
+  function rangosTrasMover(orden, id, indice, visibles) {
+    var vis = [], sub = [], r = {}, i, j = 0, en = {}, hay = {};
+    for (i = 0; i < orden.length; i++) { hay['#' + orden[i]] = true; }
+    /* Una fila visible que no esta en orden no cuenta (no tiene lugar). */
+    for (i = 0; i < (visibles || orden).length; i++) { if (hay['#' + (visibles || orden)[i]]) { vis.push((visibles || orden)[i]); } }
+    for (i = 0; i < vis.length; i++) { if (vis[i] !== id) { sub.push(vis[i]); } en['#' + vis[i]] = true; }
+    if (sub.length < vis.length) {
+      i = indice < 0 ? 0 : (indice > sub.length ? sub.length : indice);
+      sub.splice(i, 0, id);
+    }
+    for (i = 0; i < orden.length; i++) {
+      r[en['#' + orden[i]] ? sub[j++] : orden[i]] = i + 1;
+    }
+    return r;
   }
 
   /* Devuelve los items accionables ordenados, cada uno con su puntaje. */
@@ -1605,6 +1663,10 @@
     puntaje: puntaje,
     priorizar: priorizar,
     tipoCaptura: tipoCaptura,
+    ordenAhora: ordenAhora,
+    rangoManual: rangoManual,
+    ordenarManual: ordenarManual,
+    rangosTrasMover: rangosTrasMover,
     parsearCaptura: parsearCaptura,
     resumenCaptura: resumenCaptura,
     parsearNota: parsearNota,

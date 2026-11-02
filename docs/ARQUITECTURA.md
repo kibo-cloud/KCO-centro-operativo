@@ -175,7 +175,7 @@ depende de un id de apartado salvo la siembra (`apartadosLegado`) y la migracion
 
 | Pieza | Como |
 |---|---|
-| Registro | `kibco.apartados`: arreglo de `{ id, nom, ico, color, orden, desc, meta, alias[], compras, tags[], notas, activo }`. `id` opaco y estable (`^[A-Za-z0-9_-]{1,40}$`, nunca `todo`), `nom` hasta 40, `ico` un nombre de `iconos.js`, `color` una clave de `KCOCore.COLORES`, `desc` hasta 280, `meta` `{ n, periodo }` (`semana` o `mes`) o `null`, `compras` `no`, `lista` o `fabrica`, `tags` `{ id, nom }` propios del apartado, `notas` (por defecto `true`), `activo` (`false` = archivado). Lo normaliza `KCOCore.normalizarApartado(s)` y lo fija `fijarApartados`; `apartados()` da los activos, `todosApartados()` todos |
+| Registro | `kibco.apartados`: arreglo de `{ id, nom, ico, color, orden, desc, meta, alias[], compras, tags[], notas, activo, ordenAhora }`. `id` opaco y estable (`^[A-Za-z0-9_-]{1,40}$`, nunca `todo`), `nom` hasta 40, `ico` un nombre de `iconos.js`, `color` una clave de `KCOCore.COLORES`, `desc` hasta 280, `meta` `{ n, periodo }` (`semana` o `mes`) o `null`, `compras` `no`, `lista` o `fabrica`, `tags` `{ id, nom }` propios del apartado, `notas` (por defecto `true`), `activo` (`false` = archivado), `ordenAhora` (`auto` por defecto o `manual`, 2.3, fuera del esquema). Lo normaliza `KCOCore.normalizarApartado(s)` y lo fija `fijarApartados`; `apartados()` da los activos, `todosApartados()` todos |
 | Invariante | siempre queda al menos un apartado activo: el ultimo no se archiva ni se borra. Borrar uno con registros pide un destino y pasa items (estado equivalente en el modo de compras del destino), rutinas, misiones, notas y eventos; todo o nada (`borrarApartado`) |
 | Registros de apartados archivados | `KCOCore.contextoDeRegistro` deja a items, rutinas, misiones y notas en su apartado archivado; captura y selectores solo ofrecen activos (`normalizarContexto`) |
 | Identidad visual | `body` lleva `pal-<color>` (Todo: neutro) y `data-ctx="<id>"` en lugar de `body.ctx-<id>`; iconos de apartado en selectores, chip de cabecera, grillas y barras. Los selectores se rearman cuando cambia la firma id:color:icono:nombre |
@@ -222,7 +222,7 @@ dia, se generan las ocurrencias nuevas.
 | Prioridad | `NIVELES`, `infoNivel`, `nivelDe` |
 | Estados | `CERRADOS`, `esActivo`, `esHecho`, `alertaEntrega`, `diaDe` |
 | Situacion | `SITUACIONES`, `infoSituacion`, `situacion` |
-| Proximo movimiento | `puntaje`, `priorizar` |
+| Proximo movimiento | `puntaje`, `priorizar`; orden manual: `ordenAhora(ctx)` (Todo siempre `auto`), `rangoManual(item)` (`ordenManual` del item, 0 = sin ordenar), `ordenarManual(ranking, rangos)` (ordenados por rango, despues el resto por puntaje, estable), `rangosTrasMover(orden, id, indice, visibles)` (rangos 1..n tras mover; lo no visible conserva su lugar) |
 | Captura | `parsearCaptura`, `resumenCaptura` (chips: el mismo parse + rotulo del dia), `quitarContextoCaptura`, `tipoCaptura` (tarea, compra o nota segun la pestaña) |
 | Rutinas | `normalizarRutina`, `tocaEnDia`, `ultimaFecha`, `proximaFecha`, `describirRutina`, `ocurrenciasDe`, `planificarOcurrencias`, `rachaRutina` |
 | Misiones | `normalizarProyecto`, `tareasDeProyecto`, `progresoProyecto`, `proximaAccion` |
