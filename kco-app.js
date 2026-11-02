@@ -1491,6 +1491,23 @@
       }
     }
 
+    /* Tres puntos: el menu rapido a la vista, sin depender de deslizar ni de
+       mantener apretado (que en orden manual es arrastrar). */
+    if (esActivo(it.estado)) {
+      var mas = document.createElement('button');
+      mas.type = 'button';
+      mas.className = 'iconobtn mas-fila';
+      mas.setAttribute('data-acc', 'mas');
+      mas.setAttribute('aria-label', 'M\u00E1s opciones: ' + it.texto);
+      mas.setAttribute('aria-haspopup', 'dialog');
+      mas.appendChild(svgIco('more-vertical'));
+      mas.onclick = function (ev) {
+        if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+        abrirMenuRapido(it.id);
+      };
+      fila.appendChild(mas);
+    }
+
     li.onclick = function () {
       if (gestoReciente(li)) { return; }
       abrirItem(it.id);
@@ -1507,8 +1524,10 @@
     if (esActivo(it.estado)) {
       li.oncontextmenu = function (ev) {
         if (ev && ev.preventDefault) { ev.preventDefault(); }
-        /* Mantener apretado en una lista ordenable es arrastrar, no el menu. */
-        if (ordenActivo || gestoReciente(li)) { return; }
+        /* Mantener apretado en una lista ordenable es arrastrar, nunca el menu:
+           en Android el navegador puede cortar el puntero (pointercancel) y
+           mandar contextmenu despues, sin arrastre en curso. */
+        if (li.getAttribute('data-ordenable') === '1' || ordenActivo || gestoReciente(li)) { return; }
         abrirMenuRapido(it.id);
       };
       conectarSwipeFila(li, fila, it.id, !!ah);
@@ -1682,7 +1701,14 @@
         enfocar(nueva);
       }
     });
-    if (typeof window.PointerEvent === 'undefined') { return; }
+    /* Mantener apretada esta fila es arrastrar: el menu rapido no se abre
+       (nodoItem lo mira) y queda a mano en los tres puntos. */
+    li.setAttribute('data-ordenable', '1');
+    /* Con dedo se usan eventos touch, no pointer: en Android el navegador
+       puede reclamar el toque (pointercancel) en plena espera o arrastre, y
+       los touch siguen llegando a la fila igual. Mouse y lapiz: pointer. */
+    var conToque = 'ontouchstart' in window;
+    if (typeof window.PointerEvent === 'undefined' && !conToque) { return; }
     function soltarEspera() {
       if (espera) {
         clearTimeout(espera);
@@ -1690,44 +1716,86 @@
         espera = null;
       }
     }
-    function esDeOrden(ev) { return ordenActivo && ordenActivo.li === li && ev.pointerId === ordenActivo.idP; }
-    li.addEventListener('pointerdown', function (ev) {
-      if (ordenActivo || ev.isPrimary === false || pilaCapas.length > 0) { return; }
-      if (ev.pointerType === 'mouse' && ev.button !== 0) { return; }
-      if (dentroDeBoton(ev.target, li)) { return; }
-      x0 = ev.clientX; y0 = ev.clientY; idP = ev.pointerId;
+    function armarEspera(x, y, ref, fuente) {
+      x0 = x; y0 = y; idP = ref;
       soltarEspera();
       espera = setTimeout(function () {
         espera = null;
         esperaOrden = null;
-        empezarOrden(li, ul, id, idP, y0, orden, visibles);
+        empezarOrden(li, ul, id, idP, y0, orden, visibles, fuente);
       }, LARGA_ORDEN);
       esperaOrden = espera;
+    }
+    function movidoAntes(x, y) {
+      var dx = x - x0, dy = y - y0;
+      if (dx * dx + dy * dy > MOVER_ANTES * MOVER_ANTES) { soltarEspera(); }
+    }
+    function esDeOrden(ev) {
+      return ordenActivo && ordenActivo.li === li && ordenActivo.fuente === 'puntero' && ev.pointerId === ordenActivo.idP;
+    }
+    li.addEventListener('pointerdown', function (ev) {
+      if (ordenActivo || ev.isPrimary === false || pilaCapas.length > 0) { return; }
+      if (ev.pointerType === 'touch' && conToque) { return; }
+      if (ev.pointerType === 'mouse' && ev.button !== 0) { return; }
+      if (dentroDeBoton(ev.target, li)) { return; }
+      armarEspera(ev.clientX, ev.clientY, ev.pointerId, 'puntero');
     });
     li.addEventListener('pointermove', function (ev) {
       if (esDeOrden(ev)) { moverOrden(ev.clientY); return; }
       if (!espera || ev.pointerId !== idP) { return; }
-      var dx = ev.clientX - x0, dy = ev.clientY - y0;
-      if (dx * dx + dy * dy > MOVER_ANTES * MOVER_ANTES) { soltarEspera(); }
+      movidoAntes(ev.clientX, ev.clientY);
     });
     li.addEventListener('pointerup', function (ev) {
+      if (ev.pointerId !== idP) { return; }
       soltarEspera();
       if (esDeOrden(ev)) { terminarOrden(false); }
     });
     li.addEventListener('pointercancel', function (ev) {
+      if (ev.pointerId !== idP) { return; }
       soltarEspera();
       if (esDeOrden(ev)) { terminarOrden(true); }
     });
+    if (!conToque) { return; }
+    function esToqueDeOrden() { return ordenActivo && ordenActivo.li === li && ordenActivo.fuente === 'toque'; }
+    function toqueDe(ev) {
+      var l = ev.changedTouches || [], i;
+      for (i = 0; i < l.length; i++) { if (l[i].identifier === idP) { return l[i]; } }
+      return null;
+    }
+    li.addEventListener('touchstart', function (ev) {
+      var t = ev.changedTouches && ev.changedTouches[0];
+      /* Un segundo dedo (pellizco) no es arrastrar. */
+      if (!t || (ev.touches && ev.touches.length > 1)) { soltarEspera(); return; }
+      if (ordenActivo || pilaCapas.length > 0 || dentroDeBoton(ev.target, li)) { return; }
+      armarEspera(t.clientX, t.clientY, t.identifier, 'toque');
+    }, { passive: true });
     /* Ya levantada, el dedo no hace scroll: el primer touchmove se cancela
        antes de que el navegador empiece a desplazar (touch-action pan-y). */
     li.addEventListener('touchmove', function (ev) {
-      if (ordenActivo && ordenActivo.li === li && ev.cancelable) { ev.preventDefault(); }
+      var t = toqueDe(ev);
+      if (!t) { return; }
+      if (esToqueDeOrden()) {
+        if (ev.cancelable) { ev.preventDefault(); }
+        moverOrden(t.clientY);
+        return;
+      }
+      if (espera) { movidoAntes(t.clientX, t.clientY); }
     }, { passive: false });
+    li.addEventListener('touchend', function (ev) {
+      if (!toqueDe(ev)) { return; }
+      soltarEspera();
+      if (esToqueDeOrden()) { terminarOrden(false); }
+    });
+    li.addEventListener('touchcancel', function (ev) {
+      if (!toqueDe(ev)) { return; }
+      soltarEspera();
+      if (esToqueDeOrden()) { terminarOrden(true); }
+    });
   }
 
   /* La fila que se arrastra no sale del DOM (perderia el puntero): se pliega
      (orden-origen) y en su lugar queda el hueco que se va moviendo. */
-  function empezarOrden(li, ul, id, idP, y, orden, visibles) {
+  function empezarOrden(li, ul, id, idP, y, orden, visibles, fuente) {
     /* La fila tiene que seguir en la pagina: una lista vieja (ya repintada)
        sigue teniendo padre aunque no se vea. */
     if (!document.documentElement.contains(li) || pilaCapas.length > 0 || ordenActivo) { return; }
@@ -1745,10 +1813,12 @@
     li.className = li.className + ' orden-origen';
     ul.appendChild(fantasma);
     ordenActivo = { li: li, ul: ul, id: id, idP: idP, dy: y - r.top, hueco: hueco, fantasma: fantasma,
-      orden: orden, visibles: visibles, indice: visibles.indexOf(id) };
+      orden: orden, visibles: visibles, indice: visibles.indexOf(id), fuente: fuente || 'puntero' };
     gestoFila = true;
     document.documentElement.setAttribute('data-ordenando', '1');
-    try { li.setPointerCapture(idP); } catch (e) { /* sin captura igual sigue */ }
+    if (ordenActivo.fuente === 'puntero') {
+      try { li.setPointerCapture(idP); } catch (e) { /* sin captura igual sigue */ }
+    }
     moverOrden(y);
   }
 
@@ -1773,7 +1843,9 @@
     if (!o) { return; }
     ordenActivo = null;
     document.documentElement.removeAttribute('data-ordenando');
-    try { o.li.releasePointerCapture(o.idP); } catch (e) { /* ya suelto */ }
+    if (o.fuente === 'puntero') {
+      try { o.li.releasePointerCapture(o.idP); } catch (e) { /* ya suelto */ }
+    }
     o.li.setAttribute('data-gesto', '' + Date.now());
     if (o.fantasma.parentNode) { o.fantasma.parentNode.removeChild(o.fantasma); }
     if (o.hueco.parentNode) { o.hueco.parentNode.removeChild(o.hueco); }
@@ -1785,8 +1857,9 @@
   /* ---------- menu rapido ----------
      Hoja chica (la misma hoja accesible de siempre) con lo que mas se hace sin
      abrir la ficha: Hoy, Mañana, Prioridad, Mover a Compras y Borrar, mas un
-     acceso a la ficha completa. Se abre deslizando a la izquierda, con clic
-     derecho, manteniendo apretado o con la tecla de menu sobre la tarjeta. */
+     acceso a la ficha completa. Se abre con los tres puntos de la tarjeta,
+     deslizando a la izquierda, con clic derecho, manteniendo apretado (salvo
+     en una lista en orden manual, donde eso arrastra) o con la tecla de menu. */
   var itemRapido = null;
 
   function abrirMenuRapido(id) {

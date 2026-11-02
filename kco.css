@@ -497,6 +497,9 @@ li.item.imp .chk-c{border-color:var(--warning)}
 /* Accion secundaria de la fila: icono sin borde (Para hoy) o pastilla (compras). */
 .iconobtn.mini{margin:-11px -8px -11px 0}
 .iconobtn.mini .ico{width:20px;height:20px}
+/* Tres puntos (menu rapido): 44px de toque, al borde derecho de la tarjeta. */
+.mas-fila{margin:-11px -11px -11px 0}
+.mas-fila .ico{width:20px;height:20px}
 .acc2{
   flex:0 0 auto;display:inline-flex;align-items:center;min-height:var(--tap);margin:-8px -4px -8px var(--sp-1);
   padding:0 var(--sp-3);border:0;border-radius:var(--r-pill);background:none;color:var(--accent);
@@ -504,7 +507,7 @@ li.item.imp .chk-c{border-color:var(--warning)}
 }
 .acc2 .ico{width:16px;height:16px}
 .acc2.on{color:var(--success)}
-@media (hover:hover){.acc2:hover,.iconobtn.mini:hover{background:var(--surface-2)}}
+@media (hover:hover){.acc2:hover,.iconobtn.mini:hover,.mas-fila:hover{background:var(--surface-2)}}
 li.item.fila:focus-visible,li.item.kbsel:focus{outline:2px solid var(--focus);outline-offset:2px}
 /* "Ver mas" al pie de una lista larga. */
 .vermas-fila{list-style:none;display:flex;justify-content:center;margin:var(--sp-2) 0 var(--sp-3)}
@@ -740,6 +743,9 @@ input[type=time],input[type=date]{font-variant-numeric:tabular-nums}
 .orden-rot{color:var(--text-muted);font-size:var(--fs-sm);font-weight:600}
 .orden-ahora .seg{flex:1;max-width:320px;margin-bottom:0}
 .lista.ordenable{position:relative}
+/* Mantener apretada una fila ordenable es arrastrar: sin seleccion de texto
+   ni el globo del sistema (Android/iOS) que cortarian el gesto. */
+.lista.ordenable li.item.fila{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html[data-ordenando],html[data-ordenando] *{-webkit-user-select:none;user-select:none}
 li.item.fila.orden-origen{height:0;min-height:0;margin:0;padding:0;border:0;opacity:0;overflow:hidden}
 li.orden-hueco{list-style:none;margin-bottom:7px;border:2px dashed var(--accent);border-radius:var(--r-lg);background:var(--accent-soft);box-sizing:border-box}

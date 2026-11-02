@@ -2699,7 +2699,7 @@ export const tests = [
       const inbox = await page.eval(`Array.prototype.map.call(document.querySelectorAll('#secInbox li.item'),function(li){
         return Array.prototype.map.call(li.querySelectorAll('button'),function(b){return b.getAttribute('data-acc');}).join(',');})`);
       assert.ok(inbox.length >= 2);
-      for (const b of inbox) assert.equal(b, 'listo,parahoy');
+      for (const b of inbox) assert.equal(b, 'listo,parahoy,mas', 'check, Para hoy and the three dots');
       await toTasks(page);
       const r = await page.eval(`(function(){var l=document.querySelectorAll('#lista li.item'),cart=0,big=0;for(var i=0;i<l.length;i++){
         if(l[i].querySelector('[data-acc="acompras"]'))cart++;var bs=l[i].querySelectorAll('button');for(var j=0;j<bs.length;j++){if(bs[j].className.indexOf('abtn')>-1)big++;}}
@@ -3999,9 +3999,10 @@ export const tests = [
     name: 'ahora order: a repaint during the long-press hold cancels it and leaves no stuck drag',
     storage: ORDER_SEED('manual'),
     async fn(page) {
-      // Press B (the hold timer starts), then a keyboard move on C repaints the list before 350 ms.
+      // Touch B (the hold timer starts), then a keyboard move on C repaints the list before 350 ms.
       await page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="B"]'),r=b.getBoundingClientRect();
-        b.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,cancelable:true,isPrimary:true,pointerId:41,pointerType:'touch',button:0,clientX:r.left+r.width/2,clientY:r.top+r.height/2}));
+        var t=new Touch({identifier:41,target:b,clientX:r.left+r.width/2,clientY:r.top+r.height/2});
+        b.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t]}));
         var c=document.querySelector('#secSigue li.item[data-id="C"]');c.focus();
         c.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',keyCode:40,altKey:true,bubbles:true,cancelable:true}));})()`);
       await sleep(600);
@@ -4039,6 +4040,74 @@ export const tests = [
       assert.deepEqual(['A', 'B', 'C', 'D'].map((id) => list.find((i) => i.id === id).ordenManual), [1, 3, 2, 4]);
       await page.reload();
       assert.deepEqual(await orderRows(page), ['A', 'C', 'B', 'D'], 'kept after reload');
+    }
+  },
+  {
+    name: 'kebab: every active card has a "more" button that opens the quick menu (Ahora and Tareas) without opening the card',
+    storage: Object.assign(ORDER_SEED(), { 'kibco.tema': 'claro' }),
+    async fn(page) {
+      const sel = '#secSigue li.item[data-id="B"] [data-acc="mas"]';
+      assert.equal(await page.count(sel), 1, 'kebab on the Ahora card');
+      assert.equal(await page.eval(`document.querySelector('${sel}').getAttribute('aria-haspopup')`), 'dialog');
+      assert.match(await page.eval(`document.querySelector('${sel}').getAttribute('aria-label')`), /^Más opciones: tarea B$/);
+      const r = await page.rect(sel);
+      assert.ok(r.w >= 44 && r.h >= 44, 'a 44px touch target');
+      const card = await page.rect('#secSigue li.item[data-id="B"]');
+      assert.ok(r.r <= card.r + 0.5, 'inside the card');
+      assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal overflow');
+      await page.eval("document.getElementById('secSigue').scrollIntoView(true)");
+      await page.screenshot(path.join(OUT, 'kebab-card-light.png'));
+      await page.click(sel);
+      await sleep(80);
+      assert.ok(await page.eval("document.getElementById('tapaRapido').className.indexOf('on')>-1"), 'quick menu open');
+      assert.equal(await page.text('#rapTitulo'), 'tarea B');
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'the card did not open');
+      await page.key('Escape');
+      await toTasks(page);
+      const t = '#lista li.item [data-acc="mas"]';
+      assert.ok(await page.count(t) >= 4, 'kebab on Tareas cards');
+      await page.click(t);
+      await sleep(80);
+      assert.ok(await page.eval("document.getElementById('tapaRapido').className.indexOf('on')>-1"), 'quick menu open from Tareas');
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa');
+    }
+  },
+  {
+    name: 'kebab: in Manual a long-press (contextmenu, also after a pointercancel) never opens the quick menu; in Automatico it still does',
+    storage: ORDER_SEED('manual'),
+    async fn(page) {
+      const closed = async (msg) => assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa', msg);
+      // Android: the browser takes the touch (pointercancel) and then fires contextmenu.
+      await page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="B"]'),r=b.getBoundingClientRect();
+        var o={bubbles:true,cancelable:true,isPrimary:true,pointerId:51,pointerType:'touch',button:0,clientX:r.left+r.width/2,clientY:r.top+r.height/2};
+        b.dispatchEvent(new PointerEvent('pointerdown',o));b.dispatchEvent(new PointerEvent('pointercancel',o));})()`);
+      await sleep(550);
+      await page.eval(`document.querySelector('#secSigue li.item[data-id="B"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
+      await sleep(80);
+      await closed('no quick menu after pointercancel + contextmenu');
+      await page.eval(`document.querySelector('#secSigue li.item[data-id="C"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
+      await sleep(80);
+      await closed('no quick menu on a plain contextmenu');
+      assert.equal(await page.eval("getComputedStyle(document.querySelector('#secSigue li.item[data-id=\"C\"]')).webkitUserSelect"), 'none', 'no text selection on draggable rows');
+      // A touch hold survives a pointercancel: touch events drive the drag.
+      await page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="D"]'),r=b.getBoundingClientRect();
+        var t=new Touch({identifier:7,target:b,clientX:r.left+r.width/2,clientY:r.top+r.height/2});
+        b.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t]}));
+        b.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,isPrimary:true,pointerId:52,pointerType:'touch'}));})()`);
+      await sleep(500);
+      assert.equal(await page.eval("document.documentElement.hasAttribute('data-ordenando')"), true, 'the drag started despite pointercancel');
+      await page.eval(`document.querySelector('#secSigue li.item[data-id="D"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
+      await closed('no quick menu while dragging');
+      await page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="D"]'),a=document.querySelector('#secSigue li.item[data-id="A"]').getBoundingClientRect();
+        var t=new Touch({identifier:7,target:b,clientX:a.left+20,clientY:a.top+4});
+        b.dispatchEvent(new TouchEvent('touchmove',{bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t]}));
+        b.dispatchEvent(new TouchEvent('touchend',{bubbles:true,cancelable:true,touches:[],targetTouches:[],changedTouches:[t]}));})()`);
+      await sleep(120);
+      assert.deepEqual(await orderRows(page), ['D', 'A', 'B', 'C'], 'touch-event drag reorders');
+      await closed('still no quick menu');
+      // Automatico: long-press keeps opening the quick menu.
+      await page.click('#ordenAhora [data-orden="auto"]');
+      await openQuickMenu(page, '#secSigue li.item[data-id="B"]');
     }
   }
 ];
