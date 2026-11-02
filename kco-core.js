@@ -761,13 +761,14 @@
   /* Chips de la barra de captura: el mismo parsearCaptura que usa guardar,
      mas un rotulo corto del dia (Hoy, Manana, Hoy 18:00). Asi lo que se
      ve al tipear es exactamente lo que queda guardado. */
-  function resumenCaptura(entrada, ahora) {
-    var nota = parsearNota(entrada);
+  function resumenCaptura(entrada, ahora, tipo) {
+    var nota = parsearNota(entrada, tipo === 'nota');
     if (nota) {
-      return { texto: nota.texto, recordatorio: '', fecha: '', contexto: nota.contexto, nivel: '', dia: '', nota: true };
+      return { texto: nota.texto, recordatorio: '', fecha: '', contexto: nota.contexto, nivel: '', dia: '', nota: true, compra: false };
     }
     var r = parsearCaptura(entrada || '', ahora), hoyK = claveDia(ahora), k = '', hora = '';
     r.nota = false;
+    r.compra = tipo === 'compra';
     if (r.recordatorio !== '') {
       var d = new Date(r.recordatorio);
       k = claveDia(d);
@@ -782,11 +783,12 @@
 
   /* Captura rapida de notas: el texto empieza con 'nota:' (sin importar
      mayusculas). La #etiqueta de apartado se resuelve igual que en una tarea;
-     nada mas se interpreta (ni hora, ni dia, ni prioridad). null si no es nota. */
-  function parsearNota(entrada) {
+     nada mas se interpreta (ni hora, ni dia, ni prioridad). null si no es nota.
+     forzar (pestana Notas): todo el texto es nota aunque no tenga el prefijo. */
+  function parsearNota(entrada, forzar) {
     var m = /^\s*nota:/i.exec(entrada || '');
-    if (!m) { return null; }
-    var texto = ' ' + entrada.slice(m[0].length) + ' ', r = { texto: '', contexto: '' };
+    if (!m && !forzar) { return null; }
+    var texto = ' ' + (entrada || '').slice(m ? m[0].length : 0) + ' ', r = { texto: '', contexto: '' };
     var mc = etiquetaContexto(texto);
     if (mc) {
       r.contexto = aliasCtx['#' + slug(mc[1])];
@@ -794,6 +796,13 @@
     }
     r.texto = limpio(texto);
     return r;
+  }
+
+  /* Que guarda la barra de captura segun la pestana del apartado: en Compras
+     una compra, en Notas una nota, en cualquier otra vista una tarea. Un
+     apartado sin compras convierte la compra en tarea al guardarla. */
+  function tipoCaptura(vista) {
+    return vista === 'compras' ? 'compra' : (vista === 'notas' ? 'nota' : 'tarea');
   }
 
   /* Al elegir el destino con el chip, la etiqueta #contexto tipeada se saca
@@ -1595,6 +1604,7 @@
     situacion: situacion,
     puntaje: puntaje,
     priorizar: priorizar,
+    tipoCaptura: tipoCaptura,
     parsearCaptura: parsearCaptura,
     resumenCaptura: resumenCaptura,
     parsearNota: parsearNota,

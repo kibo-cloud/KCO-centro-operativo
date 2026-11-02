@@ -31,7 +31,7 @@ Cargan `kco-core.js` con `require` y usan fechas fijas, asi no dependen del relo
 | Archivo | Pruebas | Cubre |
 |---|---|---|
 | `fechas.test.js` | 5 | claves de dia, fechas imposibles, cruce de meses, años bisiestos y horario de verano |
-| `captura.test.js` | 5 | chips de la barra de captura: `resumenCaptura` coincide campo a campo con `parsearCaptura` y rotula el dia (Hoy, Mañana, con hora); `quitarContextoCaptura` saca solo una #etiqueta de contexto conocida, la misma que resolvio el parser aunque no sea la primera (`ver #hashtag #casa`) |
+| `captura.test.js` | 8 | chips de la barra de captura: `resumenCaptura` coincide campo a campo con `parsearCaptura` y rotula el dia (Hoy, Mañana, con hora); `quitarContextoCaptura` saca solo una #etiqueta de contexto conocida, la misma que resolvio el parser aunque no sea la primera (`ver #hashtag #casa`); captura segun la pestaña (`tipoCaptura`: Compras guarda compra, Notas guarda nota sin `nota:`, el resto tarea; `parsearNota(texto, true)`, `resumenCaptura(..., tipo)` con `compra`/`nota`) |
 | `modelo.test.js` | 8 | apartados y flujo de fabrica, prioridad heredada, cinco situaciones, +48 hs, puntaje del proximo movimiento, reglas de captura viejas y nuevas |
 | `rutinas.test.js` | 11 | normalizacion, frecuencias diaria, cada N, semanal, cada dos semanas, mensual con dia 31, fin, plan de ocurrencias (solo la ultima, idempotente, vencidas), rachas |
 | `misiones.test.js` | 6 | normalizacion, progreso por hitos o tareas, proximo movimiento |
@@ -133,6 +133,7 @@ por modo de compras), `GOAL_SECTIONS` + `GOAL_ITEMS()`, `NOTE_SECTIONS` + `NOTE_
 | `rollback` | 3 | escritura fallida no deja cambios, registro fallido conserva el item y avisa, borrado fallido sin deshacer |
 | `compaction` | 2 | registro lleno se compacta y reintenta una vez; si aun asi falla, avisa y la memoria no cambia |
 | `purchases` | 1 | compra hecha conserva su fecha al cambiar de contexto |
+| `tab capture` | 2 | en la pestaña Compras la barra guarda una compra del apartado (lista simple: por comprar; fabrica: cotizando; un apartado sin compras por #etiqueta la recibe como tarea), pista y chip "Compra"; en la pestaña Notas guarda una nota sin `nota:` |
 | `multi-tab` | 2 | cambio de datos en otra ventana pone solo lectura; cambio de preferencias (incluido `kibco.tema`) no |
 | `theme` | 4 | sistema claro aplica tokens claros y sigue cambios en vivo (`Emulation.setEmulatedMedia`); Oscuro en Ajustes persiste `kibco.tema` y `data-tema` ya esta en `DOMContentLoaded`; cambio de tema en otra pestana; el backup no lleva el tema |
 | `ux` | 5 | las cinco pestañas inferiores entran a 390 y 340 px (fijas al borde, objetivos de 44px), captura movil, campos de al menos 16px (sin zoom de iOS), todo texto visible de AHORA de al menos 12px |
