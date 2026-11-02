@@ -3,6 +3,19 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.3.2 — 2026-11-02 — ordenar tambien lo que requiere atencion
+
+Cache `kibco-2.3.2`. Esquema de datos **5** (sin cambios). Sin campos nuevos.
+
+### Cambiado
+
+- **En Manual las tareas que requieren atencion entran en la lista ordenable.** En Ahora con
+  orden Manual ya no hay una seccion "Requiere atencion" fija aparte: lo vencido o urgente se
+  muestra en "A continuacion" junto con el resto, con su aviso en rojo (por ejemplo "Vencida
+  hace 17 d"), y se puede arrastrar como cualquier otra tarea. La lista muestra hasta 40
+  tareas; si hay mas, el resto esta en Tareas. El indicador Atencion lleva a esa lista. En
+  orden Automatico, "Requiere atencion" sigue igual que antes.
+
 ## 2.3.1 — 2026-11-02 — boton de tres puntos y arrastre confiable
 
 Cache `kibco-2.3.1`. Esquema de datos **5** (sin cambios). Sin campos nuevos.
