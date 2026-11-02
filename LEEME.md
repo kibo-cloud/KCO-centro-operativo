@@ -33,9 +33,9 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-2.3.0` (`'kibco-' + VERSION` en `sw.js`) |
+| Nombre de cache | `kibco-2.3.1` (`'kibco-' + VERSION` en `sw.js`) |
 | Esquema de datos | `5` (desde 2.2: apartados y notas) |
-| Version de la app | `2.3.0` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
+| Version de la app | `2.3.1` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
 | Tema | Sistema (sigue `prefers-color-scheme`), Claro u Oscuro; colores como tokens en `kco.css`. Oscuro: fondo `#0D0F12`, tarjetas `#161920`, bordes `rgba(255,255,255,.07)` |
 | Acentos por apartado | el color elegido para cada apartado, de una paleta de diez (`azul`, `verde`, `ambar`, `rosa`, `violeta`, `cian`, `naranja`, `rojo`, `lima`, `gris`) con variante clara y oscura; Todo es neutro. Los cinco apartados de siempre conservan sus colores (Trabajo naranja, Casa cian, Apps violeta, Contenido rosa, Personal verde) |
 | Tipografia | sans del sistema para todo el texto, minimo 12 px; `ui-monospace` solo para numeros |
@@ -238,6 +238,8 @@ movimiento y se ordena a mano:
 
 - **Arrastrar:** mantener apretada una fila (tactil o mouse) y moverla; un hueco marca donde
   cae. Moverse enseguida sigue siendo scroll o swipe, y el swipe de la fila sigue completando.
+  En esta lista mantener apretado solo arrastra: el menu rapido se abre con los tres puntos de
+  la tarjeta o deslizando a la izquierda.
 - **Teclado:** con la fila enfocada, Alt+Flecha arriba o abajo la mueve un lugar.
 - La primera fila es el siguiente movimiento. Lo que nunca se ordeno va al final por puntaje.
   "Requiere atencion" sigue aparte y el inbox no entra.
@@ -320,7 +322,7 @@ Lo que cambio en 2.1, en el orden en que se usa.
 | Apartado | el chip del encabezado abre el selector de apartados (Todo y los activos, con icono y cuentas). En escritorio, la barra lateral lista vistas y contextos |
 | Captura | la barra queda justo arriba de las pestañas (en escritorio, arriba de la columna). Al tipear aparecen chips con lo que se va a guardar: apartado (o "Nota"), dia y prioridad, leidos con las mismas reglas que al guardar. Tocar el chip del apartado abre "Guardar en" y elige otro apartado solo para esa captura |
 | Hojas | todas son dialogos accesibles: se cierran con la X de arriba, Escape, tocando el fondo, deslizando la cabecera hacia abajo o con atras. El foco queda adentro y vuelve a quien la abrio. En la ficha, el titulo se edita arriba y una fila rapida ofrece Hecho, Hoy, Mañana y Elegir dia. En escritorio la hoja es un dialogo centrado |
-| Tarjetas | un circulo a la izquierda completa (o marca la compra). Deslizar a la derecha completa; a la izquierda abre el menu rapido: Hoy, Mañana, Prioridad, Mover a Compras, Borrar y Mas opciones. Tambien se abre manteniendo apretado, con clic derecho o con Shift+F10. Todo se puede deshacer |
+| Tarjetas | un circulo a la izquierda completa (o marca la compra). Deslizar a la derecha completa; a la izquierda abre el menu rapido: Hoy, Mañana, Prioridad, Mover a Compras, Borrar y Mas opciones. Tambien se abre con el boton de tres puntos de la tarjeta, manteniendo apretado (salvo en Ahora con orden Manual, donde eso arrastra), con clic derecho o con Shift+F10. Todo se puede deshacer |
 | Listas largas | Tareas, Compras, Diario, Registro y la busqueda muestran de a 50 filas; **Ver más (N)** suma 50 sin perder el lugar |
 | Estados vacios | cada vista sin contenido muestra un icono, una linea y, si corresponde, la accion para salir de ahi (Capturar, Nueva mision, Ver todo, Borrar busqueda...) |
 | Ajustes | Backup primero (con el ultimo backup), luego Pantalla, Recordatorios, Catalogos e Info (versiones, esquema, cuentas, prefijo) al final |
@@ -762,7 +764,7 @@ preferencias (apartado elegido, filtros, luz, catalogos) o copias de cuarentena 
 Desde Ajustes se descarga o comparte un `.json` (`kco-backup-AAAAMMDD-HHMM.json`):
 
     {
-      "app": "kco", "schema": 5, "version": "2.3.0",
+      "app": "kco", "schema": 5, "version": "2.3.1",
       "exportado": "<fecha ISO>", "contexto": "<apartado actual o todo>",
       "apartados": [...],
       "items": [...], "eventos": [...], "rutinas": [...], "proyectos": [...],
@@ -829,6 +831,12 @@ cambio no aparece nunca. Con la version nueva, la app muestra el aviso "Actualiz
 # CHANGELOG
 
 Desde 2.1.0 el detalle de cada version esta en `CHANGELOG.md`.
+
+## 2.3.1 — boton de tres puntos y arrastre en Android
+
+Cache `kibco-2.3.1`. Esquema 5 sin cambios. Cada tarjeta activa tiene un boton de tres puntos
+que abre el menu rapido; en Ahora con orden Manual, mantener apretada una tarea solo la
+arrastra (en Android abria el menu rapido). Ver `CHANGELOG.md`.
 
 ## 2.3.0 — captura por pestaña y orden manual
 
