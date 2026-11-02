@@ -768,16 +768,22 @@
     /* Sin plantilla elegida no se guarda nada: se pide elegir primero y lo
        tipeado queda en la barra para guardarlo despues. */
     if (necesitaPlantillas) { pedirPlantillas(); return; }
-    /* 'nota: ...' guarda una nota del apartado, no un item. */
-    var pn = K.parsearNota(crudo);
+    /* 'nota: ...' (o cualquier texto en la pestana Notas) guarda una nota del
+       apartado, no un item. En la pestana Compras se guarda una compra. */
+    var tipo = K.tipoCaptura(vista);
+    var pn = K.parsearNota(crudo, tipo === 'nota');
     if (pn) { capturarNota(pn); return; }
-    var p = K.parsearCaptura(crudo, new Date());
-    var it = itemNuevo(p.texto, destinoCaptura(p), {
-      recordatorio: p.recordatorio, fecha: p.fecha, nivel: p.nivel || 'normal'
-    });
+    var p = K.parsearCaptura(crudo, new Date()), ctx = destinoCaptura(p);
+    var extra = { recordatorio: p.recordatorio, fecha: p.fecha, nivel: p.nivel || 'normal' };
+    /* Un apartado sin compras la recibe como tarea (misma regla que mover). */
+    if (tipo === 'compra' && K.modoCompras(ctx) !== 'no') {
+      extra.tipo = 'compra';
+      extra.estado = K.esFabrica(ctx) ? 'cotizando' : 'por_comprar';
+    }
+    var it = itemNuevo(p.texto, ctx, extra);
     items.push(it);
     if (guardarItems()) {
-      registrar('captura', it, '', 'entrada');
+      registrar('captura', it, '', it.estado);
       if (it.recordatorio !== '') { registrar('recordatorio', it, '', horaCorta(it.recordatorio)); }
       $('txtCaptura').value = '';
       ctxDestino = '';
@@ -1041,10 +1047,15 @@
     if (b && b.focus) { try { b.focus(); } catch (e) {} }
   }
 
+  /* La pista dice que se va a guardar segun la pestana: tarea, compra o nota. */
+  var PISTA_CAPTURA = { tarea: 'Capturar en ', compra: 'Compra en ', nota: 'Nota en ' };
+
   function pintarPistaCaptura() {
-    var inp = $('txtCaptura');
+    var inp = $('txtCaptura'), tipo = K.tipoCaptura(vista);
+    if (tipo === 'compra' && K.modoCompras(ctxCaptura) === 'no') { tipo = 'tarea'; }
     if (inp) {
-      inp.setAttribute('placeholder', 'Capturar en ' + nomCtx(ctxCaptura) + ' \u00B7 Enter guarda');
+      inp.setAttribute('placeholder', PISTA_CAPTURA[tipo] + nomCtx(ctxCaptura) + ' \u00B7 Enter guarda');
+      inp.setAttribute('data-tipo', tipo);
     }
   }
 
@@ -1070,13 +1081,16 @@
     /* La barra crece: el contenido deja libre ese alto extra (kco.css). */
     if (hay) { raiz.setAttribute('data-capchips', '1'); } else { raiz.removeAttribute('data-capchips'); }
     if (!hay) { ajustarAltoCaptura(); return; }
-    var r = K.resumenCaptura(crudo, new Date()), ctx = destinoCaptura(r), b = $('capCtx');
+    var r = K.resumenCaptura(crudo, new Date(), K.tipoCaptura(vista)), ctx = destinoCaptura(r), b = $('capCtx');
+    var compra = r.compra && K.modoCompras(ctx) !== 'no';
     vaciar(b);
     b.appendChild(punto(ctx));
     b.appendChild(nodo('span', 'capchip-nom', nomCtx(ctx)));
     b.appendChild(svgIco('chevron-down', 'capchip-chev'));
     b.setAttribute('aria-label', 'Guardar en ' + nomCtx(ctx) + '. Cambiar');
-    chipDato($('capDia'), r.nota ? 'Nota' : r.dia, r.nota ? 'note' : (r.recordatorio !== '' ? 'clock' : 'calendar'));
+    if (r.nota) { chipDato($('capDia'), 'Nota', 'note'); }
+    else if (compra) { chipDato($('capDia'), r.dia !== '' ? 'Compra \u00B7 ' + r.dia : 'Compra', 'cart'); }
+    else { chipDato($('capDia'), r.dia, r.recordatorio !== '' ? 'clock' : 'calendar'); }
     chipDato($('capNivel'), r.nivel ? K.infoNivel(r.nivel).nom : '', 'flag');
     $('capNivel').className = r.nivel === 'urgente' ? 'capchip rojo' : 'capchip';
     ajustarAltoCaptura();
@@ -2517,6 +2531,9 @@
     $('segBtnCompras').style.display = conCompras ? '' : 'none';
     $('segBtnNotas').className = vista === 'notas' ? 'segbtn on' : 'segbtn';
     $('segBtnNotas').style.display = conNotas ? '' : 'none';
+    /* La barra de captura dice que guarda en esta pestana (tarea, compra, nota). */
+    pintarPistaCaptura();
+    pintarChipsCaptura();
     if (vista === 'ahora') { pintarAhora(); }
     else if (vista === 'hoy') { pintarHoy(); }
     else if (vista === 'tablero') { pintarTablero(); }

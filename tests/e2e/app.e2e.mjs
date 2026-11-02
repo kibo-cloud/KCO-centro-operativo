@@ -3872,6 +3872,52 @@ export const tests = [
       assert.ok(await isOpen(page, 'tapaApartado'));
       await page.screenshot(path.join(OUT, 'apartado-editor-desktop-light.png'));
     }
+  },
+  {
+    name: 'tab capture: on the Compras tab the bar saves a purchase of the section; a #tag to a section without purchases saves a task',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'mercado' },
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Compra en Mercado/, 'the hint says purchase');
+      await page.type('#txtCaptura', 'yerba mate');
+      assert.match(await page.text('#capDia'), /Compra/, 'the chip says purchase');
+      await page.type('#txtCaptura', 'yerba mate', true);
+      let list = await items(page);
+      assert.deepEqual([list.length, list[0].tipo, list[0].estado, list[0].contexto], [1, 'compra', 'por_comprar', 'mercado']);
+      assert.equal(await page.count('#listaCompras li.item'), 1, 'visible in the purchase list');
+      // Factory-mode section: the purchase starts in its first column.
+      await page.type('#txtCaptura', 'rodamientos #taller', true);
+      list = await items(page);
+      assert.deepEqual([list[1].tipo, list[1].estado, list[1].contexto], ['compra', 'cotizando', 'taller']);
+      // A section whose purchase mode is 'no' gets a task (existing rule).
+      await page.type('#txtCaptura', 'libro #estudio', true);
+      list = await items(page);
+      assert.deepEqual([list[2].tipo, list[2].estado, list[2].contexto], ['tarea', 'entrada', 'estudio']);
+      // Back on Tareas the bar captures tasks again.
+      await page.click('#segBtnTareas');
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Capturar en Mercado/);
+      await page.type('#txtCaptura', 'llamar al proveedor', true);
+      list = await items(page);
+      assert.deepEqual([list[3].tipo, list[3].estado], ['tarea', 'entrada']);
+    }
+  },
+  {
+    name: 'tab capture: on the Notas tab the bar saves a note of the section without the nota: prefix',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'taller' },
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Nota en Taller/);
+      await page.type('#txtCaptura', 'medidas del torno 18:00');
+      assert.equal(await page.text('#capDia'), 'Nota');
+      await page.type('#txtCaptura', 'medidas del torno 18:00', true);
+      const stored = JSON.parse(await page.storage('kibco.notas'));
+      assert.deepEqual([stored.length, stored[0].tit, stored[0].ctx], [1, 'medidas del torno 18:00', 'taller']);
+      assert.equal(await page.storage('kibco.items'), null, 'no item');
+      assert.equal(await page.count('#listaNotas [data-nota]'), 1, 'visible in the notes list');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), '', 'the bar clears');
+    }
   }
 ];
 

@@ -92,7 +92,7 @@ atributos `style` para mostrar u ocultar vistas.
 
 **Barra de captura.** Al tipear, `pintarChipsCaptura()` muestra debajo del campo (`#capChips`)
 lo que se va a guardar, con `KCOCore.resumenCaptura` (el mismo parser que `capturar()`):
-apartado destino (o "Nota" con `nota:`), dia y prioridad. El chip de contexto (`#capCtx`) abre la hoja "Guardar en"
+apartado destino (o "Nota" con `nota:`), dia y prioridad. Lo que se guarda sigue la pestaña del apartado (`KCOCore.tipoCaptura(vista)`): en Compras una compra (`cotizando` en fabrica, `por_comprar` en lista simple; un destino con compras `no` la recibe como tarea), en Notas una nota sin necesidad de `nota:`, en las demas una tarea. El placeholder ("Capturar en", "Compra en", "Nota en") y el chip ("Compra", "Nota") lo anticipan. El chip de contexto (`#capCtx`) abre la hoja "Guardar en"
 (`#tapaDestino`, mismas reglas de dialogo e historial que toda hoja): elegir fija el destino
 de esa sola captura (`ctxDestino`; guardar o cambiar de vista lo limpia), saca la #etiqueta
 tipeada (la misma que resolvio el parser: la primera #etiqueta que es un apartado activo, por su id, el slug de su nombre o un alias, este
@@ -223,7 +223,7 @@ dia, se generan las ocurrencias nuevas.
 | Estados | `CERRADOS`, `esActivo`, `esHecho`, `alertaEntrega`, `diaDe` |
 | Situacion | `SITUACIONES`, `infoSituacion`, `situacion` |
 | Proximo movimiento | `puntaje`, `priorizar` |
-| Captura | `parsearCaptura`, `resumenCaptura` (chips: el mismo parse + rotulo del dia), `quitarContextoCaptura` |
+| Captura | `parsearCaptura`, `resumenCaptura` (chips: el mismo parse + rotulo del dia), `quitarContextoCaptura`, `tipoCaptura` (tarea, compra o nota segun la pestaña) |
 | Rutinas | `normalizarRutina`, `tocaEnDia`, `ultimaFecha`, `proximaFecha`, `describirRutina`, `ocurrenciasDe`, `planificarOcurrencias`, `rachaRutina` |
 | Misiones | `normalizarProyecto`, `tareasDeProyecto`, `progresoProyecto`, `proximaAccion` |
 | Diario | `diario`, `compactarEventos` |

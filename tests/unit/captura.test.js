@@ -59,3 +59,37 @@ test('capture target: the resolved context tag is removed wherever it sits', () 
   // After removing it the parser sees no context from that tag.
   assert.equal(C.parsearCaptura(C.quitarContextoCaptura('ver #hashtag #casa'), NOW).contexto, '');
 });
+
+test('capture by tab: Compras captures a purchase, Notas a note, every other view a task', () => {
+  assert.equal(C.tipoCaptura('compras'), 'compra');
+  assert.equal(C.tipoCaptura('notas'), 'nota');
+  for (const v of ['tablero', 'ahora', 'hoy', 'misiones', 'registro', '', undefined]) {
+    assert.equal(C.tipoCaptura(v), 'tarea', String(v));
+  }
+});
+
+test('capture by tab: on the Notas tab the text is a note without the nota: prefix', () => {
+  C.fijarApartados(C.apartadosLegado());
+  assert.equal(C.parsearNota('idea para el video #apps'), null, 'not forced: still needs the prefix');
+  assert.deepEqual(C.parsearNota('idea para el video #apps 18:00', true), { texto: 'idea para el video 18:00', contexto: 'apps' });
+  assert.deepEqual(C.parsearNota('nota: con prefijo #casa', true), { texto: 'con prefijo', contexto: 'hogar' }, 'the prefix is still removed');
+  const r = C.resumenCaptura('precio yerba #casa mañana', NOW, 'nota');
+  assert.equal(r.nota, true);
+  assert.equal(r.compra, false);
+  assert.deepEqual([r.texto, r.contexto, r.dia], ['precio yerba mañana', 'hogar', '']);
+});
+
+test('capture by tab: on the Compras tab the summary is a purchase and keeps day, priority and section', () => {
+  C.fijarApartados(C.apartadosLegado());
+  const r = C.resumenCaptura('lija al agua #casa !! mañana', NOW, 'compra');
+  assert.equal(r.compra, true);
+  assert.equal(r.nota, false);
+  assert.deepEqual([r.texto, r.contexto, r.nivel, r.dia], ['lija al agua', 'hogar', 'urgente', 'Mañana']);
+  // The nota: prefix still wins on any tab.
+  const n = C.resumenCaptura('nota: precio #casa', NOW, 'compra');
+  assert.equal(n.nota, true);
+  assert.equal(n.compra, false);
+  // Without a tab type nothing changes.
+  assert.equal(C.resumenCaptura('lija', NOW).compra, false);
+  assert.equal(C.resumenCaptura('lija', NOW, 'tarea').compra, false);
+});
