@@ -1507,6 +1507,8 @@
     if (esActivo(it.estado)) {
       li.oncontextmenu = function (ev) {
         if (ev && ev.preventDefault) { ev.preventDefault(); }
+        /* Mantener apretado en una lista ordenable es arrastrar, no el menu. */
+        if (ordenActivo || gestoReciente(li)) { return; }
         abrirMenuRapido(it.id);
       };
       conectarSwipeFila(li, fila, it.id, !!ah);
@@ -1538,6 +1540,8 @@
     });
     li.addEventListener('pointermove', function (ev) {
       if (!modo || ev.pointerId !== idP) { return; }
+      /* Arrastrando para ordenar (Ahora, orden manual) la fila no se desliza. */
+      if (ordenActivo) { modo = null; return; }
       var mx = ev.clientX - x0, my = ev.clientY - y0;
       var ax = mx < 0 ? -mx : mx, ay = my < 0 ? -my : my;
       if (modo === 'duda') {
@@ -1573,6 +1577,198 @@
     }
     li.addEventListener('pointerup', function (ev) { soltar(ev, false); });
     li.addEventListener('pointercancel', function (ev) { soltar(ev, true); });
+  }
+
+  /* ---------- orden manual de Ahora ----------
+     Un apartado en orden manual muestra en Ahora la lista que se arrastra
+     (hero incluido como primera fila). Mantener apretada una fila 350 ms la
+     levanta: una copia sigue al dedo o al mouse y un hueco marca donde cae.
+     Moverse antes de los 350 ms es scroll o swipe y no la levanta. Soltar
+     guarda el orden (KCOCore.rangosTrasMover). Teclado: Alt+Flecha arriba o
+     abajo mueve la fila enfocada un lugar. */
+  var LARGA_ORDEN = 350;
+  var MOVER_ANTES = 8;
+  var TOPE_ORDEN = 20;
+  var ordenActivo = null;
+
+  function fijarOrdenAhora(modo) {
+    if (soloLectura || contexto === 'todo' || K.ordenAhora(contexto) === modo) { return; }
+    var l = copiaApartado(K.todosApartados()), i;
+    for (i = 0; i < l.length; i++) { if (l[i].id === contexto) { l[i].ordenAhora = modo; } }
+    if (!guardarRegistro(l)) { avisar('No se pudo guardar el orden (fallo al guardar). No se cambi\u00F3 nada.'); }
+  }
+
+  function pintarOrdenAhora(cont) {
+    if (contexto === 'todo') { return; }
+    var modo = K.ordenAhora(contexto), caja = nodo('div', 'orden-ahora'), seg = nodo('div', 'seg'), i;
+    var defs = [{ id: 'auto', nom: 'Autom\u00E1tico' }, { id: 'manual', nom: 'Manual' }];
+    caja.id = 'ordenAhora';
+    caja.appendChild(nodo('span', 'orden-rot', 'Orden'));
+    seg.setAttribute('role', 'group');
+    seg.setAttribute('aria-label', 'Orden de Ahora en ' + nomCtx(contexto));
+    for (i = 0; i < defs.length; i++) {
+      (function (d) {
+        var b = nodo('button', modo === d.id ? 'segbtn on' : 'segbtn', d.nom);
+        b.type = 'button';
+        b.setAttribute('data-orden', d.id);
+        b.setAttribute('aria-pressed', modo === d.id ? 'true' : 'false');
+        b.disabled = soloLectura;
+        b.onclick = function () { fijarOrdenAhora(d.id); };
+        seg.appendChild(b);
+      })(defs[i]);
+    }
+    caja.appendChild(seg);
+    cont.appendChild(caja);
+  }
+
+  /* Guarda los rangos tras llevar id al lugar indice de visibles. Si no se
+     puede guardar, todo vuelve a como estaba. */
+  function aplicarOrden(orden, id, indice, visibles) {
+    var rangos = K.rangosTrasMover(orden, id, indice, visibles), previos = [], i, it;
+    for (i = 0; i < orden.length; i++) {
+      it = buscarItem(orden[i]);
+      if (!it || it.ordenManual === rangos[orden[i]]) { continue; }
+      previos.push({ it: it, r: it.ordenManual });
+      it.ordenManual = rangos[orden[i]];
+    }
+    if (previos.length === 0) { return true; }
+    var ok = guardarItems();
+    if (!ok) { for (i = 0; i < previos.length; i++) { previos[i].it.ordenManual = previos[i].r; } }
+    pintar();
+    return ok;
+  }
+
+  function dentroDeBoton(n, tope) {
+    while (n && n !== tope) {
+      if (n.tagName === 'BUTTON') { return true; }
+      n = n.parentNode;
+    }
+    return false;
+  }
+
+  /* Filas reales de la lista (sin la que se arrastra, el hueco ni la copia). */
+  function filasOrden(ul) {
+    var r = [], n;
+    for (n = ul.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === 1 && / item /.test(' ' + n.className + ' ') && !/orden-(origen|fantasma)/.test(n.className)) { r.push(n); }
+    }
+    return r;
+  }
+
+  function conectarOrden(ul, orden, visibles) {
+    var filas = filasOrden(ul), pista = ul.parentNode ? ul.parentNode.getElementsByClassName('sec-nota')[0] : null, i;
+    ul.className = ul.className + ' ordenable';
+    if (pista) { pista.id = 'ordenPista'; }
+    for (i = 0; i < filas.length; i++) { prepararFilaOrden(filas[i], ul, orden, visibles); }
+  }
+
+  function prepararFilaOrden(li, ul, orden, visibles) {
+    if (!li.addEventListener) { return; }
+    var id = li.getAttribute('data-id'), espera = null, x0 = 0, y0 = 0, idP = null;
+    li.setAttribute('aria-describedby', 'ordenPista');
+    li.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+    li.addEventListener('keydown', function (ev) {
+      if (ev.target !== li || !ev.altKey) { return; }
+      var k = ev.key || '', paso = k === 'ArrowUp' || ev.keyCode === 38 ? -1 : (k === 'ArrowDown' || ev.keyCode === 40 ? 1 : 0);
+      var pos = visibles.indexOf(id) + paso;
+      if (paso === 0) { return; }
+      ev.preventDefault();
+      if (pos < 0 || pos >= visibles.length) { return; }
+      if (aplicarOrden(orden, id, pos, visibles)) {
+        var nueva = $('secSigue') ? $('secSigue').querySelector('li.item[data-id="' + id + '"]') : null;
+        enfocar(nueva);
+      }
+    });
+    if (typeof window.PointerEvent === 'undefined') { return; }
+    function soltarEspera() {
+      if (espera) { clearTimeout(espera); espera = null; }
+    }
+    function esDeOrden(ev) { return ordenActivo && ordenActivo.li === li && ev.pointerId === ordenActivo.idP; }
+    li.addEventListener('pointerdown', function (ev) {
+      if (ordenActivo || ev.isPrimary === false || pilaCapas.length > 0) { return; }
+      if (ev.pointerType === 'mouse' && ev.button !== 0) { return; }
+      if (dentroDeBoton(ev.target, li)) { return; }
+      x0 = ev.clientX; y0 = ev.clientY; idP = ev.pointerId;
+      soltarEspera();
+      espera = setTimeout(function () {
+        espera = null;
+        empezarOrden(li, ul, id, idP, y0, orden, visibles);
+      }, LARGA_ORDEN);
+    });
+    li.addEventListener('pointermove', function (ev) {
+      if (esDeOrden(ev)) { moverOrden(ev.clientY); return; }
+      if (!espera || ev.pointerId !== idP) { return; }
+      var dx = ev.clientX - x0, dy = ev.clientY - y0;
+      if (dx * dx + dy * dy > MOVER_ANTES * MOVER_ANTES) { soltarEspera(); }
+    });
+    li.addEventListener('pointerup', function (ev) {
+      soltarEspera();
+      if (esDeOrden(ev)) { terminarOrden(false); }
+    });
+    li.addEventListener('pointercancel', function (ev) {
+      soltarEspera();
+      if (esDeOrden(ev)) { terminarOrden(true); }
+    });
+    /* Ya levantada, el dedo no hace scroll: el primer touchmove se cancela
+       antes de que el navegador empiece a desplazar (touch-action pan-y). */
+    li.addEventListener('touchmove', function (ev) {
+      if (ordenActivo && ordenActivo.li === li && ev.cancelable) { ev.preventDefault(); }
+    }, { passive: false });
+  }
+
+  /* La fila que se arrastra no sale del DOM (perderia el puntero): se pliega
+     (orden-origen) y en su lugar queda el hueco que se va moviendo. */
+  function empezarOrden(li, ul, id, idP, y, orden, visibles) {
+    if (!li.parentNode || pilaCapas.length > 0 || ordenActivo) { return; }
+    var r = li.getBoundingClientRect();
+    var hueco = document.createElement('li');
+    hueco.className = 'orden-hueco';
+    hueco.setAttribute('aria-hidden', 'true');
+    hueco.style.height = r.height + 'px';
+    var fantasma = li.cloneNode(true);
+    fantasma.className = li.className.replace(/ nuevo/g, '') + ' orden-fantasma';
+    fantasma.removeAttribute('tabindex');
+    fantasma.removeAttribute('data-id');
+    fantasma.setAttribute('aria-hidden', 'true');
+    ul.insertBefore(hueco, li);
+    li.className = li.className + ' orden-origen';
+    ul.appendChild(fantasma);
+    ordenActivo = { li: li, ul: ul, id: id, idP: idP, dy: y - r.top, hueco: hueco, fantasma: fantasma,
+      orden: orden, visibles: visibles, indice: visibles.indexOf(id) };
+    gestoFila = true;
+    document.documentElement.setAttribute('data-ordenando', '1');
+    try { li.setPointerCapture(idP); } catch (e) { /* sin captura igual sigue */ }
+    moverOrden(y);
+  }
+
+  function moverOrden(y) {
+    var o = ordenActivo, ur = o.ul.getBoundingClientRect(), filas = filasOrden(o.ul), n = 0, i, r;
+    o.fantasma.style.top = (y - ur.top - o.dy) + 'px';
+    for (i = 0; i < filas.length; i++) {
+      r = filas[i].getBoundingClientRect();
+      if (y > r.top + r.height / 2) { n = i + 1; }
+    }
+    if (n !== o.indice || o.hueco.nextSibling !== (filas[n] || null)) {
+      o.ul.insertBefore(o.hueco, filas[n] || o.fantasma);
+      o.indice = n;
+    }
+    /* Cerca de los bordes la pagina se desplaza sola. */
+    if (y < 72) { window.scrollBy(0, -12); }
+    else if (y > window.innerHeight - 150) { window.scrollBy(0, 12); }
+  }
+
+  function terminarOrden(cancelado) {
+    var o = ordenActivo;
+    if (!o) { return; }
+    ordenActivo = null;
+    document.documentElement.removeAttribute('data-ordenando');
+    try { o.li.releasePointerCapture(o.idP); } catch (e) { /* ya suelto */ }
+    o.li.setAttribute('data-gesto', '' + Date.now());
+    if (o.fantasma.parentNode) { o.fantasma.parentNode.removeChild(o.fantasma); }
+    if (o.hueco.parentNode) { o.hueco.parentNode.removeChild(o.hueco); }
+    o.li.className = o.li.className.replace(/ orden-origen/g, '');
+    if (cancelado || o.indice === o.visibles.indexOf(o.id)) { return; }
+    aplicarOrden(o.orden, o.id, o.indice, o.visibles);
   }
 
   /* ---------- menu rapido ----------
@@ -2215,6 +2411,9 @@
     var hoy = hoyClave(), ahora = Date.now();
     var lista = activosVisibles();
     var ranking = K.priorizar(lista, hoy, ahora);
+    /* Orden manual: por apartado, nunca en Todo. */
+    var manual = contexto !== 'todo' && K.ordenAhora(contexto) === 'manual';
+    if (manual) { ranking = K.ordenarManual(ranking); }
     var esperando = [], inbox = [], nAt = 0, nHoy = 0, i, s;
     for (i = 0; i < lista.length; i++) {
       s = K.situacion(lista[i], hoy, ahora);
@@ -2232,6 +2431,7 @@
     tile(pulso, 'inbox', inbox.length, 'Inbox', 'secInbox', '');
     tile(pulso, 'hourglass', esperando.length, 'Esperando', 'secEsperando', '');
     cont.appendChild(pulso);
+    pintarOrdenAhora(cont);
 
     var mostrados = {};
     if (lista.length === 0) {
@@ -2262,22 +2462,34 @@
       }
     }
 
-    var siguen = [];
-    for (i = 0; i < ranking.length && siguen.length < 6; i++) {
+    /* En orden manual la lista arranca con el mismo item del hero: es la
+       lista que se arrastra, y llevar una fila arriba de todo la convierte
+       en el siguiente movimiento. */
+    var siguen = [], tope = manual ? TOPE_ORDEN : 6, esHero;
+    for (i = 0; i < ranking.length && siguen.length < tope; i++) {
       var r = ranking[i];
-      if (mostrados['#' + r.item.id] || r.item.estado === 'entrada') { continue; }
+      esHero = manual && i === 0;
+      if ((mostrados['#' + r.item.id] && !esHero) || r.item.estado === 'entrada') { continue; }
       siguen.push(r);
     }
     if (siguen.length > 0) {
       var resto = 0;
       for (i = 0; i < ranking.length; i++) {
-        if (!mostrados['#' + ranking[i].item.id] && ranking[i].item.estado !== 'entrada') { resto++; }
+        if ((!mostrados['#' + ranking[i].item.id] || (manual && i === 0)) && ranking[i].item.estado !== 'entrada') { resto++; }
       }
-      var ulS = seccion(cont, 'secSigue', 'A continuaci\u00F3n', resto,
-        resto > siguen.length ? 'Las ' + siguen.length + ' que mas pesan. El resto esta en Tareas.' : '', 'arrow-right');
+      var notaS = manual ? 'Manten\u00E9 presionada una tarea y arrastrala. La primera es el siguiente movimiento.' +
+        (resto > siguen.length ? ' El resto esta en Tareas.' : '') :
+        (resto > siguen.length ? 'Las ' + siguen.length + ' que mas pesan. El resto esta en Tareas.' : '');
+      var ulS = seccion(cont, 'secSigue', 'A continuaci\u00F3n', resto, notaS, 'arrow-right');
       for (i = 0; i < siguen.length; i++) {
         ulS.appendChild(nodoItem(siguen[i].item, siguen[i].motivo));
         mostrados['#' + siguen[i].item.id] = true;
+      }
+      if (manual && !soloLectura) {
+        var orden = [], vis = [];
+        for (i = 0; i < ranking.length; i++) { orden.push(ranking[i].item.id); }
+        for (i = 0; i < siguen.length; i++) { vis.push(siguen[i].item.id); }
+        conectarOrden(ulS, orden, vis);
       }
     }
 
@@ -2513,6 +2725,9 @@
 
   function pintar() {
     var v, conCompras = usaCompras(contexto), conNotas = K.usaNotas(contexto);
+    /* Un repintado a mitad de un arrastre (reloj, otra pestana) lo cancela:
+       las filas que se movian ya no existen. */
+    if (ordenActivo) { terminarOrden(true); }
     /* Un apartado sin compras (o sin notas) no tiene esa vista: vuelve a Tareas. */
     if (vista === 'compras' && !conCompras) { vista = 'tablero'; }
     if (vista === 'notas' && !conNotas) { vista = 'tablero'; }

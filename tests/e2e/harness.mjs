@@ -248,14 +248,29 @@ export async function openPage(browser, baseUrl) {
       await sleep(120);
     },
     // Touch drag from (x0,y0) to (x1,y1) in small steps, like a finger (pointer + touch events).
-    async drag(x0, y0, x1, y1, steps = 8) {
+    // hold: ms the finger stays still before moving (a long-press drag).
+    async drag(x0, y0, x1, y1, steps = 8, hold = 0) {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] });
+      if (hold) await sleep(hold);
       for (let i = 1; i <= steps; i++) {
         const x = x0 + ((x1 - x0) * i) / steps, y = y0 + ((y1 - y0) * i) / steps;
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
         await sleep(16);
       }
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await sleep(120);
+    },
+    // Mouse drag with the left button: press, hold ms still, move in steps, release.
+    async mouseDrag(x0, y0, x1, y1, steps = 8, hold = 0) {
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0, y: y0 });
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y: y0, button: 'left', buttons: 1, clickCount: 1 });
+      if (hold) await sleep(hold);
+      for (let i = 1; i <= steps; i++) {
+        const x = x0 + ((x1 - x0) * i) / steps, y = y0 + ((y1 - y0) * i) / steps;
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'left', buttons: 1 });
+        await sleep(16);
+      }
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x1, y: y1, button: 'left', buttons: 0, clickCount: 1 });
       await sleep(120);
     },
     // Bounding box of the first match, or null.

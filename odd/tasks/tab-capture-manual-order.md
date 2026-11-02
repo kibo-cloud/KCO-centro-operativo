@@ -62,7 +62,7 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
 - [x] T02 Core: per-section `ordenAhora` (`auto`|`manual`, fallback `auto`) in apartado
       normalization; per-item manual rank with fallback; pure function that orders a ranking by
       manual rank (unranked last, by score); unit tests.
-- [ ] T03 UI: switch in Ahora (per section, hidden in Todo); Ahora hero + "A continuacion" use
+- [x] T03 UI: switch in Ahora (per section, hidden in Todo); Ahora hero + "A continuacion" use
       manual order when Manual; drag reorder (pointer events, long-press start, no conflict with
       swipe/scroll), persisted; E2E tests.
 - [ ] T04 Version 2.3.0 (`VERSION_APP`, `sw.js`, `package.json`), docs (`LEEME.md`,
@@ -85,8 +85,9 @@ iteration), `npm run verify` at closure.
 
 - 2026-11-02: branch `feat/tab-capture-manual-order` created from `release/2.2.0` (`33f5775`).
 - 2026-11-02: T01 done (commit `0bcad02` `feat(capture): save purchases and notes from their tab`). Core `tipoCaptura(vista)`, `parsearNota(texto, forzar)`, `resumenCaptura(..., tipo)` (`compra` flag). App: `capturar()` creates a `compra` (`cotizando` fabrica / `por_comprar` lista; destination with compras `no` -> task) on Compras, a note on Notas; placeholder "Capturar/Compra/Nota en X" and chip "Compra"/"Nota", repainted on every `pintar()`. RED: 3 unit + 2 E2E failing before implementation. GREEN: `npm run check` ok; `npm test` 115/115; `node tests/e2e/run.mjs "tab capture"` 2/2; related filters notes 16/16, capture 18/18, chips 3/3, model 4/4.
-- 2026-11-02: T02 done (commit: next line). Core: apartado `ordenAhora` (`auto`|`manual`, fallback `auto`, kept by `normalizarApartado` so storage/backup/import keep it), `ordenAhora(ctx)`, `rangoManual(it)`, `ordenarManual(ranking, rangos)`, `rangosTrasMover(orden, id, indice, visibles)`. App: `normalizarItem` keeps `ordenManual`; moving an item to another section resets it to 0 (undo restores it via `fotoDe`). Schema stays 5. RED: `tests/unit/orden.test.js` 6/6 failing before implementation. GREEN: `npm run check` ok; `npm test` 121/121; E2E regression filters model 4/4, backup 23/23, sections 50/50, core 7/7, purchases 9/9.
+- 2026-11-02: T02 done (commit `51de077`). Core: apartado `ordenAhora` (`auto`|`manual`, fallback `auto`, kept by `normalizarApartado` so storage/backup/import keep it), `ordenAhora(ctx)`, `rangoManual(it)`, `ordenarManual(ranking, rangos)`, `rangosTrasMover(orden, id, indice, visibles)`. App: `normalizarItem` keeps `ordenManual`; moving an item to another section resets it to 0 (undo restores it via `fotoDe`). Schema stays 5. RED: `tests/unit/orden.test.js` 6/6 failing before implementation. GREEN: `npm run check` ok; `npm test` 121/121; E2E regression filters model 4/4, backup 23/23, sections 50/50, core 7/7, purchases 9/9.
+- 2026-11-02: T03 done (commit: see `git log`, `feat(ahora): add per-section manual order with drag reorder`). Switch `#ordenAhora` "Orden: Automatico / Manual" in Ahora for a single section (none in Todo), saved via `guardarRegistro`. Hero decision: in Manual the hero is the first item of the manual order and "A continuacion" (`#secSigue`, up to 20 rows) is the draggable list that starts with the hero item itself, so dragging a row to the top makes it the next move; "Requiere atencion" stays a separate, non-draggable alert section; inbox items are not in the drag list. Drag: pointer events, 350 ms long-press (touch or mouse), >8px movement before that cancels (scroll/swipe), row folds in place (`orden-origen`, keeps pointer capture), dashed placeholder + floating copy, first touchmove cancelled, edge auto-scroll; row swipe, view swipe and long-press quick menu are suppressed while dragging; Alt+ArrowUp/Down keyboard alternative; a `pintar()` mid-drag cancels it. Harness: `drag(..., hold)` and `mouseDrag`. RED: 3 E2E `ahora order` specs failing before UI. GREEN: `npm run check` ok; `npm test` 121/121; `npm run e2e` 193/193.
 
 ## Next step
 
-T03 (Ahora order switch, manual order rendering and drag reorder).
+T04 (version 2.3.0, LEEME/docs totals: TESTING.md still says 2.2.0 counts, now 121 unit / 193 E2E; full `npm run verify`).
