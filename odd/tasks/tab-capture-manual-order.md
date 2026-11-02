@@ -59,7 +59,7 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
 
 - [x] T01 Tab-aware capture: Compras tab -> `compra`, Notas tab -> note, Tareas -> task;
       placeholder/chip shows the type; unit + E2E tests.
-- [ ] T02 Core: per-section `ordenAhora` (`auto`|`manual`, fallback `auto`) in apartado
+- [x] T02 Core: per-section `ordenAhora` (`auto`|`manual`, fallback `auto`) in apartado
       normalization; per-item manual rank with fallback; pure function that orders a ranking by
       manual rank (unranked last, by score); unit tests.
 - [ ] T03 UI: switch in Ahora (per section, hidden in Todo); Ahora hero + "A continuacion" use
@@ -84,8 +84,9 @@ iteration), `npm run verify` at closure.
 ## Progress / evidence
 
 - 2026-11-02: branch `feat/tab-capture-manual-order` created from `release/2.2.0` (`33f5775`).
-- 2026-11-02: T01 done (commit: see git log, `feat(capture): save purchases and notes from their tab`). Core `tipoCaptura(vista)`, `parsearNota(texto, forzar)`, `resumenCaptura(..., tipo)` (`compra` flag). App: `capturar()` creates a `compra` (`cotizando` fabrica / `por_comprar` lista; destination with compras `no` -> task) on Compras, a note on Notas; placeholder "Capturar/Compra/Nota en X" and chip "Compra"/"Nota", repainted on every `pintar()`. RED: 3 unit + 2 E2E failing before implementation. GREEN: `npm run check` ok; `npm test` 115/115; `node tests/e2e/run.mjs "tab capture"` 2/2; related filters notes 16/16, capture 18/18, chips 3/3, model 4/4.
+- 2026-11-02: T01 done (commit `0bcad02` `feat(capture): save purchases and notes from their tab`). Core `tipoCaptura(vista)`, `parsearNota(texto, forzar)`, `resumenCaptura(..., tipo)` (`compra` flag). App: `capturar()` creates a `compra` (`cotizando` fabrica / `por_comprar` lista; destination with compras `no` -> task) on Compras, a note on Notas; placeholder "Capturar/Compra/Nota en X" and chip "Compra"/"Nota", repainted on every `pintar()`. RED: 3 unit + 2 E2E failing before implementation. GREEN: `npm run check` ok; `npm test` 115/115; `node tests/e2e/run.mjs "tab capture"` 2/2; related filters notes 16/16, capture 18/18, chips 3/3, model 4/4.
+- 2026-11-02: T02 done (commit: next line). Core: apartado `ordenAhora` (`auto`|`manual`, fallback `auto`, kept by `normalizarApartado` so storage/backup/import keep it), `ordenAhora(ctx)`, `rangoManual(it)`, `ordenarManual(ranking, rangos)`, `rangosTrasMover(orden, id, indice, visibles)`. App: `normalizarItem` keeps `ordenManual`; moving an item to another section resets it to 0 (undo restores it via `fotoDe`). Schema stays 5. RED: `tests/unit/orden.test.js` 6/6 failing before implementation. GREEN: `npm run check` ok; `npm test` 121/121; E2E regression filters model 4/4, backup 23/23, sections 50/50, core 7/7, purchases 9/9.
 
 ## Next step
 
-T02 (core order fields and pure manual-order functions).
+T03 (Ahora order switch, manual order rendering and drag reorder).

@@ -432,7 +432,10 @@
       proyectoId: idSeguro(it.proyectoId),
       rutinaId: idSeguro(it.rutinaId),
       ocurrencia: K.esClave(it.ocurrencia) ? it.ocurrencia : '',
-      motivo: MOTIVOS[it.motivo] === 1 ? it.motivo : ''
+      motivo: MOTIVOS[it.motivo] === 1 ? it.motivo : '',
+      /* Agregado en 2.3: lugar en el orden manual de Ahora de su apartado
+         (0 = sin ordenar). Fuera del esquema, con fallback. */
+      ordenManual: K.rangoManual(it)
     };
   }
 
@@ -1215,6 +1218,8 @@
     var foto = fotoDe(it), antes = copiaItem(it);
     var previo = it.contexto;
     it.contexto = ctx;
+    /* El orden manual es del apartado: en el nuevo llega sin ordenar (al final). */
+    it.ordenManual = 0;
     /* A un apartado sin compras una compra llega como tarea. */
     if (it.tipo === 'compra' && K.modoCompras(ctx) === 'no') { compraATarea(it); }
     var est = estadoEquivalente(it.tipo, ctx, it.estado);
@@ -3580,7 +3585,7 @@
     return {
       estado: it.estado, tipo: it.tipo, espera: it.espera,
       actualizado: it.actualizado, estadoDesde: it.estadoDesde, prioridad: it.prioridad, nivel: it.nivel,
-      contexto: it.contexto, motivo: it.motivo,
+      contexto: it.contexto, motivo: it.motivo, ordenManual: K.rangoManual(it),
       pausado: it.pausado === true, pausadoDesde: it.pausadoDesde ? it.pausadoDesde : ''
     };
   }
@@ -3609,6 +3614,7 @@
     it.prioridad = foto.prioridad;
     it.nivel = foto.nivel;
     it.contexto = foto.contexto;
+    it.ordenManual = K.rangoManual(foto);
     it.motivo = foto.motivo;
     it.actualizado = foto.actualizado;
     it.estadoDesde = foto.estadoDesde;
@@ -4699,6 +4705,7 @@
      no conozca. */
   function pasarItemA(it, ctx) {
     it.contexto = ctx;
+    it.ordenManual = 0;
     if (it.tipo === 'compra' && K.modoCompras(ctx) === 'no') { compraATarea(it); }
     var est = estadoEquivalente(it.tipo, ctx, it.estado);
     if (est !== it.estado) {
