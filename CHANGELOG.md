@@ -3,6 +3,31 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.3.0 — 2026-11-02 — captura segun la pestaña y orden manual
+
+Cache `kibco-2.3.0`. Esquema de datos **5** (sin cambios). Campos nuevos, leidos con valor por
+defecto: `ordenAhora` en cada apartado (`auto` o `manual`) y `ordenManual` en cada item.
+
+### Agregado
+
+- **Captura segun la pestaña.** Dentro de un apartado, lo que se escribe en la barra toma el
+  tipo de la pestaña: en Compras se guarda una compra, en Notas una nota (sin `nota:`) y en
+  Tareas una tarea. Si el apartado no usa compras, la compra se guarda como tarea. La barra
+  muestra "Compra en X" o "Nota en X".
+- **Orden manual por apartado en Ahora.** Interruptor "Orden: Automático / Manual" en cada
+  apartado (en Todo el orden sigue siendo automatico). En Manual, mantener apretada una
+  tarea y arrastrarla cambia su lugar; con teclado, Alt+Flecha arriba/abajo. La primera del
+  orden pasa a la tarjeta principal. "Requiere atención" e Inbox siguen fijos.
+
+### Cambiado
+
+- En un apartado en Manual, mantener apretada una tarea la arrastra en lugar de abrir el
+  menu rapido (deslizar a la izquierda lo sigue abriendo).
+
+### Corregido
+
+- Un redibujo de Ahora durante la espera del toque largo ya no deja un arrastre trabado.
+
 ## 2.2.0 — 2026-10-28 — apartados propios y notas
 
 Cache `kibco-2.2.0`. Esquema de datos **5** (sube desde 4). Claves nuevas: `kibco.apartados`
