@@ -89,6 +89,8 @@ asked if the running count passes ~400 before PR planning. No push/PR without ex
       the Atencion tile points to `#secSigue`; Automatico, Inbox and Esperando unchanged; E2E.
 - [x] T08 Release 2.3.2: version bump, CHANGELOG 2.3.2, LEEME Manual/atencion text, TESTING totals.
 
+- [x] T09 Review fix R3-001 (review-54d17dbfe8e180e2): a touch-armed hold is only released by pointer events when its source is `puntero` (Touch.identifier and pointerId can collide); E2E uses colliding ids; release 2.3.3.
+
 ## Acceptance
 
 - Typing in Compras creates a purchase visible in the purchase list of that section.
@@ -121,6 +123,10 @@ iteration), `npm run verify` at closure.
 - 2026-11-02: T08 done (commit: see `git log`, `chore(release): bump version to 2.3.2`). `VERSION_APP`, `sw.js` `VERSION`, `package.json` at 2.3.2; CHANGELOG 2.3.2 entry (Cambiado: en Manual las tareas que requieren atencion entran en la lista ordenable); LEEME identity table, backup sample, Ahora manual-order note (atencion joins the list, up to 40), 2.3.2 summary; TESTING totals 121 unit / 198 E2E. `npm run verify` green: ES5 ok, unit 121/121, E2E 198/198. Pending for parent: `versiones/KCO v2.3.2` copy, root `CLAUDE.md` version line, RDD assess.
 
 Last reviewed boundary: df2b360 (review-649668425611a68f, medium, approved+acknowledged).
+
+- 2026-11-02: review-54d17dbfe8e180e2 (df2b360..0877a7a, medium, 489 lines) approved and acknowledged; advisory R3-001 fixed inline as T09. RED: kebab spec failed on old code with colliding ids (false !== true); GREEN: kebab 2/2; `npm run verify` ES5 ok, unit 121/121, E2E 198/198. Version 2.3.3.
+
+Last reviewed boundary: 0877a7a (review-54d17dbfe8e180e2).
 
 ## Next step
 

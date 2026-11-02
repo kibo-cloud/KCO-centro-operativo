@@ -3,7 +3,7 @@
   'use strict';
 
   var K = window.KCOCore;
-  var VERSION_APP = '2.3.2';
+  var VERSION_APP = '2.3.3';
   /* Esquema 5 (2.2.0): los contextos pasan a ser apartados del usuario
      (kibco.apartados). Subirlo sin motivo rompe la compatibilidad de backups. */
   var ESQUEMA = 5;
@@ -1689,7 +1689,7 @@
 
   function prepararFilaOrden(li, ul, orden, visibles) {
     if (!li.addEventListener) { return; }
-    var id = li.getAttribute('data-id'), espera = null, x0 = 0, y0 = 0, idP = null;
+    var id = li.getAttribute('data-id'), espera = null, x0 = 0, y0 = 0, idP = null, fuenteEspera = '';
     li.setAttribute('aria-describedby', 'ordenPista');
     li.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
     li.addEventListener('keydown', function (ev) {
@@ -1720,8 +1720,8 @@
       }
     }
     function armarEspera(x, y, ref, fuente) {
-      x0 = x; y0 = y; idP = ref;
       soltarEspera();
+      x0 = x; y0 = y; idP = ref; fuenteEspera = fuente;
       espera = setTimeout(function () {
         espera = null;
         esperaOrden = null;
@@ -1745,18 +1745,21 @@
     });
     li.addEventListener('pointermove', function (ev) {
       if (esDeOrden(ev)) { moverOrden(ev.clientY); return; }
-      if (!espera || ev.pointerId !== idP) { return; }
+      if (!espera || fuenteEspera !== 'puntero' || ev.pointerId !== idP) { return; }
       movidoAntes(ev.clientX, ev.clientY);
     });
+    /* Una espera armada por touch usa Touch.identifier en idP: un pointerId
+       tactil puede coincidir con ese numero, asi que solo una espera de
+       puntero se suelta desde pointerup/pointercancel. */
     li.addEventListener('pointerup', function (ev) {
-      if (ev.pointerId !== idP) { return; }
+      if (esDeOrden(ev)) { soltarEspera(); terminarOrden(false); return; }
+      if (fuenteEspera !== 'puntero' || ev.pointerId !== idP) { return; }
       soltarEspera();
-      if (esDeOrden(ev)) { terminarOrden(false); }
     });
     li.addEventListener('pointercancel', function (ev) {
-      if (ev.pointerId !== idP) { return; }
+      if (esDeOrden(ev)) { soltarEspera(); terminarOrden(true); return; }
+      if (fuenteEspera !== 'puntero' || ev.pointerId !== idP) { return; }
       soltarEspera();
-      if (esDeOrden(ev)) { terminarOrden(true); }
     });
     if (!conToque) { return; }
     function esToqueDeOrden() { return ordenActivo && ordenActivo.li === li && ordenActivo.fuente === 'toque'; }

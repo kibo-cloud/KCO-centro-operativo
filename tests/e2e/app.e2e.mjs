@@ -4089,11 +4089,13 @@ export const tests = [
       await sleep(80);
       await closed('no quick menu on a plain contextmenu');
       assert.equal(await page.eval("getComputedStyle(document.querySelector('#secSigue li.item[data-id=\"C\"]')).webkitUserSelect"), 'none', 'no text selection on draggable rows');
-      // A touch hold survives a pointercancel: touch events drive the drag.
+      // A touch hold survives a pointercancel: touch events drive the drag. The
+      // pointerId deliberately equals the Touch.identifier (Chromium numbers them
+      // separately, so they can collide on a real phone).
       await page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="D"]'),r=b.getBoundingClientRect();
         var t=new Touch({identifier:7,target:b,clientX:r.left+r.width/2,clientY:r.top+r.height/2});
         b.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t]}));
-        b.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,isPrimary:true,pointerId:52,pointerType:'touch'}));})()`);
+        b.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,isPrimary:true,pointerId:7,pointerType:'touch'}));})()`);
       await sleep(500);
       assert.equal(await page.eval("document.documentElement.hasAttribute('data-ordenando')"), true, 'the drag started despite pointercancel');
       await page.eval(`document.querySelector('#secSigue li.item[data-id="D"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
