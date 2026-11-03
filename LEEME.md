@@ -246,6 +246,11 @@ movimiento y se ordena a mano:
   se arrastra igual; la lista muestra hasta 40 tareas. El inbox y Esperando no entran.
 - El orden se guarda en cada item (`ordenManual`) y vuelve al pasar de Automatico a Manual.
   Mover un item a otro apartado le borra el lugar. Si no se puede guardar, queda como estaba.
+- **Tareas y Compras** (desde 2.4.0) muestran el mismo selector y siguen el mismo orden: es uno
+  solo por apartado. En Manual sus filas se arrastran igual (pulsacion larga, Alt+Flecha) y
+  mover algo en Tareas lo mueve tambien en Ahora, y al reves. Con un filtro (estado, etiqueta)
+  o "Ver mas" solo se mueven las filas que se ven; lo oculto conserva su lugar. En Automatico y
+  en Todo las listas siguen como siempre (prioridad) y no se arrastran.
 
 **Puntaje.** Solo compite lo que esta en Requiere atencion o Proximo: lo que espera a otro
 o cae otro dia nunca se propone. Cada regla suma y la **primera que aplica da el motivo**
@@ -323,7 +328,7 @@ Lo que cambio en 2.1, en el orden en que se usa.
 | Apartado | el chip del encabezado abre el selector de apartados (Todo y los activos, con icono y cuentas). En escritorio, la barra lateral lista vistas y contextos |
 | Captura | la barra queda justo arriba de las pestañas (en escritorio, arriba de la columna). Al tipear aparecen chips con lo que se va a guardar: apartado (o "Nota"), dia y prioridad, leidos con las mismas reglas que al guardar. Tocar el chip del apartado abre "Guardar en" y elige otro apartado solo para esa captura |
 | Hojas | todas son dialogos accesibles: se cierran con la X de arriba, Escape, tocando el fondo, deslizando la cabecera hacia abajo o con atras. El foco queda adentro y vuelve a quien la abrio. En la ficha, el titulo se edita arriba y una fila rapida ofrece Hecho, Hoy, Mañana y Elegir dia. En escritorio la hoja es un dialogo centrado |
-| Tarjetas | un circulo a la izquierda completa (o marca la compra). Deslizar a la derecha completa; a la izquierda abre el menu rapido: Hoy, Mañana, Prioridad, Mover a Compras, Borrar y Mas opciones. Tambien se abre con el boton de tres puntos de la tarjeta, manteniendo apretado (salvo en Ahora con orden Manual, donde eso arrastra), con clic derecho o con Shift+F10. Todo se puede deshacer |
+| Tarjetas | un circulo a la izquierda completa (o marca la compra). Deslizar a la derecha completa; a la izquierda abre el menu rapido: Hoy, Mañana, Prioridad, Mover a Compras, Borrar y Mas opciones. Tambien se abre con el boton de tres puntos de la tarjeta, manteniendo apretado (salvo en orden Manual, en Ahora, Tareas o Compras, donde eso arrastra), con clic derecho o con Shift+F10. Todo se puede deshacer |
 | Listas largas | Tareas, Compras, Diario, Registro y la busqueda muestran de a 50 filas; **Ver más (N)** suma 50 sin perder el lugar |
 | Estados vacios | cada vista sin contenido muestra un icono, una linea y, si corresponde, la accion para salir de ahi (Capturar, Nueva mision, Ver todo, Borrar busqueda...) |
 | Ajustes | Backup primero (con el ultimo backup), luego Pantalla, Recordatorios, Catalogos e Info (versiones, esquema, cuentas, prefijo) al final |
@@ -690,7 +695,7 @@ sin migracion.
 | `fecha` | `''` si no es un dia valido `AAAA-MM-DD` | dia en que cae el item | 2.0 |
 | `proyectoId` | `''` si no es un id seguro | mision vinculada | 2.0 |
 | `rutinaId` | `''` si no es un id seguro | rutina de la que es ocurrencia | 2.0 |
-| `ordenManual` | `0` (sin ordenar) si no es un entero positivo | lugar en el orden manual de Ahora de su apartado | 2.3 |
+| `ordenManual` | `0` (sin ordenar) si no es un entero positivo | lugar en el orden manual de su apartado (Ahora, Tareas y Compras) | 2.3 |
 | `ocurrencia` | `''` si no es un dia valido | dia de la ocurrencia | 2.0 |
 | `motivo` | `''` si no es `omitida`, `no_corresponde`, `delegada` o `vencida` | motivo de cierre de una ocurrencia | 2.0 |
 

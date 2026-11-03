@@ -1598,13 +1598,15 @@
     li.addEventListener('pointercancel', function (ev) { soltar(ev, true); });
   }
 
-  /* ---------- orden manual de Ahora ----------
+  /* ---------- orden manual ----------
      Un apartado en orden manual muestra en Ahora la lista que se arrastra
-     (hero incluido como primera fila). Mantener apretada una fila 350 ms la
-     levanta: una copia sigue al dedo o al mouse y un hueco marca donde cae.
-     Moverse antes de los 350 ms es scroll o swipe y no la levanta. Soltar
-     guarda el orden (KCOCore.rangosTrasMover). Teclado: Alt+Flecha arriba o
-     abajo mueve la fila enfocada un lugar. */
+     (hero incluido como primera fila), y Tareas y Compras siguen ese mismo
+     orden y tambien se arrastran: hay un solo orden por apartado (el rango
+     ordenManual de cada item) y un solo switch. Mantener apretada una fila
+     350 ms la levanta: una copia sigue al dedo o al mouse y un hueco marca
+     donde cae. Moverse antes de los 350 ms es scroll o swipe y no la levanta.
+     Soltar guarda el orden (KCOCore.rangosTrasMover). Teclado: Alt+Flecha
+     arriba o abajo mueve la fila enfocada un lugar. */
   var LARGA_ORDEN = 350;
   var MOVER_ANTES = 8;
   /* Filas de la lista manual en Ahora: entran tambien las que requieren
@@ -1623,14 +1625,16 @@
     if (!guardarRegistro(l)) { avisar('No se pudo guardar el orden (fallo al guardar). No se cambi\u00F3 nada.'); }
   }
 
-  function pintarOrdenAhora(cont) {
+  /* El switch Automatico/Manual del apartado. Es el mismo en Ahora, Tareas y
+     Compras; cada vista lo pinta con su propio id. */
+  function pintarOrdenAhora(cont, id) {
     if (contexto === 'todo') { return; }
     var modo = K.ordenAhora(contexto), caja = nodo('div', 'orden-ahora'), seg = nodo('div', 'seg'), i;
     var defs = [{ id: 'auto', nom: 'Autom\u00E1tico' }, { id: 'manual', nom: 'Manual' }];
-    caja.id = 'ordenAhora';
+    caja.id = id;
     caja.appendChild(nodo('span', 'orden-rot', 'Orden'));
     seg.setAttribute('role', 'group');
-    seg.setAttribute('aria-label', 'Orden de Ahora en ' + nomCtx(contexto));
+    seg.setAttribute('aria-label', 'Orden en ' + nomCtx(contexto));
     for (i = 0; i < defs.length; i++) {
       (function (d) {
         var b = nodo('button', modo === d.id ? 'segbtn on' : 'segbtn', d.nom);
@@ -1644,6 +1648,42 @@
     }
     caja.appendChild(seg);
     cont.appendChild(caja);
+  }
+
+  /* Switch de orden de una lista (Tareas, Compras) en su caja de index.html,
+     con la pista de arrastre cuando la lista se puede ordenar. Devuelve si la
+     lista va en orden manual. */
+  function pintarOrdenLista(cajaId, id, pistaId, que) {
+    var caja = $(cajaId), manual = contexto !== 'todo' && K.ordenAhora(contexto) === 'manual';
+    vaciar(caja);
+    pintarOrdenAhora(caja, id);
+    if (manual && !soloLectura) {
+      var pista = nodo('div', 'sec-nota', 'Manten\u00E9 presionada ' + que + ' y arrastrala. Es el mismo orden que en Ahora.');
+      pista.id = pistaId;
+      caja.appendChild(pista);
+    }
+    return manual;
+  }
+
+  /* Items en el orden manual: primero los ordenados por su rango, despues los
+     que nunca se ordenaron, en el orden automatico de la lista (ordenar). */
+  function ordenarManualItems(arr) {
+    var base = ordenar(arr), r = [], i;
+    for (i = 0; i < base.length; i++) { r.push({ item: base[i] }); }
+    r = K.ordenarManual(r);
+    for (i = 0; i < r.length; i++) { r[i] = r[i].item; }
+    return r;
+  }
+
+  /* Todos los items del apartado (tareas y compras, cualquier estado) en su
+     orden manual, como ids: es el orden completo que se renumera al mover una
+     fila de Tareas o Compras, asi lo que no se ve conserva su lugar. */
+  function ordenDelApartado() {
+    var l = [], r = [], i;
+    for (i = 0; i < items.length; i++) { if (items[i].contexto === contexto) { l.push(items[i]); } }
+    l = ordenarManualItems(l);
+    for (i = 0; i < l.length; i++) { r.push(l[i].id); }
+    return r;
   }
 
   /* Guarda los rangos tras llevar id al lugar indice de visibles. Si no se
@@ -1680,17 +1720,24 @@
     return r;
   }
 
-  function conectarOrden(ul, orden, visibles) {
-    var filas = filasOrden(ul), pista = ul.parentNode ? ul.parentNode.getElementsByClassName('sec-nota')[0] : null, i;
+  /* pistaId: el id de la pista de arrastre de la lista; sin el, la nota de la
+     seccion (Ahora) pasa a ser ordenPista. Tras mover con el teclado el foco
+     vuelve a la fila dentro de la raiz: el id de la lista o de su seccion. */
+  function conectarOrden(ul, orden, visibles, pistaId) {
+    var filas = filasOrden(ul), pista = pistaId ? $(pistaId) : null, i;
+    var raiz = ul.id || (ul.parentNode && ul.parentNode.id) || '';
+    if (!pistaId && ul.parentNode) {
+      pista = ul.parentNode.getElementsByClassName('sec-nota')[0] || null;
+      if (pista) { pista.id = 'ordenPista'; }
+    }
     ul.className = ul.className + ' ordenable';
-    if (pista) { pista.id = 'ordenPista'; }
-    for (i = 0; i < filas.length; i++) { prepararFilaOrden(filas[i], ul, orden, visibles); }
+    for (i = 0; i < filas.length; i++) { prepararFilaOrden(filas[i], ul, orden, visibles, pista ? pista.id : '', raiz); }
   }
 
-  function prepararFilaOrden(li, ul, orden, visibles) {
+  function prepararFilaOrden(li, ul, orden, visibles, pistaId, raiz) {
     if (!li.addEventListener) { return; }
     var id = li.getAttribute('data-id'), espera = null, x0 = 0, y0 = 0, idP = null, fuenteEspera = '';
-    li.setAttribute('aria-describedby', 'ordenPista');
+    if (pistaId) { li.setAttribute('aria-describedby', pistaId); }
     li.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
     li.addEventListener('keydown', function (ev) {
       if (ev.target !== li || !ev.altKey) { return; }
@@ -1700,7 +1747,7 @@
       ev.preventDefault();
       if (pos < 0 || pos >= visibles.length) { return; }
       if (aplicarOrden(orden, id, pos, visibles)) {
-        var nueva = $('secSigue') ? $('secSigue').querySelector('li.item[data-id="' + id + '"]') : null;
+        var cont = raiz ? $(raiz) : null, nueva = cont ? cont.querySelector('li.item[data-id="' + id + '"]') : null;
         enfocar(nueva);
       }
     });
@@ -1842,16 +1889,26 @@
   /* Copia bajo el dedo y hueco en la fila que corresponde a y (coordenada de
      la ventana). Se repite tras cada paso de desplazamiento automatico. */
   function colocarOrden(y) {
-    var o = ordenActivo, ur = o.ul.getBoundingClientRect(), filas = filasOrden(o.ul), n = 0, i, r;
+    var o = ordenActivo, ur = o.ul.getBoundingClientRect(), filas = filasOrden(o.ul), n = 0, i, r, ante;
     o.fantasma.style.top = (y - ur.top - o.dy) + 'px';
     for (i = 0; i < filas.length; i++) {
       r = filas[i].getBoundingClientRect();
       if (y > r.top + r.height / 2) { n = i + 1; }
     }
-    if (n !== o.indice || o.hueco.nextSibling !== (filas[n] || null)) {
-      o.ul.insertBefore(o.hueco, filas[n] || o.fantasma);
+    /* Al final, el hueco queda antes del pie (Ver mas) si la lista lo tiene. */
+    ante = filas[n] || finOrden(o.ul) || o.fantasma;
+    if (n !== o.indice || o.hueco.nextSibling !== ante) {
+      o.ul.insertBefore(o.hueco, ante);
       o.indice = n;
     }
+  }
+
+  function finOrden(ul) {
+    var n;
+    for (n = ul.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === 1 && / vermas-fila /.test(' ' + n.className + ' ')) { return n; }
+    }
+    return null;
   }
 
   /* ---------- desplazamiento automatico al arrastrar ----------
@@ -2115,12 +2172,15 @@
     cont.appendChild(pie);
   }
 
-  function pintarLista(tipo, filtroActual, listaId, vacioId) {
+  /* manual: la lista sigue el orden manual del apartado y sus filas (solo
+     las que se muestran) se arrastran; pistaId es su pista de arrastre. */
+  function pintarLista(tipo, filtroActual, listaId, vacioId, manual, pistaId) {
     var lista = $(listaId);
     while (lista.firstChild) { lista.removeChild(lista.firstChild); }
-    var arr = ordenar(delContexto(tipo));
+    lista.className = lista.className.replace(/ ordenable/g, '');
+    var arr = manual ? ordenarManualItems(delContexto(tipo)) : ordenar(delContexto(tipo));
     var lim = limiteTrozo(listaId, tipo + '|' + contexto + '|' + filtroActual + '|' + (tipo === 'tarea' ? filtroTag : ''));
-    var i, visibles = 0;
+    var i, visibles = 0, ids = [];
     for (i = 0; i < arr.length; i++) {
       var it = arr[i];
       if (filtroActual === 'activos') {
@@ -2128,9 +2188,10 @@
       } else if (it.estado !== filtroActual) { continue; }
       if (tipo === 'tarea' && filtroTag !== '' && it.tag !== filtroTag) { continue; }
       visibles++;
-      if (visibles <= lim) { lista.appendChild(nodoItem(it)); }
+      if (visibles <= lim) { lista.appendChild(nodoItem(it)); ids.push(it.id); }
     }
     if (visibles > lim) { botonVerMas(lista, listaId, visibles - lim, pintar); }
+    if (manual && !soloLectura && ids.length > 0) { conectarOrden(lista, ordenDelApartado(), ids, pistaId); }
     $(vacioId).style.display = visibles === 0 ? 'block' : 'none';
     return visibles;
   }
@@ -2142,7 +2203,8 @@
       filtro = id; escribir(K_FILTRO, filtro); pintar();
     });
     pintarChipsTag();
-    if (pintarLista('tarea', filtro, 'lista', 'vacioTablero') === 0) { vacioTareas(); }
+    var manual = pintarOrdenLista('cajaOrdenTablero', 'ordenTareas', 'pistaTareas', 'una tarea');
+    if (pintarLista('tarea', filtro, 'lista', 'vacioTablero', manual, 'pistaTareas') === 0) { vacioTareas(); }
   }
 
   function vacioTareas() {
@@ -2180,7 +2242,8 @@
     pintarChipsGen('chipsCompra', defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
       filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
     });
-    if (pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras') > 0) { return; }
+    var manual = pintarOrdenLista('cajaOrdenCompras', 'ordenCompras', 'pistaCompras', 'una compra');
+    if (pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras', manual, 'pistaCompras') > 0) { return; }
     if (filtroCompra !== 'activos') {
       estadoVacio($('vacioCompras'), { id: 'compras-filtro', ico: 'cart', tit: 'Nada en ' + estadoInfo(filtroCompra).nom,
         txt: 'Ninguna compra est\u00E1 en ese paso ahora.', acc: esHogar ? 'Ver por comprar' : 'Ver abiertas',
@@ -2632,7 +2695,7 @@
     tile(pulso, 'inbox', inbox.length, 'Inbox', 'secInbox', '');
     tile(pulso, 'hourglass', esperando.length, 'Esperando', 'secEsperando', '');
     cont.appendChild(pulso);
-    pintarOrdenAhora(cont);
+    pintarOrdenAhora(cont, 'ordenAhora');
 
     var mostrados = {};
     if (lista.length === 0) {
