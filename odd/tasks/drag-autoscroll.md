@@ -62,7 +62,10 @@ the placeholder follows.
   RED: both new E2E specs failed on old code (`main.scrollTop` 345 -> 345 touch, 363 -> 363
   mouse). First GREEN attempt regressed `mouse long-press drag and Alt+Arrow keys` (row C lifted
   inside the bottom zone scrolled 108px during the hold); fixed by arming after an 8px move.
-  GREEN: `ahora order` specs 8/8.
+  GREEN: `ahora order` specs 8/8. T01 commit `5a93815`.
+- 2026-11-03: T02 release 2.3.4. Full checks: `node tests/check-es5.mjs` ok; `node --test tests/unit/*.test.js`
+  121/121; `node tests/e2e/run.mjs` 200/200 (198 + 2 new). (`npm test` failed to launch in this shell with an
+  unrelated "claude native binary not installed" npm error; the same command run with node passed.)
 - Engram mirror: pending (writer had no Engram tools loaded; parent to mirror under
   `odd/drag-autoscroll/tasks`).
 
