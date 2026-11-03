@@ -3,6 +3,26 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.5.0 — 2026-11-03 — lo capturado cae en el estado que se mira
+
+Cache `kibco-2.5.0`. Esquema 5 sin cambios. Sin campos nuevos.
+
+### Agregado
+
+- En Tareas o Compras, con un chip de estado elegido (por ejemplo Compras > Comprado), lo que se
+  captura desde la barra nace en ese estado y aparece en la lista que se esta mirando. Pasa por el
+  mismo camino que un cambio de estado a mano (historial, deshacer, XP). La pista de la barra y el
+  chip dicen el estado. Con Activos, desde Ahora u Hoy, con una #etiqueta a otro apartado, o en Todo
+  con un estado que el flujo del apartado destino no tiene (hogar o fabrica), nace como siempre.
+- En Tareas, con una etiqueta elegida, la tarea nueva tambien la lleva (si es del apartado).
+
+### Corregido
+
+- Orden manual: mover algo en Ahora renumera todo el apartado, igual que Tareas y Compras. Antes
+  Ahora renumeraba solo lo suyo y lo que no muestra (hechas, compras cerradas) podia quedar con el
+  mismo numero, y el orden entre esos items quedaba indefinido. Los empates que ya existan se
+  arreglan con el proximo movimiento.
+
 ## 2.4.0 — 2026-11-03 — orden manual en Tareas y Compras
 
 Cache `kibco-2.4.0`. Esquema 5 sin cambios. Sin campos nuevos.

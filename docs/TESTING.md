@@ -1,7 +1,7 @@
 # Pruebas — KCO 2.3
 
 Tres controles, cero dependencias. `npm run verify` los corre en orden y falla al primero que
-no pasa. Conteo actual (2.4.0): **121 pruebas unitarias** y **207 specs E2E**, todas en verde.
+no pasa. Conteo actual (2.5.0): **123 pruebas unitarias** y **211 specs E2E**, todas en verde.
 
 ## Correr
 
@@ -41,7 +41,7 @@ Cargan `kco-core.js` con `require` y usan fechas fijas, asi no dependen del relo
 | `compactacion.test.js` | 8 | `compactarEventos`: XP, nivel, logros, rachas, campaña y diario identicos; eventos posteriores se leen igual; idempotente y sin mutar; lo reciente intacto; un resumen legible como evento comun; tipos desconocidos y fechas ilegibles nunca se quitan; sobrevive el ultimo cierre de cada item |
 | `judgment.test.js` | 11 | regresiones del Judgment Day `1f8a47e` (L6, L7a-c, L8, S3, S7) |
 | `apartados.test.js` | 17 | registro de apartados: normalizacion, ids unicos y slugs, alias de captura (sin acentos ni mayusculas, nunca a un archivado), `modoCompras`, etiquetas propias aunque dos apartados compartan un id, `contextoDeRegistro` (los registros conservan un apartado archivado), siembra legado, emoji por apartado, `progresoMeta` y `textoMeta` |
-| `orden.test.js` | 6 | orden manual de Ahora: `ordenAhora` del apartado (fallback `auto`, sobrevive al registro y al backup, Todo siempre auto), `rangoManual` (solo enteros positivos), `ordenarManual` (ordenados primero, empates y sin orden por puntaje, no muta), `rangosTrasMover` (indice acotado, id desconocido, sublista visible) |
+| `orden.test.js` | 8 | orden manual de Ahora: `ordenAhora` del apartado (fallback `auto`, sobrevive al registro y al backup, Todo siempre auto), `rangoManual` (solo enteros positivos), `ordenarManual` (ordenados primero, empates y sin orden por puntaje, no muta), `rangosTrasMover` (indice acotado, id desconocido, sublista visible), `ordenConSub` (la sublista toma su orden en sus mismos lugares; con `rangosTrasMover`, rangos unicos 1..n aun desde empates) |
 | `notas.test.js` | 7 | `normalizarNota` (topes, saltos de linea, tags como slugs, apartado archivado), `usaNotas`, `notasVisibles` (Todo, archivadas, busqueda por palabras sin acentos, fijadas primero), `parsearNota` |
 | `paleta.test.js` | 3 | cada color de la paleta declarado en ambos temas y con contraste 4.5:1 sobre los fondos |
 | `plantillas.test.js` | 3 | plantillas del primer arranque: validas, ids unicos, "Trabajo y casa" igual a la siembra legado (con try/finally para el registro) |
@@ -124,8 +124,8 @@ por modo de compras), `GOAL_SECTIONS` + `GOAL_ITEMS()`, `NOTE_SECTIONS` + `NOTE_
 | `pwa` | 4 | el service worker cachea (incluido `kco.css`) y la app arranca offline con estilos; aviso de version nueva (en espera y `updatefound`), recarga una sola vez y solo si se pidio; atajo `?capturar=1` |
 | `model` | 4 | marcas de captura, item viejo con fallback, compra de fabrica a Casa, vista Todo |
 | `ahora` | 4 | proximo movimiento con motivo, Hecho desde el hero, Mañana con deshacer, triaje del inbox |
-| `ahora order` | 3 | selector Automatico/Manual por apartado (se guarda en `kibco.apartados`, sobrevive a recargar, otro apartado conserva el suyo, Todo no lo muestra); en Manual una pulsacion larga y arrastre reordena, el hero sigue a la primera fila, persiste, otros apartados sin tocar, un arrastre vertical sin pulsacion larga es scroll, el swipe a la derecha sigue completando, Automatico vuelve al puntaje y Manual recuerda el orden; arrastre con mouse y Alt+Flecha en escritorio |
-| `list order` | 7 | orden manual compartido en Tareas y Compras: arrastre tactil en Tareas que persiste y se refleja en Ahora (y al reves con Alt+Flecha en Ahora), arrastre con mouse en Compras (escritorio), Alt+Flecha en Tareas con el foco en la fila, Automatico y Todo sin arrastre ni switch inducido (switch compartido con Ahora), solo lectura sin arrastre, lista filtrada conserva el lugar de lo oculto, con "Ver mas" solo se mueven las filas visibles y el hueco queda arriba del boton |
+| `ahora order` | 8 | selector Automatico/Manual por apartado (se guarda en `kibco.apartados`, sobrevive a recargar, otro apartado conserva el suyo, Todo no lo muestra); en Manual una pulsacion larga y arrastre reordena, el hero sigue a la primera fila, persiste, otros apartados sin tocar, un arrastre vertical sin pulsacion larga es scroll, el swipe a la derecha sigue completando, Automatico vuelve al puntaje y Manual recuerda el orden; arrastre con mouse y Alt+Flecha en escritorio |
+| `list order` | 9 | orden manual compartido en Tareas y Compras: arrastre tactil en Tareas que persiste y se refleja en Ahora (y al reves con Alt+Flecha en Ahora), arrastre con mouse en Compras (escritorio), Alt+Flecha en Tareas con el foco en la fila, Automatico y Todo sin arrastre ni switch inducido (switch compartido con Ahora), solo lectura sin arrastre, lista filtrada conserva el lugar de lo oculto, con "Ver mas" solo se mueven las filas visibles y el hueco queda arriba del boton; mover en Ahora renumera todo el apartado (rangos unicos, lo que Ahora no muestra conserva su lugar, Inbox no cambia) y los empates viejos se curan con el proximo movimiento |
 | `hoy` | 1 | hoy, vencidas y proximos dias |
 | `recurring` | 9 | crear rutina, historial y racha, vencida, excepcion "no tocaba", previstas, hacer recurrente, backup, borrar la vigente, sin Mover a Compras |
 | `missions` | 5 | crear con hitos y tareas, vincular desde la ficha, completar con tareas abiertas, borrar conserva tareas, backup |
@@ -137,6 +137,7 @@ por modo de compras), `GOAL_SECTIONS` + `GOAL_ITEMS()`, `NOTE_SECTIONS` + `NOTE_
 | `compaction` | 2 | registro lleno se compacta y reintenta una vez; si aun asi falla, avisa y la memoria no cambia |
 | `purchases` | 1 | compra hecha conserva su fecha al cambiar de contexto |
 | `tab capture` | 2 | en la pestaña Compras la barra guarda una compra del apartado (lista simple: por comprar; fabrica: cotizando; un apartado sin compras por #etiqueta la recibe como tarea), pista y chip "Compra"; en la pestaña Notas guarda una nota sin `nota:` |
+| `capture state` | 2 | con un chip de estado elegido en Compras (hogar y fabrica) o Tareas lo capturado nace en ese estado y se ve en la lista (eventos `captura` + `estado`, como un cambio a mano), pista y chip con el estado; Todo con un estado que el flujo destino no tiene, Activos, una #etiqueta a otro apartado y la captura desde Ahora quedan en el estado de siempre; la etiqueta elegida en Tareas se aplica |
 | `multi-tab` | 2 | cambio de datos en otra ventana pone solo lectura; cambio de preferencias (incluido `kibco.tema`) no |
 | `theme` | 4 | sistema claro aplica tokens claros y sigue cambios en vivo (`Emulation.setEmulatedMedia`); Oscuro en Ajustes persiste `kibco.tema` y `data-tema` ya esta en `DOMContentLoaded`; cambio de tema en otra pestana; el backup no lleva el tema |
 | `ux` | 5 | las cinco pestañas inferiores entran a 390 y 340 px (fijas al borde, objetivos de 44px), captura movil, campos de al menos 16px (sin zoom de iOS), todo texto visible de AHORA de al menos 12px |

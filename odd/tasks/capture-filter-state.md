@@ -51,7 +51,7 @@
       and 2 E2E specs (`list order: a move in Ahora renumbers...`, `list order: tied ranks...`).
 - [x] T2 Capture in the selected state filter (and tag) on Tareas/Compras; hint + chip; 2 E2E
       specs (`capture state: ...`).
-- [ ] T3 Release 2.5.0: `VERSION_APP`, `sw.js`, `package.json`, `CHANGELOG.md`, `LEEME.md`,
+- [x] T3 Release 2.5.0: `VERSION_APP`, `sw.js`, `package.json`, `CHANGELOG.md`, `LEEME.md`,
       `docs/TESTING.md` counts, `docs/ARQUITECTURA.md`; full checks.
 
 ## Acceptance criteria
@@ -80,8 +80,14 @@
   `cambiarEstado` after the capture save, hint and chip name the state; `capture` filter 20/20; ES5 ok.
   No explicit state tokens exist in the capture parser, so "explicit token wins" has no case;
   a `#tag` (or the destination chip) to another apartado keeps the default state.
-  T2 commit: `feat(capture): create items in the selected state filter` (next after `ce9bc05`).
+  T2 commit `ad3d31f`.
+- T3 release 2.5.0 (docs: CHANGELOG, LEEME, ARQUITECTURA, TESTING counts incl. the stale
+  `ahora order` row 3 -> 8). Checks after the bump: ES5 ok; unit 123/123; full E2E 210/211, only the known flake `cards: a round checkbox ...`, which passed on rerun (1/1).
+  T3 is the release commit `chore(release): bump version to 2.5.0` (holds this update; its hash
+  is in `git log`, one commit after `ad3d31f`).
+- Engram mirror: topic `odd/capture-filter-state/tasks` (project `kco-centro-operativo-main`),
+  saved after the release commit; if that save failed it is pending.
 
 ## Next step
 
-T3 release 2.5.0.
+Parent: RDD assess on `ce9bc05..HEAD` (base `e30a0a5`), `versiones/` copy, delivery decision (user).
