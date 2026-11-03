@@ -3,6 +3,17 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.3.4 — 2026-11-03 — el arrastre desplaza la lista
+
+Cache `kibco-2.3.4`. Esquema 5 sin cambios.
+
+### Corregido
+
+- En Ahora con orden Manual, arrastrar una tarea cerca del borde de arriba o de abajo ahora
+  desplaza la lista (antes no se movia: se desplazaba la ventana y quien scrollea es el
+  contenido). Sigue desplazandose mientras el dedo o el mouse se quede en el borde, mas rapido
+  cuanto mas cerca, y el hueco acompaña. Funciona en el celular y en la vista de escritorio.
+
 ## 2.3.3 — 2026-11-02 — arrastre tactil mas firme
 
 Cache `kibco-2.3.3`. Esquema 5 sin cambios.
