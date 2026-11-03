@@ -4219,8 +4219,201 @@ export const tests = [
       assert.equal(await page.count('#secAtencion'), 1, 'Automatico keeps Requiere atencion');
       assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo').getAttribute('data-tile')"), 'secAtencion');
     }
+  },
+  {
+    name: 'list order: in Manual a touch long-press drag in Tareas reorders, persists, and Ahora shares the same order both ways',
+    storage: ORDER_SEED('manual'),
+    async fn(page) {
+      await toTasks(page);
+      assert.equal(await listOrderOn(page, 'ordenTareas'), 'manual', 'the shared switch is shown in Tareas');
+      assert.equal(await page.eval("document.querySelector('#ordenTareas .seg').getAttribute('aria-label')"), 'Orden en Taller');
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'C', 'D']);
+      assert.equal(await page.count('#lista.ordenable'), 1, 'the Tareas list is draggable');
+      await page.eval("document.getElementById('lista').scrollIntoView(true)");
+      const d = await page.rect('#lista li.item[data-id="D"]'), a = await page.rect('#lista li.item[data-id="A"]');
+      await page.drag(d.x + d.w / 2, d.y + d.h / 2, d.x + d.w / 2, a.y + 4, 12, 500);
+      assert.deepEqual(await listRows(page, 'lista'), ['D', 'A', 'B', 'C'], 'long-press drag to the top');
+      await page.screenshot(path.join(OUT, 'tareas-orden-manual.png'));
+      const list = await items(page);
+      assert.deepEqual(['A', 'B', 'C', 'D'].map((id) => list.find((i) => i.id === id).ordenManual), [2, 3, 4, 1]);
+      assert.deepEqual(list.filter((i) => i.contexto === 'mercado').map((i) => i.ordenManual), [0, 0], 'other sections unaffected');
+      assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa', 'no quick menu');
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'no item sheet');
+      assert.equal(await page.count('#lista .orden-fantasma, #lista .orden-hueco'), 0, 'no floating copy or placeholder');
+      await page.reload();
+      await toTasks(page);
+      assert.deepEqual(await listRows(page, 'lista'), ['D', 'A', 'B', 'C'], 'kept after reload');
+      await page.click('#tabAhora');
+      assert.deepEqual(await orderRows(page), ['D', 'A', 'B', 'C'], 'Ahora shows the order set in Tareas');
+      await page.eval(`(function(){var l=document.querySelector('#secSigue li.item[data-id="C"]');l.focus();
+        l.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',keyCode:38,altKey:true,bubbles:true,cancelable:true}));})()`);
+      await sleep(80);
+      assert.deepEqual(await orderRows(page), ['D', 'A', 'C', 'B']);
+      await toTasks(page);
+      assert.deepEqual(await listRows(page, 'lista'), ['D', 'A', 'C', 'B'], 'Tareas shows the order set in Ahora');
+    }
+  },
+  {
+    name: 'list order: in Manual a mouse long-press drag reorders Compras (desktop) without touching the Tareas order',
+    storage: COMPRA_ORDER_SEED(),
+    width: 1366, height: 900, mobile: false,
+    async fn(page) {
+      await page.eval("document.getElementById('tabTareas').click()");
+      await page.eval("document.getElementById('segBtnCompras').click()");
+      await sleep(80);
+      assert.equal(await listOrderOn(page, 'ordenCompras'), 'manual', 'the shared switch is shown in Compras');
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['K1', 'K2', 'K3']);
+      const k3 = await page.rect('#listaCompras li.item[data-id="K3"]'), k1 = await page.rect('#listaCompras li.item[data-id="K1"]');
+      await page.mouseDrag(k3.x + k3.w / 2, k3.y + k3.h / 2, k3.x + k3.w / 2, k1.y + 4, 10, 500);
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['K3', 'K1', 'K2'], 'mouse drag to the top');
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'the drop is not a click');
+      await page.reload();
+      await page.eval("document.getElementById('tabTareas').click()");
+      await page.eval("document.getElementById('segBtnCompras').click()");
+      await sleep(80);
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['K3', 'K1', 'K2'], 'kept after reload');
+      await page.eval("document.getElementById('segBtnTareas').click()");
+      await sleep(80);
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'C', 'D'], 'the tasks keep their relative order');
+    }
+  },
+  {
+    name: 'list order: Alt+Arrow keys move the focused Tareas row in Manual and focus stays on it',
+    storage: ORDER_SEED('manual'),
+    async fn(page) {
+      await toTasks(page);
+      const key = (id, k, code) => page.eval(`(function(){var l=document.querySelector('#lista li.item[data-id="${id}"]');l.focus();
+        l.dispatchEvent(new KeyboardEvent('keydown',{key:'${k}',keyCode:${code},altKey:true,bubbles:true,cancelable:true}));})()`);
+      assert.equal(await page.eval("document.querySelector('#lista li.item').getAttribute('aria-describedby')"), 'pistaTareas');
+      assert.ok(await page.visible('#pistaTareas'), 'the drag hint is shown');
+      await key('C', 'ArrowUp', 38);
+      await sleep(80);
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'C', 'B', 'D']);
+      assert.equal(await page.eval("document.activeElement && document.activeElement.getAttribute('data-id')"), 'C');
+      assert.equal(await page.eval("!!(document.activeElement && document.activeElement.closest('#lista'))"), true, 'focus stays in Tareas');
+      await key('C', 'ArrowDown', 40);
+      await sleep(80);
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'C', 'D']);
+    }
+  },
+  {
+    name: 'list order: Automatico and Todo keep Tareas and Compras sorted and not draggable; the switch is shared with Ahora',
+    storage: COMPRA_ORDER_SEED(''),
+    async fn(page) {
+      await toTasks(page);
+      assert.equal(await listOrderOn(page, 'ordenTareas'), 'auto');
+      assert.equal(await page.count('#lista.ordenable'), 0, 'not draggable in Automatico');
+      assert.equal(await page.count('#lista li[data-ordenable]'), 0);
+      assert.equal(await page.count('#pistaTareas'), 0, 'no drag hint');
+      await openQuickMenu(page, '#lista li.item[data-id="B"]');
+      await page.key('Escape');
+      await sleep(80);
+      await page.click('#ordenTareas [data-orden="manual"]');
+      assert.equal(await page.count('#lista.ordenable'), 1, 'Manual makes it draggable');
+      const stored = JSON.parse(await page.storage('kibco.apartados'));
+      assert.deepEqual(stored.map((a) => [a.id, a.ordenAhora]), [['taller', 'manual'], ['mercado', 'auto']]);
+      await page.click('#tabAhora');
+      assert.equal(await orderOn(page), 'manual', 'the same switch as Ahora');
+      await toTasks(page);
+      await page.click('#ordenTareas [data-orden="auto"]');
+      assert.equal(await page.count('#lista.ordenable'), 0, 'back to Automatico');
+      await page.click('#segBtnCompras');
+      assert.equal(await listOrderOn(page, 'ordenCompras'), 'auto');
+      assert.equal(await page.count('#listaCompras.ordenable'), 0);
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
+      await sleep(80);
+      assert.equal(await page.count('#ordenCompras'), 0, 'Todo has no switch in Compras');
+      assert.equal(await page.count('#listaCompras.ordenable'), 0);
+      await page.click('#segBtnTareas');
+      assert.equal(await page.count('#ordenTareas'), 0, 'Todo has no switch in Tareas');
+      assert.equal(await page.count('#lista.ordenable'), 0);
+    }
+  },
+  {
+    name: 'list order: read-only data never makes Tareas draggable',
+    storage: Object.assign(ORDER_SEED('manual'), { 'kibco.esquema': '6' }),
+    async fn(page) {
+      await toTasks(page);
+      assert.ok((await page.count('#lista li.item')) > 0, 'rows shown');
+      assert.equal(await page.count('#lista.ordenable'), 0, 'no drag while read-only');
+      assert.equal(await page.count('#lista li[data-ordenable]'), 0);
+    }
+  },
+  {
+    name: 'list order: dragging inside a filtered Tareas list keeps the hidden items in their place',
+    storage: ORDER_SEED('manual'),
+    async fn(page) {
+      await toTasks(page);
+      await page.click('#chips [data-filtro="pendiente"]');
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'C', 'D'], 'B (in progress) is filtered out');
+      await page.eval("document.getElementById('lista').scrollIntoView(true)");
+      const d = await page.rect('#lista li.item[data-id="D"]'), a = await page.rect('#lista li.item[data-id="A"]');
+      await page.drag(d.x + d.w / 2, d.y + d.h / 2, d.x + d.w / 2, a.y + 4, 12, 500);
+      assert.deepEqual(await listRows(page, 'lista'), ['D', 'A', 'C']);
+      await page.click('#chips [data-filtro="activos"]');
+      assert.deepEqual(await listRows(page, 'lista'), ['D', 'B', 'A', 'C'], 'B keeps its slot');
+      await page.click('#tabAhora');
+      assert.deepEqual(await orderRows(page), ['D', 'B', 'A', 'C'], 'Ahora agrees');
+    }
+  },
+  {
+    name: 'list order: with "Ver mas" only the shown rows move and the placeholder never goes below the button',
+    storage: PAGED_ORDER_SEED(),
+    async fn(page) {
+      await toTasks(page);
+      assert.equal(await page.count('#lista li.item'), 50);
+      assert.equal(await page.count('#lista li.item[data-ordenable]'), 50, 'every shown row is draggable');
+      assert.equal(await page.count('#lista .vermas'), 1);
+      const key = (id, k, code) => page.eval(`(function(){var l=document.querySelector('#lista li.item[data-id="${id}"]');l.focus();
+        l.dispatchEvent(new KeyboardEvent('keydown',{key:'${k}',keyCode:${code},altKey:true,bubbles:true,cancelable:true}));})()`);
+      await key('X46', 'ArrowDown', 40);
+      await sleep(80);
+      assert.ok((await items(page)).every((i) => !i.ordenManual), 'the last shown row cannot move into the hidden ones');
+      await key('X46', 'ArrowUp', 38);
+      await sleep(80);
+      assert.deepEqual((await listRows(page, 'lista')).slice(47), ['X44', 'X46', 'X45']);
+      // A mouse hold on the last shown row dragged over the button keeps the placeholder above it.
+      const ev = (type, sel) => page.eval(`(function(){var b=document.querySelector('#lista li.item[data-id="X45"]'),t=document.querySelector('${sel}');
+        t.scrollIntoView({block:'center'});var r=b.getBoundingClientRect(),q=t.getBoundingClientRect();
+        b.dispatchEvent(new PointerEvent('${type}',{bubbles:true,cancelable:true,isPrimary:true,pointerId:4,pointerType:'mouse',button:0,buttons:1,clientX:r.left+20,clientY:q.top+q.height/2}));})()`);
+      await ev('pointerdown', '#lista li.item[data-id="X45"]');
+      await sleep(500);
+      assert.equal(await page.eval("document.documentElement.hasAttribute('data-ordenando')"), true, 'the drag started');
+      await ev('pointermove', '#lista .vermas');
+      assert.equal(await page.eval("(function(){var h=document.querySelector('#lista .orden-hueco');return !!h&&!!h.nextElementSibling&&h.nextElementSibling.className.indexOf('vermas-fila')>-1;})()"), true, 'placeholder above Ver mas');
+      await ev('pointercancel', '#lista .vermas');
+      await sleep(80);
+      await page.click('#lista .vermas');
+      assert.deepEqual((await listRows(page, 'lista')).slice(47), ['X44', 'X46', 'X45', 'X47', 'X48', 'X49', 'X50'], 'the hidden rows keep their order');
+    }
   }
 ];
+
+// ORDER_SEED plus three Taller purchases in a clear automatic order (K1 > K2 > K3).
+function COMPRA_ORDER_SEED(mode = 'manual') {
+  const s = ORDER_SEED(mode);
+  const list = JSON.parse(s['kibco.items']);
+  const base = list[0];
+  list.push(Object.assign({}, base, { id: 'K1', texto: 'compra K1', tipo: 'compra', estado: 'cotizando', nivel: 'importante' }));
+  list.push(Object.assign({}, base, { id: 'K2', texto: 'compra K2', tipo: 'compra', estado: 'cotizando', nivel: 'normal' }));
+  list.push(Object.assign({}, base, { id: 'K3', texto: 'compra K3', tipo: 'compra', estado: 'cotizando', nivel: 'baja' }));
+  s['kibco.items'] = JSON.stringify(list);
+  return s;
+}
+// ORDER_SEED('manual') plus 50 low-priority Taller tasks: Tareas shows 50 rows and "Ver mas".
+function PAGED_ORDER_SEED() {
+  const s = ORDER_SEED('manual');
+  const list = JSON.parse(s['kibco.items']);
+  const base = list[3];
+  for (let i = 1; i <= 50; i++) {
+    const id = 'X' + String(i).padStart(2, '0');
+    list.push(Object.assign({}, base, { id, texto: 'extra ' + id }));
+  }
+  s['kibco.items'] = JSON.stringify(list);
+  return s;
+}
+const listRows = (page, id) => page.eval(`Array.prototype.map.call(document.querySelectorAll('#${id} li.item'),function(l){return l.getAttribute('data-id');})`);
+const listOrderOn = (page, id) => page.eval(`(function(){var b=document.querySelector('#${id} .segbtn.on');return b?b.getAttribute('data-orden'):null;})()`);
 
 // ORDER_SEED plus two overdue Taller tasks (17 and 3 days).
 function ATTENTION_SEED(mode) {
