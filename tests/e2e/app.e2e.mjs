@@ -4422,6 +4422,96 @@ export const tests = [
       await toTasks(page);
       assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'D', 'C', 'E'], 'Tareas agrees');
     }
+  },
+  {
+    name: 'capture state: on Compras with a state chip selected the new purchase is created in that state (hogar and fabrica); Activos keeps the default',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'mercado' },
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      await page.click('#chipsCompra [data-filtro="comprado"]');
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Compra en Mercado · Comprado/, 'the hint names the state');
+      await page.type('#txtCaptura', 'yerba mate');
+      assert.match(await page.text('#capDia'), /Compra · Comprado/, 'the chip names the state');
+      await page.type('#txtCaptura', 'yerba mate', true);
+      let list = await items(page);
+      assert.deepEqual([list[0].tipo, list[0].estado, list[0].contexto], ['compra', 'comprado', 'mercado']);
+      assert.deepEqual(await listRows(page, 'listaCompras'), [list[0].id], 'shown in the list being looked at');
+      const ev = (await events(page)).filter((e) => e.itemId === list[0].id).map((e) => [e.tipo, e.desde, e.hasta]);
+      assert.deepEqual(ev, [['captura', '', 'por_comprar'], ['estado', 'por_comprar', 'comprado']], 'same history as capture + manual move');
+      // Factory flow: its own state chips.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"taller\"]').click()");
+      await sleep(80);
+      await page.click('#chipsCompra [data-filtro="oc_enviada"]');
+      await page.type('#txtCaptura', 'rodamientos', true);
+      list = await items(page);
+      assert.deepEqual([list[1].estado, list[1].contexto], ['oc_enviada', 'taller']);
+      assert.deepEqual(await listRows(page, 'listaCompras'), [list[1].id]);
+      // Todo mixes both flows: a state the target flow lacks keeps the default.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
+      await sleep(80);
+      await page.click('#chipsCompra [data-filtro="comprado"]');
+      assert.doesNotMatch(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /Comprado/, 'no state in the hint when it does not apply');
+      await page.type('#txtCaptura', 'correas', true);
+      list = await items(page);
+      assert.deepEqual([list[2].estado, list[2].contexto], ['cotizando', 'taller'], 'never a hogar state in a factory section');
+      await page.click('#chipsCompra [data-filtro="recibido"]');
+      await page.type('#txtCaptura', 'bulones', true);
+      list = await items(page);
+      assert.deepEqual([list[3].estado, list[3].contexto], ['recibido', 'taller'], 'a valid state applies in Todo');
+      // Activos: the default as always.
+      await page.click('#chipsCompra [data-filtro="activos"]');
+      await page.type('#txtCaptura', 'grasa', true);
+      list = await items(page);
+      assert.equal(list[4].estado, 'cotizando');
+    }
+  },
+  {
+    name: 'capture state: on Tareas with a state chip and a tag selected the new task lands in that list; Activos and Ahora keep the default',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'taller',
+      'kibco.items': JSON.stringify([{ id: 'T0', texto: 'torno viejo', contexto: 'taller', tipo: 'tarea', estado: 'proceso', tag: 'tornos',
+        nivel: 'normal', creado: '2026-10-01T12:00:00.000Z', actualizado: '2026-10-01T12:00:00.000Z', estadoDesde: '2026-10-01T12:00:00.000Z' }]) },
+    async fn(page) {
+      await toTasks(page);
+      await page.click('#chips [data-filtro="proceso"]');
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Capturar en Taller · En proceso/);
+      await page.type('#txtCaptura', 'pulir eje');
+      assert.match(await page.text('#capDia'), /En proceso/, 'the chip names the state');
+      await page.type('#txtCaptura', 'pulir eje', true);
+      let list = await items(page);
+      assert.deepEqual([list[1].tipo, list[1].estado, list[1].tag], ['tarea', 'proceso', '']);
+      assert.ok((await listRows(page, 'lista')).includes(list[1].id), 'shown in the filtered list');
+      // A tag filter: the task also gets the tag.
+      await page.click('#chipsTag [data-tag-filtro="tornos"]');
+      await page.type('#txtCaptura', 'cambiar correa', true);
+      list = await items(page);
+      assert.deepEqual([list[2].estado, list[2].tag], ['proceso', 'tornos']);
+      assert.ok((await listRows(page, 'lista')).includes(list[2].id), 'shown with state and tag filters on');
+      await page.click('#chipsTag [data-tag-filtro="tornos"]');
+      // A closed state works the same as a manual completion (same events).
+      await page.click('#chips [data-filtro="completado"]');
+      await page.type('#txtCaptura', 'lubricar', true);
+      list = await items(page);
+      assert.equal(list[3].estado, 'completado');
+      const ev = (await events(page)).filter((e) => e.itemId === list[3].id).map((e) => [e.tipo, e.desde, e.hasta]);
+      assert.deepEqual(ev, [['captura', '', 'entrada'], ['estado', 'entrada', 'completado']]);
+      // A #tag to another section never takes this view's state.
+      await page.type('#txtCaptura', 'repasar #estudio', true);
+      list = await items(page);
+      assert.deepEqual([list[4].estado, list[4].contexto], ['entrada', 'estudio']);
+      // Activos: inbox as always.
+      await page.click('#chips [data-filtro="activos"]');
+      await page.type('#txtCaptura', 'medir', true);
+      list = await items(page);
+      assert.equal(list[5].estado, 'entrada');
+      // Capture from Ahora ignores the Tareas filter.
+      await page.click('#chips [data-filtro="proceso"]');
+      await page.click('#tabAhora');
+      assert.doesNotMatch(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /En proceso/);
+      await page.type('#txtCaptura', 'desde ahora', true);
+      list = await items(page);
+      assert.equal(list[6].estado, 'entrada', 'Ahora keeps the inbox default');
+    }
   }
 ];
 
