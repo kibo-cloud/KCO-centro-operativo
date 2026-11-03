@@ -4021,6 +4021,78 @@ export const tests = [
     }
   },
   {
+    name: 'ahora order: holding a touch drag near the bottom or top edge keeps scrolling main and the placeholder follows',
+    storage: LONG_ORDER_SEED(),
+    async fn(page) {
+      assert.ok(await page.eval("(function(){var m=document.querySelector('main');return m.scrollHeight>m.clientHeight+200;})()"), 'main overflows');
+      await page.eval("document.querySelector('#secSigue li.item[data-id=\"C\"]').scrollIntoView({block:'center'})");
+      // Long-press C with touch events, then park the finger near the bottom edge without moving again.
+      await page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="C"]'),r=b.getBoundingClientRect();
+        var t=new Touch({identifier:21,target:b,clientX:r.left+r.width/2,clientY:r.top+r.height/2});
+        b.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t]}));})()`);
+      await sleep(500);
+      assert.equal(await page.eval("document.documentElement.hasAttribute('data-ordenando')"), true, 'the drag started');
+      const park = (where) => page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="C"]'),m=document.querySelector('main').getBoundingClientRect();
+        var bajo=Math.min(m.bottom,window.innerHeight),c=document.querySelector('.captura'),tb=document.querySelector('.tabs');
+        [c,tb].forEach(function(e){if(!e)return;var s=getComputedStyle(e),r=e.getBoundingClientRect();if(s.position==='fixed'&&r.height>0&&r.top<bajo)bajo=r.top;});
+        var y=${where === 'bottom' ? 'bajo-6' : 'Math.max(m.top,0)+6'};
+        var t=new Touch({identifier:21,target:b,clientX:m.left+40,clientY:y});
+        b.dispatchEvent(new TouchEvent('touchmove',{bubbles:true,cancelable:true,touches:[t],targetTouches:[t],changedTouches:[t]}));})()`);
+      const state = () => page.eval(`(function(){var m=document.querySelector('main'),h=document.querySelector('#secSigue .orden-hueco');
+        return {top:m.scrollTop,hole:h?Array.prototype.indexOf.call(h.parentNode.children,h):-1};})()`);
+      await park('bottom');
+      const s0 = await state();
+      await sleep(700);
+      const s1 = await state();
+      assert.ok(s1.top > s0.top + 40, 'held at the bottom edge, main keeps scrolling down: ' + s0.top + ' -> ' + s1.top);
+      assert.ok(s1.hole > s0.hole, 'the placeholder moved down with the scroll: ' + s0.hole + ' -> ' + s1.hole);
+      await park('top');
+      const s2 = await state();
+      await sleep(700);
+      const s3 = await state();
+      assert.ok(s3.top < s2.top - 40, 'held at the top edge, main keeps scrolling up: ' + s2.top + ' -> ' + s3.top);
+      assert.ok(s3.hole < s2.hole, 'the placeholder moved up with the scroll: ' + s2.hole + ' -> ' + s3.hole);
+      // Releasing stops the scroll loop and drops C where the placeholder was.
+      await page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="C"]');
+        var t=new Touch({identifier:21,target:b,clientX:20,clientY:20});
+        b.dispatchEvent(new TouchEvent('touchend',{bubbles:true,cancelable:true,touches:[],targetTouches:[],changedTouches:[t]}));})()`);
+      await sleep(120);
+      assert.equal(await page.eval("document.documentElement.hasAttribute('data-ordenando')"), false, 'drag ended');
+      assert.equal(await page.count('#secSigue .orden-fantasma, #secSigue .orden-hueco'), 0, 'no floating copy or placeholder');
+      const after = await page.eval("document.querySelector('main').scrollTop");
+      await sleep(300);
+      assert.equal(await page.eval("document.querySelector('main').scrollTop"), after, 'no scrolling after the drop');
+    }
+  },
+  {
+    name: 'ahora order: a mouse drag held near the bottom edge scrolls main on desktop too',
+    storage: LONG_ORDER_SEED(),
+    width: 1366, height: 700, mobile: false,
+    async fn(page) {
+      assert.ok(await page.eval("(function(){var m=document.querySelector('main');return m.scrollHeight>m.clientHeight+200;})()"), 'main overflows');
+      const ev = (type, where) => page.eval(`(function(){var b=document.querySelector('#secSigue li.item[data-id="B"]'),r=b.getBoundingClientRect(),m=document.querySelector('main').getBoundingClientRect();
+        var y=${where === 'row' ? 'r.top+r.height/2' : 'Math.min(m.bottom,window.innerHeight)-6'};
+        b.dispatchEvent(new PointerEvent('${type}',{bubbles:true,cancelable:true,isPrimary:true,pointerId:3,pointerType:'mouse',button:0,buttons:1,clientX:r.left+r.width/2,clientY:y}));})()`);
+      await page.eval("document.querySelector('#secSigue li.item[data-id=\"B\"]').scrollIntoView({block:'center'})");
+      await ev('pointerdown', 'row');
+      await sleep(500);
+      assert.equal(await page.eval("document.documentElement.hasAttribute('data-ordenando')"), true, 'the drag started');
+      await ev('pointermove', 'edge');
+      const t0 = await page.eval("document.querySelector('main').scrollTop");
+      await sleep(600);
+      const t1 = await page.eval("document.querySelector('main').scrollTop");
+      assert.ok(t1 > t0 + 40, 'main scrolled down while held: ' + t0 + ' -> ' + t1);
+      // pointercancel cancels the drop and stops the loop.
+      await ev('pointercancel', 'edge');
+      await sleep(80);
+      const t2 = await page.eval("document.querySelector('main').scrollTop");
+      await sleep(300);
+      assert.equal(await page.eval("document.querySelector('main').scrollTop"), t2, 'no scrolling after cancel');
+      assert.equal(await page.eval("document.documentElement.hasAttribute('data-ordenando')"), false);
+      assert.equal(await page.count('#secSigue .orden-fantasma, #secSigue .orden-hueco'), 0);
+    }
+  },
+  {
     name: 'ahora order: a failed save restores the previous manual ranks and order',
     storage: ORDER_SEED('manual'),
     async fn(page) {
@@ -4179,6 +4251,18 @@ function ORDER_SEED(mode) {
     ]),
     'kibco.eventos': '[]'
   };
+}
+// ORDER_SEED('manual') plus 30 low-priority Taller tasks, enough to overflow main.
+function LONG_ORDER_SEED() {
+  const s = ORDER_SEED('manual');
+  const list = JSON.parse(s['kibco.items']);
+  const base = list[3];
+  for (let i = 1; i <= 30; i++) {
+    const id = 'E' + String(i).padStart(2, '0');
+    list.push(Object.assign({}, base, { id, texto: 'extra ' + id }));
+  }
+  s['kibco.items'] = JSON.stringify(list);
+  return s;
 }
 const orderRows = (page) => page.eval("Array.prototype.map.call(document.querySelectorAll('#secSigue li.item'),function(l){return l.getAttribute('data-id');})");
 const orderOn = (page) => page.eval("(function(){var b=document.querySelector('#ordenAhora .segbtn.on');return b?b.getAttribute('data-orden'):null;})()");
