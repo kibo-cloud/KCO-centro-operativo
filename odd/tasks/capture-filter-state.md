@@ -49,7 +49,7 @@
 - [x] T1 Shared rank fix: `KCOCore.ordenConSub(orden, sub)` + Ahora passes
       `ordenConSub(ordenDelApartado(), ranking ids)` as `orden`; unit tests (`orden.test.js`)
       and 2 E2E specs (`list order: a move in Ahora renumbers...`, `list order: tied ranks...`).
-- [ ] T2 Capture in the selected state filter (and tag) on Tareas/Compras; hint + chip; 2 E2E
+- [x] T2 Capture in the selected state filter (and tag) on Tareas/Compras; hint + chip; 2 E2E
       specs (`capture state: ...`).
 - [ ] T3 Release 2.5.0: `VERSION_APP`, `sw.js`, `package.json`, `CHANGELOG.md`, `LEEME.md`,
       `docs/TESTING.md` counts, `docs/ARQUITECTURA.md`; full checks.
@@ -74,8 +74,14 @@
 - T1 RED: unit `ordenConSub` tests failed (`C.ordenConSub is not a function`); E2E
   `renumbers the whole section` failed on the ranks (`B` tied with the hidden done `W`), and
   `tied ranks` failed on "every rank unique". GREEN: unit `orden.test.js` 8/8; both specs pass;
-  `order` filter 19/19; ES5 ok.
+  `order` filter 19/19; ES5 ok. T1 commit `ce9bc05`.
+- T2 RED: both `capture state` specs failed on the old code (no state in the hint:
+  `Capturar en Taller · Enter guarda`). GREEN: `estadoCaptura`/`tagCaptura` in `kco-app.js`,
+  `cambiarEstado` after the capture save, hint and chip name the state; `capture` filter 20/20; ES5 ok.
+  No explicit state tokens exist in the capture parser, so "explicit token wins" has no case;
+  a `#tag` (or the destination chip) to another apartado keeps the default state.
+  T2 commit: `feat(capture): create items in the selected state filter` (next after `ce9bc05`).
 
 ## Next step
 
-T2.
+T3 release 2.5.0.

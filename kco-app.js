@@ -765,6 +765,29 @@
     return normalizarItem(base);
   }
 
+  /* Capturar mirando Tareas o Compras con un chip de estado elegido (no
+     Activos): lo nuevo nace en ese estado, asi aparece en la lista que se
+     mira. Solo si cae en esa lista (mismo tipo, el apartado a la vista o
+     Todo) y si el estado existe en su flujo (fabrica u hogar); si no, ''
+     (el estado de siempre). */
+  function estadoCaptura(tipo, ctx) {
+    var f = vista === 'tablero' && tipo === 'tarea' ? filtro : (vista === 'compras' && tipo === 'compra' ? filtroCompra : '');
+    if (f === '' || f === 'activos') { return ''; }
+    if (contexto !== 'todo' && ctx !== contexto) { return ''; }
+    return estadoValido(tipo, ctx, f) ? f : '';
+  }
+
+  /* Con la etiqueta elegida en Tareas, la tarea nueva la lleva si es una
+     etiqueta de su apartado. */
+  function tagCaptura(tipo, ctx) {
+    var l, i;
+    if (vista !== 'tablero' || tipo !== 'tarea' || filtroTag === '') { return ''; }
+    if (contexto !== 'todo' && ctx !== contexto) { return ''; }
+    l = K.tagsDe(ctx);
+    for (i = 0; i < l.length; i++) { if (l[i].id === filtroTag) { return filtroTag; } }
+    return '';
+  }
+
   function capturar() {
     var crudo = $('txtCaptura').value.replace(/^\s+|\s+$/g, '');
     if (crudo === '' || soloLectura) { return; }
@@ -783,6 +806,8 @@
       extra.tipo = 'compra';
       extra.estado = K.esFabrica(ctx) ? 'cotizando' : 'por_comprar';
     }
+    var est = estadoCaptura(extra.tipo || 'tarea', ctx), tg = tagCaptura(extra.tipo || 'tarea', ctx);
+    if (tg !== '') { extra.tag = tg; }
     var it = itemNuevo(p.texto, ctx, extra);
     items.push(it);
     if (guardarItems()) {
@@ -792,6 +817,9 @@
       ctxDestino = '';
       pintarChipsCaptura();
       pintar();
+      /* El estado del filtro entra por el mismo camino que un cambio a mano
+         (eventos, deshacer, XP): es capturar y despues moverlo. */
+      if (est !== '' && est !== it.estado) { cambiarEstado(it.id, est); }
       $('txtCaptura').focus();
     } else {
       items.pop();
@@ -1056,8 +1084,10 @@
   function pintarPistaCaptura() {
     var inp = $('txtCaptura'), tipo = K.tipoCaptura(vista);
     if (tipo === 'compra' && K.modoCompras(ctxCaptura) === 'no') { tipo = 'tarea'; }
+    var est = tipo === 'nota' ? '' : estadoCaptura(tipo, ctxCaptura);
     if (inp) {
-      inp.setAttribute('placeholder', PISTA_CAPTURA[tipo] + nomCtx(ctxCaptura) + ' \u00B7 Enter guarda');
+      inp.setAttribute('placeholder', PISTA_CAPTURA[tipo] + nomCtx(ctxCaptura) +
+        (est !== '' ? ' \u00B7 ' + estadoInfo(est).nom : '') + ' \u00B7 Enter guarda');
       inp.setAttribute('data-tipo', tipo);
     }
   }
@@ -1086,14 +1116,18 @@
     if (!hay) { ajustarAltoCaptura(); return; }
     var r = K.resumenCaptura(crudo, new Date(), K.tipoCaptura(vista)), ctx = destinoCaptura(r), b = $('capCtx');
     var compra = r.compra && K.modoCompras(ctx) !== 'no';
+    /* El estado en que nace (filtro de Tareas o Compras), junto al dia. */
+    var est = r.nota ? '' : estadoCaptura(compra ? 'compra' : 'tarea', ctx);
+    var nomEst = est !== '' ? estadoInfo(est).nom : '';
     vaciar(b);
     b.appendChild(punto(ctx));
     b.appendChild(nodo('span', 'capchip-nom', nomCtx(ctx)));
     b.appendChild(svgIco('chevron-down', 'capchip-chev'));
     b.setAttribute('aria-label', 'Guardar en ' + nomCtx(ctx) + '. Cambiar');
     if (r.nota) { chipDato($('capDia'), 'Nota', 'note'); }
-    else if (compra) { chipDato($('capDia'), r.dia !== '' ? 'Compra \u00B7 ' + r.dia : 'Compra', 'cart'); }
-    else { chipDato($('capDia'), r.dia, r.recordatorio !== '' ? 'clock' : 'calendar'); }
+    else if (compra) { chipDato($('capDia'), 'Compra' + (nomEst !== '' ? ' \u00B7 ' + nomEst : '') + (r.dia !== '' ? ' \u00B7 ' + r.dia : ''), 'cart'); }
+    else if (nomEst !== '' && r.dia === '') { chipDato($('capDia'), nomEst, 'list'); }
+    else { chipDato($('capDia'), r.dia + (nomEst !== '' ? ' \u00B7 ' + nomEst : ''), r.recordatorio !== '' ? 'clock' : 'calendar'); }
     chipDato($('capNivel'), r.nivel ? K.infoNivel(r.nivel).nom : '', 'flag');
     $('capNivel').className = r.nivel === 'urgente' ? 'capchip rojo' : 'capchip';
     ajustarAltoCaptura();
