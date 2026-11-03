@@ -3,6 +3,23 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.4.0 — 2026-11-03 — orden manual en Tareas y Compras
+
+Cache `kibco-2.4.0`. Esquema 5 sin cambios. Sin campos nuevos.
+
+### Agregado
+
+- Tareas y Compras tienen el selector **Orden: Automatico / Manual** debajo de los chips. Es el
+  mismo de Ahora: un solo orden por apartado. En Manual las filas se arrastran igual que en
+  Ahora (mantener apretada con el dedo o el mouse, la lista se desplaza sola cerca del borde;
+  Alt+Flecha arriba o abajo con el teclado) y mover algo en Tareas lo mueve tambien en Ahora, y
+  al reves. Con un filtro o "Ver mas" solo se mueven las filas que se ven y lo oculto conserva
+  su lugar. En Automatico y en Todo las listas siguen como siempre.
+
+### Cambiado
+
+- El selector de orden se anuncia como "Orden en <apartado>" (antes "Orden de Ahora en ...").
+
 ## 2.3.4 — 2026-11-03 — el arrastre desplaza la lista
 
 Cache `kibco-2.3.4`. Esquema 5 sin cambios.
