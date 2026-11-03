@@ -1819,7 +1819,8 @@
     li.className = li.className + ' orden-origen';
     ul.appendChild(fantasma);
     ordenActivo = { li: li, ul: ul, id: id, idP: idP, dy: y - r.top, hueco: hueco, fantasma: fantasma,
-      orden: orden, visibles: visibles, indice: visibles.indexOf(id), fuente: fuente || 'puntero' };
+      orden: orden, visibles: visibles, indice: visibles.indexOf(id), fuente: fuente || 'puntero',
+      y: y, y0: y, armado: false, scroll: contenedorScroll(ul) };
     gestoFila = true;
     document.documentElement.setAttribute('data-ordenando', '1');
     if (ordenActivo.fuente === 'puntero') {
@@ -1829,6 +1830,18 @@
   }
 
   function moverOrden(y) {
+    var o = ordenActivo;
+    o.y = y;
+    /* Una fila levantada ya en la franja del borde (p. ej. pegada a la
+       captura) no arrastra la pagina hasta que el dedo se mueve. */
+    if (!o.armado && Math.abs(y - o.y0) > MOVER_ANTES) { o.armado = true; }
+    colocarOrden(y);
+    if (velocidadOrden(o)) { programarDesplazo(); }
+  }
+
+  /* Copia bajo el dedo y hueco en la fila que corresponde a y (coordenada de
+     la ventana). Se repite tras cada paso de desplazamiento automatico. */
+  function colocarOrden(y) {
     var o = ordenActivo, ur = o.ul.getBoundingClientRect(), filas = filasOrden(o.ul), n = 0, i, r;
     o.fantasma.style.top = (y - ur.top - o.dy) + 'px';
     for (i = 0; i < filas.length; i++) {
@@ -1839,15 +1852,112 @@
       o.ul.insertBefore(o.hueco, filas[n] || o.fantasma);
       o.indice = n;
     }
-    /* Cerca de los bordes la pagina se desplaza sola. */
-    if (y < 72) { window.scrollBy(0, -12); }
-    else if (y > window.innerHeight - 150) { window.scrollBy(0, 12); }
+  }
+
+  /* ---------- desplazamiento automatico al arrastrar ----------
+     Quien scrollea es main (html y body miden la ventana), no window. Con el
+     dedo quieto cerca del borde visible de main (descontando la barra de
+     arriba y la captura y las pestanas fijas de abajo) main se desplaza un
+     poco en cada cuadro, mas rapido cuanto mas adentro de la franja, y el
+     hueco se recoloca. Para en el tope, al soltar, al cancelar o al repintar.
+     Es funcional, asi que sigue con movimiento reducido (paso fijo, sin
+     scroll suave). */
+  var ZONA_BORDE = 64;
+  var VEL_MIN = 2;
+  var VEL_MAX = 18;
+  var desplazoOrden = null;
+
+  /* El ancestro mas cercano con overflow-y auto o scroll; si no hay, la pagina. */
+  function contenedorScroll(el) {
+    var e = el.parentNode, s;
+    while (e && e.nodeType === 1 && e !== document.body && e !== document.documentElement) {
+      s = window.getComputedStyle(e);
+      if (s.overflowY === 'auto' || s.overflowY === 'scroll') { return e; }
+      e = e.parentNode;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+
+  /* Franja de la ventana donde se ve el contenido del contenedor: su rect
+     recortado a la ventana, menos las barras fijas o pegadas que lo tapan. */
+  function franjaVisible(sc) {
+    var arriba = 0, abajo = window.innerHeight, r, barras, i, s, medio;
+    if (sc !== document.scrollingElement && sc !== document.documentElement && sc !== document.body) {
+      r = sc.getBoundingClientRect();
+      arriba = Math.max(arriba, r.top);
+      abajo = Math.min(abajo, r.bottom);
+    }
+    barras = document.querySelectorAll('header.appbar, .captura, .tabs');
+    for (i = 0; i < barras.length; i++) {
+      s = window.getComputedStyle(barras[i]);
+      if (s.position !== 'fixed' && s.position !== 'sticky') { continue; }
+      r = barras[i].getBoundingClientRect();
+      if (r.height <= 0 || r.bottom <= arriba || r.top >= abajo) { continue; }
+      medio = (arriba + abajo) / 2;
+      if (r.top + r.height / 2 < medio) { arriba = Math.max(arriba, r.bottom); }
+      else { abajo = Math.min(abajo, r.top); }
+    }
+    return { arriba: arriba, abajo: abajo };
+  }
+
+  /* Pixeles por cuadro (negativo = hacia arriba) para un dedo en y dentro de
+     la franja [arriba, abajo]: 0 fuera de las zonas de borde; de VEL_MIN a
+     VEL_MAX segun lo hondo que este en la zona (pasado el borde, el maximo). */
+  function velocidadBorde(y, arriba, abajo) {
+    var zona = Math.min(ZONA_BORDE, (abajo - arriba) / 4), p;
+    if (!(zona > 0)) { return 0; }
+    if (y < arriba + zona) {
+      p = Math.min(1, (arriba + zona - y) / zona);
+      return -Math.round(VEL_MIN + (VEL_MAX - VEL_MIN) * p);
+    }
+    if (y > abajo - zona) {
+      p = Math.min(1, (y - (abajo - zona)) / zona);
+      return Math.round(VEL_MIN + (VEL_MAX - VEL_MIN) * p);
+    }
+    return 0;
+  }
+
+  function velocidadOrden(o) {
+    if (!o.armado) { return 0; }
+    var f = franjaVisible(o.scroll);
+    return velocidadBorde(o.y, f.arriba, f.abajo);
+  }
+
+  function programarDesplazo() {
+    if (desplazoOrden || !ordenActivo) { return; }
+    if (window.requestAnimationFrame) {
+      desplazoOrden = { raf: true, h: window.requestAnimationFrame(pasoDesplazo) };
+    } else {
+      desplazoOrden = { raf: false, h: setTimeout(pasoDesplazo, 16) };
+    }
+  }
+
+  function pararDesplazo() {
+    var d = desplazoOrden;
+    if (!d) { return; }
+    desplazoOrden = null;
+    if (d.raf) { window.cancelAnimationFrame(d.h); } else { clearTimeout(d.h); }
+  }
+
+  function pasoDesplazo() {
+    var o = ordenActivo, v, antes;
+    desplazoOrden = null;
+    if (!o) { return; }
+    v = velocidadOrden(o);
+    if (!v) { return; }
+    antes = o.scroll.scrollTop;
+    o.scroll.scrollTop = antes + v;
+    /* En el tope no se mueve: se corta hasta el proximo movimiento. */
+    if (o.scroll.scrollTop === antes) { return; }
+    colocarOrden(o.y);
+    programarDesplazo();
   }
 
   function terminarOrden(cancelado) {
     var o = ordenActivo;
     if (!o) { return; }
     ordenActivo = null;
+    pararDesplazo();
     document.documentElement.removeAttribute('data-ordenando');
     if (o.fuente === 'puntero') {
       try { o.li.releasePointerCapture(o.idP); } catch (e) { /* ya suelto */ }
