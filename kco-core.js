@@ -723,6 +723,21 @@
     return r;
   }
 
+  /* orden (ids) con los ids de sub en el orden de sub, en los mismos lugares
+     que ya ocupaban; lo demas no se mueve. Ahora lo usa para renumerar todo
+     el apartado (asi los rangos nunca chocan con lo que Ahora no muestra) sin
+     cambiar el orden que muestra. Un id de sub que no esta en orden, o
+     repetido, no cuenta. No toca la lista de entrada. */
+  function ordenConSub(orden, sub) {
+    var hay = {}, en = {}, s = [], r = [], i, j = 0;
+    for (i = 0; i < orden.length; i++) { hay['#' + orden[i]] = true; }
+    for (i = 0; i < (sub || []).length; i++) {
+      if (hay['#' + sub[i]] && !en['#' + sub[i]]) { s.push(sub[i]); en['#' + sub[i]] = true; }
+    }
+    for (i = 0; i < orden.length; i++) { r.push(en['#' + orden[i]] ? s[j++] : orden[i]); }
+    return r;
+  }
+
   /* Devuelve los items accionables ordenados, cada uno con su puntaje. */
   function priorizar(lista, hoy, ahoraMs) {
     var r = [], i, s;
@@ -1667,6 +1682,7 @@
     rangoManual: rangoManual,
     ordenarManual: ordenarManual,
     rangosTrasMover: rangosTrasMover,
+    ordenConSub: ordenConSub,
     parsearCaptura: parsearCaptura,
     resumenCaptura: resumenCaptura,
     parsearNota: parsearNota,

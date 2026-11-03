@@ -2755,7 +2755,10 @@
         var orden = [], vis = [];
         for (i = 0; i < ranking.length; i++) { orden.push(ranking[i].item.id); }
         for (i = 0; i < siguen.length; i++) { vis.push(siguen[i].item.id); }
-        conectarOrden(ulS, orden, vis);
+        /* Se renumera el apartado entero, como en Tareas y Compras (rangos
+           unicos, sin empates con lo que Ahora no muestra), con el ranking en
+           el orden que se ve: lo que no esta en Ahora conserva su lugar. */
+        conectarOrden(ulS, K.ordenConSub(ordenDelApartado(), orden), vis);
       }
     }
 

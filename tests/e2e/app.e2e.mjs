@@ -4386,8 +4386,66 @@ export const tests = [
       await page.click('#lista .vermas');
       assert.deepEqual((await listRows(page, 'lista')).slice(47), ['X44', 'X46', 'X45', 'X47', 'X48', 'X49', 'X50'], 'the hidden rows keep their order');
     }
+  },
+  {
+    name: 'list order: a move in Ahora renumbers the whole section, so ranks never collide with items Ahora does not show',
+    storage: RANKED_ORDER_SEED({ A: 1, B: 2, W: 3, C: 4, D: 5 }),
+    async fn(page) {
+      await toTasks(page);
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'C', 'D', 'E'], 'W (done) is hidden, E (inbox) last');
+      await altKey(page, 'lista', 'D', 'ArrowUp', 38);
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'D', 'C', 'E']);
+      await page.click('#tabAhora');
+      assert.deepEqual(await orderRows(page), ['A', 'B', 'D', 'C'], 'Ahora shows the Tareas order');
+      assert.equal(await page.count('#secInbox li.item[data-id="E"]'), 1, 'the inbox item stays in Inbox');
+      await altKey(page, 'secSigue', 'D', 'ArrowUp', 38);
+      assert.deepEqual(await orderRows(page), ['A', 'D', 'B', 'C'], 'Ahora shows exactly the drop');
+      assert.equal(await page.count('#secInbox li.item[data-id="E"]'), 1, 'a move never changes membership');
+      assert.deepEqual(await ranks(page), { A: 1, D: 2, W: 3, B: 4, C: 5, E: 6 }, 'unique ranks; the hidden done item keeps its slot');
+      await toTasks(page);
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'D', 'B', 'C', 'E'], 'Tareas agrees with Ahora');
+      await page.click('#tabAhora');
+      await page.reload();
+      assert.deepEqual(await orderRows(page), ['A', 'D', 'B', 'C'], 'kept after reload');
+    }
+  },
+  {
+    name: 'list order: tied ranks from older data heal on the next move in Ahora',
+    storage: RANKED_ORDER_SEED({ A: 1, B: 1, W: 1, C: 2, D: 2 }),
+    async fn(page) {
+      assert.deepEqual(await orderRows(page), ['A', 'B', 'C', 'D'], 'ties fall back to the score order');
+      await altKey(page, 'secSigue', 'D', 'ArrowUp', 38);
+      assert.deepEqual(await orderRows(page), ['A', 'B', 'D', 'C']);
+      const r = await ranks(page);
+      assert.deepEqual(Object.values(r).sort((x, y) => x - y), [1, 2, 3, 4, 5, 6], 'every rank unique');
+      assert.ok(r.A < r.B && r.B < r.D && r.D < r.C, 'ranks follow the shown order');
+      await toTasks(page);
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'D', 'C', 'E'], 'Tareas agrees');
+    }
   }
 ];
+
+// ORDER_SEED('manual') plus W (done) and E (inbox), with the given manual ranks.
+function RANKED_ORDER_SEED(rk) {
+  const s = ORDER_SEED('manual');
+  const list = JSON.parse(s['kibco.items']);
+  const base = list[2];
+  list.push(Object.assign({}, base, { id: 'W', texto: 'tarea W', estado: 'completado' }));
+  list.push(Object.assign({}, base, { id: 'E', texto: 'tarea E', estado: 'entrada', nivel: 'baja' }));
+  for (const it of list) { if (rk[it.id]) { it.ordenManual = rk[it.id]; } }
+  s['kibco.items'] = JSON.stringify(list);
+  return s;
+}
+const ranks = async (page) => {
+  const r = {};
+  for (const it of await items(page)) { if (it.contexto === 'taller') { r[it.id] = it.ordenManual; } }
+  return r;
+};
+async function altKey(page, listId, id, k, code) {
+  await page.eval(`(function(){var l=document.querySelector('#${listId} li.item[data-id="${id}"]');l.focus();
+    l.dispatchEvent(new KeyboardEvent('keydown',{key:'${k}',keyCode:${code},altKey:true,bubbles:true,cancelable:true}));})()`);
+  await sleep(80);
+}
 
 // ORDER_SEED plus three Taller purchases in a clear automatic order (K1 > K2 > K3).
 function COMPRA_ORDER_SEED(mode = 'manual') {

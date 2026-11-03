@@ -70,3 +70,22 @@ test('rangosTrasMover: with a visible sublist only those slots are reshuffled; h
   const orden = C.ordenarManual(rk(...items), r).map((x) => x.item.id).filter((id) => ['a', 'c', 'e'].includes(id));
   assert.deepEqual(orden, ['e', 'a', 'c']);
 });
+
+test('ordenConSub: the sublist takes its own order inside the slots it already held; the rest stays put', () => {
+  // Full order a b c d e; Ahora shows d before b (ranking order), c and e are not in Ahora.
+  assert.deepEqual(C.ordenConSub(['a', 'b', 'c', 'd', 'e'], ['d', 'a', 'b']), ['d', 'a', 'c', 'b', 'e']);
+  assert.deepEqual(C.ordenConSub(['a', 'b', 'c'], []), ['a', 'b', 'c'], 'empty sublist: same order');
+  assert.deepEqual(C.ordenConSub(['a', 'b', 'c'], ['zzz', 'c', 'a']), ['c', 'b', 'a'], 'ids not in the order are ignored');
+  assert.deepEqual(C.ordenConSub(['a', 'b', 'c'], ['c', 'c', 'a']), ['c', 'b', 'a'], 'a repeated id counts once');
+  const src = ['a', 'b'];
+  C.ordenConSub(src, ['b', 'a']);
+  assert.deepEqual(src, ['a', 'b'], 'the input is not touched');
+});
+
+test('ordenConSub + rangosTrasMover: a move in a sublist gives unique ranks 1..n for the whole order, even from tied ranks', () => {
+  // Whole section a b w c d (w is done, hidden from Ahora); Ahora shows a b c d.
+  const orden = C.ordenConSub(['a', 'b', 'w', 'c', 'd'], ['a', 'b', 'c', 'd']);
+  const r = C.rangosTrasMover(orden, 'c', 1, ['a', 'b', 'c', 'd']);
+  assert.deepEqual(r, { a: 1, c: 2, w: 3, b: 4, d: 5 });
+  assert.deepEqual(Object.values(r).sort(), [1, 2, 3, 4, 5], 'no tie left');
+});
