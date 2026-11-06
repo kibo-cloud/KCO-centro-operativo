@@ -3,6 +3,30 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## Sin publicar — rediseño "Cabina" (fase 1: tokens y base)
+
+Esquema 5 sin cambios. Sin claves ni formatos nuevos. El service worker sigue en 2.5.0 hasta la
+fase de release.
+
+### Cambiado
+
+- Tokens nuevos en `kco.css` (oscuro y claro): `--surface-3`, `--muted`, `--faint` (solo
+  decorativo), `--brasa` / `--brasa-soft` (identidad y progreso), `--tabbar-bg`; espaciado
+  `--s-*`, radios `--r-ctl/card/sheet/pill`, sombras `--sh-*`, movimiento `--dur-1/2/3/fest`,
+  tipografía `--fs-13..32`. Fondos y textos con los valores del handoff.
+- La vista Todo usa el acento tiza `pal-todo`; `pal-gris` queda como alias para los datos guardados.
+  Los tintes `-soft` pasan a 16 % en oscuro y 12 % en claro (rosa y naranja más tenues en claro
+  para seguir en AA).
+- Tipografía del sistema, escala 13/15/17/20/24/32 (sin 12 px), cifras con tabular-nums en la sans.
+- Espaciado y radios solo de la escala; tarjetas sin borde en claro (sombra nivel 1).
+- Un solo control segmentado, un solo chip de 44 px, chip removible con X de 44×44, botones
+  primario / secundario / contorno / peligro relleno de 48 px, campo "Agregar" único.
+- Cero emojis en la interfaz: estados, logros, diario, rachas, checklist e hitos usan íconos de
+  trazo nuevos (bandeja, círculos de estado, candado, llama, casilla, etc.) y palabras. El reporte
+  de turno en texto plano conserva sus emojis.
+- Tildes: Búsqueda, misión, acá, más, días, "Sí, hacelo".
+- Movimiento reducido: todo es un fundido de 120 ms, sin desplazamiento ni escala.
+
 ## 2.5.0 — 2026-11-03 — lo capturado cae en el estado que se mira
 
 Cache `kibco-2.5.0`. Esquema 5 sin cambios. Sin campos nuevos.

@@ -63,9 +63,9 @@ test('kco.css declares the design token layer in :root', function () {
   var css = leer('kco.css');
   var root = /:root\{([\s\S]*?)\n\}/.exec(css);
   assert.ok(root, 'kco.css has a :root block');
-  ['--bg', '--surface', '--surface-2', '--border', '--text', '--text-muted', '--accent', '--accent-contrast',
-    '--danger', '--warning', '--success', '--focus', '--font-sans', '--font-mono', '--fs-xs', '--fs-3xl',
-    '--sp-1', '--sp-8', '--r-sm', '--r-pill', '--shadow-1', '--shadow-3', '--dur-fast', '--dur', '--ease',
+  ['--bg', '--surface', '--surface-2', '--border', '--text', '--muted', '--accent', '--accent-contrast',
+    '--danger', '--warning', '--success', '--focus', '--font-sans', '--font-mono', '--fs-13', '--fs-32',
+    '--s-1', '--s-10', '--r-ctl', '--r-pill', '--sh-1', '--sh-3', '--dur-1', '--dur-3', '--ease',
     '--z-sheet', '--tap', '--safe-top', '--safe-bottom'].forEach(function (t) {
     assert.ok(new RegExp('\\s' + t + ':').test(root[1]), t + ' is declared in :root');
   });

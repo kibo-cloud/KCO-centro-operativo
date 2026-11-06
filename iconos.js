@@ -3,7 +3,8 @@
    para KCO, sin archivos ni librerias externas. Se arman con createElementNS y
    setAttribute: nunca con innerHTML. Expone window.KCOIconos.crear(nombre, clase).
    Cada forma es [tipo, ...]: 'p' path (d), 'c' circulo (cx, cy, r),
-   'r' rectangulo (x, y, w, h, radio), 'l' linea (x1, y1, x2, y2), 'pl' polilinea (puntos). ES5. */
+   'r' rectangulo (x, y, w, h, radio), 'l' linea (x1, y1, x2, y2), 'pl' polilinea (puntos),
+   'pf' path relleno (d, relleno en currentColor). ES5. */
 (function () {
   'use strict';
 
@@ -70,14 +71,33 @@
     note: [['p', 'M14.5 3.5H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'], ['pl', '14.5 3.5 14.5 9 20 9'],
       ['l', 8, 13, 16, 13], ['l', 8, 16.5, 13, 16.5]],
     sun: [['c', 12, 12, 4], ['p', 'M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4']],
-    users: [['c', 9, 8, 3.5], ['p', 'M2.5 20.5v-.5A5.5 5.5 0 0 1 8 14.5h2a5.5 5.5 0 0 1 5.5 5.5v.5'], ['p', 'M16 4.6a3.5 3.5 0 0 1 0 6.8'], ['p', 'M21.5 20.5V20a5.5 5.5 0 0 0-3.5-5.1']]
+    users: [['c', 9, 8, 3.5], ['p', 'M2.5 20.5v-.5A5.5 5.5 0 0 1 8 14.5h2a5.5 5.5 0 0 1 5.5 5.5v.5'], ['p', 'M16 4.6a3.5 3.5 0 0 1 0 6.8'], ['p', 'M21.5 20.5V20a5.5 5.5 0 0 0-3.5-5.1']],
+    /* Estados (Cabina): reemplazan a los emoji de estado. circle-half lleva la
+       mitad rellena ('pf': trazo y relleno en currentColor). */
+    circle: [['c', 12, 12, 8.5]],
+    'circle-half': [['c', 12, 12, 8.5], ['pf', 'M12 3.5a8.5 8.5 0 0 0 0 17z']],
+    'circle-clock': [['c', 12, 12, 8.5], ['pl', '12 8 12 12 14.5 13.5']],
+    'circle-pause': [['c', 12, 12, 8.5], ['l', 10, 9, 10, 15], ['l', 14, 9, 14, 15]],
+    'circle-slash': [['c', 12, 12, 8.5], ['l', 6, 6, 18, 18]],
+    /* Logros y diario */
+    lock: [['r', 5, 11, 14, 10, 2], ['p', 'M8 11V7.5a4 4 0 0 1 8 0V11']],
+    flame: [['p', 'M12 21.5a6.5 6.5 0 0 0 6.5-6.5c0-4.2-3.2-6.4-4.5-11-2.2 2.1-3.4 4.5-3.5 7.2-1-.7-1.7-1.8-2-3.2-1.9 1.9-3 4.2-3 7a6.5 6.5 0 0 0 6.5 6.5z']],
+    /* Checklist: casilla dibujada (no caracteres de texto). */
+    checkbox: [['r', 3, 3, 18, 18, 6]],
+    'checkbox-on': [['r', 3, 3, 18, 18, 6], ['pl', '7.5 12.2 10.5 15.2 16.5 9']],
+    /* Compras y pedidos */
+    user: [['c', 12, 8, 3.75], ['p', 'M4.5 20.5a7.5 7.5 0 0 1 15 0']],
+    'map-pin': [['p', 'M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z'], ['c', 12, 10, 2.25]],
+    truck: [['p', 'M2.5 6.5h11v9.5h-11z'], ['p', 'M13.5 10h4l3 3v3h-7'], ['c', 7, 18, 1.75], ['c', 17, 18, 1.75]],
+    package: [['p', 'M12 2.5 20.5 7v10L12 21.5 3.5 17V7z'], ['pl', '3.5 7 12 11.5 20.5 7'], ['l', 12, 11.5, 12, 21.5]]
   };
 
   function forma(def) {
     var t = def[0], e;
-    if (t === 'p') {
+    if (t === 'p' || t === 'pf') {
       e = document.createElementNS(NS, 'path');
       e.setAttribute('d', def[1]);
+      if (t === 'pf') { e.setAttribute('fill', 'currentColor'); }
     } else if (t === 'c') {
       e = document.createElementNS(NS, 'circle');
       e.setAttribute('cx', def[1]); e.setAttribute('cy', def[2]); e.setAttribute('r', def[3]);

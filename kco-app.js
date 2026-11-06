@@ -51,32 +51,32 @@
   var progresoSinCopia = false;
 
   var ESTADOS_TAREA = [
-    { id: 'entrada', ico: '\uD83D\uDCE5', nom: 'Entrada' },
-    { id: 'pendiente', ico: '\uD83D\uDD35', nom: 'Pendiente' },
-    { id: 'proceso', ico: '\uD83D\uDFE1', nom: 'En proceso' },
-    { id: 'esperando', ico: '\u23F8', nom: 'Esperando' },
-    { id: 'completado', ico: '\uD83D\uDFE2', nom: 'Completado' },
-    { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
+    { id: 'entrada', ico: 'inbox', nom: 'Entrada' },
+    { id: 'pendiente', ico: 'circle', nom: 'Pendiente' },
+    { id: 'proceso', ico: 'circle-half', nom: 'En proceso' },
+    { id: 'esperando', ico: 'circle-clock', nom: 'Esperando' },
+    { id: 'completado', ico: 'check-circle', nom: 'Completado' },
+    { id: 'cancelado', ico: 'circle-slash', nom: 'Cancelado' }
   ];
 
   /* Compras de fabrica: flujo completo con OC y OT. Solo en Trabajo. */
   var ESTADOS_COMPRA = [
-    { id: 'cotizando', ico: '\uD83D\uDCE5', nom: 'Cotizando' },
-    { id: 'esperando_oc', ico: '\uD83D\uDCDD', nom: 'Esperando OC' },
-    { id: 'esperando_aprob', ico: '\u23F3', nom: 'Esperando aprob.' },
-    { id: 'oc_enviada', ico: '\uD83D\uDCE4', nom: 'OC enviada' },
-    { id: 'esperando_entrega', ico: '\uD83D\uDE9A', nom: 'Esperando entrega' },
+    { id: 'cotizando', ico: 'inbox', nom: 'Cotizando' },
+    { id: 'esperando_oc', ico: 'note', nom: 'Esperando OC' },
+    { id: 'esperando_aprob', ico: 'hourglass', nom: 'Esperando aprob.' },
+    { id: 'oc_enviada', ico: 'share', nom: 'OC enviada' },
+    { id: 'esperando_entrega', ico: 'truck', nom: 'Esperando entrega' },
     /* El id queda 'recibido' para no romper datos ni backups de 0.6 en adelante.
        Solo cambia la etiqueta visible. */
-    { id: 'recibido', ico: '\uD83D\uDCE6', nom: 'Material Recibido' },
-    { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
+    { id: 'recibido', ico: 'package', nom: 'Material Recibido' },
+    { id: 'cancelado', ico: 'circle-slash', nom: 'Cancelado' }
   ];
 
   /* Compras del hogar: lista simple, sin OC, sin OT, sin proveedores. */
   var ESTADOS_COMPRA_HOGAR = [
-    { id: 'por_comprar', ico: '\uD83D\uDED2', nom: 'Por comprar' },
-    { id: 'comprado', ico: '\u2705', nom: 'Comprado' },
-    { id: 'cancelado', ico: '\u274C', nom: 'Cancelado' }
+    { id: 'por_comprar', ico: 'cart', nom: 'Por comprar' },
+    { id: 'comprado', ico: 'check-circle', nom: 'Comprado' },
+    { id: 'cancelado', ico: 'circle-slash', nom: 'Cancelado' }
   ];
 
   /* Los tags son de cada apartado (KCOCore.tagsDe). tagInfo busca en todos
@@ -85,8 +85,8 @@
 
   var RANGOS = [
     { id: 'hoy', nom: 'Hoy', dias: 1 },
-    { id: 'd7', nom: '7 dias', dias: 7 },
-    { id: 'd30', nom: '30 dias', dias: 30 },
+    { id: 'd7', nom: '7 d\u00EDas', dias: 7 },
+    { id: 'd30', nom: '30 d\u00EDas', dias: 30 },
     { id: 'todo', nom: 'Todo', dias: 0 }
   ];
 
@@ -517,7 +517,7 @@
     if (n > ESQUEMA) {
       soloLectura = true;
       esquemaFuturo = true;
-      avisar('Estos datos son de una version mas nueva de KCO (esquema ' + n + '). No escribo nada para no romperlos.');
+      avisar('Estos datos son de una version m\u00E1s nueva de KCO (esquema ' + n + '). No escribo nada para no romperlos.');
       return;
     }
     if (n < ESQUEMA) {
@@ -889,12 +889,6 @@
     return c ? c.nom : '' + id;
   }
 
-  /* Emoji para textos exportados: el icono de un apartado es un nombre de
-     iconos.js (SVG), que no sirve en texto plano; el nucleo lo traduce. */
-  function icoCtx(id) {
-    return id === 'todo' ? '\u2B50' : K.emojiApartado(id);
-  }
-
   /* Compras segun el apartado: uno con modo 'no' no las usa. Todo las
      muestra si algun apartado activo las usa. */
   function usaCompras(ctx) {
@@ -912,11 +906,11 @@
   }
 
   /* Identidad visual de un apartado: su color de paleta (kco.css, --pal-*) y
-     su icono de iconos.js. Todo es el agregado: acento neutro y una estrella.
+     su icono de iconos.js. Todo es el agregado: acento tiza (pal-todo) y una estrella.
      El emoji queda solo en textos que se exportan. */
   function colorCtx(id) {
     var c = id === 'todo' ? null : K.infoContexto(id);
-    return c ? c.color : 'gris';
+    return c ? c.color : 'todo';
   }
 
   function nomIcoCtx(id) {
@@ -1446,7 +1440,7 @@
     if (esPedido(it) && lineaPedido(it) !== '') {
       var pe = document.createElement('div');
       pe.className = 'pedido';
-      pe.textContent = lineaPedido(it);
+      pintarPedido(pe, it);
       cu.appendChild(pe);
     }
 
@@ -1454,7 +1448,7 @@
     l2.className = 'linea2';
     if (contexto === 'todo') { l2.appendChild(badgeCtx(it.contexto)); }
     if (it.rutinaId !== '') { l2.appendChild(badge('rut', '', 'repeat')).setAttribute('title', 'Rutina'); }
-    if (it.motivo !== '') { l2.appendChild(badge('mot', textoMotivo(it.motivo))); }
+    if (it.motivo !== '') { l2.appendChild(badge('mot', textoMotivo(it.motivo), icoMotivo(it.motivo))); }
     if (it.anclado === true) { l2.appendChild(badge('pin', '', 'pin')).setAttribute('title', 'Anclado'); }
     var bn = badgeNivel(it);
     if (bn) { l2.appendChild(bn); }
@@ -1467,7 +1461,7 @@
     if (it.pausado === true) { l2.appendChild(badge('pausa', 'En espera', 'pause')); }
     if (it.tag !== '') {
       var t = tagInfo(it.tag, it.contexto);
-      if (t) { l2.appendChild(badge('tag', t.ico + ' ' + t.nom)); }
+      if (t) { l2.appendChild(badge('tag', t.nom)); }
     }
     if (it.recordatorio !== '') {
       var d = fechaObj(it.recordatorio);
@@ -2327,17 +2321,17 @@
     }
     if (ev.tipo === 'fecha') { return ev.hasta === '' ? 'Sacaste el dia' : 'Agendaste para ' + nombreDia(ev.hasta); }
     if (ev.tipo === 'excepcion') { return textoMotivo(ev.hasta); }
-    if (ev.tipo === 'nivel') { return '\u2B50 Nivel ' + ev.hasta; }
-    if (ev.tipo === 'logro') { return '\uD83C\uDFC6 Logro: ' + ev.hasta; }
-    if (ev.tipo === 'mision_alta') { return 'Nueva mision'; }
-    if (ev.tipo === 'mision_fin') { return '\uD83C\uDFC1 Mision cumplida'; }
-    if (ev.tipo === 'mision_reabre') { return 'Reabriste la mision'; }
-    if (ev.tipo === 'mision_pausa') { return 'Pausaste la mision'; }
-    if (ev.tipo === 'mision_activa') { return 'Reactivaste la mision'; }
-    if (ev.tipo === 'mision_baja') { return 'Borraste la mision'; }
-    if (ev.tipo === 'hito') { return '\uD83C\uDFAF Hito: ' + ev.hasta; }
+    if (ev.tipo === 'nivel') { return 'Nivel ' + ev.hasta; }
+    if (ev.tipo === 'logro') { return 'Logro: ' + ev.hasta; }
+    if (ev.tipo === 'mision_alta') { return 'Nueva misi\u00F3n'; }
+    if (ev.tipo === 'mision_fin') { return 'Misi\u00F3n cumplida'; }
+    if (ev.tipo === 'mision_reabre') { return 'Reabriste la misi\u00F3n'; }
+    if (ev.tipo === 'mision_pausa') { return 'Pausaste la misi\u00F3n'; }
+    if (ev.tipo === 'mision_activa') { return 'Reactivaste la misi\u00F3n'; }
+    if (ev.tipo === 'mision_baja') { return 'Borraste la misi\u00F3n'; }
+    if (ev.tipo === 'hito') { return 'Hito: ' + ev.hasta; }
     if (ev.tipo === 'hito_reabre') { return 'Reabriste el hito ' + ev.hasta; }
-    if (ev.tipo === 'mision_tarea') { return ev.hasta ? 'A la mision ' + ev.hasta : 'Sacaste de la mision'; }
+    if (ev.tipo === 'mision_tarea') { return ev.hasta ? 'A la misi\u00F3n ' + ev.hasta : 'Sacaste de la misi\u00F3n'; }
     if (ev.tipo === 'rutina_alta') { return 'Nueva rutina'; }
     if (ev.tipo === 'rutina_edit') { return 'Editaste la rutina'; }
     if (ev.tipo === 'rutina_pausa') { return 'Pausaste la rutina'; }
@@ -2369,12 +2363,13 @@
 
   function resumenDia(c) {
     var p = [];
-    if (c.hechas) { p.push('\u2714 ' + c.hechas); }
-    if (c.rutinas) { p.push('\uD83D\uDD04 ' + c.rutinas); }
-    if (c.hitos) { p.push('\uD83C\uDFAF ' + c.hitos); }
-    if (c.misiones) { p.push('\uD83C\uDFC1 ' + c.misiones); }
-    if (c.logros) { p.push('\uD83C\uDFC6 ' + c.logros); }
-    return p.join('  ');
+    function cuenta(n, uno, varios) { if (n) { p.push(n + ' ' + (n === 1 ? uno : varios)); } }
+    cuenta(c.hechas, 'hecha', 'hechas');
+    cuenta(c.rutinas, 'rutina', 'rutinas');
+    cuenta(c.hitos, 'hito', 'hitos');
+    cuenta(c.misiones, 'misi\u00F3n', 'misiones');
+    cuenta(c.logros, 'logro', 'logros');
+    return p.join(' \u00B7 ');
   }
 
   function pintarDiario() {
@@ -2399,7 +2394,7 @@
         pintadas++;
         (function (e) {
           var f = nodo('div', 'ev diario-ev ' + e.clase);
-          f.appendChild(nodo('div', 'ico', e.ico));
+          f.appendChild(svgIco(e.icono || 'check', 'diario-ico'));
           var d = nodo('div', 'd');
           d.appendChild(nodo('b', '', e.texto));
           if (e.sub) { d.appendChild(nodo('small', '', e.sub)); }
@@ -2739,7 +2734,7 @@
     } else if (ranking.length === 0) {
       var calma = nodo('div', 'hero calma');
       calma.appendChild(nodo('div', 'hero-rot', 'Todo en orden', 'check-circle'));
-      calma.appendChild(nodo('div', 'hero-txt', 'Lo que queda esta esperando a otros o tiene dia mas adelante.'));
+      calma.appendChild(nodo('div', 'hero-txt', 'Lo que queda esta esperando a otros o tiene dia m\u00E1s adelante.'));
       cont.appendChild(calma);
     } else {
       var sig = [];
@@ -2779,7 +2774,7 @@
       }
       var notaS = manual ? 'Manten\u00E9 presionada una tarea y arrastrala. La primera es el siguiente movimiento.' +
         (resto > siguen.length ? ' El resto esta en Tareas.' : '') :
-        (resto > siguen.length ? 'Las ' + siguen.length + ' que mas pesan. El resto esta en Tareas.' : '');
+        (resto > siguen.length ? 'Las ' + siguen.length + ' que m\u00E1s pesan. El resto esta en Tareas.' : '');
       var ulS = seccion(cont, 'secSigue', 'A continuaci\u00F3n', resto, notaS, 'arrow-right');
       for (i = 0; i < siguen.length; i++) {
         ulS.appendChild(nodoItem(siguen[i].item, siguen[i].motivo));
@@ -2923,7 +2918,7 @@
       for (i = 0; i < luego.length && i < 10; i++) { ulL.appendChild(nodoItem(luego[i], tituloDia(K.diaDe(luego[i])))); }
     }
     if (!alguno) {
-      cont.appendChild(nodo('div', 'vacio chico', 'Nada agendado en los proximos ' + DIAS_PROXIMOS + ' dias.'));
+      cont.appendChild(nodo('div', 'vacio chico', 'Nada agendado en los proximos ' + DIAS_PROXIMOS + ' d\u00EDas.'));
     }
   }
 
@@ -3585,7 +3580,7 @@
       bh.setAttribute('aria-pressed', ah.on ? 'true' : 'false');
     }
     var inf = estadoInfo(it.estado);
-    $('itemSub').textContent = (it.tipo === 'compra' ? 'Compra \u00B7 ' : '') + inf.ico + ' ' + inf.nom +
+    $('itemSub').textContent = (it.tipo === 'compra' ? 'Compra \u00B7 ' : '') + inf.nom +
       ' \u00B7 creado ' + horaCorta(it.creado);
     $('rotEstados').textContent = it.tipo === 'compra' ? 'Estado de compra' : 'Estado';
 
@@ -3597,7 +3592,7 @@
         var b = document.createElement('button');
         b.type = 'button';
         b.className = it.estado === est.id ? 'gbtn on' : 'gbtn';
-        b.textContent = est.ico + ' ' + est.nom;
+        conIcono(b, est.ico, est.nom);
         b.setAttribute('data-estado', est.id);
         b.onclick = function () { cambiarEstado(it.id, est.id); };
         grid.appendChild(b);
@@ -3635,7 +3630,7 @@
         var b = document.createElement('button');
         b.type = 'button';
         b.className = it.tag === t.id ? 'gbtn on' : 'gbtn';
-        b.textContent = t.ico + ' ' + t.nom;
+        b.textContent = t.nom;
         b.setAttribute('data-tag', t.id);
         b.onclick = function () { alternarTag(it.id, t.id); };
         gt.appendChild(b);
@@ -3714,7 +3709,9 @@
           bt.type = 'button';
           bt.className = 'tic';
           bt.setAttribute('data-paso', '' + pos);
-          bt.textContent = paso.hecho === true ? '\u2611' : '\u2610';
+          bt.appendChild(svgIco(paso.hecho === true ? 'checkbox-on' : 'checkbox'));
+          bt.setAttribute('aria-label', paso.hecho === true ? 'Desmarcar paso' : 'Marcar paso');
+          bt.setAttribute('aria-pressed', paso.hecho === true ? 'true' : 'false');
           bt.onclick = function () { alternarPaso(it.id, pos); };
           var dd = document.createElement('div');
           dd.className = 'd';
@@ -3723,7 +3720,8 @@
           bx.type = 'button';
           bx.className = 'equis';
           bx.setAttribute('data-sacar', '' + pos);
-          bx.textContent = '\u2715';
+          bx.appendChild(svgIco('x'));
+          bx.setAttribute('aria-label', 'Sacar paso');
           bx.onclick = function () { sacarPaso(it.id, pos); };
           fila.appendChild(bt);
           fila.appendChild(dd);
@@ -3864,9 +3862,16 @@
     var p = [];
     var sol = campoPedido(it, 'solicitante');
     var des = campoPedido(it, 'destino');
-    if (sol !== '') { p.push('\uD83D\uDC64 ' + sol); }
-    if (des !== '') { p.push('\uD83D\uDCCD ' + des); }
+    if (sol !== '') { p.push(sol); }
+    if (des !== '') { p.push(des); }
     return p.join('  |  ');
+  }
+
+  /* Solicitante y destino en la tarjeta: icono de trazo + texto. */
+  function pintarPedido(el, it) {
+    var sol = campoPedido(it, 'solicitante'), des = campoPedido(it, 'destino');
+    if (sol !== '') { el.appendChild(nodo('span', 'pedido-dato', sol, 'user')); }
+    if (des !== '') { el.appendChild(nodo('span', 'pedido-dato', des, 'map-pin')); }
   }
 
   /* Se dispara al salir del campo. No repinta la ficha para no pisar lo que
@@ -3927,7 +3932,7 @@
         b.setAttribute('data-borrar', valor);
         b.setAttribute('aria-label', 'Borrar ' + valor);
         b.setAttribute('title', 'Borrar ' + valor);
-        b.textContent = '\u2715';
+        b.appendChild(svgIco('x'));
         b.onclick = function () {
           pedirConfirmacion('Borrar ' + rotulo, 'Se saca "' + valor + '" de la lista. Las compras que ya lo tienen cargado no se tocan.', function () {
             if (olvidar(lista, clave, valor)) {
@@ -4205,7 +4210,7 @@
         var l2 = document.createElement('div');
         l2.className = 'linea2';
         var inf = estadoInfo(item.estado);
-        l2.appendChild(badge('est', inf.ico + ' ' + inf.nom));
+        l2.appendChild(badge('est', inf.nom, inf.ico));
         l2.appendChild(badge('', horaCorta(item.creado)));
         li.appendChild(e);
         li.appendChild(tx);
@@ -4291,7 +4296,7 @@
     var ahora = new Date();
     var hoy = claveDia(ahora);
     var lineas = [];
-    lineas.push((K.esFabrica(contexto) ? '\uD83D\uDD27' : icoCtx(contexto)) + ' RELEVO DE TURNO \u00B7 ' + nomCtx(contexto));
+    lineas.push((K.esFabrica(contexto) ? '\uD83D\uDD27' : (contexto === 'todo' ? '\u2B50' : K.emojiApartado(contexto))) + ' RELEVO DE TURNO \u00B7 ' + nomCtx(contexto));
     lineas.push('\uD83D\uDCC5 ' + dosDig(ahora.getDate()) + '/' + dosDig(ahora.getMonth() + 1) + '/' +
       ahora.getFullYear() + ' \u00B7 ' + hhmm(ahora));
 
@@ -4442,7 +4447,7 @@
     }
   }
 
-  var AVISO_ESQUEMA_FUTURO = 'Los datos guardados son de una version mas nueva de KCO. No restauro para no pisarlos: actualiza la app primero.';
+  var AVISO_ESQUEMA_FUTURO = 'Los datos guardados son de una version m\u00E1s nueva de KCO. No restauro para no pisarlos: actualiza la app primero.';
 
   function esObjeto(x) { return !!x && typeof x === 'object' && !esArray(x); }
 
@@ -4605,7 +4610,7 @@
     }
     var sch = parseInt(datos.schema, 10);
     if (isNaN(sch) || sch > ESQUEMA) {
-      avisar('Ese backup usa un esquema mas nuevo (' + datos.schema + ') que esta version de KCO. Actualiza la app antes de restaurar.');
+      avisar('Ese backup usa un esquema m\u00E1s nuevo (' + datos.schema + ') que esta version de KCO. Actualiza la app antes de restaurar.');
       return;
     }
     if (!esArray(datos.items)) { avisar('El backup no trae la lista de items.'); return; }
@@ -6151,10 +6156,18 @@
   };
 
   function textoMotivo(m) {
-    if (m === 'omitida') { return '\u23ED Omitida'; }
-    if (m === 'no_corresponde') { return '\u2796 No correspondia'; }
-    if (m === 'delegada') { return '\uD83E\uDD1D Delegada'; }
-    if (m === 'vencida') { return '\u231B Sin registrar'; }
+    if (m === 'omitida') { return 'Omitida'; }
+    if (m === 'no_corresponde') { return 'No correspondia'; }
+    if (m === 'delegada') { return 'Delegada'; }
+    if (m === 'vencida') { return 'Sin registrar'; }
+    return '';
+  }
+
+  function icoMotivo(m) {
+    if (m === 'omitida') { return 'forward'; }
+    if (m === 'no_corresponde') { return 'minus'; }
+    if (m === 'delegada') { return 'users'; }
+    if (m === 'vencida') { return 'hourglass'; }
     return '';
   }
 
@@ -6209,7 +6222,7 @@
       guardarProgreso();
       anotarEventos([{ id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'nivel', itemId: '',
         texto: nv.titulo, contexto: ctxCaptura, desde: '', hasta: '' + nv.nivel }]);
-      txt = txt + ' \u00B7 \u2B50 Nivel ' + nv.nivel + '!';
+      txt = txt + ' \u00B7 Nivel ' + nv.nivel + '!';
     }
     return txt + revisarLogros();
   }
@@ -6232,7 +6245,7 @@
     c.appendChild(barra);
     var det = [hoyXP > 0 ? '+' + hoyXP + ' XP hoy' : 'Hoy todavia sin XP', x.total + ' XP en total', 'faltan ' + nv.falta + ' para NV ' + (nv.nivel + 1)];
     var racha = rachaGlobal();
-    if (racha.actual > 0) { det.unshift('\uD83D\uDD25 ' + racha.actual + (racha.actual === 1 ? ' dia' : ' dias')); }
+    if (racha.actual > 0) { det.unshift('Racha ' + racha.actual + (racha.actual === 1 ? ' d\u00EDa' : ' d\u00EDas')); }
     c.appendChild(nodo('div', 'mono progxp-det', det.join(' \u00B7 ')));
     c.onclick = function () { irAVista('registro'); modoDiario = 'campana'; pintar(); };
     cont.appendChild(c);
@@ -6259,7 +6272,7 @@
       for (i = 0; i < nuevos.length; i++) {
         evs.push({ id: nuevoId('e'), ts: ahora, tipo: 'logro', itemId: '', texto: nuevos[i].desc,
           contexto: ctxCaptura, desde: nuevos[i].id, hasta: nuevos[i].nom });
-        txt = txt + ' \u00B7 \uD83C\uDFC6 ' + nuevos[i].nom;
+        txt = txt + ' \u00B7 Logro: ' + nuevos[i].nom;
       }
       if (!anotarEventos(evs)) { return ''; }
     }
@@ -6317,7 +6330,7 @@
     cont.appendChild(cab);
 
     var g = nodo('div', 'stats');
-    statTile(g, st.diasActivos, 'dias activos', 'nunca baja');
+    statTile(g, st.diasActivos, 'd\u00EDas activos', 'nunca baja');
     statTile(g, st.racha, 'racha actual', 'mejor ' + st.rachaMejor + (st.racha > 0 && !st.hoyActivo ? ' \u00B7 hoy en juego' : ''));
     statTile(g, st.tareasHechas + st.comprasHechas, 'completadas', st.rutinasHechas + ' rutinas aparte');
     statTile(g, st.misionesFin, 'misiones cumplidas', st.hitos + ' hitos');
@@ -6359,7 +6372,7 @@
     for (i = 0; i < semanas.length; i++) {
       (function (w, ultima) {
         var p = w.desde.split('-');
-        var etiqueta = 'Semana del ' + p[2] + '/' + p[1] + ': ' + w.avances + ' avances en ' + w.diasActivos + ' dias';
+        var etiqueta = 'Semana del ' + p[2] + '/' + p[1] + ': ' + w.avances + ' avances en ' + w.diasActivos + ' d\u00EDas';
         resumen.push(p[2] + '/' + p[1] + ' ' + w.avances);
         var col = nodo('button', 'sem' + (ultima ? ' actual' : ''));
         col.type = 'button';
@@ -6445,17 +6458,17 @@
       var c = nodo('div', 'logro' + (gano ? ' ganado' : '') + (!gano && l.secreto ? ' secreto' : ''));
       c.setAttribute('data-logro', l.id);
       if (!gano && l.secreto) {
-        c.appendChild(nodo('div', 'logro-ico', '\u2753'));
+        c.appendChild(svgIco('lock', 'logro-ico'));
         c.appendChild(nodo('b', '', 'Logro secreto'));
         c.appendChild(nodo('small', '', 'Se revela cuando lo ganes.'));
       } else {
-        c.appendChild(nodo('div', 'logro-ico', l.ico));
+        c.appendChild(svgIco(l.icono || 'trophy', 'logro-ico'));
         c.appendChild(nodo('b', '', l.nom));
         c.appendChild(nodo('small', '', l.desc));
         var meta = K.metaLogro(l, st), v = Math.min(st[l.campo] || 0, meta);
         c.appendChild(nodo('small', 'mono logro-est', gano
-          ? '\u2714 ' + fechaNota(memProgreso.logros[l.id])
-          : (meta > 1 ? v + '/' + meta : 'pendiente')));
+          ? 'Ganado ' + fechaNota(memProgreso.logros[l.id])
+          : (meta > 1 ? v + '/' + meta : 'pendiente'), gano ? 'check' : ''));
       }
       g.appendChild(c);
     }
@@ -6604,7 +6617,7 @@
 
   function pintarHojaMision() {
     var p = misionAbierta ? buscarProyecto(misionAbierta) : null;
-    $('misTitulo').textContent = p ? p.nombre : 'Nueva mision';
+    $('misTitulo').textContent = p ? p.nombre : 'Nueva misi\u00F3n';
     pintarOpciones('gridMisCtx', K.CONTEXTOS, misBorradorCtx, function (c) { return c.nom; },
       function (c) {
         misBorradorCtx = c.id;
@@ -6647,7 +6660,7 @@
       cp.appendChild(box);
     } else {
       cp.appendChild(nodo('div', 'sinnotas', p.estado === 'terminado'
-        ? 'Mision cumplida.' : 'Sin proxima accion. Agrega una tarea o un hito abajo.'));
+        ? 'Misi\u00F3n cumplida.' : 'Sin proxima accion. Agrega una tarea o un hito abajo.'));
     }
 
     var lh = $('misHitos');
@@ -6657,13 +6670,16 @@
     for (i = 0; i < p.hitos.length; i++) {
       (function (h) {
         var f = nodo('div', h.hecho ? 'paso hecho' : 'paso');
-        var bt = nodo('button', 'tic', h.hecho ? '\u2611' : '\u2610');
+        var bt = nodo('button', 'tic');
+        bt.appendChild(svgIco(h.hecho ? 'checkbox-on' : 'checkbox'));
+        bt.setAttribute('aria-pressed', h.hecho ? 'true' : 'false');
         bt.type = 'button';
         bt.setAttribute('data-hito', h.id);
         bt.setAttribute('aria-label', h.hecho ? 'Desmarcar hito' : 'Marcar hito cumplido');
         bt.onclick = function () { alternarHito(p.id, h.id); };
         var d = nodo('div', 'd', h.texto + (h.hecho && h.cuando ? '  \u00B7 ' + fechaNota(h.cuando) : ''));
-        var bx = nodo('button', 'equis', '\u2715');
+        var bx = nodo('button', 'equis');
+        bx.appendChild(svgIco('x'));
         bx.type = 'button';
         bx.setAttribute('aria-label', 'Sacar hito');
         bx.onclick = function () { sacarHito(p.id, h.id); };
@@ -6691,7 +6707,7 @@
   function guardarDatosMision() {
     if (soloLectura) { return; }
     var nombre = limpiarTexto($('txtMisNombre').value, 120);
-    if (nombre === '') { avisar('La mision necesita un nombre.'); return; }
+    if (nombre === '') { avisar('La misi\u00F3n necesita un nombre.'); return; }
     var ahora = new Date().toISOString();
     var p = misionAbierta ? buscarProyecto(misionAbierta) : null;
     if (p) {
@@ -6734,14 +6750,14 @@
     pintarHojaMision();
     pintar();
     var fb = feedbackProgreso(xpAntes);
-    if (h.hecho) { celebrar('\uD83C\uDFAF Hito cumplido: ' + h.texto + fb); }
+    if (h.hecho) { celebrar('Hito cumplido: ' + h.texto + fb); }
   }
 
   function agregarHito() {
     var p = misionAbierta ? buscarProyecto(misionAbierta) : null;
     var t = limpiarTexto($('txtHito').value, 160);
     if (!p || soloLectura || t === '') { return; }
-    if (p.hitos.length >= 100) { avisar('Una mision admite hasta 100 hitos.'); return; }
+    if (p.hitos.length >= 100) { avisar('Una misi\u00F3n admite hasta 100 hitos.'); return; }
     p.hitos.push({ id: nuevoId('h'), texto: t, hecho: false, cuando: '' });
     tocarMision(p);
     if (!guardarProyectos()) { p.hitos.pop(); return; }
@@ -6819,18 +6835,18 @@
       registrarMision('mision_fin', q, '');
       pintarHojaMision();
       pintar();
-      celebrar('\uD83C\uDFC1 Mision cumplida: ' + q.nombre + feedbackProgreso(xpAntes));
+      celebrar('Misi\u00F3n cumplida: ' + q.nombre + feedbackProgreso(xpAntes));
     }
     if (abiertas > 0) {
-      pedirConfirmacion('Completar mision', 'Quedan ' + abiertas + ' tareas abiertas en "' + p.nombre +
-        '". Siguen como tareas normales, vinculadas a la mision cumplida.', cerrar);
+      pedirConfirmacion('Completar misi\u00F3n', 'Quedan ' + abiertas + ' tareas abiertas en "' + p.nombre +
+        '". Siguen como tareas normales, vinculadas a la misi\u00F3n cumplida.', cerrar);
     } else { cerrar(); }
   }
 
   function borrarMision() {
     var p = misionAbierta ? buscarProyecto(misionAbierta) : null;
     if (!p || soloLectura) { return; }
-    pedirConfirmacion('Borrar mision', 'Se borra "' + p.nombre + '" con sus hitos. Las tareas no se borran: quedan sueltas, con su historial.', function () {
+    pedirConfirmacion('Borrar misi\u00F3n', 'Se borra "' + p.nombre + '" con sus hitos. Las tareas no se borran: quedan sueltas, con su historial.', function () {
       var i, pos = -1;
       for (i = 0; i < proyectos.length; i++) { if (proyectos[i].id === p.id) { pos = i; } }
       if (pos < 0) { return; }
@@ -6865,7 +6881,7 @@
   }
 
   function pintarMisionEnFicha(it) {
-    var defs = [{ id: '', nom: 'Sin mision' }], i;
+    var defs = [{ id: '', nom: 'Sin misi\u00F3n' }], i;
     for (i = 0; i < proyectos.length; i++) {
       var p = proyectos[i];
       if (p.estado !== 'terminado' || p.id === it.proyectoId) {
@@ -6974,7 +6990,7 @@
 
   function lineaRacha(ru) {
     var s = K.rachaRutina(ru, items, hoyClave());
-    return s.actual > 0 ? '\uD83D\uDD25 ' + s.actual + (s.actual === 1 ? ' vez seguida' : ' seguidas') : K.describirRutina(ru);
+    return s.actual > 0 ? 'Racha: ' + s.actual + (s.actual === 1 ? ' vez seguida' : ' seguidas') : K.describirRutina(ru);
   }
 
   /* La ocurrencia abierta del dia que le toca ahora a una rutina activa: si
@@ -7007,9 +7023,9 @@
 
   var borrador = null;
   var FRECUENCIAS = [
-    { id: 'diaria', nom: 'Todos los dias' },
-    { id: 'cadaN', nom: 'Cada X dias' },
-    { id: 'semana', nom: 'Dias de la semana' },
+    { id: 'diaria', nom: 'Todos los d\u00EDas' },
+    { id: 'cadaN', nom: 'Cada X d\u00EDas' },
+    { id: 'semana', nom: 'D\u00EDas de la semana' },
     { id: 'mes', nom: 'Una vez por mes' }
   ];
   var ORDEN_SEMANA = [1, 2, 3, 4, 5, 6, 0];
@@ -7058,7 +7074,7 @@
       pintarHojaRutina();
     }, 'data-frec');
     $('cajaCada').style.display = f === 'diaria' ? 'none' : 'block';
-    $('rotCada').textContent = f === 'mes' ? 'Cada cuantos meses' : (f === 'semana' ? 'Cada cuantas semanas' : 'Cada cuantos dias');
+    $('rotCada').textContent = f === 'mes' ? 'Cada cuantos meses' : (f === 'semana' ? 'Cada cuantas semanas' : 'Cada cuantos d\u00EDas');
     $('numCada').value = '' + b.cada;
     $('cajaSemana').style.display = f === 'semana' ? 'block' : 'none';
     $('cajaMes').style.display = f === 'mes' ? 'block' : 'none';
@@ -7083,12 +7099,12 @@
     }
     pintarOpciones('gridRutCtx', K.CONTEXTOS, b.contexto, function (c) { return c.nom; },
       function (c) { leerCamposRutina(); b.contexto = c.id; pintarHojaRutina(); }, 'data-ctx');
-    pintarOpciones('gridRutNivel', K.NIVELES, b.nivel, function (n) { return n.ico + ' ' + n.nom; },
+    pintarOpciones('gridRutNivel', K.NIVELES, b.nivel, function (n) { return n.nom; },
       function (n) { leerCamposRutina(); b.nivel = n.id; pintarHojaRutina(); }, 'data-nivel');
     var prueba = normRutina(b);
     var prox = prueba ? K.proximaFecha(prueba, hoyClave()) : '';
     $('rutProxima').textContent = prueba
-      ? K.describirRutina(prueba) + (prox ? ' \u00B7 proxima: ' + nombreDia(prox) : ' \u00B7 no le toca mas')
+      ? K.describirRutina(prueba) + (prox ? ' \u00B7 proxima: ' + nombreDia(prox) : ' \u00B7 no le toca m\u00E1s')
       : 'Escrib\u00ED qu\u00E9 hay que hacer.';
 
     var existente = !b.esNueva;
@@ -7096,7 +7112,7 @@
     if (existente) {
       var ru = buscarRutina(b.id);
       var st = K.rachaRutina(ru, items, hoyClave());
-      $('rutRacha').textContent = '\uD83D\uDD25 racha ' + st.actual + ' \u00B7 mejor ' + st.mejor + ' \u00B7 ' +
+      $('rutRacha').textContent = 'Racha ' + st.actual + ' \u00B7 mejor ' + st.mejor + ' \u00B7 ' +
         st.hechas + ' hechas de ' + st.total;
       pintarHistorialRutina(ru);
       rotular($('btnPausarRutina'), ru.activa ? 'Pausar rutina' : 'Reactivar rutina', ru.activa ? 'pause' : 'play');
@@ -7106,14 +7122,15 @@
     }
   }
 
+  /* Icono de trazo de una ocurrencia en el historial de la rutina. */
   function simboloOcurrencia(it) {
-    if (it.motivo === 'delegada') { return '\uD83E\uDD1D'; }
-    if (K.esHecho(it.estado)) { return '\u2705'; }
-    if (it.motivo === 'no_corresponde') { return '\u2796'; }
-    if (it.motivo === 'omitida') { return '\u23ED'; }
-    if (it.motivo === 'vencida') { return '\u231B'; }
-    if (it.estado === 'cancelado') { return '\u274C'; }
-    return '\u25CB';
+    if (it.motivo === 'delegada') { return 'users'; }
+    if (K.esHecho(it.estado)) { return 'check-circle'; }
+    if (it.motivo === 'no_corresponde') { return 'minus'; }
+    if (it.motivo === 'omitida') { return 'forward'; }
+    if (it.motivo === 'vencida') { return 'hourglass'; }
+    if (it.estado === 'cancelado') { return 'circle-slash'; }
+    return 'circle';
   }
 
   function pintarHistorialRutina(ru) {
@@ -7129,7 +7146,7 @@
         f.type = 'button';
         var p = it.ocurrencia.split('-');
         f.appendChild(nodo('span', 'mono h', p[2] + '/' + p[1]));
-        f.appendChild(nodo('span', 's', simboloOcurrencia(it)));
+        f.appendChild(svgIco(simboloOcurrencia(it), 's'));
         f.appendChild(nodo('span', 'd', it.motivo ? textoMotivo(it.motivo) : estadoInfo(it.estado).nom));
         f.onclick = function () { cerrarParaRelevo('tapaRutina'); abrirItem(it.id); soltarRelevo(); };
         cont.appendChild(f);
@@ -7274,7 +7291,7 @@
         l2.appendChild(badgeCtx(ru.contexto));
         l2.appendChild(badge('rut', K.describirRutina(ru)));
         var st = K.rachaRutina(ru, items, hoyClave());
-        if (st.actual > 0) { l2.appendChild(badge('racha', '\uD83D\uDD25 ' + st.actual)); }
+        if (st.actual > 0) { l2.appendChild(badge('racha', '' + st.actual, 'flame')); }
         if (!ru.activa) { l2.appendChild(badge('pausa', 'En pausa', 'pause')); }
         else {
           var px = K.proximaFecha(ru, hoyClave());

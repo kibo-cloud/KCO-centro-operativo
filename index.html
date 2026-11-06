@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <!-- Barra del sistema: una variante por esquema; tema.js las iguala al tema activo. -->
-<meta name="theme-color" content="#F2F3F6" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0D0F12" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F3F4F6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B0D10" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>KCO — Centro Operativo</title>
@@ -16,7 +16,7 @@
 <!-- Bloqueante a proposito: fija data-tema antes del primer pintado (sin destello). -->
 <script src="./tema.js"></script>
 </head>
-<body class="pal-gris" data-ctx="todo">
+<body class="pal-todo" data-ctx="todo">
 
 <!-- Escritorio (>= 1024px): barra lateral con vistas y contextos. En movil no se muestra. -->
 <aside class="lateral" id="lateral" aria-label="Navegaci&oacute;n">
@@ -86,7 +86,7 @@
     </div>
     <div id="cajaOrdenTablero" class="orden-caja"></div>
     <ul id="lista" class="lista"></ul>
-    <div class="vacio" id="vacioTablero">Nada por aca todavia.</div>
+    <div class="vacio" id="vacioTablero">Nada por acá todavia.</div>
   </div>
 
   <div id="vistaCompras" style="display:none">
@@ -267,7 +267,7 @@
     </div>
     <div id="cajaHora" style="display:none">
       <input id="txtHora" type="time" value="18:00" aria-label="Hora">
-      <div class="grid" style="margin-top:7px">
+      <div class="grid" style="margin-top:8px">
         <button class="gbtn" id="btnHoraHoy" type="button">Hoy a esa hora</button>
         <button class="gbtn" id="btnHoraManana" type="button">Ma&ntilde;ana a esa hora</button>
       </div>
@@ -319,17 +319,17 @@
     <div class="rot">Frecuencia</div>
     <div class="grid" id="gridFrec"></div>
     <div id="cajaCada">
-      <div class="rot" id="rotCada">Cada cuantos dias</div>
+      <div class="rot" id="rotCada">Cada cuantos días</div>
       <input id="numCada" type="number" inputmode="numeric" min="1" max="365" value="1">
     </div>
     <div id="cajaSemana">
-      <div class="rot">Dias</div>
+      <div class="rot">Días</div>
       <div class="semana" id="gridSemana"></div>
     </div>
     <div id="cajaMes">
       <div class="rot">Dia del mes</div>
       <input id="numDiaMes" type="number" inputmode="numeric" min="1" max="31" value="1">
-      <div class="pista">Si el mes es mas corto, toca el ultimo dia.</div>
+      <div class="pista">Si el mes es más corto, toca el ultimo dia.</div>
     </div>
     <div class="rot">Contexto</div>
     <div class="grid" id="gridRutCtx"></div>
@@ -343,7 +343,7 @@
     <button class="bloque pri" id="btnGuardarRutina" type="button">Guardar rutina</button>
     <div id="cajaRutExistente" style="display:none">
       <div class="rot">Historial</div>
-      <div class="pista mono" id="rutRacha" style="margin-top:0;margin-bottom:6px"></div>
+      <div class="pista mono" id="rutRacha" style="margin-top:0;margin-bottom:8px"></div>
       <div id="rutHistorial"></div>
       <button class="bloque" id="btnPausarRutina" type="button" data-ico="pause">Pausar rutina</button>
       <button class="bloque peli" id="btnBorrarRutina" type="button" data-ico="trash">Borrar definicion</button>
@@ -353,7 +353,7 @@
 
 <div class="tapa" id="tapaMision">
   <div class="hoja">
-    <h2 id="misTitulo">Nueva mision</h2>
+    <h2 id="misTitulo">Nueva misión</h2>
     <div class="sub" id="misSub"></div>
     <input id="txtMisNombre" type="text" autocomplete="off" autocapitalize="sentences" maxlength="120"
            placeholder="Nombre. Ej: TU GASTO - ALFA">
@@ -361,7 +361,7 @@
               placeholder="Objetivo: que tiene que ser verdad cuando termine"></textarea>
     <div class="rot">Contexto</div>
     <div class="grid" id="gridMisCtx"></div>
-    <button class="bloque pri" id="btnGuardarMision" type="button">Crear mision</button>
+    <button class="bloque pri" id="btnGuardarMision" type="button">Crear misión</button>
     <div id="cajaMisExistente" style="display:none">
       <div class="misprog">
         <b class="mono" id="misPctTxt">0%</b>
@@ -377,22 +377,22 @@
       <input id="txtHito" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
              maxlength="160" placeholder="Nuevo hito. Ej: QA aprobado">
       <button class="bloque" id="btnAgregarHito" type="button">Agregar hito</button>
-      <div class="rot">Tareas de la mision</div>
+      <div class="rot">Tareas de la misión</div>
       <ul class="lista" id="misTareas"></ul>
       <input id="txtMisTarea" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
-             placeholder="Nueva tarea de esta mision">
+             placeholder="Nueva tarea de esta misión">
       <button class="bloque" id="btnAgregarMisTarea" type="button">Agregar tarea</button>
       <div class="rot">Estado</div>
-      <button class="bloque" id="btnMisPausa" type="button" data-ico="pause">Pausar mision</button>
-      <button class="bloque pri" id="btnMisTerminar" type="button" data-ico="flag">Completar mision</button>
-      <button class="bloque peli" id="btnMisBorrar" type="button" data-ico="trash">Borrar mision</button>
+      <button class="bloque" id="btnMisPausa" type="button" data-ico="pause">Pausar misión</button>
+      <button class="bloque pri" id="btnMisTerminar" type="button" data-ico="flag">Completar misión</button>
+      <button class="bloque peli" id="btnMisBorrar" type="button" data-ico="trash">Borrar misión</button>
     </div>
   </div>
 </div>
 
 <div class="tapa" id="tapaBuscar">
   <div class="hoja">
-    <h2>Busqueda universal</h2>
+    <h2>Búsqueda universal</h2>
     <input id="txtBusca" type="text" autocomplete="off" placeholder="Buscar en todos los contextos...">
     <ul id="resultados"></ul>
     <div class="vacio" id="vacioBusca">Escribi para buscar.</div>
@@ -412,7 +412,7 @@
   <div class="hoja">
     <h2 id="confTitulo">Confirmar</h2>
     <div class="sub" id="confDetalle"></div>
-    <button class="bloque peli" id="btnConfSi" type="button">Si, hacelo</button>
+    <button class="bloque peli" id="btnConfSi" type="button">Sí, hacelo</button>
     <button class="bloque pri" id="btnConfNo" type="button">No, cancelar</button>
   </div>
 </div>
@@ -444,7 +444,7 @@
     <div class="pista" style="margin-top:8px">Suenan con KCO abierta o recien usada. Con la app cerrada Android no las dispara: al abrir KCO vas a ver los vencidos arriba.</div>
     <div id="bloqueCatalogos">
     <div class="rot">Cat&aacute;logos de compras</div>
-    <div class="pista" style="margin-top:0;margin-bottom:9px">Solicitantes y destinos que KCO fue aprendiendo sola. Borrar uno de aca no toca ninguna compra ya cargada.</div>
+    <div class="pista" style="margin-top:0;margin-bottom:8px">Solicitantes y destinos que KCO fue aprendiendo sola. Borrar uno de acá no toca ninguna compra ya cargada.</div>
     <div class="dato"><span>Solicitantes</span><span id="vSolic">-</span></div>
     <div id="chipsSolic" class="catalogo"></div>
     <textarea id="txtNuevoSolic" rows="3" autocomplete="off" autocapitalize="words"

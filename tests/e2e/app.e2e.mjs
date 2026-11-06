@@ -6,6 +6,8 @@ import os from 'node:os';
 import { sleep, ROOT } from './harness.mjs';
 
 const OUT = path.join(ROOT, 'tests', 'e2e', 'out');
+// Emoji and pictographs: the interface shows stroke icons and words instead (Cabina).
+const EMOJI_UI = /[\u{1F000}-\u{1FAFF}\u2600-\u27BF\u2B50\u203C\u23E9-\u23FA\u2610\u2611\u2715]/u;
 const items = async (page) => JSON.parse((await page.storage('kibco.items')) || '[]');
 const events = async (page) => JSON.parse((await page.storage('kibco.eventos')) || '[]');
 
@@ -134,12 +136,12 @@ export const tests = [
     async fn(page) {
       assert.ok(await page.eval("Array.prototype.some.call(document.styleSheets,function(s){return /\\/kco\\.css$/.test(s.href||'');})"), 'kco.css stylesheet loaded');
       const tok = (n) => page.eval(`getComputedStyle(document.documentElement).getPropertyValue(${JSON.stringify(n)}).trim()`);
-      assert.equal(await tok('--sp-4'), '16px');
+      assert.equal(await tok('--s-4'), '16px');
       assert.equal(await tok('--tap'), '44px');
-      assert.equal(await tok('--fs-xs'), '12px');
+      assert.equal(await tok('--fs-13'), '13px');
       // Rules use the tokens: dark background; the focus ring follows the context accent.
       await scheme(page, 'dark');
-      assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(13, 15, 18)');
+      assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(11, 13, 16)');
       await page.eval("document.body.className='pal-violeta'");
       assert.equal((await page.eval("getComputedStyle(document.body).getPropertyValue('--focus').trim()")).toUpperCase(), '#A78BFA');
     }
@@ -688,11 +690,11 @@ export const tests = [
       assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'gym');
       assert.match(await page.eval('document.body.className'), /\bpal-lima\b/);
       assert.match(await ico('#btnCtx svg.ctxchip-ico'), /^trophy:[1-9]/);
-      // Todo is the neutral aggregate.
+      // Todo is the neutral aggregate (chalk accent, pal-todo).
       await page.click('#btnCtx');
       await page.click('#ctxsel [data-ctx="todo"]');
       assert.equal(await page.eval("document.body.getAttribute('data-ctx')"), 'todo');
-      assert.match(await page.eval('document.body.className'), /\bpal-gris\b/);
+      assert.match(await page.eval('document.body.className'), /\bpal-todo\b/);
       // A color change in the registry (same ids) repaints the rows.
       await page.eval("(function(){var v=JSON.stringify([{id:'estudio',nom:'Estudio',ico:'book',color:'rojo',orden:0},{id:'gym',nom:'Gym',ico:'trophy',color:'lima',orden:1}]);" +
         "localStorage.setItem('kibco.apartados',v);window.dispatchEvent(new StorageEvent('storage',{key:'kibco.apartados',newValue:v}));})()");
@@ -1571,7 +1573,7 @@ export const tests = [
       const file = path.join(os.tmpdir(), 'kco-e2e-newer.json');
       fs.writeFileSync(file, JSON.stringify({ app: 'kco', schema: 4, items: [] }));
       await page.setFile('#archivoImport', file);
-      assert.match(await page.text('#aviso'), /mas nueva/);
+      assert.match(await page.text('#aviso'), /más nueva/);
       // Even if a confirmation slipped through, accepting it must not change anything.
       await page.eval("(function(){var b=document.getElementById('btnConfSi');if(b&&b.offsetParent!==null){b.click();}})()");
       await sleep(100);
@@ -1696,7 +1698,7 @@ export const tests = [
       assert.match(await page.eval('document.title'), /KCO/);
       assert.ok(await page.visible('#txtCaptura'));
       // The stylesheet came from the cache too: tokens resolve and rules apply offline.
-      assert.equal(await page.eval("getComputedStyle(document.documentElement).getPropertyValue('--sp-4').trim()"), '16px');
+      assert.equal(await page.eval("getComputedStyle(document.documentElement).getPropertyValue('--s-4').trim()"), '16px');
       assert.equal(await page.eval("getComputedStyle(document.querySelector('.captura')).position"), 'fixed');
       assert.ok(await page.eval("caches.match('./kco.css').then(function(r){return !!r;})"), 'kco.css is precached');
       await page.offline(false);
@@ -2049,6 +2051,8 @@ export const tests = [
       assert.match(txt, /Hito: Release/);
       assert.match(txt, /KCO · 100%/);
       assert.doesNotMatch(txt, /deshago/);
+      assert.doesNotMatch(txt, EMOJI_UI, 'the journal shows icons and words, no emoji');
+      assert.ok((await page.count('#diarioCuerpo svg.diario-ico')) > 0, 'journal entries carry stroke icons');
       await page.screenshot(path.join(OUT, 'diario.png'));
       await page.click('#btnModoRegistro');
       assert.match(await page.text('#timeline'), /deshago/, 'raw log still has everything');
@@ -2125,11 +2129,13 @@ export const tests = [
       await page.click('#tarjetaNivel');
       assert.ok(await page.visible('#campanaCuerpo'));
       const txt = await page.text('#campanaCuerpo');
-      assert.match(txt, /9dias activos/);
+      assert.match(txt, /9días activos/);
       assert.match(txt, /9racha actual/);
-      assert.match(txt, /7 dias avanzando/);
+      assert.match(txt, /7 días avanzando/);
       assert.match(txt, /Logro secreto/);
       assert.doesNotMatch(txt, /Madrugador/);
+      assert.doesNotMatch(txt, EMOJI_UI, 'achievements use stroke icons, no emoji');
+      assert.equal(await page.count('#secLogros .logro'), await page.count('#secLogros svg.logro-ico'), 'one icon per achievement');
       assert.equal(await page.count('.semanas .sem'), 12);
       assert.ok(await page.eval("document.querySelector('[data-logro=\"racha_7\"]').className.indexOf('ganado')>-1"),
         'historic 7-day streak unlocked silently on first 2.0 run');
@@ -2302,17 +2308,17 @@ export const tests = [
       await scheme(page, 'light');
       await page.reload();
       assert.equal(await page.eval("document.documentElement.getAttribute('data-tema')"), 'claro');
-      assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(242, 243, 246)');
-      assert.equal(await page.eval('getComputedStyle(document.body).color'), 'rgb(21, 24, 30)');
+      assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(243, 244, 246)');
+      assert.equal(await page.eval('getComputedStyle(document.body).color'), 'rgb(20, 23, 28)');
       assert.equal(await page.eval('getComputedStyle(document.documentElement).colorScheme'), 'light');
-      assert.deepEqual(await themeColors(page), ['#F2F3F6', '#F2F3F6'], 'every theme-color meta follows the active theme');
+      assert.deepEqual(await themeColors(page), ['#F3F4F6', '#F3F4F6'], 'every theme-color meta follows the active theme');
       await page.eval("document.body.className='pal-violeta'");
       assert.equal((await cssVar(page, 'document.body', '--accent')).toUpperCase(), '#6D28D9', 'palette accent has a light variant');
       await scheme(page, 'dark');
       assert.equal(await page.eval("document.documentElement.getAttribute('data-tema')"), 'oscuro', 'Sistema follows a live OS change');
-      assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(13, 15, 18)');
+      assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(11, 13, 16)');
       assert.equal(await page.eval('getComputedStyle(document.documentElement).colorScheme'), 'dark');
-      assert.deepEqual(await themeColors(page), ['#0D0F12', '#0D0F12']);
+      assert.deepEqual(await themeColors(page), ['#0B0D10', '#0B0D10']);
     }
   },
   {
@@ -2329,9 +2335,9 @@ export const tests = [
         "document.addEventListener('DOMContentLoaded',function(){window.__temaDCL=document.documentElement.getAttribute('data-tema');window.__bgDCL=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();});");
       await page.reload();
       assert.equal(await page.eval('window.__temaDCL'), 'oscuro', 'data-tema is set before DOMContentLoaded (no flash)');
-      assert.equal((await page.eval('window.__bgDCL')).toUpperCase(), '#0D0F12');
-      assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(13, 15, 18)');
-      assert.deepEqual(await themeColors(page), ['#0D0F12', '#0D0F12']);
+      assert.equal((await page.eval('window.__bgDCL')).toUpperCase(), '#0B0D10');
+      assert.equal(await page.eval('getComputedStyle(document.body).backgroundColor'), 'rgb(11, 13, 16)');
+      assert.deepEqual(await themeColors(page), ['#0B0D10', '#0B0D10']);
       await page.click('#btnAjustes');
       assert.ok(await page.eval("document.querySelector('#segTema [data-tema=\"oscuro\"]').className.indexOf('on')>-1"));
       await page.click('#segTema [data-tema="sistema"]');
@@ -3355,7 +3361,7 @@ export const tests = [
     }
   },
   {
-    name: 'motion: prefers-reduced-motion reduce brings every transition and animation to about 0',
+    name: 'motion: prefers-reduced-motion reduce turns every transition and animation into a 120ms fade without sliding',
     storage: seed(),
     async fn(page) {
       const PROBE = `(function(){var max=0,who='',l=document.querySelectorAll('*'),i,s,t;
@@ -3372,8 +3378,8 @@ export const tests = [
       await page.click('#lista li.item');
       await sleep(80);
       const r = await page.eval(PROBE);
-      assert.ok(r.max <= 0.01, 'longest transition/animation ' + r.max + 's on ' + r.who);
-      assert.ok(parseFloat(await page.eval("getComputedStyle(document.querySelector('#tapaItem .hoja')).transitionDuration")) <= 0.01, 'the sheet does not slide');
+      assert.ok(r.max <= 0.12, 'longest transition/animation ' + r.max + 's on ' + r.who);
+      assert.equal(await page.eval("getComputedStyle(document.querySelector('#tapaItem .hoja')).transform"), 'none', 'the sheet does not slide');
     }
   },
   {
@@ -3982,6 +3988,8 @@ export const tests = [
     storage: ORDER_SEED('manual'),
     width: 1366, height: 900, mobile: false,
     async fn(page) {
+      // Cabina controls are 48px tall: bring the list into the window before pressing with the mouse.
+      await page.eval("document.getElementById('secSigue').scrollIntoView(true)");
       const c = await page.rect('#secSigue li.item[data-id="C"]'), a = await page.rect('#secSigue li.item[data-id="A"]');
       await page.mouseDrag(c.x + c.w / 2, c.y + c.h / 2, c.x + c.w / 2, a.y + 4, 10, 500);
       assert.deepEqual(await orderRows(page), ['C', 'A', 'B', 'D']);

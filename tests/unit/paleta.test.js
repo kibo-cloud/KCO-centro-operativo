@@ -29,7 +29,10 @@ const over = (rgba, base) => base.map((v, i) => Math.round(rgba[i] * rgba[3] + v
 const token = (blk, n) => {
   const m = new RegExp('\\s' + n + ':([^;]+);').exec(blk);
   assert.ok(m, n + ' declared');
-  return m[1].trim();
+  const v = m[1].trim();
+  // An alias (--pal-gris: var(--pal-todo)) resolves inside the same theme block.
+  const a = /^var\((--[a-z0-9-]+)\)$/.exec(v);
+  return a ? token(blk, a[1]) : v;
 };
 const rgba = (s) => {
   const m = /^rgba\((\d+),(\d+),(\d+),([\d.]+)\)$/.exec(s.replace(/\s/g, ''));
@@ -50,6 +53,35 @@ for (const [tema, blk] of [['dark', DARK], ['light', LIGHT]]) {
     }
   });
 }
+
+for (const [tema, blk, tono] of [['dark', DARK, '#E6E8EB'], ['light', LIGHT, '#1A1D23']]) {
+  test('palette: pal-todo (chalk, the Todo view) is ' + tono + ' in ' + tema + ' with 4.5:1 over surfaces and its soft tint', () => {
+    const c = token(blk, '--pal-todo');
+    assert.equal(c.toUpperCase(), tono);
+    const soft = rgba(token(blk, '--pal-todo-soft'));
+    for (const n of ['--bg', '--surface', '--surface-2', '--surface-3']) {
+      const s = hex(token(blk, n));
+      assert.ok(ratio(hex(c), s) >= 4.5, tema + ' todo over ' + n + ': ' + ratio(hex(c), s).toFixed(2));
+      assert.ok(ratio(hex(c), over(soft, s)) >= 4.5, tema + ' todo over its soft tint on ' + n);
+    }
+    assert.equal(token(blk, '--pal-gris'), c, 'pal-gris is an alias of pal-todo');
+  });
+}
+
+test('palette: accent-soft tints are 16% in dark and 12% in light (rosa and naranja lighter to keep AA)', () => {
+  const claroTenue = { rosa: 0.09, naranja: 0.08 };
+  for (const k of C.COLORES.concat(['todo'])) {
+    assert.equal(rgba(token(DARK, '--pal-' + k + '-soft'))[3], 0.16, 'dark ' + k);
+    assert.equal(rgba(token(LIGHT, '--pal-' + k + '-soft'))[3], claroTenue[k] || 0.12, 'light ' + k);
+  }
+});
+
+test('palette: pal-todo has body and dot rules; the Todo view uses it', () => {
+  assert.match(css, /body\.pal-todo\{--accent:var\(--pal-todo\);--accent-soft:var\(--pal-todo-soft\)\}/);
+  assert.match(css, /\.punto\.pal-todo\{background:var\(--pal-todo\)\}/);
+  const html = fs.readFileSync(path.resolve(__dirname, '..', '..', 'index.html'), 'utf8');
+  assert.match(html, /<body class="pal-todo"/);
+});
 
 test('palette: body accent and dot rules exist per key; no rule is bound to a section id', () => {
   for (const k of C.COLORES) {

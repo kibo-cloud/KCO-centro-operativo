@@ -659,7 +659,7 @@
     regla(it.anclado === true, 120, 'Anclada');
     regla(it.estado === 'proceso', 100, 'En proceso');
     regla(nivel === 'importante', 150, 'Importante');
-    regla(!!it.proyectoId, 40, 'Avanza una mision');
+    regla(!!it.proyectoId, 40, 'Avanza una misi\u00F3n');
     regla(nivel === 'baja', -60, 'Baja prioridad');
     regla(it.estado === 'entrada', -30, 'Sin clasificar');
     var edad = it.creado ? difDias(claveDeIso(it.creado) || hoy, hoy) : 0;
@@ -997,13 +997,13 @@
   var NOMBRES_DIA = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
   function describirRutina(r) {
-    if (r.tipo === 'dias') { return r.cada === 1 ? 'Todos los dias' : 'Cada ' + r.cada + ' dias'; }
+    if (r.tipo === 'dias') { return r.cada === 1 ? 'Todos los d\u00EDas' : 'Cada ' + r.cada + ' d\u00EDas'; }
     if (r.tipo === 'semana') {
       var orden = [1, 2, 3, 4, 5, 6, 0], nombres = [], i, j;
       for (i = 0; i < orden.length; i++) {
         for (j = 0; j < r.dias.length; j++) { if (r.dias[j] === orden[i]) { nombres.push(NOMBRES_DIA[orden[i]]); } }
       }
-      var lista = r.dias.length === 7 ? 'todos los dias' : nombres.join(', ');
+      var lista = r.dias.length === 7 ? 'todos los d\u00EDas' : nombres.join(', ');
       return (r.cada === 1 ? 'Cada semana: ' : 'Cada ' + r.cada + ' semanas: ') + lista;
     }
     return (r.cada === 1 ? 'Todos los meses' : 'Cada ' + r.cada + ' meses') + ' el dia ' + r.diaMes;
@@ -1218,27 +1218,28 @@
 
   function entradaDiario(ev, i, ultima, porId) {
     var base = { ts: ev.ts, itemId: ev.itemId, contexto: ev.contexto };
-    function e(clase, ico, texto, sub) {
-      base.clase = clase; base.ico = ico; base.texto = texto; base.sub = sub || '';
+    /* ico es el emoji historico (dato); icono es el trazo de iconos.js que pinta la interfaz. */
+    function e(clase, ico, texto, sub, icono) {
+      base.clase = clase; base.ico = ico; base.texto = texto; base.sub = sub || ''; base.icono = icono;
       return base;
     }
     if (esCierre(ev)) {
       if (ultima['#' + ev.itemId] !== i) { return null; }
       var it = porId['#' + ev.itemId];
       var delegada = ev.tipo === 'excepcion';
-      if (it && it.rutinaId) { return e('rutina', '\uD83D\uDD04', ev.texto, delegada ? 'delegada' : ''); }
-      if (it && it.tipo === 'compra') { return e('hecha', '\uD83D\uDCE6', ev.texto, ev.hasta === 'recibido' ? 'material recibido' : 'comprado'); }
-      return e('hecha', '\u2714', ev.texto, delegada ? 'delegada' : '');
+      if (it && it.rutinaId) { return e('rutina', '\uD83D\uDD04', ev.texto, delegada ? 'delegada' : '', 'repeat'); }
+      if (it && it.tipo === 'compra') { return e('hecha', '\uD83D\uDCE6', ev.texto, ev.hasta === 'recibido' ? 'material recibido' : 'comprado', 'cart'); }
+      return e('hecha', '\u2714', ev.texto, delegada ? 'delegada' : '', 'check');
     }
-    if (ev.tipo === 'hito') { return e('hito', '\uD83C\uDFAF', 'Hito: ' + ev.hasta, ev.texto + (ev.desde ? ' \u00B7 ' + ev.desde + '%' : '')); }
-    if (ev.tipo === 'mision_alta') { return e('mision', '\uD83D\uDE80', 'Nueva mision: ' + ev.texto, ''); }
-    if (ev.tipo === 'mision_fin') { return e('mision', '\uD83C\uDFC1', 'Mision cumplida: ' + ev.texto, ''); }
-    if (ev.tipo === 'mision_reabre') { return e('nota', '\u21A9', 'Retomaste la mision: ' + ev.texto, ''); }
-    if (ev.tipo === 'rutina_alta') { return e('nota', '\uD83D\uDD04', 'Nueva rutina: ' + ev.texto, ev.hasta); }
-    if (ev.tipo === 'comentario') { return e('nota', '\uD83D\uDCAC', ev.hasta, ev.texto); }
-    if (ev.tipo === 'logro') { return e('logro', '\uD83C\uDFC6', 'Logro: ' + ev.hasta, ev.texto); }
-    if (ev.tipo === 'nivel') { return e('logro', '\u2B50', 'Nivel ' + ev.hasta, ev.texto); }
-    if (ev.tipo === 'restauracion') { return e('sistema', '\u2699', 'Restauraste un backup', ev.texto); }
+    if (ev.tipo === 'hito') { return e('hito', '\uD83C\uDFAF', 'Hito: ' + ev.hasta, ev.texto + (ev.desde ? ' \u00B7 ' + ev.desde + '%' : ''), 'target'); }
+    if (ev.tipo === 'mision_alta') { return e('mision', '\uD83D\uDE80', 'Nueva misi\u00F3n: ' + ev.texto, '', 'compass'); }
+    if (ev.tipo === 'mision_fin') { return e('mision', '\uD83C\uDFC1', 'Misi\u00F3n cumplida: ' + ev.texto, '', 'flag'); }
+    if (ev.tipo === 'mision_reabre') { return e('nota', '\u21A9', 'Retomaste la misi\u00F3n: ' + ev.texto, '', 'undo'); }
+    if (ev.tipo === 'rutina_alta') { return e('nota', '\uD83D\uDD04', 'Nueva rutina: ' + ev.texto, ev.hasta, 'repeat'); }
+    if (ev.tipo === 'comentario') { return e('nota', '\uD83D\uDCAC', ev.hasta, ev.texto, 'message'); }
+    if (ev.tipo === 'logro') { return e('logro', '\uD83C\uDFC6', 'Logro: ' + ev.hasta, ev.texto, 'trophy'); }
+    if (ev.tipo === 'nivel') { return e('logro', '\u2B50', 'Nivel ' + ev.hasta, ev.texto, 'star'); }
+    if (ev.tipo === 'restauracion') { return e('sistema', '\u2699', 'Restauraste un backup', ev.texto, 'settings'); }
     return null;
   }
 
@@ -1572,26 +1573,26 @@
      se muestran hasta ganarlos: la sorpresa es parte del premio. */
 
   var LOGROS = [
-    { id: 'primer_paso', ico: '\uD83D\uDC63', nom: 'Primer paso', desc: 'Completaste tu primera tarea', campo: 'totalHechas', meta: 1 },
-    { id: 'en_marcha', ico: '\uD83D\uDE80', nom: 'En marcha', desc: '10 cosas completadas', campo: 'totalHechas', meta: 10 },
-    { id: 'centenario', ico: '\uD83D\uDCAF', nom: 'Centenario', desc: '100 cosas completadas', campo: 'totalHechas', meta: 100 },
-    { id: 'imparable', ico: '\u26A1', nom: 'Imparable', desc: '500 cosas completadas', campo: 'totalHechas', meta: 500 },
-    { id: 'primer_hito', ico: '\uD83C\uDFAF', nom: 'Primer hito', desc: 'Cumpliste el primer hito de una mision', campo: 'hitos', meta: 1 },
-    { id: 'primera_mision', ico: '\uD83C\uDFC1', nom: 'Primera mision', desc: 'Terminaste tu primer proyecto', campo: 'misionesFin', meta: 1 },
-    { id: 'gran_hito', ico: '\uD83C\uDFD4', nom: 'Gran milestone', desc: 'Cumpliste una mision de 5 o mas hitos', campo: 'misionesGrandes', meta: 1 },
-    { id: 'cinco_misiones', ico: '\uD83C\uDF96', nom: 'Estratega', desc: '5 misiones cumplidas', campo: 'misionesFin', meta: 5 },
-    { id: 'racha_7', ico: '\uD83D\uDD25', nom: '7 dias avanzando', desc: 'Una semana seguida con avances', campo: 'rachaMejor', meta: 7 },
-    { id: 'racha_30', ico: '\uD83C\uDF0B', nom: '30 dias avanzando', desc: 'Un mes seguido con avances', campo: 'rachaMejor', meta: 30 },
-    { id: 'dias_100', ico: '\uD83D\uDCC5', nom: '100 dias activos', desc: '100 dias con algun avance, seguidos o no', campo: 'diasActivos', meta: 100 },
-    { id: 'constancia', ico: '\uD83D\uDD04', nom: 'Constancia', desc: 'Una rutina 14 veces seguidas', campo: 'rachaRutinaMejor', meta: 14 },
-    { id: 'rutina_100', ico: '\u267B', nom: 'Habito de hierro', desc: '100 rutinas cumplidas', campo: 'rutinasHechas', meta: 100 },
-    { id: 'equilibrio', ico: '\u2696', nom: 'Equilibrio', desc: '5 o mas completadas en 3 apartados de tu vida (o en todos, si tenes menos)', campo: 'contextosEquilibrio', meta: 3, metaCampo: 'metaEquilibrio' },
-    { id: 'inbox_cero', ico: '\uD83D\uDCED', nom: 'Inbox cero', desc: 'Inbox vacio con 20 o mas cosas hechas', campo: 'inboxCero', meta: 1 },
-    { id: 'nivel_5', ico: '\u2B50', nom: 'Nivel 5', desc: 'Llegaste a nivel 5', campo: 'nivel', meta: 5 },
-    { id: 'nivel_10', ico: '\uD83C\uDF1F', nom: 'Nivel 10', desc: 'Llegaste a nivel 10', campo: 'nivel', meta: 10 },
-    { id: 'primera_alfa', ico: '\uD83C\uDD70', nom: 'Primera Alfa', desc: 'Cumpliste una version Alfa', campo: 'alfa', meta: 1, secreto: true },
-    { id: 'retomaste', ico: '\uD83E\uDDF2', nom: 'Retomaste algo abandonado', desc: 'Completaste algo que llevaba 30 dias o mas', campo: 'retomadas', meta: 1, secreto: true },
-    { id: 'madrugador', ico: '\uD83C\uDF05', nom: 'Madrugador', desc: 'Completaste algo antes de las 7', campo: 'madrugadas', meta: 1, secreto: true }
+    { id: 'primer_paso', ico: '\uD83D\uDC63', icono: 'check', nom: 'Primer paso', desc: 'Completaste tu primera tarea', campo: 'totalHechas', meta: 1 },
+    { id: 'en_marcha', ico: '\uD83D\uDE80', icono: 'zap', nom: 'En marcha', desc: '10 cosas completadas', campo: 'totalHechas', meta: 10 },
+    { id: 'centenario', ico: '\uD83D\uDCAF', icono: 'star', nom: 'Centenario', desc: '100 cosas completadas', campo: 'totalHechas', meta: 100 },
+    { id: 'imparable', ico: '\u26A1', icono: 'zap', nom: 'Imparable', desc: '500 cosas completadas', campo: 'totalHechas', meta: 500 },
+    { id: 'primer_hito', ico: '\uD83C\uDFAF', icono: 'target', nom: 'Primer hito', desc: 'Cumpliste el primer hito de una misi\u00F3n', campo: 'hitos', meta: 1 },
+    { id: 'primera_mision', ico: '\uD83C\uDFC1', icono: 'flag', nom: 'Primera misi\u00F3n', desc: 'Terminaste tu primer proyecto', campo: 'misionesFin', meta: 1 },
+    { id: 'gran_hito', ico: '\uD83C\uDFD4', icono: 'flag', nom: 'Gran milestone', desc: 'Cumpliste una misi\u00F3n de 5 o m\u00E1s hitos', campo: 'misionesGrandes', meta: 1 },
+    { id: 'cinco_misiones', ico: '\uD83C\uDF96', icono: 'trophy', nom: 'Estratega', desc: '5 misiones cumplidas', campo: 'misionesFin', meta: 5 },
+    { id: 'racha_7', ico: '\uD83D\uDD25', icono: 'flame', nom: '7 d\u00EDas avanzando', desc: 'Una semana seguida con avances', campo: 'rachaMejor', meta: 7 },
+    { id: 'racha_30', ico: '\uD83C\uDF0B', icono: 'flame', nom: '30 d\u00EDas avanzando', desc: 'Un mes seguido con avances', campo: 'rachaMejor', meta: 30 },
+    { id: 'dias_100', ico: '\uD83D\uDCC5', icono: 'calendar', nom: '100 d\u00EDas activos', desc: '100 d\u00EDas con algun avance, seguidos o no', campo: 'diasActivos', meta: 100 },
+    { id: 'constancia', ico: '\uD83D\uDD04', icono: 'repeat', nom: 'Constancia', desc: 'Una rutina 14 veces seguidas', campo: 'rachaRutinaMejor', meta: 14 },
+    { id: 'rutina_100', ico: '\u267B', icono: 'repeat', nom: 'Habito de hierro', desc: '100 rutinas cumplidas', campo: 'rutinasHechas', meta: 100 },
+    { id: 'equilibrio', ico: '\u2696', icono: 'layers', nom: 'Equilibrio', desc: '5 o m\u00E1s completadas en 3 apartados de tu vida (o en todos, si tenes menos)', campo: 'contextosEquilibrio', meta: 3, metaCampo: 'metaEquilibrio' },
+    { id: 'inbox_cero', ico: '\uD83D\uDCED', icono: 'inbox', nom: 'Inbox cero', desc: 'Inbox vacio con 20 o m\u00E1s cosas hechas', campo: 'inboxCero', meta: 1 },
+    { id: 'nivel_5', ico: '\u2B50', icono: 'star', nom: 'Nivel 5', desc: 'Llegaste a nivel 5', campo: 'nivel', meta: 5 },
+    { id: 'nivel_10', ico: '\uD83C\uDF1F', icono: 'star', nom: 'Nivel 10', desc: 'Llegaste a nivel 10', campo: 'nivel', meta: 10 },
+    { id: 'primera_alfa', ico: '\uD83C\uDD70', icono: 'trophy', nom: 'Primera Alfa', desc: 'Cumpliste una version Alfa', campo: 'alfa', meta: 1, secreto: true },
+    { id: 'retomaste', ico: '\uD83E\uDDF2', icono: 'undo', nom: 'Retomaste algo abandonado', desc: 'Completaste algo que llevaba 30 d\u00EDas o m\u00E1s', campo: 'retomadas', meta: 1, secreto: true },
+    { id: 'madrugador', ico: '\uD83C\uDF05', icono: 'sun', nom: 'Madrugador', desc: 'Completaste algo antes de las 7', campo: 'madrugadas', meta: 1, secreto: true }
   ];
 
   /* La meta de un logro: fija, o leida de las estadisticas cuando depende de

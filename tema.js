@@ -9,7 +9,7 @@
 
   var K_TEMA = 'kibco.tema';
   /* Color de la barra del navegador / sistema: el --bg de cada tema en kco.css. */
-  var COLOR_BARRA = { claro: '#F2F3F6', oscuro: '#0D0F12' };
+  var COLOR_BARRA = { claro: '#F3F4F6', oscuro: '#0B0D10' };
   var raiz = document.documentElement;
   var media = null;
   var preferencia = 'sistema';
