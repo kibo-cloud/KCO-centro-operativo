@@ -43,7 +43,7 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
 | ID | Phase | Route | Branch | Status |
 |---|---|---|---|---|
 | T1 | Tokens and base: new tokens, `pal-todo` (+ `pal-gris` alias, contrast test), type scale floor 13, normalized spacing/radii, single segmented control, buttons, new icons, replace **all** UI emojis | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-1-tokens` | done (`719c1ec`; RDD medium, reviewed and acknowledged) |
-| T2 | Shell: top bar (context page indicator, XP ring), new tab bar (Listas, Progreso), capture with `#btnEnviar` + shortcut row | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-2-shell` | done (see Progress) |
+| T2 | Shell: top bar (context page indicator, XP ring), new tab bar (Listas, Progreso), capture with `#btnEnviar` + shortcut row | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-2-shell` | done (`739f2c6`) |
 | T3 | Item card: priority by ring, swipe tray `.bandeja-swipe`, drag handle in Manual, first-run hints (`kibco.pistas`) | delegated | `feat/redesign-cabina-3-card` | pending |
 | T4 | Views: Ahora (hero first + filter chips), Hoy (7-day strip), Listas (top-level tabs, purchase stages, notes grid), Misiones, Progreso | delegated | `feat/redesign-cabina-4-views` | pending |
 | T5 | Sheets: progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets | delegated | `feat/redesign-cabina-5-sheets` | pending |
@@ -79,8 +79,7 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
   Non-blocking follow-ups for T7: R3-001 (`tests/unit/interfaz.test.js` `sinFuncion` must assert the closing
   marker was found, `fin > -1`); R3-002 (E2E asserting checklist/hito toggles swap icon and flip `aria-pressed`).
   Also pending for T7: `manifest.webmanifest` theme color `#0B0D10`.
-- 2026-11-06: T2 done on `feat/redesign-cabina-2-shell` (delegated writer); commit hash recorded in the T2 commit
-  message history (`git log feat/redesign-cabina-2-shell`).
+- 2026-11-06: T2 done on `feat/redesign-cabina-2-shell` (delegated writer); commit `739f2c6`.
   Shell: page indicator `.indicador-contexto` (one `.ind-punto` per section, active 12x4 accent bar, Todo = three
   overlapping dots), XP ring `.anillo-xp` (`#btnNivel`, conic-gradient in brasa, opens Progreso on Campaña), tab
   bar 84px (`--tabbar-pie` = max(20px, safe area)) with `data-tab="ahora|hoy|listas|misiones|progreso"` (ids
