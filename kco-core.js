@@ -780,55 +780,72 @@
     return null;
   }
 
-  function parsearCaptura(entrada, ahora) {
-    var texto = ' ' + entrada + ' ';
+  /* t con el tramo [ini, fin) tapado con espacios: el resto no cambia de
+     lugar, asi las posiciones siguen siendo las del texto original. */
+  function tapar(t, ini, fin) {
+    var s = '', i;
+    for (i = ini; i < fin; i++) { s += ' '; }
+    return t.slice(0, ini) + s + t.slice(fin);
+  }
+
+  /* El lector de la captura. Trabaja sobre ' ' + entrada + ' ' y tapa (no
+     corta) lo que interpreta; ademas del resultado devuelve en tramos las
+     posiciones exactas de la hora y la palabra de dia que uso, para que la
+     cruz del dia (quitarDiaCaptura) saque justo eso y nada mas. */
+  function leerCaptura(entrada, ahora) {
+    var t = ' ' + entrada + ' ', tramos = [];
     var r = { texto: '', recordatorio: '', fecha: '', contexto: '', nivel: '' };
-    var mc = etiquetaContexto(texto);
+    var mc = etiquetaContexto(t);
     if (mc) {
       r.contexto = aliasCtx['#' + slug(mc[1])];
-      texto = quitar(texto, mc);
+      t = tapar(t, mc.index, mc.index + mc[0].length);
     }
-    var mn = texto.match(/\s(!!?)(?=\s)/);
+    var mn = t.match(/\s(!!?)(?=\s)/);
     if (mn) {
       r.nivel = mn[1] === '!!' ? 'urgente' : 'importante';
-      texto = quitar(texto, mn);
+      t = tapar(t, mn.index, mn.index + mn[0].length);
     }
-    texto = limpio(texto);
-    var antes = texto;
-    var m = texto.match(/(^|\s)@\s?([01]?\d|2[0-3]):([0-5]\d)(?=\s|$)/);
+    var antes = limpio(t);
+    var m = t.match(/(^|\s)@\s*([01]?\d|2[0-3]):([0-5]\d)(?=\s|$)/);
     if (!m) {
-      var mb = texto.match(/(^|\s)([01]\d|2[0-3]):([0-5]\d)(?=\s|$)/);
+      var mb = t.match(/(^|\s)([01]\d|2[0-3]):([0-5]\d)(?=\s|$)/);
       if (mb) {
-        var resto = texto.slice(mb.index + mb[0].length).replace(/^\s+|\s+$/g, '');
-        var conDia = /(^|\s)(hoy|ma[ñn]ana)(\s|$)/i.test(texto);
+        var resto = limpio(t.slice(mb.index + mb[0].length));
+        var conDia = /(^|\s)(hoy|ma[ñn]ana)(\s|$)/i.test(t);
         if (resto === '' || conDia) { m = mb; }
       }
     }
     if (m) {
-      var h = parseInt(m[2], 10), min = parseInt(m[3], 10), dia = 0;
-      texto = quitar(texto, m);
-      var mm = texto.match(/(^|\s)(ma[ñn]ana)(\s|$)/i);
-      if (mm) { dia = 1; texto = quitar(texto, mm); }
-      else {
-        var mh = texto.match(/(^|\s)(hoy)(\s|$)/i);
-        if (mh) { texto = quitar(texto, mh); }
+      var h = parseInt(m[2], 10), min = parseInt(m[3], 10), dia = 0, usados = [], sin = t;
+      usados.push([m.index, m.index + m[0].length]);
+      sin = tapar(sin, m.index, m.index + m[0].length);
+      var md = sin.match(/(^|\s)(ma[ñn]ana)(?=\s|$)/i);
+      if (md) { dia = 1; } else { md = sin.match(/(^|\s)(hoy)(?=\s|$)/i); }
+      if (md) {
+        usados.push([md.index, md.index + md[0].length]);
+        sin = tapar(sin, md.index, md.index + md[0].length);
       }
       var d = new Date(ahora.getTime());
       d.setHours(h, min, 0, 0);
       if (dia === 1 || d.getTime() <= ahora.getTime()) { d.setDate(d.getDate() + 1); }
-      texto = limpio(texto);
-      if (texto !== '') { r.recordatorio = d.toISOString(); }
-      else { texto = antes; }
+      r.texto = limpio(sin);
+      /* Si la hora era todo el texto, no es hora: el texto queda entero. */
+      if (r.texto !== '') { r.recordatorio = d.toISOString(); tramos = usados; } else { r.texto = antes; }
     } else {
-      var mf = texto.match(/(^|\s)(hoy|ma[ñn]ana)$/i);
-      if (mf && limpio(texto.slice(0, mf.index)) !== '') {
+      var mf = t.match(/(^|\s)(hoy|ma[ñn]ana)\s*$/i);
+      if (mf && limpio(t.slice(0, mf.index)) !== '') {
         var hoyK = claveDia(ahora);
         r.fecha = mf[2].toLowerCase() === 'hoy' ? hoyK : sumarDias(hoyK, 1);
-        texto = limpio(texto.slice(0, mf.index));
-      }
+        r.texto = limpio(t.slice(0, mf.index));
+        /* Solo la palabra: los espacios que siguen pueden ser otra marca tapada. */
+        tramos = [[mf.index, mf.index + mf[1].length + mf[2].length]];
+      } else { r.texto = antes; }
     }
-    r.texto = texto;
-    return r;
+    return { r: r, tramos: tramos };
+  }
+
+  function parsearCaptura(entrada, ahora) {
+    return leerCaptura(entrada, ahora).r;
   }
 
   /* Chips de la barra de captura: el mismo parsearCaptura que usa guardar,
@@ -895,22 +912,15 @@
     return mn ? limpio(quitar(texto, mn)) : entrada;
   }
 
-  /* La cruz del dia saca lo que parsearCaptura leyo como dia u hora: la hora
-     (@H:MM gana; si no, la HH:MM que tomo) y su hoy/manana, o la palabra de
-     dia del final. Si no leyo dia, el texto no cambia. */
+  /* La cruz del dia saca exactamente lo que parsearCaptura leyo como dia u
+     hora (los tramos de leerCaptura): la hora y su hoy/manana, o la palabra de
+     dia del final. Toda forma que pone el chip del dia se puede sacar asi;
+     si no leyo dia, el texto no cambia. */
   function quitarDiaCaptura(entrada, ahora) {
-    var p = parsearCaptura(entrada || '', ahora), texto = ' ' + entrada + ' ', m, ult = null, re;
-    if (p.recordatorio !== '') {
-      m = texto.match(/(^|\s)@\s?([01]?\d|2[0-3]):([0-5]\d)(?=\s|$)/) || texto.match(/(^|\s)([01]\d|2[0-3]):([0-5]\d)(?=\s|$)/);
-      if (m) { texto = quitar(texto, m); }
-      m = texto.match(/(^|\s)(ma[\u00F1n]ana)(?=\s|$)/i) || texto.match(/(^|\s)(hoy)(?=\s|$)/i);
-      if (m) { texto = quitar(texto, m); }
-      return limpio(texto);
-    }
-    if (p.fecha === '') { return entrada; }
-    re = /(^|\s)(hoy|ma[\u00F1n]ana)(?=\s|$)/gi;
-    while ((m = re.exec(texto)) !== null) { ult = m; }
-    return ult ? limpio(quitar(texto, ult)) : entrada;
+    var x = leerCaptura(entrada || '', ahora), t = ' ' + (entrada || '') + ' ', i;
+    if (x.tramos.length === 0) { return entrada; }
+    for (i = 0; i < x.tramos.length; i++) { t = tapar(t, x.tramos[i][0], x.tramos[i][1]); }
+    return limpio(t);
   }
 
   /* ---------- rutinas (tareas recurrentes) ----------

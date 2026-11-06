@@ -115,3 +115,34 @@ test('capture chips: quitarDiaCaptura removes the parsed time and day words, not
   assert.equal(r.nivel, 'importante');
   assert.equal(r.texto, 'turno');
 });
+
+test('capture chips: quitarDiaCaptura removes exactly the time and day tokens the parser consumed', () => {
+  C.fijarApartados(C.apartadosLegado());
+  // The parser reads "@  9:30" (any spacing after @); the clear button must remove that same token.
+  assert.equal(C.quitarDiaCaptura('llamar @  9:30 mañana', NOW), 'llamar');
+  // With a time, the parser takes the first "mañana" (it wins over "hoy"); a later "hoy" stays as text.
+  assert.equal(C.quitarDiaCaptura('ver mañana 18:00 hoy', NOW), 'ver hoy');
+  // Without a time only the trailing day word is a date; an earlier one is just text.
+  assert.equal(C.quitarDiaCaptura('pagar hoy mañana', NOW), 'pagar hoy');
+  assert.equal(C.quitarDiaCaptura('MAÑANA comprar pan HOY #casa !', NOW), 'MAÑANA comprar pan #casa !');
+});
+
+test('capture chips: every date form the parser reads is cleared by quitarDiaCaptura, the rest is kept', () => {
+  C.fijarApartados(C.apartadosLegado());
+  const forms = [
+    'pagar luz hoy', 'pagar  luz   mañana', 'pagar luz manana #casa', 'pagar luz HOY !!',
+    'turno @9:30', 'turno @ 9:30 hoy', 'turno @  9:30', 'turno  @\t9:30   mañana #casa',
+    'llamar 18:00', 'medir 10:30 cm hoy', 'ver 18:00 mañana !'
+  ];
+  for (const f of forms) {
+    const p = C.parsearCaptura(f, NOW);
+    assert.ok(p.fecha !== '' || p.recordatorio !== '', 'the parser reads a date in: ' + f);
+    const q = C.parsearCaptura(C.quitarDiaCaptura(f, NOW), NOW);
+    assert.equal(q.fecha, '', 'no day left in: ' + f);
+    assert.equal(q.recordatorio, '', 'no time left in: ' + f);
+    assert.equal(q.texto, p.texto, 'text kept: ' + f);
+    assert.equal(q.contexto, p.contexto, 'section kept: ' + f);
+    assert.equal(q.nivel, p.nivel, 'priority kept: ' + f);
+    assert.equal(C.resumenCaptura(C.quitarDiaCaptura(f, NOW), NOW).dia, '', 'the day chip clears: ' + f);
+  }
+});
