@@ -93,3 +93,25 @@ test('capture by tab: on the Compras tab the summary is a purchase and keeps day
   assert.equal(C.resumenCaptura('lija', NOW).compra, false);
   assert.equal(C.resumenCaptura('lija', NOW, 'tarea').compra, false);
 });
+
+test('capture chips: quitarNivelCaptura removes only the priority mark', () => {
+  C.fijarApartados(C.apartadosLegado());
+  assert.equal(C.quitarNivelCaptura('pagar luz #casa !! mañana'), 'pagar luz #casa mañana');
+  assert.equal(C.quitarNivelCaptura('! llamar'), 'llamar');
+  assert.equal(C.quitarNivelCaptura('hola!! sin marca'), 'hola!! sin marca');
+  assert.equal(C.parsearCaptura(C.quitarNivelCaptura('fix ! login'), NOW).nivel, '');
+});
+
+test('capture chips: quitarDiaCaptura removes the parsed time and day words, nothing else', () => {
+  C.fijarApartados(C.apartadosLegado());
+  assert.equal(C.quitarDiaCaptura('turno medico @9:30 mañana !! #casa', NOW), 'turno medico !! #casa');
+  assert.equal(C.quitarDiaCaptura('llamar 18:00', NOW), 'llamar');
+  assert.equal(C.quitarDiaCaptura('pagar luz hoy', NOW), 'pagar luz');
+  assert.equal(C.quitarDiaCaptura('pagar luz mañana #casa', NOW), 'pagar luz #casa');
+  assert.equal(C.quitarDiaCaptura('medir 10:30 cm ya', NOW), 'medir 10:30 cm ya', 'no day parsed: unchanged');
+  assert.equal(C.quitarDiaCaptura('sin dia', NOW), 'sin dia');
+  const r = C.resumenCaptura(C.quitarDiaCaptura('turno @9:30 hoy !', NOW), NOW);
+  assert.equal(r.dia, '');
+  assert.equal(r.nivel, 'importante');
+  assert.equal(r.texto, 'turno');
+});

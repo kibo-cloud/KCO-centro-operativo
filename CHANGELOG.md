@@ -3,7 +3,7 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
-## Sin publicar — rediseño "Cabina" (fase 1: tokens y base)
+## Sin publicar — rediseño "Cabina" (fases 1-2: tokens, base y armazón)
 
 Esquema 5 sin cambios. Sin claves ni formatos nuevos. El service worker sigue en 2.5.0 hasta la
 fase de release.
@@ -26,6 +26,15 @@ fase de release.
   de turno en texto plano conserva sus emojis.
 - Tildes: Búsqueda, misión, acá, más, días, "Sí, hacelo".
 - Movimiento reducido: todo es un fundido de 120 ms, sin desplazamiento ni escala.
+- Barra superior: bajo el chip del apartado, un indicador de página (un punto por apartado, el
+  activo es una barra en el acento; Todo, tres puntos solapados) como pista del swipe. A la derecha,
+  anillo de XP en brasa con el nivel adentro, que abre Progreso.
+- Pestañas: Ahora · Hoy · Listas · Misiones · Progreso (ex Tareas y Diario), barra de 84 px,
+  pastilla de 56×32; Progreso activa en brasa y abre en Campaña. Mismos nombres en la barra lateral.
+- Captura: píldora de 48 px con + y pista por vista ("Capturar en Casa", "Tarea en Casa · Activos",
+  "Nueva compra en Trabajo", "Nota en …"). Escribiendo: chips de 44 px (día y prioridad con su ✕
+  que saca ese trozo del texto), botón enviar redondo visible solo con texto (en escritorio queda
+  gris) y fila de atajos #, !, @ y nota:.
 
 ## 2.5.0 — 2026-11-03 — lo capturado cae en el estado que se mira
 

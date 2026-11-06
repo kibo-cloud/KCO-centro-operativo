@@ -2046,6 +2046,7 @@ export const tests = [
       await page.click('#misHitos [data-hito="h2"]');
       await page.click('#tapaMision .hoja-x');
       await page.click('#tabRegistro');
+      await page.click('#btnModoDiario');
       const txt = await page.text('#diarioCuerpo');
       assert.match(txt, /Entrenamiento/);
       assert.match(txt, /Hito: Release/);
@@ -2475,6 +2476,166 @@ export const tests = [
         assert.ok(t[0] <= t[1] && t2[0] <= t2[1], 'Tareas: no horizontal overflow during or after the transition at ' + w);
         assert.equal(t2[2], 760, 'layout viewport not stretched');
       }
+    }
+  },
+  {
+    name: 'shell: the tab bar reads Ahora, Hoy, Listas, Misiones, Progreso (data-tab) and Progreso opens on Campaña',
+    storage: seed(),
+    async fn(page) {
+      const tabs = await page.eval("Array.prototype.map.call(document.querySelectorAll('.tabs .tab'),function(b){return b.getAttribute('data-tab')+':'+b.textContent.trim();})");
+      assert.deepEqual(tabs, ['ahora:Ahora', 'hoy:Hoy', 'listas:Listas', 'misiones:Misiones', 'progreso:Progreso']);
+      const bar = await page.rect('.tabs');
+      assert.equal(Math.round(bar.h), 84, 'tab bar is 84px (no safe area in the test viewport)');
+      const pill = await page.rect('.tabs [data-tab="hoy"] .tab-ico');
+      assert.deepEqual([Math.round(pill.w), Math.round(pill.h)], [56, 32], 'icon pill 56x32');
+      await page.click('.tabs [data-tab="progreso"]');
+      assert.equal(await page.eval("document.querySelector('.tabs [data-tab=\"progreso\"]').getAttribute('aria-selected')"), 'true');
+      assert.ok(await page.eval("document.getElementById('btnModoCampana').className.indexOf('on')>-1"), 'Campaña is the first reading of Progreso');
+      assert.equal(await page.visible('#campanaCuerpo'), true, 'the campaign shows');
+      await sleep(300); // the pill color transition settles
+      const bg = await page.eval(`(function(){var p=document.createElement('i');p.style.background='var(--brasa-soft)';document.body.appendChild(p);
+        var c=getComputedStyle(p).backgroundColor;p.remove();return [c,getComputedStyle(document.querySelector('.tabs [data-tab="progreso"] .tab-ico')).backgroundColor];})()`);
+      assert.equal(bg[1], bg[0], 'active Progreso uses --brasa-soft');
+      assert.equal(await page.text('#tituloVista'), 'Progreso');
+      await page.click('.tabs [data-tab="listas"]');
+      assert.equal(await page.visible('#vistaTablero'), true, 'Listas opens the task list');
+      assert.equal(await page.text('#tituloVista'), 'Listas');
+    }
+  },
+  {
+    name: 'shell: the XP ring shows the level, sits in a 44px target and opens Progreso on Campaña',
+    storage: seed(),
+    async fn(page) {
+      assert.equal(await page.count('header .anillo-xp'), 1);
+      const lv = await page.eval("KCOCore.nivelPorXP(KCOCore.calcularXP(JSON.parse(localStorage.getItem('kibco.items')||'[]'),JSON.parse(localStorage.getItem('kibco.proyectos')||'[]')).total).nivel");
+      assert.equal((await page.text('header .anillo-xp')).trim(), '' + lv);
+      assert.match(await page.eval("document.querySelector('header .anillo-xp').getAttribute('aria-label')"), new RegExp('Nivel ' + lv));
+      const r = await page.rect('header .anillo-xp');
+      assert.ok(r.w >= 44 && r.h >= 44, 'ring target 44px');
+      const ring = await page.eval("getComputedStyle(document.querySelector('header .anillo-xp .anillo-xp-aro')).backgroundImage");
+      assert.match(ring, /conic-gradient/, 'conic ring');
+      await page.click('header .anillo-xp');
+      assert.equal(await page.eval("document.querySelector('.tabs [data-tab=\"progreso\"]').getAttribute('aria-selected')"), 'true');
+      assert.ok(await page.eval("document.getElementById('btnModoCampana').className.indexOf('on')>-1"), 'opens on Campaña');
+    }
+  },
+  {
+    name: 'shell: the context page indicator has one dot per section, the active one is a 12px bar and Todo shows three overlapping dots',
+    async fn(page) {
+      const n = await page.eval('KCOCore.CONTEXTOS.length');
+      assert.equal(await page.count('header .indicador-contexto .ind-punto'), n, 'one dot per section');
+      assert.equal(await page.count('header .indicador-contexto .ind-punto.on'), 0, 'Todo: no section is active');
+      assert.equal(await page.count('header .indicador-contexto .ind-todo.on i'), 3, 'Todo: three overlapping dots');
+      await page.click('#btnCtx');
+      await page.click('#ctxsel [data-ctx="hogar"]');
+      await sleep(120);
+      assert.equal(await page.count('header .indicador-contexto .ind-punto.on'), 1);
+      assert.equal(await page.eval("document.querySelector('header .indicador-contexto .ind-punto.on').getAttribute('data-ctx')"), 'hogar');
+      const on = await page.rect('header .indicador-contexto .ind-punto.on');
+      const off = await page.rect('header .indicador-contexto .ind-punto:not(.on)');
+      assert.deepEqual([Math.round(on.w), Math.round(on.h)], [12, 4], 'active bar 12x4');
+      assert.deepEqual([Math.round(off.w), Math.round(off.h)], [4, 4], 'dot 4px');
+      const chip = await page.rect('#btnCtx');
+      const ind = await page.rect('header .indicador-contexto');
+      assert.ok(ind.y >= chip.b - 1, 'the indicator sits below the context chip');
+    }
+  },
+  {
+    name: 'capture: the send button shows only with text, saves on tap and leaves the bar empty and focused',
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    async fn(page) {
+      await page.emulateFocus();
+      assert.equal(await page.visible('#btnEnviar'), false, 'no send button while empty');
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Capturar en Trabajo$/);
+      await page.type('#txtCaptura', 'revisar bomba');
+      assert.equal(await page.visible('#btnEnviar'), true, 'send button with text');
+      const b = await page.rect('#btnEnviar');
+      assert.deepEqual([Math.round(b.w), Math.round(b.h)], [48, 48], 'send button 48px round');
+      assert.equal(await page.eval("document.documentElement.hasAttribute('data-escribiendo')"), true);
+      assert.equal(await page.eval("getComputedStyle(document.querySelector('.tabs')).display"), 'none', 'tabs hide while typing');
+      await page.eval("document.getElementById('btnEnviar').dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true}))");
+      await page.click('#btnEnviar');
+      assert.equal((await items(page))[0].texto, 'revisar bomba');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), '');
+      assert.equal(await page.eval('document.activeElement.id'), 'txtCaptura', 'focus stays in the bar');
+      assert.equal(await page.visible('#btnEnviar'), false, 'hidden again once empty');
+      // Enter still saves.
+      await page.type('#txtCaptura', 'otra cosa', true);
+      assert.equal((await items(page)).length, 2);
+    }
+  },
+  {
+    name: 'capture: the shortcut row inserts #, !, @ and nota: at the cursor and keeps focus',
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    async fn(page) {
+      await page.emulateFocus();
+      await page.type('#txtCaptura', 'pagar luz');
+      assert.equal(await page.visible('.atajos-captura'), true, 'shortcut row while typing');
+      assert.equal(await page.count('.atajos-captura button'), 4);
+      const sizes = await page.eval("Array.prototype.map.call(document.querySelectorAll('.atajos-captura button'),function(b){var r=b.getBoundingClientRect();return Math.min(r.width,r.height);})");
+      assert.ok(sizes.every((s) => s >= 44), '44px shortcut buttons: ' + sizes);
+      const val = () => page.eval("document.getElementById('txtCaptura').value");
+      await page.eval("(function(){var i=document.getElementById('txtCaptura');i.setSelectionRange(5,5);})()");
+      await page.click('.atajos-captura [data-atajo="!"]');
+      assert.equal(await val(), 'pagar ! luz', 'inserted at the cursor');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').selectionStart"), 7, 'cursor after the token');
+      assert.equal((await page.text('#capNivel')).trim(), 'Importante', 'chips follow the inserted token');
+      await page.eval("(function(){var i=document.getElementById('txtCaptura');i.setSelectionRange(i.value.length,i.value.length);})()");
+      await page.click('.atajos-captura [data-atajo="#"]');
+      assert.equal(await val(), 'pagar ! luz #');
+      await page.click('.atajos-captura [data-atajo="@"]');
+      assert.equal(await val(), 'pagar ! luz # @');
+      await page.click('.atajos-captura [data-atajo="nota:"]');
+      assert.equal(await val(), 'nota: pagar ! luz # @', 'nota: goes first, where the parser reads it');
+      assert.equal(await page.eval('document.activeElement.id'), 'txtCaptura');
+    }
+  },
+  {
+    name: 'capture: the day and priority chips each carry a 44px clear button that removes only that token',
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    async fn(page) {
+      await page.emulateFocus();
+      await page.type('#txtCaptura', 'turno medico @9:30 mañana !! #casa');
+      assert.equal((await page.text('#capDia')).trim(), 'Mañana 09:30');
+      assert.equal(await page.visible('#capDiaX'), true);
+      assert.equal(await page.visible('#capNivelX'), true);
+      const x = await page.rect('#capNivelX');
+      assert.ok(x.w >= 44 && x.h >= 44, 'clear target 44px');
+      const c = await page.rect('#capCtx');
+      assert.ok(c.h >= 44, 'destination chip 44px');
+      await page.click('#capNivelX');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'turno medico @9:30 mañana #casa');
+      assert.equal(await page.visible('#capNivel'), false, 'priority chip gone');
+      await page.click('#capDiaX');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'turno medico #casa');
+      assert.equal(await page.visible('#capDia'), false, 'day chip gone');
+      assert.equal((await page.text('#capCtx')).trim(), 'Casa', 'the destination stays');
+      assert.equal(await page.eval('document.activeElement.id'), 'txtCaptura');
+      // A trailing day word (no time) clears too.
+      await page.type('#txtCaptura', 'pagar luz hoy');
+      await page.click('#capDiaX');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'pagar luz');
+    }
+  },
+  {
+    name: 'capture (desktop): the send button stays visible but disabled while empty; n and / still focus the bar',
+    width: 1366, height: 900, mobile: false,
+    storage: { 'kibco.esquema': '4', 'kibco.contexto': 'trabajo' },
+    async fn(page) {
+      await page.emulateFocus();
+      assert.equal(await page.visible('#btnEnviar'), true, 'send button shown on desktop');
+      assert.equal(await page.eval("document.getElementById('btnEnviar').disabled"), true, 'disabled while empty');
+      assert.equal(await page.visible('header .anillo-xp'), false, 'no XP ring in the desktop header (the rail comes later)');
+      assert.equal(await page.visible('header .indicador-contexto'), false, 'no page indicator on desktop');
+      const nav = await page.eval("Array.prototype.map.call(document.querySelectorAll('#navLateral .lat-item-nom'),function(s){return s.textContent;})");
+      assert.deepEqual(nav, ['Ahora', 'Hoy', 'Listas', 'Misiones', 'Progreso']);
+      await page.press('n');
+      assert.equal(await page.eval('document.activeElement.id'), 'txtCaptura');
+      await page.type('#txtCaptura', 'algo');
+      assert.equal(await page.eval("document.getElementById('btnEnviar').disabled"), false);
+      await page.click('#btnEnviar');
+      assert.equal((await items(page))[0].texto, 'algo');
+      assert.equal(await page.eval("document.getElementById('btnEnviar').disabled"), true);
     }
   },
   {
@@ -3299,6 +3460,7 @@ export const tests = [
       await page.click('#listaCompras [data-vermas]');
       assert.equal(await page.count('#listaCompras li.item'), 60, 'compras all');
       await page.click('#tabRegistro');
+      await page.click('#btnModoDiario');
       assert.equal(await page.count('#diarioCuerpo .diario-ev'), 50, 'diario first chunk');
       await page.click('#diarioCuerpo [data-vermas]');
       assert.equal(await page.count('#diarioCuerpo .diario-ev'), 70, 'diario all');
@@ -3431,6 +3593,7 @@ export const tests = [
       await page.key('Escape');
       await sleep(150);
       await page.click('#tabRegistro');
+      await page.click('#btnModoDiario');
       await emptyState(page, '#vacioRegistro[data-vacio="diario"]');
       await page.click('#vacioRegistro .vacio-acc');
       assert.equal(await page.eval("document.querySelector('#chipsRango [data-filtro=\"todo\"]').className.indexOf('on')>-1"), true, 'Ver todo widens the range');
@@ -3885,7 +4048,7 @@ export const tests = [
     async fn(page) {
       await page.click('#tabTareas');
       await page.click('#segBtnCompras');
-      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Compra en Mercado/, 'the hint says purchase');
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Nueva compra en Mercado/, 'the hint says purchase');
       await page.type('#txtCaptura', 'yerba mate');
       assert.match(await page.text('#capDia'), /Compra/, 'the chip says purchase');
       await page.type('#txtCaptura', 'yerba mate', true);
@@ -3902,7 +4065,7 @@ export const tests = [
       assert.deepEqual([list[2].tipo, list[2].estado, list[2].contexto], ['tarea', 'entrada', 'estudio']);
       // Back on Tareas the bar captures tasks again.
       await page.click('#segBtnTareas');
-      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Capturar en Mercado/);
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Tarea en Mercado/);
       await page.type('#txtCaptura', 'llamar al proveedor', true);
       list = await items(page);
       assert.deepEqual([list[3].tipo, list[3].estado], ['tarea', 'entrada']);
@@ -4438,7 +4601,7 @@ export const tests = [
       await page.click('#tabTareas');
       await page.click('#segBtnCompras');
       await page.click('#chipsCompra [data-filtro="comprado"]');
-      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Compra en Mercado · Comprado/, 'the hint names the state');
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Nueva compra en Mercado · Comprado/, 'the hint names the state');
       await page.type('#txtCaptura', 'yerba mate');
       assert.match(await page.text('#capDia'), /Compra · Comprado/, 'the chip names the state');
       await page.type('#txtCaptura', 'yerba mate', true);
@@ -4482,7 +4645,7 @@ export const tests = [
     async fn(page) {
       await toTasks(page);
       await page.click('#chips [data-filtro="proceso"]');
-      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Capturar en Taller · En proceso/);
+      assert.match(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /^Tarea en Taller · En proceso/);
       await page.type('#txtCaptura', 'pulir eje');
       assert.match(await page.text('#capDia'), /En proceso/, 'the chip names the state');
       await page.type('#txtCaptura', 'pulir eje', true);

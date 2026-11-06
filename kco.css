@@ -100,6 +100,8 @@
   /* App shell: alturas de las barras y medidas del escritorio. */
   --appbar-h:56px;
   --tabbar-h:64px;
+  /* Pie de la barra de pestanas: la zona segura, o 20px si no hay (84px en total). */
+  --tabbar-pie:max(var(--s-5), var(--safe-bottom));
   --capbar-h:64px;
   --sidebar-w:240px;
   --col-max:760px;
@@ -271,6 +273,20 @@ header.appbar{
   border:0;border-radius:var(--r-pill);background:none;color:var(--text);
   font-size:var(--fs-17);font-weight:700;letter-spacing:-.2px;cursor:pointer;
 }
+/* Chip + indicador de pagina en columna (el indicador es la pista del swipe). */
+.ctxzona{display:flex;flex-direction:column;align-items:flex-start;min-width:0;max-width:100%}
+.indicador-contexto{display:flex;align-items:center;gap:var(--s-1);height:4px;margin:0 0 var(--s-1) var(--s-3)}
+.ind-punto{display:block;width:4px;height:4px;border-radius:50%;background:var(--faint);transition:width var(--dur-2) var(--ease),background var(--dur-2) ease}
+.ind-punto.on{width:12px;border-radius:var(--r-pill);background:var(--accent)}
+.ind-todo{display:flex;align-items:center;opacity:.45}
+.ind-todo.on{opacity:1}
+.ind-todo i{display:block;width:4px;height:4px;border-radius:50%;box-shadow:0 0 0 1px var(--bg)}
+.ind-todo i + i{margin-left:-1px}
+/* Anillo de XP: conic-gradient en brasa con el % del nivel (--pct, kco-app.js). */
+.anillo-xp-aro{position:relative;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;
+  background:conic-gradient(var(--brasa) calc(var(--pct, 0) * 1%), var(--surface-3) 0)}
+.anillo-xp-aro::before{content:'';position:absolute;top:3px;right:3px;bottom:3px;left:3px;border-radius:50%;background:var(--bg)}
+.anillo-xp-n{position:relative;color:var(--brasa);font-size:var(--fs-13);font-weight:750;line-height:1;font-variant-numeric:tabular-nums}
 .ctxchip .punto{margin:0}
 .ctxchip-nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ctxchip .ctxchip-ico{width:20px;height:20px;margin:0;color:var(--accent)}
@@ -312,26 +328,54 @@ header.appbar{
 /* Captura: fija justo arriba de la barra de pestanas; un toque para escribir
    y Enter para guardar. */
 .captura{
-  position:fixed;left:0;right:0;bottom:calc(var(--tabbar-h) + var(--safe-bottom));z-index:var(--z-bar);
-  padding:var(--s-2) calc(var(--s-3) + var(--safe-right)) var(--s-2) calc(var(--s-3) + var(--safe-left));
-  background:var(--surface);border-top:1px solid var(--border);
+  position:fixed;left:0;right:0;bottom:calc(var(--tabbar-h) + var(--tabbar-pie));z-index:var(--z-bar);
+  padding:var(--s-2) calc(var(--s-4) + var(--safe-right)) var(--s-2) calc(var(--s-4) + var(--safe-left));
+  background:linear-gradient(to bottom, transparent, var(--bg) 30%);
 }
-#txtCaptura{width:100%;min-height:48px;padding:var(--s-3) var(--s-4);border-radius:var(--r-pill);border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font-size:16px;outline:none;transition:border-color var(--dur-1) ease,box-shadow var(--dur-1) ease}
-#txtCaptura:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+/* En reposo: pildora de 48px con un + a la izquierda. Escribiendo: borde de
+   1,5px en el acento con halo de 3px y el boton enviar al lado. */
+.captura-fila{position:relative;display:flex;align-items:center;gap:var(--s-2)}
+.captura-mas{position:absolute;left:var(--s-4);top:50%;display:flex;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.captura-mas .ico{width:20px;height:20px;margin:0}
+#txtCaptura{flex:1 1 auto;width:100%;min-width:0;min-height:48px;padding:var(--s-3) var(--s-4) var(--s-3) var(--s-10);border-radius:var(--r-pill);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:16px;outline:none;transition:border-color var(--dur-1) ease,box-shadow var(--dur-1) ease}
+#txtCaptura:focus{border:1.5px solid var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 #txtCaptura::placeholder{color:var(--muted)}
+.captura-enviar{
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:48px;height:48px;padding:0;
+  border:0;border-radius:50%;background:var(--accent);color:var(--accent-contrast);cursor:pointer;
+}
+.captura-enviar .ico{width:22px;height:22px;margin:0}
+/* Movil: enviar solo con texto (Enter sigue guardando). */
+.captura-enviar:disabled{display:none}
+/* Atajos: insertan #, !, @ y nota: en el cursor; solo mientras se escribe. */
+.atajos-captura{display:none;gap:var(--s-2);padding-top:var(--s-2);overflow-x:auto}
+html[data-escribiendo] .atajos-captura{display:flex}
+.atajos-captura button{
+  flex:0 0 auto;min-width:var(--tap);height:var(--tap);padding:0 var(--s-3);
+  border:1px solid var(--border);border-radius:var(--r-ctl);background:var(--surface-2);
+  color:var(--text);font-size:var(--fs-15);font-weight:600;font-variant-numeric:tabular-nums;cursor:pointer;
+}
+.atajos-captura button:active{background:var(--surface-3)}
 /* Chips de lo detectado al tipear: destino (boton, abre "Guardar en"), dia y
    prioridad. Pastillas de 32px; el boton extiende su area de toque a 44px. */
-.capchips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2);padding:var(--s-2) var(--s-1) 0 var(--s-1)}
-.capchips[hidden],.capchip[hidden]{display:none}
+.capchips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2);padding:0 0 var(--s-2) 0}
+.capchips[hidden],.capchip[hidden],.capchip-par[hidden],.capchip-x[hidden]{display:none}
 .capchip{
-  position:relative;display:inline-flex;align-items:center;gap:var(--s-2);min-height:32px;max-width:100%;
+  position:relative;display:inline-flex;align-items:center;gap:var(--s-2);min-height:var(--tap);max-width:100%;
   padding:0 var(--s-3);border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface-2);
   color:var(--muted);font-size:var(--fs-13);font-weight:500;line-height:1;white-space:nowrap;
 }
 .capchip .ico{width:16px;height:16px;margin:0;flex:0 0 auto}
 .capchip.rojo{color:var(--danger);border-color:var(--danger)}
 .capchip-ctx{color:var(--text);border-color:var(--border-strong);background:var(--bg);cursor:pointer}
-.capchip-ctx::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+/* Dia y prioridad: la pastilla lleva su cruz de 44px, que saca ese trozo del texto. */
+.capchip-par{display:inline-flex;align-items:center;max-width:100%;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface-2)}
+.capchip-par .capchip{border:0;background:none}
+.capchip-par .capchip{padding-right:0}
+.capchip-par:has(.capchip-x[hidden]) .capchip{padding-right:var(--s-3)}
+.capchip-x{display:flex;align-items:center;justify-content:center;flex:0 0 auto;width:var(--tap);height:var(--tap);padding:0;border:0;border-radius:var(--r-pill);background:none;color:var(--muted);cursor:pointer}
+.capchip-x .ico{width:16px;height:16px;margin:0}
+@media (hover:hover){.capchip-x:hover{color:var(--text)}}
 .capchip-ctx .punto{margin:0}
 .capchip-nom{overflow:hidden;text-overflow:ellipsis}
 .capchip-chev{color:var(--muted)}
@@ -396,8 +440,8 @@ html[data-capchips]{--capbar-h:104px}
    la activa con una pastilla de acento detras del icono. */
 .tabs{
   position:fixed;left:0;right:0;bottom:0;z-index:var(--z-bar);
-  display:flex;height:calc(var(--tabbar-h) + var(--safe-bottom));
-  padding:0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+  display:flex;height:calc(var(--tabbar-h) + var(--tabbar-pie));
+  padding:0 var(--safe-right) var(--tabbar-pie) var(--safe-left);
   background:var(--tabbar-bg);border-top:1px solid var(--border);
 }
 .tab{
@@ -405,18 +449,22 @@ html[data-capchips]{--capbar-h:104px}
   padding:var(--s-1) 2px;white-space:nowrap;overflow:hidden;background:none;border:0;
   color:var(--muted);font-size:var(--fs-13);font-weight:500;line-height:1.2;cursor:pointer;
 }
-.tab-ico{display:flex;align-items:center;justify-content:center;width:56px;height:30px;border-radius:var(--r-pill);transition:background var(--dur-1) ease,color var(--dur-1) ease}
+.tab-ico{display:flex;align-items:center;justify-content:center;width:56px;height:32px;border-radius:var(--r-pill);transition:background var(--dur-1) ease,color var(--dur-1) ease}
 .tab-ico .ico{width:22px;height:22px}
 .tab-rot{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tab.on{color:var(--text);font-weight:600}
 .tab.on .tab-ico{background:var(--accent-soft);color:var(--accent)}
+/* Progreso es identidad y avance: activa en brasa, no en el acento del apartado. */
+.tab.on[data-tab="progreso"] .tab-ico{background:var(--brasa-soft);color:var(--brasa)}
 /* Escribiendo: la barra de pestanas se aparta y la captura baja al borde,
    pegada al teclado (kco-app.js pone data-escribiendo en <html>). */
 html[data-escribiendo] .tabs{display:none}
+/* Con chips o escribiendo, la captura es un panel opaco (nada se ve por detras). */
+html[data-capchips] .captura,html[data-escribiendo] .captura{background:var(--surface);border-top:1px solid var(--border);box-shadow:var(--sh-2)}
 html[data-escribiendo] .captura{bottom:0;padding-bottom:calc(var(--s-2) + var(--safe-bottom))}
 /* El contenido deja libre el alto de la captura + las pestanas. main es el que
    scrollea (las barras quedan fuera) y recorta en x la animacion entre vistas. */
-main{flex:1;overflow-x:hidden;overflow-y:auto;padding:var(--s-3) calc(var(--s-4) + var(--safe-right)) calc(var(--tabbar-h) + var(--capbar-h) + var(--safe-bottom) + var(--s-6)) calc(var(--s-4) + var(--safe-left))}
+main{flex:1;overflow-x:hidden;overflow-y:auto;padding:var(--s-3) calc(var(--s-4) + var(--safe-right)) calc(var(--tabbar-h) + var(--capbar-h) + var(--tabbar-pie) + var(--s-6)) calc(var(--s-4) + var(--safe-left))}
 .prog{background:none;border:0;border-radius:0;padding:0;margin-bottom:var(--s-2)}
 .prog .cab{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-13);font-weight:600;color:var(--muted);margin-bottom:var(--s-1)}
 .prog .cab b{color:var(--text);font-size:var(--fs-13);font-weight:600}
@@ -616,7 +664,7 @@ body.luz li.item{border-width:1px}
 
 /* Barra de deshacer: aparece abajo, no tapa la captura y se va sola. */
 .deshacer{
-  position:fixed;left:var(--s-3);right:var(--s-3);bottom:calc(var(--safe-bottom) + var(--tabbar-h) + var(--capbar-h) + var(--s-2));
+  position:fixed;left:var(--s-3);right:var(--s-3);bottom:calc(var(--tabbar-pie) + var(--tabbar-h) + var(--capbar-h) + var(--s-2));
   background:var(--surface-2);border:1px solid var(--border-strong);border-radius:var(--r-card);
   padding:var(--s-3);display:none;align-items:center;gap:var(--s-3);z-index:var(--z-toast);
   box-shadow:var(--sh-2);
@@ -954,7 +1002,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
    teclado la encuentra donde se espera (Todoist, Things). Sin pestanas abajo. */
 @media (min-width:1024px){
   body{padding-left:var(--sidebar-w)}
-  .tabs,.ctxchip{display:none}
+  .tabs,.ctxzona,.anillo-xp,.atajos-captura,html[data-escribiendo] .atajos-captura{display:none}
   .lateral{
     position:fixed;top:0;bottom:0;left:0;z-index:var(--z-bar);
     display:flex;flex-direction:column;width:var(--sidebar-w);overflow-y:auto;
@@ -991,6 +1039,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .appbar-tit{display:block}
   .captura{position:static;padding:var(--s-2) var(--pad-col) var(--s-3) var(--pad-col);background:var(--bg);border-top:0}
   html[data-escribiendo] .captura{padding-bottom:var(--s-3)}
+  html[data-capchips] .captura,html[data-escribiendo] .captura{background:var(--bg);border-top:0;box-shadow:none}
+  /* Escritorio: enviar siempre visible; vacio queda gris y deshabilitado. */
+  .captura-enviar:disabled{display:flex;background:var(--surface-3);color:var(--faint);cursor:default}
   #txtCaptura{border-radius:var(--r-card);background:var(--surface);box-shadow:var(--sh-1)}
   #txtCaptura:focus{box-shadow:0 0 0 3px var(--accent-soft),var(--sh-1)}
   main{padding:var(--s-2) var(--pad-col) var(--s-10) var(--pad-col)}

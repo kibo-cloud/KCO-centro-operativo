@@ -888,6 +888,31 @@
     return limpio(quitar(texto, mc));
   }
 
+  /* Chips de la captura: la cruz de prioridad saca la marca ! o !! que lee
+     parsearCaptura (la primera, como al guardar); el resto queda igual. */
+  function quitarNivelCaptura(entrada) {
+    var texto = ' ' + entrada + ' ', mn = texto.match(/\s(!!?)(?=\s)/);
+    return mn ? limpio(quitar(texto, mn)) : entrada;
+  }
+
+  /* La cruz del dia saca lo que parsearCaptura leyo como dia u hora: la hora
+     (@H:MM gana; si no, la HH:MM que tomo) y su hoy/manana, o la palabra de
+     dia del final. Si no leyo dia, el texto no cambia. */
+  function quitarDiaCaptura(entrada, ahora) {
+    var p = parsearCaptura(entrada || '', ahora), texto = ' ' + entrada + ' ', m, ult = null, re;
+    if (p.recordatorio !== '') {
+      m = texto.match(/(^|\s)@\s?([01]?\d|2[0-3]):([0-5]\d)(?=\s|$)/) || texto.match(/(^|\s)([01]\d|2[0-3]):([0-5]\d)(?=\s|$)/);
+      if (m) { texto = quitar(texto, m); }
+      m = texto.match(/(^|\s)(ma[\u00F1n]ana)(?=\s|$)/i) || texto.match(/(^|\s)(hoy)(?=\s|$)/i);
+      if (m) { texto = quitar(texto, m); }
+      return limpio(texto);
+    }
+    if (p.fecha === '') { return entrada; }
+    re = /(^|\s)(hoy|ma[\u00F1n]ana)(?=\s|$)/gi;
+    while ((m = re.exec(texto)) !== null) { ult = m; }
+    return ult ? limpio(quitar(texto, ult)) : entrada;
+  }
+
   /* ---------- rutinas (tareas recurrentes) ----------
      Una rutina es una DEFINICION. Cada vez que le toca, genera una OCURRENCIA:
      un item comun con rutinaId y ocurrencia (el dia). La ocurrencia se completa
@@ -1691,6 +1716,8 @@
     usaNotas: usaNotas,
     notasVisibles: notasVisibles,
     quitarContextoCaptura: quitarContextoCaptura,
+    quitarNivelCaptura: quitarNivelCaptura,
+    quitarDiaCaptura: quitarDiaCaptura,
     nuevoId: nuevoId,
     dosDig: dosDig,
     claveDia: claveDia,

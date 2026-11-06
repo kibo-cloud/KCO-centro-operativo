@@ -108,7 +108,8 @@
   var vista = 'ahora';
   var rango = 'd7';
   /* DIARIO tiene tres lecturas del mismo historial: curada, cruda y campaña. */
-  var modoDiario = 'diario';
+  /* Progreso (ex Diario) abre en Campa\u00F1a. */
+  var modoDiario = 'campana';
   var soloLectura = false;
   /* Solo lectura porque los datos son de una version mas nueva: ahi tampoco
      se restaura, porque pisaria datos que esta version no entiende. */
@@ -1019,6 +1020,49 @@
       p.parentNode.insertBefore(icoApartado(contexto, 'ctxchip-ico'), p.nextSibling);
     }
     $('ctxNombre').textContent = nomCtx(contexto);
+    pintarIndicadorContexto();
+  }
+
+  /* Indicador de pagina bajo el chip: Todo (tres puntos solapados con los
+     colores de los primeros apartados) y un punto de 4px por apartado; el
+     activo es una barra de 12x4 en el acento. Es la pista del swipe sobre la
+     barra, que recorre el mismo orden. */
+  function pintarIndicadorContexto() {
+    var cont = $('indicadorCtx'), l = K.CONTEXTOS, i, t, d, firma = 'todo';
+    if (!cont) { return; }
+    for (i = 0; i < l.length; i++) { firma += '|' + l[i].id + ':' + l[i].color; }
+    if (cont.getAttribute('data-firma') !== firma) {
+      vaciar(cont);
+      t = nodo('span', 'ind-todo');
+      for (i = 0; i < 3; i++) {
+        d = nodo('i', '');
+        d.style.background = 'var(--pal-' + (l[i] ? l[i].color : 'todo') + ')';
+        t.appendChild(d);
+      }
+      cont.appendChild(t);
+      for (i = 0; i < l.length; i++) {
+        d = nodo('span', 'ind-punto');
+        d.setAttribute('data-ctx', l[i].id);
+        cont.appendChild(d);
+      }
+      cont.setAttribute('data-firma', firma);
+    }
+    t = cont.firstChild;
+    t.className = contexto === 'todo' ? 'ind-todo on' : 'ind-todo';
+    for (d = t.nextSibling; d; d = d.nextSibling) {
+      d.className = d.getAttribute('data-ctx') === contexto ? 'ind-punto on' : 'ind-punto';
+    }
+  }
+
+  /* Anillo de XP de la barra: el porcentaje del nivel en brasa (conic-gradient
+     de kco.css con --pct) y el numero de nivel adentro. */
+  function pintarAnilloXP() {
+    var b = $('btnNivel'), nv;
+    if (!b) { return; }
+    nv = K.nivelPorXP(xpTotal());
+    $('anilloNivel').textContent = '' + nv.nivel;
+    b.setAttribute('aria-label', 'Nivel ' + nv.nivel + ' \u00B7 ' + nv.titulo + ', ' + nv.pct + ' %. Abrir Progreso');
+    if (b.style && typeof b.style.setProperty === 'function') { b.style.setProperty('--pct', '' + nv.pct); }
   }
 
   /* Objetivo de un apartado: texto (K.textoMeta, la meta cumplida se dice en
@@ -1072,16 +1116,20 @@
     if (b && b.focus) { try { b.focus(); } catch (e) {} }
   }
 
-  /* La pista dice que se va a guardar segun la pestana: tarea, compra o nota. */
-  var PISTA_CAPTURA = { tarea: 'Capturar en ', compra: 'Compra en ', nota: 'Nota en ' };
+  /* La pista dice que se va a guardar segun la pestana: "Capturar en Casa" en
+     general, "Tarea en Casa \u00B7 Activos" en la lista, "Nueva compra en
+     Trabajo" en Compras y "Nota en ..." en Notas. */
+  var PISTA_CAPTURA = { tarea: 'Capturar en ', lista: 'Tarea en ', compra: 'Nueva compra en ', nota: 'Nota en ' };
 
   function pintarPistaCaptura() {
-    var inp = $('txtCaptura'), tipo = K.tipoCaptura(vista);
+    var inp = $('txtCaptura'), tipo = K.tipoCaptura(vista), pista, est, nomEst = '';
     if (tipo === 'compra' && K.modoCompras(ctxCaptura) === 'no') { tipo = 'tarea'; }
-    var est = tipo === 'nota' ? '' : estadoCaptura(tipo, ctxCaptura);
+    est = tipo === 'nota' ? '' : estadoCaptura(tipo, ctxCaptura);
+    if (est !== '') { nomEst = estadoInfo(est).nom; }
+    else if (vista === 'tablero' && filtro === 'activos') { nomEst = 'Activos'; }
+    pista = vista === 'tablero' && tipo === 'tarea' ? 'lista' : tipo;
     if (inp) {
-      inp.setAttribute('placeholder', PISTA_CAPTURA[tipo] + nomCtx(ctxCaptura) +
-        (est !== '' ? ' \u00B7 ' + estadoInfo(est).nom : '') + ' \u00B7 Enter guarda');
+      inp.setAttribute('placeholder', PISTA_CAPTURA[pista] + nomCtx(ctxCaptura) + (nomEst !== '' ? ' \u00B7 ' + nomEst : ''));
       inp.setAttribute('data-tipo', tipo);
     }
   }
@@ -1104,7 +1152,10 @@
     if (!inp || !caja) { return; }
     var crudo = inp.value.replace(/^\s+|\s+$/g, '');
     var hay = crudo !== '' || ctxDestino !== '';
+    /* Enviar: en movil se ve solo con texto; en escritorio queda gris. */
+    $('btnEnviar').disabled = crudo === '';
     caja.hidden = !hay;
+    if (!hay) { $('capDiaPar').hidden = true; $('capNivelPar').hidden = true; }
     /* La barra crece: el contenido deja libre ese alto extra (kco.css). */
     if (hay) { raiz.setAttribute('data-capchips', '1'); } else { raiz.removeAttribute('data-capchips'); }
     if (!hay) { ajustarAltoCaptura(); return; }
@@ -1124,6 +1175,11 @@
     else { chipDato($('capDia'), r.dia + (nomEst !== '' ? ' \u00B7 ' + nomEst : ''), r.recordatorio !== '' ? 'clock' : 'calendar'); }
     chipDato($('capNivel'), r.nivel ? K.infoNivel(r.nivel).nom : '', 'flag');
     $('capNivel').className = r.nivel === 'urgente' ? 'capchip rojo' : 'capchip';
+    /* Cada chip va con su par: la cruz solo si el dato salio del texto. */
+    $('capDiaPar').hidden = $('capDia').hidden;
+    $('capDiaX').hidden = r.nota || r.dia === '';
+    $('capNivelPar').hidden = $('capNivel').hidden;
+    $('capNivelX').hidden = !r.nivel;
     ajustarAltoCaptura();
   }
 
@@ -2940,11 +2996,12 @@
   var NAV_VISTAS = [
     { v: 'ahora', nom: 'Ahora', ico: 'zap' },
     { v: 'hoy', nom: 'Hoy', ico: 'calendar' },
-    { v: 'tablero', nom: 'Tareas', ico: 'tareas' },
+    { v: 'tablero', nom: 'Listas', ico: 'tareas' },
     { v: 'misiones', nom: 'Misiones', ico: 'target' },
-    { v: 'registro', nom: 'Diario', ico: 'book' }
+    { v: 'registro', nom: 'Progreso', ico: 'trending-up' }
   ];
-  var TITULO_VISTA = { ahora: 'Ahora', hoy: 'Hoy', tablero: 'Tareas', compras: 'Compras', notas: 'Notas', misiones: 'Misiones', registro: 'Diario' };
+  /* Las vistas conservan sus ids internos: tablero = Listas, registro = Progreso. */
+  var TITULO_VISTA = { ahora: 'Ahora', hoy: 'Hoy', tablero: 'Listas', compras: 'Compras', notas: 'Notas', misiones: 'Misiones', registro: 'Progreso' };
 
   /* Cuentas baratas (una pasada): atencion en Ahora, lo de hoy, lo abierto y
      las misiones activas del contexto. El Diario no lleva cuenta. */
@@ -3041,6 +3098,7 @@
       }
     }
     $('tituloVista').textContent = TITULO_VISTA[vista] || '';
+    pintarAnilloXP();
     pintarSelectorContexto();
     pintarInfoApartado();
     pintarNavLateral();
@@ -5651,6 +5709,65 @@
   };
   $('txtCaptura').addEventListener('input', pintarChipsCaptura);
   $('capCtx').onclick = function () { abrirDestinoCaptura(); };
+
+  /* Enviar, atajos y cruces no le sacan el foco al campo: el teclado queda
+     arriba y la barra de pestanas no vuelve en medio del toque. */
+  function sinRobarFoco(el) {
+    el.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+  }
+
+  /* Reemplaza el texto de la captura, deja el cursor en pos y repinta los chips. */
+  function fijarCaptura(valor, pos) {
+    var inp = $('txtCaptura');
+    inp.value = valor;
+    try { inp.focus(); } catch (e) {}
+    if (typeof inp.setSelectionRange === 'function') {
+      try { inp.setSelectionRange(pos, pos); } catch (e2) {}
+    }
+    pintarChipsCaptura();
+  }
+
+  /* Atajo: inserta el trozo en el cursor (con un espacio antes si hace falta).
+     nota: va al principio, que es donde lo lee el parser. */
+  function insertarAtajo(trozo) {
+    var inp = $('txtCaptura'), v = inp.value, a, b, antes;
+    if (trozo === 'nota:') {
+      if (/^\s*nota:/i.test(v)) { fijarCaptura(v, v.length); return; }
+      v = 'nota: ' + v.replace(/^\s+/, '');
+      fijarCaptura(v, v.length);
+      return;
+    }
+    a = typeof inp.selectionStart === 'number' ? inp.selectionStart : v.length;
+    b = typeof inp.selectionEnd === 'number' ? inp.selectionEnd : a;
+    antes = v.slice(0, a);
+    if (antes !== '' && !/\s$/.test(antes)) { trozo = ' ' + trozo; }
+    fijarCaptura(antes + trozo + v.slice(b), a + trozo.length);
+  }
+
+  (function () {
+    var l = document.querySelectorAll('.atajos-captura [data-atajo]'), i;
+    for (i = 0; i < l.length; i++) {
+      sinRobarFoco(l[i]);
+      l[i].onclick = function () { insertarAtajo(this.getAttribute('data-atajo')); };
+    }
+    sinRobarFoco($('btnEnviar'));
+    sinRobarFoco($('capDiaX'));
+    sinRobarFoco($('capNivelX'));
+  })();
+  $('btnEnviar').onclick = function () {
+    capturar();
+    enfocar($('txtCaptura'));
+    pintarChipsCaptura();
+  };
+  $('capDiaX').onclick = function () {
+    var v = K.quitarDiaCaptura($('txtCaptura').value, new Date());
+    fijarCaptura(v, v.length);
+  };
+  $('capNivelX').onclick = function () {
+    var v = K.quitarNivelCaptura($('txtCaptura').value);
+    fijarCaptura(v, v.length);
+  };
+  $('btnNivel').onclick = function () { modoDiario = 'campana'; if (vista === 'registro') { pintar(); } else { irAVista('registro'); } };
 
   /* n o / llevan a la barra de captura (Todoist, Gmail), salvo que ya se este
      escribiendo en un campo o haya una hoja abierta: nunca se roba una tecla. */

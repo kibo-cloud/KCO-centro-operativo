@@ -27,26 +27,48 @@
 </aside>
 
 <header class="appbar">
-  <button class="ctxchip" id="btnCtx" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="tapaCtx">
-    <span class="punto" id="ctxPunto" aria-hidden="true"></span><span class="ctxchip-nom" id="ctxNombre">Todo</span><span class="ctxchip-chev" data-ico="chevron-down"></span>
-  </button>
+  <!-- Chip del apartado + indicador de pagina (un punto por apartado): pista del
+       swipe horizontal sobre la barra, que cambia de apartado. -->
+  <div class="ctxzona">
+    <button class="ctxchip" id="btnCtx" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="tapaCtx">
+      <span class="punto" id="ctxPunto" aria-hidden="true"></span><span class="ctxchip-nom" id="ctxNombre">Todo</span><span class="ctxchip-chev" data-ico="chevron-down"></span>
+    </button>
+    <div class="indicador-contexto" id="indicadorCtx" aria-hidden="true"></div>
+  </div>
   <h1 class="appbar-tit" id="tituloVista">Ahora</h1>
   <span class="crece"></span>
+  <!-- Anillo de XP: porcentaje del nivel en brasa y el numero de nivel; abre Progreso. -->
+  <button class="iconobtn anillo-xp" id="btnNivel" type="button" aria-label="Nivel 1. Abrir Progreso" title="Progreso">
+    <span class="anillo-xp-aro" aria-hidden="true"><span class="anillo-xp-n" id="anilloNivel">1</span></span>
+  </button>
   <button class="iconobtn" id="btnBuscar" type="button" aria-label="Buscar" title="Buscar" data-ico="search"></button>
   <button class="iconobtn" id="btnAjustes" type="button" aria-label="Ajustes" title="Ajustes" data-ico="settings"></button>
 </header>
 
 <!-- Captura: en movil fija justo arriba de la barra de pestanas; en escritorio arriba de la columna. -->
 <div class="captura">
-  <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
-         autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="Capturar"
-         placeholder="Escrib&iacute; y Enter &middot; 18:00 o @9:30 toma la hora">
   <!-- Lo que se detecta al tipear (mismo parser que guardar). El chip de contexto
-       abre #tapaDestino para elegir donde cae esta captura. -->
+       abre #tapaDestino para elegir donde cae esta captura; la cruz de dia y la de
+       prioridad sacan ese trozo del texto. -->
   <div class="capchips" id="capChips" role="group" aria-label="Detectado al tipear" hidden>
     <button class="capchip capchip-ctx" id="capCtx" type="button" aria-label="Elegir d&oacute;nde se guarda" aria-expanded="false" aria-haspopup="dialog" aria-controls="tapaDestino"></button>
-    <span class="capchip" id="capDia" hidden></span>
-    <span class="capchip" id="capNivel" hidden></span>
+    <span class="capchip-par" id="capDiaPar" hidden><span class="capchip" id="capDia" hidden></span><button class="capchip-x" id="capDiaX" type="button" aria-label="Quitar fecha" data-ico="x" hidden></button></span>
+    <span class="capchip-par" id="capNivelPar" hidden><span class="capchip" id="capNivel" hidden></span><button class="capchip-x" id="capNivelX" type="button" aria-label="Quitar prioridad" data-ico="x" hidden></button></span>
+  </div>
+  <div class="captura-fila">
+    <span class="captura-mas" data-ico="plus" aria-hidden="true"></span>
+    <input id="txtCaptura" type="text" autocomplete="off" autocapitalize="sentences"
+           autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="Capturar"
+           placeholder="Capturar">
+    <!-- Enviar: en movil solo con texto; en escritorio siempre, gris y deshabilitado si esta vacio. -->
+    <button class="captura-enviar" id="btnEnviar" type="button" aria-label="Guardar" title="Guardar (Enter)" data-ico="arrow-up" disabled></button>
+  </div>
+  <!-- Atajos: insertan el trozo en el cursor (nota: va al principio, donde el parser lo lee). -->
+  <div class="atajos-captura" role="group" aria-label="Atajos">
+    <button type="button" data-atajo="#" aria-label="Insertar apartado #">#</button>
+    <button type="button" data-atajo="!" aria-label="Insertar prioridad !">!</button>
+    <button type="button" data-atajo="@" aria-label="Insertar hora @">@</button>
+    <button type="button" data-atajo="nota:" aria-label="Convertir en nota">nota:</button>
   </div>
 </div>
 
@@ -117,8 +139,8 @@
 
   <div id="vistaRegistro" style="display:none">
     <div class="seg" role="group" aria-label="Lectura del historial">
-      <button class="segbtn on" id="btnModoDiario" type="button" data-ico="book">Diario</button>
-      <button class="segbtn" id="btnModoCampana" type="button" data-ico="trophy">Campa&ntilde;a</button>
+      <button class="segbtn" id="btnModoDiario" type="button" data-ico="book">Diario</button>
+      <button class="segbtn on" id="btnModoCampana" type="button" data-ico="trophy">Campa&ntilde;a</button>
       <button class="segbtn" id="btnModoRegistro" type="button" data-ico="list">Registro</button>
     </div>
     <div id="cajaRango">
@@ -139,11 +161,11 @@
 
 <!-- Movil: barra de pestanas inferior. En escritorio la reemplaza la barra lateral. -->
 <nav class="tabs" role="tablist" aria-label="Vistas">
-  <button class="tab on" id="tabAhora" type="button" role="tab" aria-selected="true"><span class="tab-ico" data-ico="zap"></span><span class="tab-rot">Ahora</span></button>
-  <button class="tab" id="tabHoy" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="calendar"></span><span class="tab-rot">Hoy</span></button>
-  <button class="tab" id="tabTareas" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="tareas"></span><span class="tab-rot">Tareas</span></button>
-  <button class="tab" id="tabMisiones" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="target"></span><span class="tab-rot">Misiones</span></button>
-  <button class="tab" id="tabRegistro" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="book"></span><span class="tab-rot">Diario</span></button>
+  <button class="tab on" id="tabAhora" data-tab="ahora" type="button" role="tab" aria-selected="true"><span class="tab-ico" data-ico="zap"></span><span class="tab-rot">Ahora</span></button>
+  <button class="tab" id="tabHoy" data-tab="hoy" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="calendar"></span><span class="tab-rot">Hoy</span></button>
+  <button class="tab" id="tabTareas" data-tab="listas" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="tareas"></span><span class="tab-rot">Listas</span></button>
+  <button class="tab" id="tabMisiones" data-tab="misiones" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="target"></span><span class="tab-rot">Misiones</span></button>
+  <button class="tab" id="tabRegistro" data-tab="progreso" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="trending-up"></span><span class="tab-rot">Progreso</span></button>
 </nav>
 
 <div class="deshacer" id="barraDeshacer" role="status" aria-live="polite">
