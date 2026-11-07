@@ -4414,7 +4414,10 @@
     cont.hidden = chips.length === 0;
     $('rotAgregarFicha').hidden = chips.length === 0;
 
-    /* Subhoja Mas: un grupo sin acciones visibles no se muestra (ni su rotulo). */
+    /* Subhoja Mas: un grupo sin acciones visibles no se muestra (ni su rotulo).
+       Borrar decide su visibilidad antes de contar: el primer pintado ya ve
+       el grupo vacio en solo lectura. */
+    $('btnBorrar').style.display = soloLectura ? 'none' : '';
     var g = document.querySelectorAll('#tapaMasItem .grupo'), k, j, alguna, rot;
     for (k = 0; k < g.length; k++) {
       alguna = false;
@@ -4423,7 +4426,6 @@
       rot = g[k].previousElementSibling;
       if (rot && rot.className === 'grupo-rot') { rot.hidden = !alguna; }
     }
-    $('btnBorrar').style.display = soloLectura ? 'none' : '';
   }
 
   function agregarEnFicha(cual) {

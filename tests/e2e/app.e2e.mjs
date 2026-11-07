@@ -5681,6 +5681,19 @@ export const tests = [
       await sleep(300);
       assert.ok(await isOpen(page, 'tapaItem'));
     }
+  },
+  {
+    name: 'ficha (read-only): the Más sub-sheet hides the Borrar group from the first paint (R3-001)',
+    storage: { 'kibco.esquema': '6', 'kibco.items': JSON.stringify([{ id: 'f1', texto: 'del futuro', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await toTasks(page);
+      await page.click('#lista li.item[data-id="f1"]');
+      await sleep(300);
+      assert.ok(await isOpen(page, 'tapaItem'));
+      const r = await page.eval(`(function(){var b=document.getElementById('btnBorrar');return {disp:b.style.display,grupo:b.parentNode.hidden};})()`);
+      assert.equal(r.disp, 'none', 'no Borrar while read-only');
+      assert.equal(r.grupo, true, 'its group is hidden on the first paint, not one repaint later');
+    }
   }
 ];
 
