@@ -817,6 +817,9 @@ body.luz li.item{border-width:1px}
 .prop-panel .rot{margin-top:var(--s-3)}
 .ficha-sec .rot{margin-top:var(--s-5)}
 .ficha-agregar{display:flex;flex-wrap:wrap;gap:var(--s-2)}
+/* Editores: campos opcionales detras de "Agregar" (kco-app pintarOpcionales). */
+.ed-opc[hidden],.hoja > .rot[hidden]{display:none}
+#cajaMisObjetivo{margin-top:var(--s-2)}
 .ficha-agregar .chip .ico{width:16px;height:16px;margin:0 var(--s-1) 0 0}
 .fila-mas{display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:52px;margin-top:var(--s-5);padding:0 var(--s-4);border:1px solid var(--border);border-radius:var(--r-card);background:none;color:var(--muted);font-size:var(--fs-15);text-align:left;cursor:pointer}
 .fila-mas .ico{flex:0 0 auto;margin:0}

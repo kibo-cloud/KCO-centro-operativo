@@ -5766,6 +5766,71 @@
     }
   }
 
+  /* ---------- editores: opcionales detras de "Agregar" ----------
+     Editores de apartado, rutina, mision y nota: los campos clave arriba; cada
+     campo opcional vacio se esconde y deja un chip en el grupo "Agregar" del
+     editor (el mismo de la Ficha). Un campo con valor siempre se ve; tocar el
+     chip lo muestra y le da el foco. Lo revelado vive en memoria y se reinicia
+     al abrir el editor. En solo lectura no se ofrece agregar nada. */
+  function valorTexto(id) { return $(id).value.replace(/\s+/g, '') !== ''; }
+  function primero(id, sel) { return function () { return $(id).querySelector(sel); }; }
+  var EDITOR_OPC = {
+    apartado: { grupo: 'apAgregar', campos: [
+      { id: 'desc', nom: 'Descripci\u00F3n', caja: 'cajaApDesc', foco: 'apDesc', valor: function () { return valorTexto('apDesc'); } },
+      { id: 'meta', nom: 'Objetivo', caja: 'cajaApMeta', foco: primero('segMetaAp', '[data-meta]'), valor: function () { return !!(borradorAp && borradorAp.meta); } },
+      { id: 'alias', nom: 'Alias', caja: 'cajaApAlias', foco: 'apAlias', valor: function () { return valorTexto('apAlias'); } },
+      { id: 'tags', nom: 'Etiquetas', caja: 'cajaApTags', foco: 'apTagNuevo', valor: function () { return !!(borradorAp && borradorAp.tags.length > 0); } }
+    ] },
+    rutina: { grupo: 'rutAgregar', campos: [
+      { id: 'nivel', nom: 'Prioridad', caja: 'cajaRutNivel', foco: primero('gridRutNivel', 'button'),
+        valor: function () { return !!(borrador && borrador.nivel !== 'normal'); } },
+      { id: 'fechas', nom: 'Fechas', caja: 'cajaRutFechas', foco: 'rutInicio',
+        valor: function () { return !!(borrador && ((borrador.fin || '') !== '' || borrador.inicio !== hoyClave())); } }
+    ] },
+    mision: { grupo: 'misAgregar', campos: [
+      { id: 'objetivo', nom: 'Objetivo', caja: 'cajaMisObjetivo', foco: 'txtMisObjetivo', valor: function () { return valorTexto('txtMisObjetivo'); } }
+    ] },
+    nota: { grupo: 'notaAgregar', campos: [
+      { id: 'titulo', nom: 'T\u00EDtulo', caja: 'cajaNotaTit', foco: 'notaTit', valor: function () { return valorTexto('notaTit'); } },
+      { id: 'tags', nom: 'Etiquetas', caja: 'cajaNotaTags', foco: primero('notaTags', '[data-tag]'),
+        valor: function () { return !!(borradorNota && borradorNota.tags.length > 0); },
+        ofrecer: function () { return !!borradorNota && K.tagsDe(borradorNota.ctx).length > 0; } }
+    ] }
+  };
+  var opcAbiertos = {};
+
+  function reiniciarOpcionales(ed) {
+    var l = EDITOR_OPC[ed].campos, i;
+    for (i = 0; i < l.length; i++) { delete opcAbiertos[ed + ':' + l[i].id]; }
+  }
+
+  function pintarOpcionales(ed) {
+    var e = EDITOR_OPC[ed], g = $(e.grupo), n = 0, i;
+    if (!g) { return; }
+    vaciar(g);
+    for (i = 0; i < e.campos.length; i++) {
+      (function (c) {
+        var ver = opcAbiertos[ed + ':' + c.id] === true || c.valor(), b;
+        $(c.caja).hidden = !ver;
+        if (ver || soloLectura || (c.ofrecer && !c.ofrecer())) { return; }
+        b = nodo('button', 'chip', c.nom, 'plus');
+        b.type = 'button';
+        b.setAttribute('data-agregar', c.id);
+        b.onclick = function () {
+          var f;
+          opcAbiertos[ed + ':' + c.id] = true;
+          pintarOpcionales(ed);
+          f = typeof c.foco === 'function' ? c.foco() : $(c.foco);
+          if (f) { enfocar(f); }
+        };
+        g.appendChild(b);
+        n++;
+      })(e.campos[i]);
+    }
+    g.hidden = n === 0;
+    $(e.grupo + 'Rot').hidden = n === 0;
+  }
+
   function abrirEditorApartado(id) {
     var a = id ? K.infoContexto(id) : null;
     borradorAp = a ? copiaApartado(a) : { id: '', nom: '', ico: 'layers', color: colorLibre(), orden: K.todosApartados().length,
@@ -5778,6 +5843,7 @@
     $('apTagNuevo').value = '';
     $('apError').textContent = '';
     $('btnApGuardar').disabled = soloLectura;
+    reiniciarOpcionales('apartado');
     pintarEditorApartado();
     abrirHoja('tapaApartado');
   }
@@ -5869,6 +5935,7 @@
     pintarAccionesAp();
     pintarTagsAp();
     pintarPistasAp();
+    pintarOpcionales('apartado');
   }
 
   /* Pista de compras (cuantas pasan a tareas si queda en 'no') y acciones
@@ -6379,6 +6446,7 @@
     $('btnNotaBorrar').disabled = soloLectura;
     $('cajaNotaExistente').style.display = n ? '' : 'none';
     $('btnNotaArchivar').textContent = n && n.archivada ? 'Desarchivar' : 'Archivar';
+    reiniciarOpcionales('nota');
     pintarHojaNota();
     abrirHoja('tapaNota');
   }
@@ -6443,6 +6511,7 @@
     f.className = borradorNota.fijada ? 'gbtn notafijar on' : 'gbtn notafijar';
     f.setAttribute('aria-pressed', borradorNota.fijada ? 'true' : 'false');
     rotular(f, borradorNota.fijada ? 'Fijada arriba' : 'Fijar arriba');
+    pintarOpcionales('nota');
   }
 
   /* Guarda el borrador (archivar: con el estado de archivo invertido). */
@@ -7868,6 +7937,7 @@
     misBorradorCtx = p ? p.contexto : ctxCaptura;
     $('txtHito').value = '';
     $('txtMisTarea').value = '';
+    reiniciarOpcionales('mision');
     pintarHojaMision();
     abrirHoja('tapaMision');
   }
@@ -7880,9 +7950,10 @@
         misBorradorCtx = c.id;
         if (p) { guardarDatosMision(); } else { pintarHojaMision(); }
       }, 'data-ctx');
+    pintarOpcionales('mision');
     $('btnGuardarMision').style.display = p ? 'none' : 'block';
     $('cajaMisExistente').style.display = p ? 'block' : 'none';
-    if (!p) { $('misSub').textContent = 'Nombre y objetivo. Los hitos y las tareas se agregan despues.'; return; }
+    if (!p) { $('misSub').textContent = 'Nombre y apartado. El objetivo, los hitos y las tareas se agregan cuando quieras.'; return; }
     var pr = K.progresoProyecto(p, items);
     $('misSub').textContent = (p.estado === 'terminado' ? 'Cumplida' : (p.estado === 'pausado' ? 'En pausa' : 'Activa')) +
       ' \u00B7 ' + pr.pct + '% \u00B7 creada ' + (p.creado ? fechaNota(p.creado) : '');
@@ -7917,7 +7988,7 @@
       cp.appendChild(box);
     } else {
       cp.appendChild(nodo('div', 'sinnotas', p.estado === 'terminado'
-        ? 'Misi\u00F3n cumplida.' : 'Sin proxima accion. Agrega una tarea o un hito abajo.'));
+        ? 'Misi\u00F3n cumplida.' : 'Sin pr\u00F3xima acci\u00F3n. Agreg\u00E1 una tarea o un hito abajo.'));
     }
 
     var lh = $('misHitos');
@@ -8309,6 +8380,7 @@
     $('rutFin').value = borrador.fin;
     $('numCada').value = '' + borrador.cada;
     $('numDiaMes').value = '' + borrador.diaMes;
+    reiniciarOpcionales('rutina');
     pintarHojaRutina();
     abrirHoja('tapaRutina');
   }
@@ -8327,7 +8399,7 @@
       pintarHojaRutina();
     }, 'data-frec');
     $('cajaCada').style.display = f === 'diaria' ? 'none' : 'block';
-    $('rotCada').textContent = f === 'mes' ? 'Cada cuantos meses' : (f === 'semana' ? 'Cada cuantas semanas' : 'Cada cuantos d\u00EDas');
+    $('rotCada').textContent = f === 'mes' ? 'Cada cu\u00E1ntos meses' : (f === 'semana' ? 'Cada cu\u00E1ntas semanas' : 'Cada cu\u00E1ntos d\u00EDas');
     $('numCada').value = '' + b.cada;
     $('cajaSemana').style.display = f === 'semana' ? 'block' : 'none';
     $('cajaMes').style.display = f === 'mes' ? 'block' : 'none';
@@ -8354,10 +8426,11 @@
       function (c) { leerCamposRutina(); b.contexto = c.id; pintarHojaRutina(); }, 'data-ctx');
     pintarOpciones('gridRutNivel', K.NIVELES, b.nivel, function (n) { return n.nom; },
       function (n) { leerCamposRutina(); b.nivel = n.id; pintarHojaRutina(); }, 'data-nivel');
+    pintarOpcionales('rutina');
     var prueba = normRutina(b);
     var prox = prueba ? K.proximaFecha(prueba, hoyClave()) : '';
     $('rutProxima').textContent = prueba
-      ? K.describirRutina(prueba) + (prox ? ' \u00B7 proxima: ' + nombreDia(prox) : ' \u00B7 no le toca m\u00E1s')
+      ? K.describirRutina(prueba) + (prox ? ' \u00B7 pr\u00F3xima: ' + nombreDia(prox) : ' \u00B7 no le toca m\u00E1s')
       : 'Escrib\u00ED qu\u00E9 hay que hacer.';
 
     var existente = !b.esNueva;
@@ -8391,7 +8464,7 @@
     vaciar(cont);
     var occ = K.ocurrenciasDe(ru.id, items);
     occ.sort(function (a, b) { return a.ocurrencia < b.ocurrencia ? 1 : -1; });
-    if (occ.length === 0) { cont.appendChild(nodo('div', 'sinnotas', 'Todavia no hay ocurrencias.')); return; }
+    if (occ.length === 0) { cont.appendChild(nodo('div', 'sinnotas', 'Todav\u00EDa no hay ocurrencias.')); return; }
     var i;
     for (i = 0; i < occ.length && i < 21; i++) {
       (function (it) {

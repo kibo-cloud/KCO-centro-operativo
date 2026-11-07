@@ -6168,9 +6168,129 @@ export const tests = [
       }
       assert.equal(bad.length, 0, 'under 44px: ' + bad.join(' | '));
     }
+  },
+  // ---------- T7: editors (handoff section 7: key fields first, optional ones behind Agregar) ----------
+  {
+    name: 'editors (T7): the section editor shows Nombre, Ícono, Color, Compras and Notas; Descripción, Objetivo, Alias and Etiquetas wait behind Agregar chips',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': GOAL_SECTIONS, 'kibco.items': '[]' },
+    async fn(page) {
+      await page.emulateFocus();
+      await openAjustes(page);
+      await page.click('#btnNuevoApartado');
+      await abierta(page, 'tapaApartado');
+      const r = await page.eval(EDITOR_PROBE('tapaApartado', ['apNom', 'apIcos', 'apColores', 'segComprasAp', 'segNotasAp', 'cajaApDesc', 'cajaApMeta', 'cajaApAlias', 'cajaApTags', 'cajaApExistente']));
+      assert.deepEqual(r.vis, { apNom: true, apIcos: true, apColores: true, segComprasAp: true, segNotasAp: true,
+        cajaApDesc: false, cajaApMeta: false, cajaApAlias: false, cajaApTags: false, cajaApExistente: false });
+      assert.deepEqual(r.chips, ['desc', 'meta', 'alias', 'tags']);
+      assert.deepEqual(r.chipH, [44, 44, 44, 44]);
+      assert.ok(r.keyFirst, 'the key fields come before the Agregar group');
+      await page.click('#apAgregar [data-agregar="desc"]');
+      assert.ok(await page.visible('#apDesc'), 'the chip reveals Descripción');
+      assert.equal(await page.eval('document.activeElement.id'), 'apDesc', 'and focuses it');
+      assert.equal(await page.count('#apAgregar [data-agregar="desc"]'), 0, 'the chip leaves');
+      await page.click('#apAgregar [data-agregar="meta"]');
+      await page.click('#segMetaAp [data-meta="semana"]');
+      assert.ok(await page.visible('#apMetaN'), 'Objetivo is editable once revealed');
+      await page.type('#apNom', 'Taller');
+      await page.type('#apDesc', 'Herramientas');
+      await page.click('#btnApGuardar');
+      const saved = JSON.parse(await page.storage('kibco.apartados')).find((a) => a.nom === 'Taller');
+      assert.equal(saved.desc, 'Herramientas', 'revealed fields save as before');
+      assert.equal(saved.meta.periodo, 'semana');
+      // An existing section: fields with a value always show; the destructive action closes the sheet, filled danger.
+      await esperarHasta(async () => !(await isOpen(page, 'tapaApartado')), 3000, 'the editor to close');
+      await page.click('#btnEditarApartados');
+      await abierta(page, 'tapaApartados');
+      await page.click('#listaApartados [data-ap="estudio"] .apfila-abrir');
+      await abierta(page, 'tapaApartado');
+      const e = await page.eval(EDITOR_PROBE('tapaApartado', ['cajaApDesc', 'cajaApMeta', 'cajaApAlias', 'cajaApTags', 'cajaApExistente']));
+      assert.deepEqual(e.vis, { cajaApDesc: true, cajaApMeta: true, cajaApAlias: false, cajaApTags: false, cajaApExistente: true });
+      assert.deepEqual(e.chips, ['alias', 'tags']);
+      assert.equal(e.lastBtn, 'btnApBorrar', 'Borrar is the last action');
+      assert.ok(e.lastPeli, 'in danger');
+      await page.click('#btnApBorrar');
+      await abierta(page, 'tapaConfirmar');
+    }
+  },
+  {
+    name: 'editors (T7): the routine editor shows the text, Frecuencia and Apartado; Prioridad and Fechas wait behind Agregar unless set',
+    storage: Object.assign(rutinaSeed([], { nivel: 'normal', fin: ymd(30) })),
+    async fn(page) {
+      await page.emulateFocus();
+      await page.click('#btnNuevaRutina');
+      await abierta(page, 'tapaRutina');
+      const r = await page.eval(EDITOR_PROBE('tapaRutina', ['txtRutina', 'gridFrec', 'gridRutCtx', 'cajaRutNivel', 'cajaRutFechas']));
+      assert.deepEqual(r.vis, { txtRutina: true, gridFrec: true, gridRutCtx: true, cajaRutNivel: false, cajaRutFechas: false });
+      assert.deepEqual(r.chips, ['nivel', 'fechas']);
+      assert.ok(r.keyFirst);
+      await page.click('#rutAgregar [data-agregar="nivel"]');
+      assert.ok(await page.visible('#gridRutNivel'), 'Prioridad revealed');
+      assert.ok(await page.eval("document.getElementById('gridRutNivel').contains(document.activeElement)"), 'focus on its first option');
+      await page.click('#gridRutNivel [data-nivel="urgente"]');
+      assert.ok(await page.visible('#gridRutNivel'), 'a set value keeps it shown');
+      await page.type('#txtRutina', 'regar plantas');
+      await page.click('#btnGuardarRutina');
+      const saved = JSON.parse(await page.storage('kibco.rutinas')).find((x) => x.texto === 'regar plantas');
+      assert.equal(saved.nivel, 'urgente', 'saved with its priority');
+      await esperarHasta(async () => !(await isOpen(page, 'tapaRutina')), 3000, 'the editor to close');
+      // An existing routine with an end date shows Fechas; its Borrar is the last action, in danger.
+      await page.click('#tabHoy');
+      await page.click('#btnRutinas');
+      await abierta(page, 'tapaRutinas');
+      await page.clickText('#listaRutinas li', 'Dar de comer a la gata');
+      await abierta(page, 'tapaRutina');
+      const e = await page.eval(EDITOR_PROBE('tapaRutina', ['cajaRutNivel', 'cajaRutFechas', 'cajaRutExistente']));
+      assert.deepEqual(e.vis, { cajaRutNivel: false, cajaRutFechas: true, cajaRutExistente: true });
+      assert.deepEqual(e.chips, ['nivel']);
+      assert.equal(e.lastBtn, 'btnBorrarRutina');
+      assert.ok(e.lastPeli);
+    }
+  },
+  {
+    name: 'editors (T7): mission and note editors hide an empty Objetivo / Título behind Agregar and show them when they have a value',
+    storage: misionSeed(false),
+    async fn(page) {
+      await page.click('#tabMisiones');
+      await page.click('#btnNuevaMision');
+      await abierta(page, 'tapaMision');
+      let r = await page.eval(EDITOR_PROBE('tapaMision', ['txtMisNombre', 'gridMisCtx', 'cajaMisObjetivo']));
+      assert.deepEqual(r.vis, { txtMisNombre: true, gridMisCtx: true, cajaMisObjetivo: false });
+      assert.deepEqual(r.chips, ['objetivo']);
+      await page.key('Escape');
+      await esperarHasta(async () => !(await isOpen(page, 'tapaMision')), 3000, 'the mission editor to close');
+      await page.click('#misLista [data-mision="pkco"] .mis-top');
+      await abierta(page, 'tapaMision');
+      r = await page.eval(EDITOR_PROBE('tapaMision', ['cajaMisObjetivo']));
+      assert.deepEqual(r.vis, { cajaMisObjetivo: true }, 'an objective with a value shows');
+      assert.deepEqual(r.chips, []);
+      assert.equal(await page.visible('#misAgregar'), false, 'no Agregar group when nothing is left');
+      assert.equal(r.lastBtn, 'btnMisBorrar');
+      assert.ok(r.lastPeli);
+      await page.key('Escape');
+      await esperarHasta(async () => !(await isOpen(page, 'tapaMision')), 3000, 'the mission sheet to close');
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      await page.click('#btnNuevaNota');
+      await abierta(page, 'tapaNota');
+      r = await page.eval(EDITOR_PROBE('tapaNota', ['notaTxt', 'notaCtxs', 'cajaNotaTit', 'cajaNotaTags']));
+      assert.deepEqual(r.vis, { notaTxt: true, notaCtxs: true, cajaNotaTit: false, cajaNotaTags: false });
+      assert.deepEqual(r.chips, ['titulo'], 'no Etiquetas chip for a section without tags');
+      await page.click('#notaAgregar [data-agregar="titulo"]');
+      assert.ok(await page.visible('#notaTit'));
+    }
   }
 ];
 
+// Editor probe: visibility of the given ids, the Agregar chips, whether every
+// visible key field comes before the Agregar group, and the last visible button.
+const EDITOR_PROBE = (tapa, ids) => `(function(){var h=document.querySelector('#${tapa} .hoja'),vis={},i,e,g=h.querySelector('.ficha-agregar'),key=true;
+  var ids=${JSON.stringify(ids)};
+  for(i=0;i<ids.length;i++){e=document.getElementById(ids[i]);vis[ids[i]]=!!(e&&e.offsetParent!==null);
+    if(vis[ids[i]]&&g&&!g.hidden&&ids[i].indexOf('caja')!==0&&(g.compareDocumentPosition(e)&Node.DOCUMENT_POSITION_FOLLOWING))key=false;}
+  var ch=g?Array.prototype.filter.call(g.querySelectorAll('[data-agregar]'),function(c){return c.offsetParent!==null;}):[];
+  var bs=Array.prototype.filter.call(h.querySelectorAll('button'),function(b){return b.offsetParent!==null;}),last=bs[bs.length-1];
+  return {vis:vis,chips:ch.map(function(c){return c.getAttribute('data-agregar');}),chipH:ch.map(function(c){return Math.round(c.getBoundingClientRect().height);}),
+    keyFirst:key,lastBtn:last?last.id:'',lastPeli:!!last&&last.className.indexOf('peli')>-1};})()`;
 
 // Interactive controls (outside sheets) whose box is under 44px in either side.
 // Screen-reader-only and zero-size nodes are not tap targets. Justified exclusion:

@@ -402,7 +402,7 @@
     <div class="rot">Frecuencia</div>
     <div class="grid" id="gridFrec"></div>
     <div id="cajaCada">
-      <div class="rot" id="rotCada">Cada cuantos días</div>
+      <div class="rot" id="rotCada">Cada cu&aacute;ntos d&iacute;as</div>
       <input id="numCada" type="number" inputmode="numeric" min="1" max="365" value="1">
     </div>
     <div id="cajaSemana">
@@ -410,18 +410,24 @@
       <div class="semana" id="gridSemana"></div>
     </div>
     <div id="cajaMes">
-      <div class="rot">Dia del mes</div>
+      <div class="rot">D&iacute;a del mes</div>
       <input id="numDiaMes" type="number" inputmode="numeric" min="1" max="31" value="1">
-      <div class="pista">Si el mes es más corto, toca el ultimo dia.</div>
+      <div class="pista">Si el mes es más corto, toca el &uacute;ltimo d&iacute;a.</div>
     </div>
-    <div class="rot">Contexto</div>
+    <div class="rot">Apartado</div>
     <div class="grid" id="gridRutCtx"></div>
-    <div class="rot">Prioridad</div>
-    <div class="grid" id="gridRutNivel"></div>
-    <div class="grid" style="margin-top:4px">
-      <div><div class="rot">Desde</div><input id="rutInicio" type="date"></div>
-      <div><div class="rot">Hasta (opcional)</div><input id="rutFin" type="date"></div>
+    <div class="ed-opc" id="cajaRutNivel">
+      <div class="rot">Prioridad</div>
+      <div class="grid" id="gridRutNivel"></div>
     </div>
+    <div class="ed-opc" id="cajaRutFechas">
+      <div class="grid" style="margin-top:4px">
+        <div><div class="rot">Desde</div><input id="rutInicio" type="date"></div>
+        <div><div class="rot">Hasta (opcional)</div><input id="rutFin" type="date"></div>
+      </div>
+    </div>
+    <div class="rot" id="rutAgregarRot">Agregar</div>
+    <div class="ficha-agregar" id="rutAgregar" role="group" aria-labelledby="rutAgregarRot"></div>
     <div class="pista" id="rutProxima"></div>
     <button class="bloque pri" id="btnGuardarRutina" type="button">Guardar rutina</button>
     <div id="cajaRutExistente" style="display:none">
@@ -429,7 +435,7 @@
       <div class="pista mono" id="rutRacha" style="margin-top:0;margin-bottom:8px"></div>
       <div id="rutHistorial"></div>
       <button class="bloque" id="btnPausarRutina" type="button" data-ico="pause">Pausar rutina</button>
-      <button class="bloque peli" id="btnBorrarRutina" type="button" data-ico="trash">Borrar definicion</button>
+      <button class="bloque peli" id="btnBorrarRutina" type="button" data-ico="trash">Borrar definici&oacute;n</button>
     </div>
   </div>
 </div>
@@ -440,10 +446,14 @@
     <div class="sub" id="misSub"></div>
     <input id="txtMisNombre" type="text" autocomplete="off" autocapitalize="sentences" maxlength="120"
            placeholder="Nombre. Ej: TU GASTO - ALFA">
-    <textarea id="txtMisObjetivo" maxlength="600" style="margin-top:8px"
-              placeholder="Objetivo: que tiene que ser verdad cuando termine"></textarea>
-    <div class="rot">Contexto</div>
+    <div class="ed-opc" id="cajaMisObjetivo">
+      <textarea id="txtMisObjetivo" maxlength="600"
+                placeholder="Objetivo: qu&eacute; tiene que ser verdad cuando termine"></textarea>
+    </div>
+    <div class="rot">Apartado</div>
     <div class="grid" id="gridMisCtx"></div>
+    <div class="rot" id="misAgregarRot">Agregar</div>
+    <div class="ficha-agregar" id="misAgregar" role="group" aria-labelledby="misAgregarRot"></div>
     <button class="bloque pri" id="btnGuardarMision" type="button">Crear misión</button>
     <div id="cajaMisExistente" style="display:none">
       <div class="misprog">
@@ -453,7 +463,7 @@
           <div class="mono mis-meta" id="misPctDet"></div>
         </div>
       </div>
-      <div class="rot">Proxima accion</div>
+      <div class="rot">Pr&oacute;xima acci&oacute;n</div>
       <div id="misProxima"></div>
       <div class="rot">Hitos</div>
       <div id="misHitos"></div>
@@ -484,7 +494,7 @@
     <h2>Buscar</h2>
     <div class="campo-buscar"><span class="campo-agregar-mas" data-ico="search" aria-hidden="true"></span><input id="txtBusca" type="search" autocomplete="off" enterkeyhint="search" placeholder="Buscar en todos los apartados" aria-label="Buscar"></div>
     <ul id="resultados"></ul>
-    <div class="vacio" id="vacioBusca">Escribi para buscar.</div>
+    <div class="vacio" id="vacioBusca">Escrib&iacute; para buscar.</div>
   </div>
 </div>
 
@@ -662,21 +672,6 @@
     <div class="apicos" id="apIcos" role="group" aria-labelledby="rotApIco"></div>
     <div class="rot" id="rotApColor">Color</div>
     <div class="apcolores" id="apColores" role="group" aria-labelledby="rotApColor"></div>
-    <label class="rot" for="apDesc">Descripci&oacute;n</label>
-    <textarea id="apDesc" rows="2" maxlength="280" placeholder="Para qu&eacute; es este apartado (opcional)"></textarea>
-    <div class="rot" id="rotApMeta">Objetivo</div>
-    <div class="segctl" id="segMetaAp" role="group" aria-labelledby="rotApMeta">
-      <button class="gbtn" type="button" data-meta="no">Sin objetivo</button>
-      <button class="gbtn" type="button" data-meta="semana">Por semana</button>
-      <button class="gbtn" type="button" data-meta="mes">Por mes</button>
-    </div>
-    <div id="cajaMetaN" style="display:none">
-      <label class="pista" for="apMetaN">Completadas por per&iacute;odo</label>
-      <input id="apMetaN" type="number" inputmode="numeric" min="1" max="999" value="5">
-    </div>
-    <label class="rot" for="apAlias">Alias de captura</label>
-    <input id="apAlias" type="text" autocomplete="off" autocapitalize="none" placeholder="Separados por coma (opcional)">
-    <div class="pista" id="apAliasPista"></div>
     <div class="rot" id="rotApCompras">Compras</div>
     <div class="segctl" id="segComprasAp" role="group" aria-labelledby="rotApCompras">
       <button class="gbtn" type="button" data-compras="no">No</button>
@@ -690,14 +685,39 @@
       <button class="gbtn" type="button" data-notas="no">Sin notas</button>
     </div>
     <div class="pista" id="apNotasPista"></div>
-    <div class="rot" id="rotApTags">Etiquetas</div>
-    <div class="aptags" id="apTags" role="list" aria-labelledby="rotApTags"></div>
-    <div class="campo-agregar">
+    <div class="ed-opc" id="cajaApDesc">
+      <label class="rot" for="apDesc">Descripci&oacute;n</label>
+      <textarea id="apDesc" rows="2" maxlength="280" placeholder="Para qu&eacute; es este apartado (opcional)"></textarea>
+    </div>
+    <div class="ed-opc" id="cajaApMeta">
+      <div class="rot" id="rotApMeta">Objetivo</div>
+      <div class="segctl" id="segMetaAp" role="group" aria-labelledby="rotApMeta">
+        <button class="gbtn" type="button" data-meta="no">Sin objetivo</button>
+        <button class="gbtn" type="button" data-meta="semana">Por semana</button>
+        <button class="gbtn" type="button" data-meta="mes">Por mes</button>
+      </div>
+      <div id="cajaMetaN" style="display:none">
+        <label class="pista" for="apMetaN">Completadas por per&iacute;odo</label>
+        <input id="apMetaN" type="number" inputmode="numeric" min="1" max="999" value="5">
+      </div>
+    </div>
+    <div class="ed-opc" id="cajaApAlias">
+      <label class="rot" for="apAlias">Alias de captura</label>
+      <input id="apAlias" type="text" autocomplete="off" autocapitalize="none" placeholder="Separados por coma (opcional)">
+      <div class="pista" id="apAliasPista"></div>
+    </div>
+    <div class="ed-opc" id="cajaApTags">
+      <div class="rot" id="rotApTags">Etiquetas</div>
+      <div class="aptags" id="apTags" role="list" aria-labelledby="rotApTags"></div>
+      <div class="campo-agregar">
         <span class="campo-agregar-mas" data-ico="plus" aria-hidden="true"></span>
         <input id="apTagNuevo" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" maxlength="30"
                placeholder="Agregar etiqueta" aria-label="Agregar etiqueta">
         <button class="iconobtn" id="btnApTag" type="button" aria-label="Agregar etiqueta" title="Agregar etiqueta" data-ico="arrow-up"></button>
       </div>
+    </div>
+    <div class="rot" id="apAgregarRot">Agregar</div>
+    <div class="ficha-agregar" id="apAgregar" role="group" aria-labelledby="apAgregarRot"></div>
     <div class="pista aperror" id="apError" role="alert"></div>
     <button class="bloque pri" id="btnApGuardar" type="button">Guardar apartado</button>
     <div id="cajaApExistente">
@@ -713,15 +733,21 @@
 <div class="tapa" id="tapaNota">
   <div class="hoja">
     <h2 id="notaTitulo">Nota</h2>
-    <label class="rot" for="notaTit">T&iacute;tulo</label>
-    <input id="notaTit" type="text" autocomplete="off" autocapitalize="sentences" maxlength="120" placeholder="Opcional si hay texto">
+    <div class="ed-opc" id="cajaNotaTit">
+      <label class="rot" for="notaTit">T&iacute;tulo</label>
+      <input id="notaTit" type="text" autocomplete="off" autocapitalize="sentences" maxlength="120" placeholder="Opcional si hay texto">
+    </div>
     <label class="rot" for="notaTxt">Texto</label>
     <textarea id="notaTxt" rows="6" maxlength="20000" autocapitalize="sentences" placeholder="Lo que quieras anotar"></textarea>
     <div class="rot" id="rotNotaCtx">Apartado</div>
     <div class="opciones" id="notaCtxs" role="group" aria-labelledby="rotNotaCtx"></div>
-    <div class="rot" id="rotNotaTags">Etiquetas</div>
-    <div class="opciones" id="notaTags" role="group" aria-labelledby="rotNotaTags"></div>
+    <div class="ed-opc" id="cajaNotaTags">
+      <div class="rot" id="rotNotaTags">Etiquetas</div>
+      <div class="opciones" id="notaTags" role="group" aria-labelledby="rotNotaTags"></div>
+    </div>
     <button class="gbtn notafijar" id="btnNotaFijar" type="button" aria-pressed="false" data-ico="pin">Fijar arriba</button>
+    <div class="rot" id="notaAgregarRot">Agregar</div>
+    <div class="ficha-agregar" id="notaAgregar" role="group" aria-labelledby="notaAgregarRot"></div>
     <div class="pista aperror" id="notaError" role="alert"></div>
     <button class="bloque pri" id="btnNotaGuardar" type="button">Guardar nota</button>
     <div id="cajaNotaExistente">

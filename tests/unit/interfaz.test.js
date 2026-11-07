@@ -62,7 +62,9 @@ function textosHtml(src) {
 /* Whole words only: class names and selectors (rail-mision) are not copy. Plural
    "misiones" has no accent. */
 const palabra = (w, f) => new RegExp('(^|[^\\w-])(' + w + ')(?![\\w-])', f);
-const SIN_TILDE = [palabra('Busqueda', 'i'), palabra('mision', 'i'), palabra('aca'), palabra('Mas'), palabra('dias', 'i')];
+const SIN_TILDE = [palabra('Busqueda', 'i'), palabra('mision', 'i'), palabra('aca'), palabra('Mas'), palabra('dias', 'i'),
+  // Also fixed with the T7 editors.
+  palabra('accion', 'i'), palabra('proxima', 'i'), palabra('Escribi'), palabra('definicion', 'i'), palabra('Dia')];
 
 test('copy: UI strings carry the accents of handoff section 10 (Búsqueda, misión, acá, Más, días)', () => {
   const malas = [];
