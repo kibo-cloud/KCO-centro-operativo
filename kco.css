@@ -589,9 +589,9 @@ li.item.baja .chk-c{border-style:dotted}
 .mas-fila{margin:0}
 .mas-fila .ico{width:20px;height:20px}
 /* Bandeja de la tarjeta (kco-app.js abrirBandeja): la tarjeta se corre 224px
-   y quedan cuatro botones de 56px; Mas va en acento. Prioridad la cambia por
+   y quedan hasta cuatro botones de 56px (los que el item admite); Mas va en acento. Prioridad la cambia por
    los cuatro niveles a todo el ancho, cada uno con su anillo. */
-.bandeja-swipe{position:absolute;top:0;right:0;bottom:0;z-index:1;display:flex;width:224px;background:var(--surface-2)}
+.bandeja-swipe{position:absolute;top:0;right:0;bottom:0;z-index:1;display:flex;width:auto;background:var(--surface-2)}
 .bandeja-btn{
   flex:0 0 56px;width:56px;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s-1);
   padding:0;border:0;background:var(--surface-2);color:var(--text);font-size:var(--fs-13);font-weight:600;cursor:pointer;

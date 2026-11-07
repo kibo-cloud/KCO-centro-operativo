@@ -1646,7 +1646,7 @@
      por los cuatro niveles con el actual marcado (aria-pressed): un toque
      elige, sin hojas encima. Una sola abierta a la vez; tocar afuera, tocar la
      tarjeta, deslizarla de nuevo, Escape o repintar la cierran. */
-  var ANCHO_BANDEJA = 224;
+  var BOTON_BANDEJA = 56;
   var bandeja = null;
 
   function cerrarBandeja(devolverFoco) {
@@ -1692,19 +1692,26 @@
       }
       return;
     }
-    botonBandeja(caja, '', 'Hoy', 'calendar', function () {
-      cerrarBandeja(false);
-      if (it.estado === 'entrada') { sacarDeInbox(id, true); } else { fijarFecha(id, hoyClave()); }
-    }).setAttribute('data-bandeja', 'hoy');
-    botonBandeja(caja, '', 'Ma\u00F1ana', 'sun', function () {
-      cerrarBandeja(false);
-      posponer(id);
-    }).setAttribute('data-bandeja', 'manana');
-    botonBandeja(caja, '', 'Prioridad', 'flag', function () {
-      caja.className = caja.className + ' niveles';
-      pintarBandeja(caja, id, true);
-      enfocar(caja.querySelector('[aria-pressed="true"]') || caja.firstChild);
-    }).setAttribute('data-bandeja', 'prioridad');
+    var op = accionesRapidas(it);
+    if (op.hoy) {
+      botonBandeja(caja, '', 'Hoy', 'calendar', function () {
+        cerrarBandeja(false);
+        accionHoy(id);
+      }).setAttribute('data-bandeja', 'hoy');
+    }
+    if (op.manana) {
+      botonBandeja(caja, '', 'Ma\u00F1ana', 'sun', function () {
+        cerrarBandeja(false);
+        posponer(id);
+      }).setAttribute('data-bandeja', 'manana');
+    }
+    if (op.prioridad) {
+      botonBandeja(caja, '', 'Prioridad', 'flag', function () {
+        caja.className = caja.className + ' niveles';
+        pintarBandeja(caja, id, true);
+        enfocar(caja.querySelector('[aria-pressed="true"]') || caja.firstChild);
+      }).setAttribute('data-bandeja', 'prioridad');
+    }
     botonBandeja(caja, 'bandeja-mas', 'M\u00E1s', 'more', function () {
       cerrarBandeja(false);
       abrirItem(id);
@@ -1731,7 +1738,8 @@
     pintarBandeja(caja, id, false);
     li.insertBefore(caja, fila);
     li.className = li.className + ' bandeja-on';
-    fila.style.transform = 'translate3d(-' + ANCHO_BANDEJA + 'px,0,0)';
+    /* La tarjeta se corre lo que mide la bandeja: 56px por boton ofrecido. */
+    fila.style.transform = 'translate3d(-' + (caja.childNodes.length * BOTON_BANDEJA) + 'px,0,0)';
     bandeja = { li: li, fila: fila, caja: caja };
     var mas = li.querySelector('[data-acc="mas"]');
     if (mas) { mas.setAttribute('aria-expanded', 'true'); }
@@ -1768,9 +1776,14 @@
     if (li && / asoma/.test(li.className)) { li.className = li.className.replace(/ asoma/g, ''); }
   }
 
+  var LISTAS_CON_PISTA = { lista: 'tablero', listaCompras: 'compras' };
+
   function pintarPistaGesto(lista, listaId) {
     var viejo = $('pistaGesto');
     if (viejo && viejo.parentNode) { viejo.parentNode.removeChild(viejo); }
+    /* Solo Tareas y Compras de Listas, en su vista y sin una hoja encima: la
+       bandera de una vez se gasta donde la linea se ve. */
+    if (LISTAS_CON_PISTA[listaId] !== vista || pilaCapas.length > 0) { return; }
     if (pistaLista && pistaLista.id !== listaId) { return; }
     var li = lista.querySelector('li.item.fila');
     if (!pistaLista) {
@@ -2313,14 +2326,37 @@
      en una lista en orden manual, donde eso arrastra) o con la tecla de menu. */
   var itemRapido = null;
 
+  /* Lo que se ofrece para un item, igual en la bandeja de la tarjeta y en el
+     menu rapido: sin guardar posible (solo lectura) no hay nada que cambiar;
+     una ocurrencia de rutina tiene el dia de su rutina (correrla dejaria dos
+     el mismo dia), y solo una tarea suelta pasa a Compras. */
+  function accionesRapidas(it) {
+    var vivo = !soloLectura && esActivo(it.estado), suelta = it.rutinaId === '';
+    return {
+      hoy: vivo && suelta,
+      manana: vivo && suelta,
+      prioridad: vivo,
+      compras: vivo && suelta && it.tipo === 'tarea' && usaCompras(it.contexto),
+      borrar: !soloLectura
+    };
+  }
+
+  /* "Hoy" de un toque: un item del inbox ademas queda clasificado. */
+  function accionHoy(id) {
+    var it = buscarItem(id);
+    if (!it) { return; }
+    if (it.estado === 'entrada') { sacarDeInbox(id, true); } else { fijarFecha(id, hoyClave()); }
+  }
+
   function abrirMenuRapido(id) {
     var it = buscarItem(id);
     if (!it || pilaCapas.length > 0) { return; }
+    var op = accionesRapidas(it), l = document.querySelectorAll('#tapaRapido [data-rap]'), i;
     itemRapido = id;
     $('rapTitulo').textContent = it.texto;
     $('rapNivel').style.display = 'none';
     $('btnRapNivel').setAttribute('aria-expanded', 'false');
-    $('btnRapCompras').style.display = it.tipo === 'tarea' && it.rutinaId === '' && usaCompras(it.contexto) ? '' : 'none';
+    for (i = 0; i < l.length; i++) { l[i].style.display = op[l[i].getAttribute('data-rap')] ? '' : 'none'; }
     pintarOpciones('rapNivel', K.NIVELES, it.nivel, function (n) { return n.nom; }, function (n) {
       cerrarHoja('tapaRapido');
       fijarNivel(id, n.id);
@@ -2340,7 +2376,7 @@
     /* La hoja que siga (ficha, confirmar) ocupa la entrada del menu rapido. */
     cerrarParaRelevo('tapaRapido');
     if (cual === 'hoy') {
-      if (it.estado === 'entrada') { sacarDeInbox(id, true); } else { fijarFecha(id, hoyClave()); }
+      accionHoy(id);
     } else if (cual === 'manana') {
       posponer(id);
     } else if (cual === 'compras') {

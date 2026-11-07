@@ -4878,6 +4878,64 @@ export const tests = [
       assert.equal(await page.count('#lista li.item.asoma'), 0, 'no peek');
       assert.deepEqual(JSON.parse(await page.storage('kibco.pistas')), { completar: true });
     }
+  },
+  {
+    name: 'card tray: a routine occurrence offers only Prioridad and Más, the same choices as its quick menu (no Hoy/Mañana that would move the occurrence)',
+    storage: Object.assign(rutinaSeed([[-1, 'completado']]), { 'kibco.pistas': '{"completar":true}' }),
+    async fn(page) {
+      await toTasks(page);
+      const occ = (await items(page)).find((i) => i.rutinaId === 'rgata' && i.ocurrencia === ymd(0));
+      const card = `#lista li.item[data-id="${occ.id}"]`;
+      await page.click(card + ' [data-acc="mas"]');
+      await sleep(450);
+      const t = await page.eval(`(function(){var b=document.querySelector('${card} .bandeja-swipe');if(!b)return null;
+        return {acc:Array.prototype.map.call(b.querySelectorAll('[data-bandeja]'),function(x){return x.getAttribute('data-bandeja');}),w:Math.round(b.getBoundingClientRect().width),
+          shift:Math.round(document.querySelector('${card}').getBoundingClientRect().left+document.querySelector('${card}').clientLeft-document.querySelector('${card} .desliza').getBoundingClientRect().left)};})()`);
+      assert.ok(t, 'tray open');
+      assert.deepEqual(t.acc, ['prioridad', 'mas']);
+      assert.equal(t.w, 112, 'two 56px buttons');
+      assert.equal(t.shift, 112, 'the card slides by the tray width');
+      await page.key('Escape');
+      await sleep(120);
+      await page.eval(`document.querySelector('${card}').dispatchEvent(new KeyboardEvent('keydown',{key:'ContextMenu',keyCode:93,bubbles:true,cancelable:true}))`);
+      await sleep(150);
+      assert.ok(await isOpen(page, 'tapaRapido'), 'quick menu open');
+      const rap = await page.eval("Array.prototype.filter.call(document.querySelectorAll('#tapaRapido [data-rap]'),function(b){return b.style.display!=='none';}).map(function(b){return b.getAttribute('data-rap');})");
+      assert.deepEqual(rap, ['prioridad', 'borrar'], 'the quick menu tailors the same way');
+      assert.equal((await items(page)).find((i) => i.id === occ.id).fecha || '', '', 'the occurrence keeps its day');
+    }
+  },
+  {
+    name: 'card tray: read-only data leaves only Más in the tray and only the item sheet in the quick menu',
+    storage: { 'kibco.esquema': '6', 'kibco.items': JSON.stringify([{ id: 'f1', texto: 'del futuro', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await toTasks(page);
+      const card = '#lista li.item[data-id="f1"]';
+      await page.click(card + ' [data-acc="mas"]');
+      await sleep(200);
+      const acc = await page.eval(`Array.prototype.map.call(document.querySelectorAll('${card} .bandeja-swipe [data-bandeja]'),function(x){return x.getAttribute('data-bandeja');})`);
+      assert.deepEqual(acc, ['mas'], 'nothing that cannot be saved');
+      await page.key('Escape');
+      await sleep(120);
+      await page.eval(`document.querySelector('${card}').dispatchEvent(new KeyboardEvent('keydown',{key:'ContextMenu',keyCode:93,bubbles:true,cancelable:true}))`);
+      await sleep(150);
+      const rap = await page.eval("Array.prototype.filter.call(document.querySelectorAll('#tapaRapido [data-rap]'),function(b){return b.style.display!=='none';}).map(function(b){return b.getAttribute('data-rap');})");
+      assert.deepEqual(rap, []);
+      assert.ok(await page.visible('#btnRapFicha'), 'Más opciones stays');
+    }
+  },
+  {
+    name: 'first-run hint: lists outside Listas (Ahora, Hoy, Misiones, Progreso) never consume kibco.pistas; Listas Tareas does',
+    storage: seed(),
+    async fn(page) {
+      assert.ok(await page.count('#ahoraCuerpo li.item.fila') > 0, 'Ahora shows cards');
+      for (const tab of ['#tabHoy', '#tabMisiones', '#tabRegistro', '#tabAhora']) { await page.click(tab); await sleep(60); }
+      assert.equal(await page.storage('kibco.pistas'), null, 'flag untouched outside Listas');
+      assert.equal(await page.count('.pista-gesto'), 0);
+      await toTasks(page);
+      assert.deepEqual(JSON.parse(await page.storage('kibco.pistas')), { completar: true });
+      assert.ok(await page.visible('.pista-gesto'));
+    }
   }
 ];
 
