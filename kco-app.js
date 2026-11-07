@@ -2668,7 +2668,7 @@
   function pintarCompras() {
     /* Los rotulos siguen el modo del apartado; Todo junta los dos flujos. */
     var esHogar = contexto !== 'todo' && !K.esFabrica(contexto), fabrica = contexto !== 'todo' && !esHogar;
-    var cont = $('chipsCompra'), fila = nodo('div', 'chips');
+    var cont = $('chipsCompra'), fila = nodo('div', 'chips scroll-x');
     progreso('compra', '', 'progCompraTxt', 'progCompraBarra');
     $('rotCompras').textContent = esHogar ? 'Lista de compras' : (contexto === 'todo' ? 'Compras cerradas' : 'Material recibido');
     var base = esHogar ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
@@ -6974,10 +6974,60 @@
     statTile(g, st.misionesFin, 'misiones cumplidas', st.hitos + ' hitos');
     cont.appendChild(g);
 
-    /* 3-5. Objetivos, semanas y logros. */
+    /* 3-5. Objetivos, semanas y logros; despues, donde se fue el esfuerzo y
+       las misiones cumplidas (antes de la Bitacora). */
     pintarMetas(cont, hoy);
     pintarSemanas(cont, st.semanas);
     pintarLogros(cont, st);
+    pintarPorContexto(cont, st);
+    pintarTerminadas(cont);
+  }
+
+  /* Donde se fue el esfuerzo: completadas y XP por apartado, barra de 4px en
+     el color de cada apartado y el numero en texto. */
+  function pintarPorContexto(cont, st) {
+    var s = nodo('section', 'sec');
+    s.id = 'secPorCtx';
+    var h = nodo('h3', 'sec-tit');
+    h.appendChild(nodo('span', '', 'Actividad por contexto', 'compass'));
+    s.appendChild(h);
+    var max = 0, i, c, n;
+    for (i = 0; i < K.CONTEXTOS.length; i++) { n = st.porContexto[K.CONTEXTOS[i].id] || 0; if (n > max) { max = n; } }
+    for (i = 0; i < K.CONTEXTOS.length; i++) {
+      c = K.CONTEXTOS[i];
+      n = st.porContexto[c.id] || 0;
+      var xp = st.xpPorContexto['#' + c.id] || 0;
+      var f = nodo('div', 'ctxbar' + (n === 0 ? ' cero' : ''));
+      f.setAttribute('data-ctx', c.id);
+      var cn = nodo('span', 'ctxbar-nom', c.nom);
+      cn.insertBefore(punto(c.id), cn.firstChild);
+      f.appendChild(cn);
+      var pista = nodo('span', 'ctxbar-pista');
+      var b = nodo('i', '');
+      b.style.width = (max === 0 ? 0 : Math.round((n * 100) / max)) + '%';
+      b.style.background = 'var(--pal-' + colorCtx(c.id) + ')';
+      pista.appendChild(b);
+      f.appendChild(pista);
+      f.appendChild(nodo('span', 'ctxbar-n', n + ' \u00B7 ' + xp + ' XP'));
+      s.appendChild(f);
+    }
+    cont.appendChild(s);
+  }
+
+  /* Lo que terminaste: las misiones cumplidas, la mas reciente primero. */
+  function pintarTerminadas(cont) {
+    var fin = [], i;
+    for (i = 0; i < proyectos.length; i++) { if (proyectos[i].estado === 'terminado') { fin.push(proyectos[i]); } }
+    if (fin.length === 0) { return; }
+    fin.sort(function (a, b) { return a.terminado < b.terminado ? 1 : -1; });
+    var s = nodo('section', 'sec');
+    s.id = 'secTerminadas';
+    var h = nodo('h3', 'sec-tit');
+    h.appendChild(nodo('span', '', 'Lo que terminaste', 'flag'));
+    h.appendChild(nodo('b', '', '' + fin.length));
+    s.appendChild(h);
+    for (i = 0; i < fin.length && i < 12; i++) { s.appendChild(nodoMision(fin[i], true)); }
+    cont.appendChild(s);
   }
 
   /* Una serie (avances por semana): barras neutras con base comun y la

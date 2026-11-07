@@ -5290,6 +5290,83 @@ export const tests = [
       assert.equal(await page.eval("getComputedStyle(document.querySelector('#misLista [data-mision=\"ppau\"]')).borderTopStyle"), 'dotted');
       assert.equal(await page.count('#misLista [data-mision="pkco"]'), 0, 'only paused ones');
     }
+  },
+  // ---------- T5 (Cabina sheets) ----------
+  {
+    name: 'ahora hero: a routine occurrence offers no Mañana (accionesRapidas), a loose task does',
+    storage: Object.assign(rutinaSeed([[-1, 'completado']]), { 'kibco.pistas': '{"completar":true}' }),
+    async fn(page) {
+      const occ = (await items(page)).find((i) => i.rutinaId === 'rgata' && i.ocurrencia === ymd(0));
+      assert.ok(occ, 'today occurrence generated');
+      assert.equal(await page.eval("document.querySelector('#ahoraCuerpo .hero').getAttribute('data-id')"), occ.id, 'the occurrence is the hero');
+      assert.equal(await page.count('#ahoraCuerpo .hero [data-hero="hecho"]'), 1);
+      assert.equal(await page.count('#ahoraCuerpo .hero [data-hero="manana"]'), 0, 'no Mañana for an occurrence');
+      await capture(page, 'suelta urgente !!');
+      await sleep(80);
+      const hero = await page.eval("(function(){var h=document.querySelector('#ahoraCuerpo .hero');return {t:h.querySelector('.hero-txt').textContent,m:h.querySelectorAll('[data-hero=\"manana\"]').length};})()");
+      assert.equal(hero.t, 'suelta urgente');
+      assert.equal(hero.m, 1, 'a loose task keeps Mañana');
+    }
+  },
+  {
+    name: 'compras chips: in Todo at 360px the state chips scroll sideways instead of overflowing the page',
+    width: 360,
+    storage: bigSeed(2, { compras: 3 }),
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      await sleep(80);
+      const r = await page.eval(`(function(){var f=document.querySelector('#chipsCompra .chips'),st=getComputedStyle(f),b=f.getBoundingClientRect();
+        var before=f.scrollLeft;f.scrollLeft=60;var after=f.scrollLeft;
+        return {n:f.querySelectorAll('.chip').length,ox:st.overflowX,wrap:st.flexWrap,over:f.scrollWidth>f.clientWidth,right:b.right,w:window.innerWidth,
+          page:document.documentElement.scrollWidth,moved:after>before};})()`);
+      assert.ok(r.n >= 8, 'Todo joins both purchase flows: ' + r.n);
+      assert.equal(r.wrap, 'nowrap', 'one row');
+      assert.equal(r.ox, 'auto', 'scrolls sideways');
+      assert.ok(r.over, 'the row is wider than the screen');
+      assert.ok(r.moved, 'the row really scrolls');
+      assert.ok(r.right <= r.w + 0.5, 'the row ends at the screen edge');
+      assert.ok(r.page <= r.w, 'no horizontal page scroll: ' + r.page);
+    }
+  },
+  {
+    name: 'progreso: Actividad por contexto and Lo que terminaste come back after Logros, before the Bitácora',
+    storage: (() => {
+      const now = new Date().toISOString();
+      const list = [{ id: 'a1', texto: 'hecha', contexto: 'apps', tipo: 'tarea', estado: 'completado', nivel: 'normal', creado: now, estadoDesde: now }];
+      const p = { id: 'pfin', nombre: 'Mision lista', objetivo: '', contexto: 'apps', estado: 'terminado', terminado: now, hitos: [], creado: now, actualizado: now };
+      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list), 'kibco.proyectos': JSON.stringify([p]) };
+    })(),
+    async fn(page) {
+      await page.click('#tabRegistro');
+      await sleep(80);
+      const r = await page.eval(`(function(){var ids=Array.prototype.map.call(document.querySelectorAll('#campanaCuerpo > section'),function(s){return s.id;});
+        var c=document.querySelector('#secPorCtx'),f=c&&c.querySelector('.ctxbar[data-ctx="apps"]');
+        var y=document.createElement('i');y.style.color='var(--pal-violeta)';document.body.appendChild(y);var vi=getComputedStyle(y).color;y.remove();
+        return {ids:ids,txt:c?c.textContent:'',bar:f?getComputedStyle(f.querySelector('.ctxbar-pista i')).backgroundColor:'',vi:vi,
+          bh:f?Math.round(f.querySelector('.ctxbar-pista').getBoundingClientRect().height):0,
+          fin:(document.querySelector('#secTerminadas')||{}).textContent||'',
+          bit:!!(document.querySelector('#campanaCuerpo').compareDocumentPosition(document.querySelector('#secBitacora'))&4)};})()`);
+      const iL = r.ids.indexOf('secLogros'), iC = r.ids.indexOf('secPorCtx'), iT = r.ids.indexOf('secTerminadas');
+      assert.ok(iL > -1 && iC === iL + 1 && iT === iC + 1, 'order: ' + r.ids.join(','));
+      assert.match(r.txt, /Actividad por contexto/);
+      assert.match(r.txt, /Apps1 · [0-9]+ XP/);
+      assert.equal(r.bar, r.vi, 'bar in the section color');
+      assert.equal(r.bh, 4, '4px bar');
+      assert.match(r.fin, /Lo que terminaste/);
+      assert.match(r.fin, /Mision lista/);
+      assert.ok(r.bit, 'the Bitácora comes after');
+    }
+  },
+  {
+    name: 'hero: the light theme keeps the level-2 shadow (light variant)',
+    storage: { 'kibco.tema': 'claro', 'kibco.items': JSON.stringify([{ id: 'h1', texto: 'algo', contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente', nivel: 'normal', creado: new Date(Date.now() - 3600000).toISOString() }]) },
+    async fn(page) {
+      const r = await page.eval(`(function(){var h=document.querySelector('#ahoraCuerpo .hero'),y=document.createElement('i');y.style.boxShadow='var(--sh-2)';document.body.appendChild(y);
+        var s=getComputedStyle(y).boxShadow;y.remove();return {h:getComputedStyle(h).boxShadow,s:s,tema:document.documentElement.getAttribute('data-tema')};})()`);
+      assert.equal(r.tema, 'claro');
+      assert.equal(r.h, r.s, 'hero uses --sh-2');
+    }
   }
 ];
 

@@ -213,7 +213,7 @@ body.pal-gris{--accent:var(--pal-gris);--accent-soft:var(--pal-gris-soft)}
 }
 /* En claro las tarjetas no llevan borde: sombra nivel 1 sobre el fondo. Las
    que avisan (urgente, hero, logro ganado) conservan su borde de color. */
-:root[data-tema="claro"] li.item,:root[data-tema="claro"] .nivel-card,:root[data-tema="claro"] .mision,:root[data-tema="claro"] .stat,:root[data-tema="claro"] .logro,:root[data-tema="claro"] .hero,:root[data-tema="claro"] .nota-abrir{box-shadow:var(--sh-1)}
+:root[data-tema="claro"] li.item,:root[data-tema="claro"] .nivel-card,:root[data-tema="claro"] .mision,:root[data-tema="claro"] .stat,:root[data-tema="claro"] .logro,:root[data-tema="claro"] .nota-abrir{box-shadow:var(--sh-1)}
 :root[data-tema="claro"] li.item.fila,:root[data-tema="claro"] .mision:not(.pausa),:root[data-tema="claro"] .stat,:root[data-tema="claro"] .logro:not(.ganado),:root[data-tema="claro"] li.notacard:not(.fijada) .nota-abrir{border-color:transparent}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* Barras de scroll y controles nativos siguen al tema activo. */
@@ -1113,6 +1113,14 @@ li.item.prevista{border-style:dotted;background:transparent;opacity:.8}
 .logro small{color:var(--muted);font-size:var(--fs-13);line-height:var(--lh-snug)}
 .logro-est{color:var(--muted);margin-top:var(--s-1)}
 .logro.ganado .logro-est{color:var(--gold)}
+/* Actividad por contexto: punto + nombre, barra de 4px en el color del apartado y el numero. */
+.ctxbar{display:flex;align-items:center;gap:var(--s-2);min-height:var(--tap);font-size:var(--fs-13)}
+.ctxbar.cero{opacity:.5}
+.ctxbar-nom{flex:0 0 96px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctxbar-pista{flex:1;height:4px;background:var(--surface-2);border-radius:var(--r-pill);overflow:hidden}
+.ctxbar-pista i{display:block;height:100%;border-radius:var(--r-pill)}
+.ctxbar-n{flex:0 0 auto;min-width:72px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+#secTerminadas .mision{margin-bottom:var(--s-2)}
 .deshacer.celebra{border-color:var(--accent);background:linear-gradient(90deg,var(--accent-soft),var(--surface-2))}
 /* Foco de teclado visible en el color del contexto (el toque no lo muestra). */
 button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,#txtCaptura:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
