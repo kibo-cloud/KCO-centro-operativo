@@ -187,23 +187,25 @@
   </div>
 </div>
 
-<!-- Ficha del item: arriba lo mas usado (titulo editable, Hecho, dia, prioridad,
-     contexto) para que entre sin scrollear en el telefono; abajo, por secciones,
-     lo demas. kco-app.js completa la cabecera (X de cerrar) como en toda hoja. -->
+<!-- Ficha del item (divulgacion progresiva): arriba titulo editable y las
+     cuatro acciones rapidas; despues las propiedades con valor como filas (cada
+     fila abre su editor); las secciones con contenido (Pasos, Comentarios); los
+     chips "Agregar" de lo que esta vacio y la fila "Mas" (subhoja). Lo vacio no
+     se ve hasta tocar su chip. kco-app.js pintarHojaItem / pintarPropsFicha. -->
 <div class="tapa" id="tapaItem">
   <div class="hoja hoja-item">
     <div class="hoja-cab">
       <div class="asa" aria-hidden="true"></div>
       <div class="hoja-fila">
         <h2 id="itemTitulo" class="oculto-vis">Item</h2>
-        <div class="sub" id="itemSub"></div>
+        <div class="sub item-sub" id="itemSub"></div>
       </div>
     </div>
     <textarea id="txtTituloItem" class="titulo-edit" rows="1" autocomplete="off" autocapitalize="sentences"
               enterkeyhint="done" spellcheck="false" aria-label="Texto"></textarea>
 
     <div class="rapidas">
-      <button class="rbtn" id="btnHecho" type="button" data-ico="check">Hecho</button>
+      <button class="rbtn pri" id="btnHecho" type="button" data-ico="check">Hecho</button>
       <button class="rbtn" id="btnDiaHoy" type="button" data-ico="calendar">Hoy</button>
       <button class="rbtn" id="btnDiaMan" type="button" data-ico="forward">Ma&ntilde;ana</button>
       <button class="rbtn" id="btnDiaElegir" type="button" data-ico="clock">Elegir d&iacute;a</button>
@@ -214,93 +216,131 @@
     </div>
     <button class="bloque sutil" id="btnSacarDia" type="button" style="display:none">Sacar el d&iacute;a</button>
 
-    <div class="rot" id="rotNivel">Prioridad</div>
-    <div class="segctl" id="gridNivel" role="group" aria-labelledby="rotNivel"></div>
-
-    <div class="rot" id="rotCtxItem">Contexto</div>
-    <div class="opciones" id="gridCtx" role="group" aria-labelledby="rotCtxItem"></div>
-
-    <div id="cajaOcurrencia" style="display:none">
-      <div class="rot" data-ico="repeat">Rutina</div>
-      <div class="pista" id="ocuInfo" style="margin-top:0;margin-bottom:8px"></div>
-      <div class="segctl">
-        <button class="gbtn" id="btnEx_omitida" type="button">Omitir</button>
-        <button class="gbtn" id="btnEx_no_corresponde" type="button">No tocaba</button>
-        <button class="gbtn" id="btnEx_delegada" type="button">Delegada</button>
+    <div class="ficha-props" id="fichaProps">
+      <button class="prop" type="button" data-prop="nivel" aria-expanded="false" aria-controls="panNivel"><span class="prop-rot">Prioridad</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panNivel" hidden>
+        <div class="segctl" id="gridNivel" role="group" aria-label="Prioridad"></div>
       </div>
-      <div class="pista">No tocaba no corta la racha. Delegada cuenta como resuelta.</div>
-      <button class="bloque" id="btnVerRutina" type="button">Ver la rutina e historial</button>
-    </div>
-
-    <div class="rot" id="rotEstados">Estado</div>
-    <div class="opciones" id="gridEstados"></div>
-
-    <div id="cajaPedido" style="display:none">
-      <div class="rot">Solicitante</div>
-      <input id="txtSolicitante" type="text" autocomplete="off" autocapitalize="words"
-             enterkeyhint="done" list="listaSolicitantes" placeholder="Quien lo pidio">
-      <datalist id="listaSolicitantes"></datalist>
-      <div class="rot">Destino / uso</div>
-      <input id="txtDestino" type="text" autocomplete="off" autocapitalize="sentences"
-             enterkeyhint="done" list="listaDestinos" placeholder="Para que maquina, area o sector">
-      <datalist id="listaDestinos"></datalist>
-      <div class="pista">Se guarda solo al salir del campo. Lo que escribas queda en la lista para la proxima.</div>
-    </div>
-
-    <div id="cajaEspera" style="display:none">
-      <div class="rot">Esperando a quien o a que (opcional)</div>
-      <input id="txtEspera" type="text" autocomplete="off" placeholder="Ej: compras, proveedor, repuesto">
-      <button class="bloque" id="btnGuardarEspera" type="button">Guardar espera</button>
-    </div>
-
-    <button class="gbtn ancho" id="btnPausa" type="button" style="display:none" data-ico="pause">Pausar / En espera</button>
-    <button class="gbtn ancho" id="btnAnclar" type="button" data-ico="pin">Anclar arriba de todo</button>
-
-    <div id="cajaMision" style="display:none">
-      <div class="rot" data-ico="target">Misi&oacute;n</div>
-      <div class="opciones" id="gridMision"></div>
-    </div>
-
-    <div class="rot">Checklist</div>
-    <div id="listaPasos"></div>
-    <div class="campo-boton">
-      <input id="txtPaso" type="text" autocomplete="off" autocapitalize="sentences"
-             enterkeyhint="done" placeholder="Nuevo paso. Ej: desmontar tapa" aria-label="Nuevo paso">
-      <button class="iconobtn" id="btnAgregarPaso" type="button" aria-label="Agregar paso" title="Agregar paso" data-ico="plus"></button>
-    </div>
-
-    <div class="rot">Comentarios</div>
-    <div id="listaComentarios"></div>
-    <div class="campo-boton">
-      <input id="txtNota" type="text" autocomplete="off" autocapitalize="sentences"
-             enterkeyhint="done" placeholder="Ej: proveedor confirm&oacute; stock para el viernes" aria-label="Nuevo comentario">
-      <button class="iconobtn" id="btnAgregarNota" type="button" aria-label="Agregar comentario" title="Agregar comentario" data-ico="plus"></button>
-    </div>
-
-    <div class="rot">Clasificaci&oacute;n (opcional)</div>
-    <div class="opciones" id="gridTags"></div>
-
-    <div class="rot">Recordatorio</div>
-    <div class="segctl">
-      <button class="gbtn" id="btnHoy18" type="button">Hoy 18:00</button>
-      <button class="gbtn" id="btnMan9" type="button">Ma&ntilde;ana 09:00</button>
-      <button class="gbtn" id="btnOtraHora" type="button">Elegir</button>
-    </div>
-    <div id="cajaHora" style="display:none">
-      <input id="txtHora" type="time" value="18:00" aria-label="Hora">
-      <div class="grid" style="margin-top:8px">
-        <button class="gbtn" id="btnHoraHoy" type="button">Hoy a esa hora</button>
-        <button class="gbtn" id="btnHoraManana" type="button">Ma&ntilde;ana a esa hora</button>
+      <button class="prop" type="button" data-prop="ctx" aria-expanded="false" aria-controls="panCtx"><span class="prop-rot">Apartado</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panCtx" hidden>
+        <div class="opciones" id="gridCtx" role="group" aria-label="Apartado"></div>
+      </div>
+      <button class="prop" type="button" data-prop="rec" aria-expanded="false" aria-controls="panRec"><span class="prop-rot">Recordatorio</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panRec" hidden>
+        <div class="segctl">
+          <button class="gbtn" id="btnHoy18" type="button">Hoy 18:00</button>
+          <button class="gbtn" id="btnMan9" type="button">Ma&ntilde;ana 09:00</button>
+          <button class="gbtn" id="btnOtraHora" type="button">Elegir</button>
+        </div>
+        <div id="cajaHora" style="display:none">
+          <input id="txtHora" type="time" value="18:00" aria-label="Hora">
+          <div class="grid" style="margin-top:8px">
+            <button class="gbtn" id="btnHoraHoy" type="button">Hoy a esa hora</button>
+            <button class="gbtn" id="btnHoraManana" type="button">Ma&ntilde;ana a esa hora</button>
+          </div>
+        </div>
+        <button class="bloque" id="btnSacarRec" type="button" style="display:none">Sacar recordatorio</button>
+      </div>
+      <button class="prop" type="button" data-prop="estado" aria-expanded="false" aria-controls="panEstado"><span class="prop-rot" id="rotEstados">Estado</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panEstado" hidden>
+        <div class="opciones" id="gridEstados" role="group" aria-labelledby="rotEstados"></div>
+        <div id="cajaEspera" style="display:none">
+          <div class="rot">Esperando a qui&eacute;n o a qu&eacute; (opcional)</div>
+          <input id="txtEspera" type="text" autocomplete="off" placeholder="Ej: compras, proveedor, repuesto">
+          <button class="bloque" id="btnGuardarEspera" type="button">Guardar espera</button>
+        </div>
+      </div>
+      <button class="prop" type="button" data-prop="rutina" aria-expanded="false" aria-controls="panRutina"><span class="prop-rot">Rutina</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panRutina" hidden>
+        <div id="cajaOcurrencia" style="display:none">
+          <div class="pista" id="ocuInfo" style="margin-top:0;margin-bottom:8px"></div>
+          <div class="segctl">
+            <button class="gbtn" id="btnEx_omitida" type="button">Omitir</button>
+            <button class="gbtn" id="btnEx_no_corresponde" type="button">No tocaba</button>
+            <button class="gbtn" id="btnEx_delegada" type="button">Delegada</button>
+          </div>
+          <div class="pista">No tocaba no corta la racha. Delegada cuenta como resuelta.</div>
+          <button class="bloque" id="btnVerRutina" type="button">Ver la rutina e historial</button>
+        </div>
+      </div>
+      <button class="prop" type="button" data-prop="mision" aria-expanded="false" aria-controls="panMision"><span class="prop-rot">Misi&oacute;n</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panMision" hidden>
+        <div id="cajaMision" style="display:none">
+          <div class="opciones" id="gridMision" role="group" aria-label="Misi&oacute;n"></div>
+        </div>
+      </div>
+      <button class="prop" type="button" data-prop="pedido" aria-expanded="false" aria-controls="panPedido"><span class="prop-rot">Solicitante</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panPedido" hidden>
+        <div id="cajaPedido" style="display:none">
+          <label class="rot" for="txtSolicitante">Solicitante</label>
+          <input id="txtSolicitante" type="text" autocomplete="off" autocapitalize="words"
+                 enterkeyhint="done" list="listaSolicitantes" placeholder="Qui&eacute;n lo pidi&oacute;">
+          <datalist id="listaSolicitantes"></datalist>
+          <label class="rot" for="txtDestino">Destino / uso</label>
+          <input id="txtDestino" type="text" autocomplete="off" autocapitalize="sentences"
+                 enterkeyhint="done" list="listaDestinos" placeholder="Para qu&eacute; m&aacute;quina, &aacute;rea o sector">
+          <datalist id="listaDestinos"></datalist>
+          <div class="pista">Se guarda al salir del campo. Lo que escribas queda en la lista para la pr&oacute;xima.</div>
+        </div>
+      </div>
+      <button class="prop" type="button" data-prop="tag" aria-expanded="false" aria-controls="panTag"><span class="prop-rot">Etiqueta</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panTag" hidden>
+        <div class="opciones" id="gridTags" role="group" aria-label="Etiqueta"></div>
+      </div>
+      <button class="prop" type="button" data-prop="anclado" aria-expanded="false" aria-controls="panAnclado"><span class="prop-rot">Anclado</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panAnclado" hidden>
+        <button class="gbtn ancho" id="btnAnclar" type="button" data-ico="pin">Anclar arriba de todo</button>
+      </div>
+      <button class="prop" type="button" data-prop="pausa" aria-expanded="false" aria-controls="panPausa"><span class="prop-rot">En espera</span><span class="prop-val"></span></button>
+      <div class="prop-panel" id="panPausa" hidden>
+        <button class="gbtn ancho" id="btnPausa" type="button" data-ico="pause">Pausar / En espera</button>
       </div>
     </div>
-    <button class="bloque" id="btnSacarRec" type="button" style="display:none">Sacar recordatorio</button>
 
-    <div class="rot">M&aacute;s acciones</div>
-    <div class="acciones">
+    <section class="ficha-sec" data-sec="pasos" hidden>
+      <div class="rot" id="rotPasos">Pasos</div>
+      <div id="listaPasos"></div>
+      <div class="campo-agregar">
+        <span class="campo-agregar-mas" data-ico="plus" aria-hidden="true"></span>
+        <input id="txtPaso" type="text" autocomplete="off" autocapitalize="sentences"
+               enterkeyhint="done" placeholder="Agregar paso" aria-label="Agregar paso">
+        <button class="iconobtn" id="btnAgregarPaso" type="button" aria-label="Agregar paso" title="Agregar paso" data-ico="arrow-up"></button>
+      </div>
+    </section>
+
+    <section class="ficha-sec" data-sec="comentarios" hidden>
+      <div class="rot" id="rotComentarios">Comentarios</div>
+      <div id="listaComentarios"></div>
+      <div class="campo-agregar">
+        <span class="campo-agregar-mas" data-ico="plus" aria-hidden="true"></span>
+        <input id="txtNota" type="text" autocomplete="off" autocapitalize="sentences"
+               enterkeyhint="done" placeholder="Agregar comentario" aria-label="Agregar comentario">
+        <button class="iconobtn" id="btnAgregarNota" type="button" aria-label="Agregar comentario" title="Agregar comentario" data-ico="arrow-up"></button>
+      </div>
+    </section>
+
+    <div class="rot" id="rotAgregarFicha">Agregar</div>
+    <div class="ficha-agregar" id="fichaAgregar" role="group" aria-labelledby="rotAgregarFicha"></div>
+
+    <button class="fila-mas" id="btnFichaMas" type="button" aria-haspopup="dialog" aria-controls="tapaMasItem" data-ico="more">M&aacute;s: mover, repetir, compartir, borrar</button>
+  </div>
+</div>
+
+<!-- Subhoja "Mas" de la ficha: lista agrupada; Borrar al final, en rojo. -->
+<div class="tapa" id="tapaMasItem">
+  <div class="hoja">
+    <h2 id="masItemTitulo">M&aacute;s</h2>
+    <div class="grupo-rot">Mover y repetir</div>
+    <div class="grupo acciones">
       <button class="fila-acc" id="btnAcompra" type="button" data-ico="cart">Mover a Compras</button>
-      <button class="fila-acc" id="btnHacerRutina" type="button" data-ico="repeat">Hacer recurrente</button>
       <button class="fila-acc" id="btnVolverTarea" type="button" data-ico="undo">Volver a tarea</button>
-      <button class="fila-acc" id="btnCompartirItem" type="button" data-ico="share">Compartir</button>
+      <button class="fila-acc" id="btnHacerRutina" type="button" data-ico="repeat">Hacer recurrente</button>
+    </div>
+    <div class="grupo-rot">Compartir</div>
+    <div class="grupo acciones">
+      <button class="fila-acc" id="btnCompartirItem" type="button" data-ico="share">Compartir como texto</button>
+    </div>
+    <div class="grupo acciones">
       <button class="fila-acc peli" id="btnBorrar" type="button" data-ico="trash">Borrar</button>
     </div>
   </div>

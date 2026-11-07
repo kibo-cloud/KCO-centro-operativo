@@ -792,6 +792,47 @@ body.luz li.item{border-width:1px}
 .rbtn.hecho .ico{color:var(--success)}
 .rbtn.hecho.on{border-color:var(--success);color:var(--success);background:none}
 .hoja-item .rot{margin:var(--s-4) 0 var(--s-2) 0}
+/* Ficha (divulgacion progresiva): subtitulo con icono de estado, cuatro
+   acciones de 56px (Hecho primario), propiedades como filas de 52px en un
+   bloque --surface-2 (rotulo 96px + valor + chevron; cada fila abre su editor),
+   secciones con contenido, chips "Agregar" de 44px y la fila "Mas". */
+.item-sub{display:flex;align-items:center;gap:var(--s-2)}
+.item-sub-ico{flex:0 0 auto;width:18px;height:18px;margin:0;color:var(--muted)}
+.item-sub span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rapidas .rbtn{min-height:56px;height:56px}
+.rbtn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-contrast)}
+.rbtn.pri .ico{color:var(--accent-contrast)}
+.ficha-props{margin-top:var(--s-4);background:var(--surface-2);border-radius:var(--r-card);overflow:hidden}
+.prop{display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:52px;height:52px;padding:0 var(--s-3) 0 var(--s-4);border:0;border-top:1px solid var(--border);background:none;color:var(--text);font-size:var(--fs-15);text-align:left;cursor:pointer}
+.ficha-props > .prop:first-child{border-top:0}
+.prop[hidden],.prop-panel[hidden],.ficha-sec[hidden],.ficha-agregar[hidden],.hoja-item .rot[hidden],.grupo[hidden],.grupo-rot[hidden]{display:none}
+.prop-rot{flex:0 0 96px;color:var(--muted);font-size:var(--fs-13);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prop-val{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prop-chev{flex:0 0 auto;width:18px;height:18px;margin:0;color:var(--faint);transition:transform var(--dur-1) var(--ease)}
+.prop.abierta .prop-chev{transform:rotate(180deg)}
+.prop-panel{padding:0 var(--s-3) var(--s-3) var(--s-3)}
+.prop-panel .rot{margin-top:var(--s-3)}
+.ficha-sec .rot{margin-top:var(--s-5)}
+.ficha-agregar{display:flex;flex-wrap:wrap;gap:var(--s-2)}
+.ficha-agregar .chip .ico{width:16px;height:16px;margin:0 var(--s-1) 0 0}
+.fila-mas{display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:52px;margin-top:var(--s-5);padding:0 var(--s-4);border:1px solid var(--border);border-radius:var(--r-card);background:none;color:var(--muted);font-size:var(--fs-15);text-align:left;cursor:pointer}
+.fila-mas .ico{flex:0 0 auto;margin:0}
+/* Campo "Agregar" (unico): 48px, radio 12, --surface-2, borde fuerte, + a la
+   izquierda; Enter guarda. El boton de enviar aparece solo con texto (en
+   tactil algunos teclados no muestran Enter). */
+.campo-agregar{display:flex;align-items:center;gap:var(--s-2);min-height:var(--ctl-h);margin-top:var(--s-2);padding:0 0 0 var(--s-3);border:1px solid var(--border-strong);border-radius:var(--r-card);background:var(--surface-2)}
+.campo-agregar:focus-within{border-color:var(--accent)}
+.campo-agregar-mas{flex:0 0 auto;display:inline-flex;color:var(--muted)}
+.campo-agregar-mas .ico{width:20px;height:20px;margin:0}
+.campo-agregar input[type=text]{flex:1;min-width:0;height:44px;min-height:0;padding:0;border:0;border-radius:0;background:none}
+.campo-agregar input[type=text]:focus-visible{outline:none}
+.campo-agregar .iconobtn{flex:0 0 auto;color:var(--accent)}
+.campo-agregar input:placeholder-shown ~ .iconobtn{display:none}
+/* Listas agrupadas (subhoja Mas, Ajustes): rotulo 13/600 y filas de 52px. */
+.grupo-rot{margin:var(--s-5) 0 var(--s-2) 0;color:var(--muted);font-size:var(--fs-13);font-weight:600}
+.grupo{margin-top:var(--s-3)}
+.grupo-rot + .grupo{margin-top:0}
+.grupo .fila-acc{min-height:52px}
 /* Control segmentado (unico): .seg y .segctl con sus botones (.segbtn o .gbtn)
    se ven igual. Contenedor --surface-2 radio 12 con 4px de aire; opcion de 44px
    radio 8; la activa sube a --surface-3 con sombra nivel 1. */

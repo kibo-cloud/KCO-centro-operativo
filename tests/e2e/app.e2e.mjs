@@ -1888,7 +1888,9 @@ export const tests = [
     async fn(page) {
       await page.click('#tabHoy');
       await page.click('#secRutinasHoy li.item');
-      assert.ok(await page.visible('#cajaOcurrencia'));
+      assert.ok(await page.visible('#fichaProps .prop[data-prop="rutina"]'), 'an occurrence shows its Rutina row');
+      await page.click('#fichaProps .prop[data-prop="rutina"]');
+      assert.ok(await page.visible('#cajaOcurrencia'), 'the row opens the routine exceptions');
       await page.click('#btnEx_no_corresponde');
       let t = (await items(page)).find((i) => i.ocurrencia === ymd(0));
       assert.equal(t.estado, 'cancelado');
@@ -2818,12 +2820,12 @@ export const tests = [
     }
   },
   {
-    name: 'sheets: at 390x844 Hecho, Hoy, Mañana, Prioridad and Contexto are on screen without scrolling',
+    name: 'sheets: at 390x844 Hecho, Hoy, Mañana and the Prioridad and Apartado rows are on screen without scrolling',
     storage: seed(),
     async fn(page) {
       await openFirstItem(page);
       await sleep(450);
-      const r = await page.eval(`(function(){var h=window.innerHeight,bad=[],ids=['#btnHecho','#btnDiaHoy','#btnDiaMan','#gridNivel button','#gridCtx button','#txtTituloItem'];
+      const r = await page.eval(`(function(){var h=window.innerHeight,bad=[],ids=['#btnHecho','#btnDiaHoy','#btnDiaMan','#fichaProps .prop[data-prop="nivel"]','#fichaProps .prop[data-prop="ctx"]','#txtTituloItem'];
         for(var i=0;i<ids.length;i++){var l=document.querySelectorAll(ids[i]);if(!l.length)bad.push(ids[i]+' missing');
           for(var j=0;j<l.length;j++){var b=l[j].getBoundingClientRect();if(b.top<0||b.bottom>h||(l[j].tagName==='BUTTON'&&b.height<40))bad.push(ids[i]+'#'+j+' '+Math.round(b.top)+'-'+Math.round(b.bottom)+' h'+Math.round(b.height));}}
         return {bad:bad,scroll:document.querySelector('#tapaItem .hoja').scrollTop};})()`);
@@ -5444,6 +5446,96 @@ export const tests = [
       await page.click('#btnConfSi');
       await sleep(150);
       assert.equal((await items(page))[0].contexto, 'estudio');
+    }
+  },
+  {
+    name: 'ficha: empty sections stay out of the sheet until their .ficha-agregar chip is tapped; one Agregar field adds a step on Enter',
+    storage: seed(),
+    async fn(page) {
+      await page.emulateFocus();
+      await toTasks(page);
+      await page.clickText('#lista li.item .txt', 'Ordenar placard');
+      await sleep(400);
+      const r = await page.eval(`(function(){var h=document.querySelector('#tapaItem .hoja');function vis(s){var e=h.querySelector(s);return !!(e&&e.offsetParent!==null);}
+        var q=h.querySelectorAll('.rapidas .rbtn'),qb=q[0].getBoundingClientRect();
+        return {props:Array.prototype.map.call(h.querySelectorAll('.ficha-props .prop:not([hidden])'),function(p){return p.getAttribute('data-prop');}),
+          chips:Array.prototype.map.call(h.querySelectorAll('.ficha-agregar [data-agregar]'),function(c){return c.getAttribute('data-agregar');}),
+          chipH:Math.round(h.querySelector('.ficha-agregar [data-agregar]').getBoundingClientRect().height),
+          pasos:vis('[data-sec="pasos"]'),com:vis('[data-sec="comentarios"]'),hid:h.querySelector('[data-sec="pasos"]').hidden,
+          nq:q.length,qh:Math.round(qb.height),pri:q[0].className.indexOf('pri')>-1,qtxt:Array.prototype.map.call(q,function(b){return b.textContent;}),
+          propH:Math.round(h.querySelector('.ficha-props .prop').getBoundingClientRect().height),
+          mas:h.querySelector('#btnFichaMas').textContent,sub:h.querySelector('#itemSub svg')?1:0};})()`);
+      assert.deepEqual(r.props, ['nivel', 'ctx'], 'only Prioridad and Apartado for a plain task');
+      for (const c of ['comentario', 'pasos', 'rec', 'estado', 'anclar']) assert.ok(r.chips.includes(c), 'chip ' + c + ' in ' + r.chips);
+      assert.equal(r.chipH, 44);
+      assert.equal(r.pasos, false, 'no Pasos section');
+      assert.equal(r.hid, true, 'hidden, not just scrolled away');
+      assert.equal(r.com, false, 'no Comentarios section');
+      assert.equal(r.nq, 4);
+      assert.equal(r.qh, 56);
+      assert.ok(r.pri, 'Hecho is the primary');
+      assert.deepEqual(r.qtxt, ['Hecho', 'Hoy', 'Mañana', 'Elegir día']);
+      assert.equal(r.propH, 52);
+      assert.match(r.mas, /^Más: mover, repetir, compartir, borrar/);
+      assert.equal(r.sub, 1, 'state icon in the subtitle');
+      await page.click('#tapaItem .ficha-agregar [data-agregar="pasos"]');
+      await sleep(80);
+      assert.ok(await page.visible('#tapaItem [data-sec="pasos"]'), 'the chip reveals Pasos');
+      assert.equal(await page.eval("document.activeElement.id"), 'txtPaso', 'its Agregar field takes the focus');
+      assert.equal(await page.count('#tapaItem .ficha-agregar [data-agregar="pasos"]'), 0, 'the chip leaves');
+      const f = await page.eval(`(function(){var c=document.getElementById('txtPaso').parentNode,b=c.getBoundingClientRect(),ic=c.querySelector('.campo-agregar-mas'),st=getComputedStyle(c);
+        return {cls:c.className,h:Math.round(b.height),rad:st.borderTopLeftRadius,ico:!!ic&&ic.getBoundingClientRect().left<document.getElementById('txtPaso').getBoundingClientRect().left};})()`);
+      assert.match(f.cls, /campo-agregar/);
+      assert.equal(f.h, 48);
+      assert.equal(f.rad, '12px');
+      assert.ok(f.ico, '+ icon on the left');
+      await page.type('#txtPaso', 'desmontar tapa', true);
+      assert.ok((await items(page)).some((i) => (i.pasos || []).some((p) => p.texto === 'desmontar tapa')), 'Enter saved the step');
+      assert.ok(await page.visible('#tapaItem [data-sec="pasos"]'), 'the section with content stays');
+    }
+  },
+  {
+    name: 'ficha: a property with a value shows its row; tapping a row opens its editor; Más opens a grouped sub-sheet with Borrar in red',
+    storage: (() => { const s = seed(); const l = JSON.parse(s['kibco.items']); l[0].recordatorio = new Date(Date.now() + 3600000).toISOString(); l[0].anclado = true;
+      s['kibco.items'] = JSON.stringify(l); s['kibco.contexto'] = 'trabajo'; return s; })(),
+    async fn(page) {
+      const first = JSON.parse(seed()['kibco.items'])[0];
+      await toTasks(page);
+      await page.click(`#lista li.item[data-id="${first.id}"]`);
+      await sleep(400);
+      const props = await page.eval("Array.prototype.map.call(document.querySelectorAll('#tapaItem .ficha-props .prop:not([hidden])'),function(p){return p.getAttribute('data-prop');})");
+      assert.ok(props.includes('rec') && props.includes('anclado'), 'rows for set values: ' + props);
+      assert.equal(await page.visible('#gridNivel'), false, 'editors stay folded');
+      await page.click('#tapaItem .prop[data-prop="nivel"]');
+      assert.ok(await page.visible('#gridNivel'), 'the row opens its editor');
+      assert.equal(await page.eval("document.querySelector('#tapaItem .prop[data-prop=\"nivel\"]').getAttribute('aria-expanded')"), 'true');
+      await page.click('#gridNivel [data-nivel="urgente"]');
+      assert.equal((await items(page)).find((i) => i.id === first.id).nivel, 'urgente', 'saves at once');
+      await page.click('#btnFichaMas');
+      await sleep(400);
+      assert.ok(await isOpen(page, 'tapaMasItem'));
+      const m = await page.eval(`(function(){var t=document.getElementById('tapaMasItem'),b=document.getElementById('btnBorrar'),y=document.createElement('i');y.style.color='var(--danger-ink-2)';document.body.appendChild(y);
+        var red=getComputedStyle(y).color;y.remove();
+        return {grupos:t.querySelectorAll('.grupo').length,inside:t.contains(b),last:b===t.querySelector('.grupo:last-of-type').lastElementChild,col:getComputedStyle(b).color,red:red};})()`);
+      assert.ok(m.grupos >= 2, 'grouped');
+      assert.ok(m.inside && m.last, 'Borrar closes the list');
+      assert.equal(m.col, m.red, 'Borrar in red');
+      await page.click('#btnBorrar');
+      await sleep(400);
+      assert.ok(await isOpen(page, 'tapaConfirmar'));
+    }
+  },
+  {
+    name: 'ficha: a routine occurrence leaves Hoy, Mañana and Elegir día out of the quick actions (accionesRapidas)',
+    storage: Object.assign(rutinaSeed([[-1, 'completado']]), { 'kibco.pistas': '{"completar":true}' }),
+    async fn(page) {
+      await toTasks(page);
+      const occ = (await items(page)).find((i) => i.rutinaId === 'rgata' && i.ocurrencia === ymd(0));
+      await page.click(`#lista li.item[data-id="${occ.id}"] .txt`);
+      await sleep(300);
+      const q = await page.eval("Array.prototype.filter.call(document.querySelectorAll('#tapaItem .rapidas .rbtn'),function(b){return b.offsetParent!==null;}).map(function(b){return b.id;})");
+      assert.deepEqual(q, ['btnHecho']);
+      assert.ok(await page.eval("Array.prototype.some.call(document.querySelectorAll('#tapaItem .ficha-props .prop:not([hidden])'),function(p){return p.getAttribute('data-prop')==='rutina';})"), 'Rutina row');
     }
   }
 ];

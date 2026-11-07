@@ -4161,13 +4161,11 @@
     bh.style.display = ah ? '' : 'none';
     if (ah) {
       rotular(bh, ah.txt, 'check');
-      bh.className = ah.on ? 'rbtn hecho on' : 'rbtn hecho';
+      bh.className = ah.on ? 'rbtn hecho on' : 'rbtn pri hecho';
       bh.setAttribute('aria-pressed', ah.on ? 'true' : 'false');
     }
     var inf = estadoInfo(it.estado);
-    $('itemSub').textContent = (it.tipo === 'compra' ? 'Compra \u00B7 ' : '') + inf.nom +
-      ' \u00B7 creado ' + horaCorta(it.creado);
-    $('rotEstados').textContent = it.tipo === 'compra' ? 'Estado de compra' : 'Estado';
+    var subTxt = (it.tipo === 'compra' ? 'Compra \u00B7 ' : '') + inf.nom + ' \u00B7 creado ' + horaCorta(it.creado);
 
     var grid = $('gridEstados');
     while (grid.firstChild) { grid.removeChild(grid.firstChild); }
@@ -4243,19 +4241,12 @@
     } else {
       bp.style.display = 'none';
     }
-    if (it.pausado === true) {
-      $('itemSub').textContent = $('itemSub').textContent + ' \u00B7 en espera';
-    }
+    if (it.pausado === true) { subTxt = subTxt + ' \u00B7 en espera'; }
 
     var ln = $('listaComentarios');
     while (ln.firstChild) { ln.removeChild(ln.firstChild); }
     var notas = notasDe(it);
-    if (notas.length === 0) {
-      var vacio = document.createElement('div');
-      vacio.className = 'sinnotas';
-      vacio.textContent = 'Sin comentarios todavia.';
-      ln.appendChild(vacio);
-    } else {
+    if (notas.length > 0) {
       var k;
       for (k = notas.length - 1; k >= 0; k--) {
         var fila = document.createElement('div');
@@ -4279,12 +4270,7 @@
     var lp = $('listaPasos');
     while (lp.firstChild) { lp.removeChild(lp.firstChild); }
     var pasos = pasosDe(it);
-    if (pasos.length === 0) {
-      var vp = document.createElement('div');
-      vp.className = 'sinnotas';
-      vp.textContent = 'Sin pasos. Sirve para tareas de varios movimientos.';
-      lp.appendChild(vp);
-    } else {
+    if (pasos.length > 0) {
       var j;
       for (j = 0; j < pasos.length; j++) {
         (function (paso, pos) {
@@ -4333,6 +4319,151 @@
     $('btnHacerRutina').style.display = it.rutinaId === '' && it.tipo === 'tarea' ? '' : 'none';
     $('btnAcompra').style.display = it.tipo === 'compra' || it.rutinaId !== '' || !usaCompras(it.contexto) ? 'none' : '';
     $('btnVolverTarea').style.display = it.tipo === 'compra' ? '' : 'none';
+    pintarPropsFicha(it, subTxt, ru);
+  }
+
+  /* ---------- ficha: divulgacion progresiva ----------
+     Solo se ven las propiedades con valor (Prioridad y Apartado siempre); cada
+     fila abre su editor debajo (uno a la vez). Lo vacio queda como chip en
+     "Agregar": tocarlo muestra su fila o seccion (en memoria, por ficha
+     abierta). Anclar, En espera y Rutina son acciones directas: al usarlas su
+     fila aparece porque ya tiene valor. */
+  var fichaAbiertos = {}, fichaPanel = '';
+
+  function estadoDefecto(it) {
+    if (it.tipo === 'tarea') { return 'pendiente'; }
+    var l = listaEstados(it.tipo, it.contexto);
+    return l.length ? l[0].id : '';
+  }
+
+  function filaProp(cual, ver, valor) {
+    var b = document.querySelector('#fichaProps .prop[data-prop="' + cual + '"]'), p = $(b.getAttribute('aria-controls'));
+    var abierta = ver && fichaPanel === cual;
+    if (!b.querySelector('.prop-chev')) { b.appendChild(svgIco('chevron-down', 'prop-chev')); }
+    b.hidden = !ver;
+    b.querySelector('.prop-val').textContent = valor;
+    b.setAttribute('aria-expanded', abierta ? 'true' : 'false');
+    b.className = abierta ? 'prop abierta' : 'prop';
+    p.hidden = !abierta;
+  }
+
+  function pintarPropsFicha(it, subTxt, ru) {
+    var inf = estadoInfo(it.estado), sub = $('itemSub'), i;
+    vaciar(sub);
+    sub.appendChild(svgIco(inf.ico || 'circle', 'item-sub-ico'));
+    sub.appendChild(nodo('span', '', subTxt));
+    var op = accionesRapidas(it);
+    $('btnDiaHoy').style.display = op.hoy ? '' : 'none';
+    $('btnDiaMan').style.display = op.manana ? '' : 'none';
+    $('btnDiaElegir').style.display = op.hoy ? '' : 'none';
+    if (!op.hoy) { $('btnSacarDia').style.display = 'none'; }
+    var tg = tagInfo(it.tag, it.contexto), hayTags = listaTags(it.contexto).length > 0 || !!tg;
+    var hayMision = $('cajaMision').style.display !== 'none';
+    var sol = esPedido(it) ? campoPedido(it, 'solicitante') : '', des = esPedido(it) ? campoPedido(it, 'destino') : '';
+    var ver = {
+      rec: it.recordatorio !== '' || fichaAbiertos.rec === true,
+      estado: it.estado !== estadoDefecto(it) || fichaAbiertos.estado === true,
+      mision: hayMision && (it.proyectoId !== '' || fichaAbiertos.mision === true),
+      pedido: esPedido(it) && (sol !== '' || des !== '' || fichaAbiertos.pedido === true),
+      tag: hayTags && (it.tag !== '' || fichaAbiertos.tag === true)
+    };
+    var pr = it.proyectoId ? buscarProyectoNombre(it.proyectoId) : '';
+    filaProp('nivel', true, K.infoNivel(it.nivel).nom);
+    filaProp('ctx', true, nomCtx(it.contexto));
+    filaProp('rec', ver.rec, it.recordatorio !== '' ? horaCorta(it.recordatorio) : 'Sin recordatorio');
+    filaProp('estado', ver.estado, inf.nom + (it.estado === 'esperando' && it.espera ? ' \u00B7 ' + it.espera : ''));
+    filaProp('rutina', it.rutinaId !== '', ru ? K.describirRutina(ru) : 'Ya no existe');
+    filaProp('mision', ver.mision, pr !== '' ? pr : 'Sin misi\u00F3n');
+    filaProp('pedido', ver.pedido, sol !== '' || des !== '' ? [sol, des].join(' \u00B7 ').replace(/^ \u00B7 | \u00B7 $/g, '') : 'Sin cargar');
+    filaProp('tag', ver.tag, tg ? tg.nom : 'Sin etiqueta');
+    filaProp('anclado', it.anclado === true, 'Arriba de todo');
+    filaProp('pausa', puedePausar(it) && it.pausado === true, 'En espera');
+
+    var pasos = pasosDe(it), notas = notasDe(it);
+    document.querySelector('#tapaItem [data-sec="pasos"]').hidden = !(pasos.length > 0 || fichaAbiertos.pasos === true);
+    document.querySelector('#tapaItem [data-sec="comentarios"]').hidden = !(notas.length > 0 || fichaAbiertos.comentarios === true);
+    $('rotPasos').textContent = pasos.length > 0 ? 'Pasos ' + pasosHechos(pasos) + '/' + pasos.length : 'Pasos';
+
+    var chips = [];
+    if (!soloLectura) {
+      if (hayTags && !ver.tag) { chips.push(['tag', 'Etiqueta']); }
+      if (hayMision && !ver.mision && it.tipo === 'tarea') { chips.push(['mision', 'Misi\u00F3n']); }
+      if (notas.length === 0 && fichaAbiertos.comentarios !== true) { chips.push(['comentario', 'Comentario']); }
+      if (pasos.length === 0 && fichaAbiertos.pasos !== true) { chips.push(['pasos', 'Pasos']); }
+      if (!ver.rec) { chips.push(['rec', 'Recordatorio']); }
+      if (!ver.estado) { chips.push(['estado', 'Estado']); }
+      if (it.anclado !== true) { chips.push(['anclar', 'Anclar']); }
+      if (puedePausar(it) && it.pausado !== true) { chips.push(['espera', 'En espera']); }
+      if (it.rutinaId === '' && it.tipo === 'tarea') { chips.push(['rutina', 'Rutina']); }
+      if (esPedido(it) && !ver.pedido) { chips.push(['pedido', 'Solicitante']); }
+    }
+    var cont = $('fichaAgregar');
+    vaciar(cont);
+    for (i = 0; i < chips.length; i++) {
+      (function (c) {
+        var b = nodo('button', 'chip', c[1], 'plus');
+        b.type = 'button';
+        b.setAttribute('data-agregar', c[0]);
+        b.onclick = function () { agregarEnFicha(c[0]); };
+        cont.appendChild(b);
+      })(chips[i]);
+    }
+    cont.hidden = chips.length === 0;
+    $('rotAgregarFicha').hidden = chips.length === 0;
+
+    /* Subhoja Mas: un grupo sin acciones visibles no se muestra (ni su rotulo). */
+    var g = document.querySelectorAll('#tapaMasItem .grupo'), k, j, alguna, rot;
+    for (k = 0; k < g.length; k++) {
+      alguna = false;
+      for (j = 0; j < g[k].children.length; j++) { if (g[k].children[j].style.display !== 'none') { alguna = true; } }
+      g[k].hidden = !alguna;
+      rot = g[k].previousElementSibling;
+      if (rot && rot.className === 'grupo-rot') { rot.hidden = !alguna; }
+    }
+    $('btnBorrar').style.display = soloLectura ? 'none' : '';
+  }
+
+  function agregarEnFicha(cual) {
+    var it = buscarItem(itemAbierto);
+    if (!it || soloLectura) { return; }
+    if (cual === 'anclar') { alternarAnclado(it.id); return; }
+    if (cual === 'espera') { alternarPausa(it.id); return; }
+    if (cual === 'rutina') { $('btnHacerRutina').onclick(); return; }
+    if (cual === 'pasos' || cual === 'comentario') {
+      fichaAbiertos[cual === 'pasos' ? 'pasos' : 'comentarios'] = true;
+      pintarHojaItem();
+      enfocar($(cual === 'pasos' ? 'txtPaso' : 'txtNota'));
+      return;
+    }
+    fichaAbiertos[cual] = true;
+    fichaPanel = cual;
+    pintarHojaItem();
+    enfocar(document.querySelector('#fichaProps .prop[data-prop="' + cual + '"]'));
+  }
+
+  /* Una fila de propiedad abre o cierra su editor (uno a la vez). */
+  (function () {
+    var l = document.querySelectorAll('#fichaProps .prop'), i;
+    for (i = 0; i < l.length; i++) {
+      (function (b) {
+        b.onclick = function () {
+          var cual = b.getAttribute('data-prop');
+          fichaPanel = fichaPanel === cual ? '' : cual;
+          pintarHojaItem();
+        };
+      })(l[i]);
+    }
+  })();
+
+  /* Las acciones de la subhoja Mas la cierran antes, y la hoja que abran ocupa
+     su entrada del historial (relevo). */
+  function desdeMas(fn) {
+    return function () {
+      var arriba = capaArriba() === 'tapaMasItem';
+      if (arriba) { cerrarParaRelevo('tapaMasItem'); }
+      fn();
+      if (arriba) { soltarRelevo(); }
+    };
   }
 
   /* Un toque, sin confirmacion: no se borra nada y se puede volver atras
@@ -4751,6 +4882,8 @@
 
   function abrirItem(id) {
     itemAbierto = id;
+    fichaAbiertos = {};
+    fichaPanel = '';
     $('cajaHora').style.display = 'none';
     pintarHojaItem();
     abrirHoja('tapaItem');
@@ -6624,6 +6757,12 @@
       (function (b) { b.onclick = function () { accionRapida(b.getAttribute('data-rap')); }; })(l[i]);
     }
     $('btnRapFicha').onclick = function () { accionRapida('ficha'); };
+  })();
+
+  $('btnFichaMas').onclick = function () { if (itemAbierto) { abrirHoja('tapaMasItem'); } };
+  (function () {
+    var l = ['btnAcompra', 'btnVolverTarea', 'btnHacerRutina', 'btnCompartirItem', 'btnBorrar'], i;
+    for (i = 0; i < l.length; i++) { $(l[i]).onclick = desdeMas($(l[i]).onclick); }
   })();
 
   $('btnConfSi').onclick = function () {
