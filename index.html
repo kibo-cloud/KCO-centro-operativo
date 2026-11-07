@@ -91,35 +91,35 @@
     <div id="hoyCuerpo"></div>
   </div>
 
-  <div class="seg" id="segTareas" style="display:none" role="group" aria-label="Tareas, compras o notas">
-    <button class="segbtn on" id="segBtnTareas" type="button" data-ico="tareas">Tareas</button>
-    <button class="segbtn" id="segBtnCompras" type="button" data-ico="cart">Compras</button>
-    <button class="segbtn" id="segBtnNotas" type="button" data-ico="note">Notas</button>
+  <div class="lstabs" id="segTareas" style="display:none" role="tablist" aria-label="Listas">
+    <button class="lstab on" id="segBtnTareas" type="button" role="tab" aria-selected="true"><span>Tareas</span><b class="mono" id="cntTareas"></b></button>
+    <button class="lstab" id="segBtnCompras" type="button" role="tab" aria-selected="false"><span>Compras</span><b class="mono" id="cntCompras"></b></button>
+    <button class="lstab" id="segBtnNotas" type="button" role="tab" aria-selected="false"><span>Notas</span><b class="mono" id="cntNotas"></b></button>
   </div>
 
   <div id="vistaTablero" style="display:none">
-    <div class="prog">
+    <div class="prog compacta">
       <div class="cab"><span>Progreso</span><b class="mono" id="progTxt">0% &middot; 0/0</b></div>
       <div class="barra"><i id="progBarra"></i></div>
     </div>
-    <div class="chipsfila scroll-x">
-      <div class="chips" id="chips"></div>
+    <div class="filtros-lista">
+      <div class="chips-estado" id="chips"></div>
       <div class="chips chipsTag" id="chipsTag"></div>
+      <div id="cajaOrdenTablero" class="orden-caja"></div>
     </div>
-    <div id="cajaOrdenTablero" class="orden-caja"></div>
     <ul id="lista" class="lista"></ul>
-    <div class="vacio" id="vacioTablero">Nada por acá todavia.</div>
+    <div class="vacio" id="vacioTablero">Nada por ac&aacute; todav&iacute;a.</div>
   </div>
 
   <div id="vistaCompras" style="display:none">
-    <div class="prog">
+    <div class="prog compacta">
       <div class="cab"><span id="rotCompras">Compras recibidas</span><b class="mono" id="progCompraTxt">0% &middot; 0/0</b></div>
       <div class="barra"><i id="progCompraBarra"></i></div>
     </div>
-    <div class="chips scroll-x" id="chipsCompra"></div>
+    <div class="filtros-compra" id="chipsCompra"></div>
     <div id="cajaOrdenCompras" class="orden-caja"></div>
     <ul id="listaCompras" class="lista"></ul>
-    <div class="vacio" id="vacioCompras">Sin compras. Convertí una tarea en compra desde su ficha.</div>
+    <div class="vacio" id="vacioCompras">Sin compras. Convert&iacute; una tarea en compra desde su ficha.</div>
   </div>
 
   <!-- Notas del apartado activo (Todo = los apartados con notas). kco-app pintarNotas. -->
@@ -127,8 +127,8 @@
     <div class="notasbarra">
       <input id="txtBuscaNotas" type="search" autocomplete="off" placeholder="Buscar en notas" aria-label="Buscar en notas">
       <button class="gbtn" id="btnNotasArchivo" type="button" aria-pressed="false" data-ico="inbox">Archivadas</button>
+      <button class="gbtn pri" id="btnNuevaNota" type="button" data-ico="plus">Nueva nota</button>
     </div>
-    <button class="bloque" id="btnNuevaNota" type="button" data-ico="plus">Nueva nota</button>
     <ul id="listaNotas" class="notaslista" aria-label="Notas"></ul>
     <div class="vacio" id="vacioNotas"></div>
   </div>

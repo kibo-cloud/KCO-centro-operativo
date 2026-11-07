@@ -214,7 +214,7 @@ body.pal-gris{--accent:var(--pal-gris);--accent-soft:var(--pal-gris-soft)}
 /* En claro las tarjetas no llevan borde: sombra nivel 1 sobre el fondo. Las
    que avisan (urgente, hero, logro ganado) conservan su borde de color. */
 :root[data-tema="claro"] li.item,:root[data-tema="claro"] .nivel-card,:root[data-tema="claro"] .mision,:root[data-tema="claro"] .stat,:root[data-tema="claro"] .logro,:root[data-tema="claro"] .hero,:root[data-tema="claro"] .nota-abrir{box-shadow:var(--sh-1)}
-:root[data-tema="claro"] li.item.fila,:root[data-tema="claro"] .mision:not(:active),:root[data-tema="claro"] .stat,:root[data-tema="claro"] .logro:not(.ganado),:root[data-tema="claro"] li.notacard:not(.fijada) .nota-abrir{border-color:transparent}
+:root[data-tema="claro"] li.item.fila,:root[data-tema="claro"] .mision:not(.pausa),:root[data-tema="claro"] .stat,:root[data-tema="claro"] .logro:not(.ganado),:root[data-tema="claro"] li.notacard:not(.fijada) .nota-abrir{border-color:transparent}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* Barras de scroll y controles nativos siguen al tema activo. */
 html{color-scheme:dark}
@@ -929,6 +929,35 @@ li.item.orden-fantasma .desliza{background:var(--surface-3)}
 .hero-sig .linkbtn{flex:1 1 0;min-width:0;text-align:left}
 .linkbtn{background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:var(--r-ctl);padding:var(--s-2) var(--s-2);font-size:var(--fs-13);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:var(--tap)}
 .hero-sig .linkbtn{background:var(--surface)}
+/* Listas: pestanas de primer nivel (48px, subrayado de 2px en acento). */
+.lstabs{display:flex;gap:var(--s-1);margin:0 0 var(--s-3);border-bottom:1px solid var(--border)}
+.lstab{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:var(--s-2);min-height:var(--ctl-h);padding:0 var(--s-2);border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;color:var(--muted);font-size:var(--fs-15);font-weight:600;cursor:pointer}
+.lstab b{color:var(--faint);font-size:var(--fs-13);font-weight:600;font-variant-numeric:tabular-nums}
+.lstab.on{color:var(--text);border-bottom-color:var(--accent)}
+.lstab.on b{color:var(--accent)}
+.prog.compacta{display:flex;align-items:center;gap:var(--s-3);margin:0 0 var(--s-2)}
+.prog.compacta .cab{flex:0 0 auto;margin:0;gap:var(--s-2)}
+.prog.compacta .barra{flex:1;height:4px}
+.filtros-lista{display:flex;align-items:center;gap:var(--s-2);margin:0 0 var(--s-2)}
+.filtros-lista .chipsTag{flex:1 1 auto;min-width:0;margin:0;padding-bottom:0}
+.filtros-lista .orden-caja{flex:0 0 auto;margin-left:auto}
+.filtros-lista .orden-ahora{margin:0}
+.chips-estado{flex:0 0 auto}
+/* Compras de fabrica: seis contadores de etapa y la barra de etapas. */
+.filtros-compra{margin:0 0 var(--s-2)}
+.filtros-compra .chips{padding-bottom:0}
+.etapas{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--s-1);margin:0 0 var(--s-2)}
+.etapa{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;padding:var(--s-1) 0;border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);color:var(--muted);font-size:var(--fs-13);cursor:pointer;min-width:0}
+.etapa b{font-size:var(--fs-17);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.etapa span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.etapa.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.etapa.on b{color:var(--accent)}
+.etapa:disabled{opacity:.4;cursor:default}
+.etapas-barra{display:flex;gap:2px;margin-top:var(--s-2);max-width:240px}
+.etapas-barra i{flex:1;height:4px;border-radius:var(--r-pill);background:var(--surface-3)}
+.etapas-barra i.hecha{background:var(--accent)}
+.acc2.pildora{min-height:var(--tap);padding:0 var(--s-3);border-radius:var(--r-pill);border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
+.pista-orden{margin:0 0 var(--s-2) 0}
 /* Boton compacto de orden (Manual / Automatico) y chip-menu de estado. */
 .menu-chip{position:relative;flex:0 0 auto}
 .menu-chip-btn{gap:var(--s-1)}
@@ -974,8 +1003,11 @@ li.item.orden-fantasma .desliza{background:var(--surface-3)}
 .notasbarra{display:flex;gap:var(--s-2);align-items:stretch}
 .notasbarra input[type=search]{flex:1;min-width:0;padding:var(--s-3);border-radius:var(--r-ctl);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:16px;font-family:inherit;outline:none}
 .notasbarra .gbtn{flex:0 0 auto;display:inline-flex;align-items:center;min-height:var(--tap);padding:0 var(--s-3)}
-.notaslista{list-style:none;margin:var(--s-3) 0 0 0;padding:0}
-li.notacard{margin-bottom:var(--s-2)}
+.notasbarra .gbtn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-contrast);font-weight:600}
+@media (max-width:420px){.notasbarra{flex-wrap:wrap}.notasbarra input[type=search]{flex:1 1 100%}}
+.notaslista{list-style:none;margin:var(--s-3) 0 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-2)}
+li.notacard{margin:0;min-width:0;display:flex}
+li.notacard .nota-abrir{flex:1}
 .nota-abrir{display:flex;flex-direction:column;gap:var(--s-1);width:100%;min-height:var(--tap);padding:var(--s-3);border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);color:var(--text);text-align:left;font-family:inherit;cursor:pointer}
 li.notacard.fijada .nota-abrir{border-color:var(--accent)}
 .nota-cab{display:flex;align-items:center;gap:var(--s-2);min-width:0}
@@ -1005,17 +1037,29 @@ li.item.prevista{border-style:dotted;background:transparent;opacity:.8}
 .histo .h{flex:0 0 46px;color:var(--muted);font-size:var(--fs-13)}
 .histo .s{flex:0 0 18px;width:18px;height:18px;margin:0;color:var(--muted)}
 .histo .d{flex:1;color:var(--muted)}
-.mision{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:var(--s-3);margin-bottom:var(--s-2);color:var(--text);cursor:pointer;font-size:var(--fs-15)}
-.mision:active{border-color:var(--accent)}
-.mision.compacta{padding:var(--s-3) var(--s-3)}
+/* Misiones: segmentado Activas / Pausa / Cumplidas y "+" de 52px. */
+.mis-cab{display:flex;align-items:center;gap:var(--s-2);margin:0 0 var(--s-3)}
+.mis-cab .seg{flex:1;margin:0}
+.mis-cab .segbtn{gap:var(--s-2)}
+.mis-cab .segbtn b{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
+.mis-nueva{flex:0 0 52px;width:52px;height:52px;display:flex;align-items:center;justify-content:center;border:0;border-radius:var(--r-card);background:var(--accent);color:var(--accent-contrast);cursor:pointer}
+.mis-nueva .ico{width:24px;height:24px;margin:0}
+/* Tarjeta: barra de 6px en el color del apartado (--ap), fila Proxima de 44px. */
+.mision{--ap:var(--accent);display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:var(--s-3) var(--s-4);margin-bottom:var(--s-2);color:var(--text);cursor:pointer;font-size:var(--fs-15)}
 .mision.fin{opacity:.6}
-.mision.pausa{border-style:dashed}
-.mis-top{display:flex;justify-content:space-between;gap:var(--s-3);align-items:baseline;margin-bottom:var(--s-2)}
-.mis-nom{font-weight:600;font-size:var(--fs-15);word-break:break-word}
-.mis-pct{color:var(--accent);font-size:var(--fs-15)}
-.mis-prox{color:var(--accent);font-size:var(--fs-13);margin-top:var(--s-2);word-break:break-word}
-.mis-prox.vacia{color:var(--muted);font-style:italic}
-.mis-meta{color:var(--muted);font-size:var(--fs-13);margin-top:var(--s-1)}
+.mision.pausa{border-style:dotted;border-width:1.5px}
+.mis-top{display:flex;justify-content:space-between;gap:var(--s-3);align-items:center;width:100%;min-height:var(--tap);padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.mis-nom{display:inline-flex;align-items:center;gap:var(--s-2);font-weight:650;font-size:var(--fs-17);line-height:var(--lh-snug);word-break:break-word;min-width:0}
+.mis-nom .punto{margin:0;flex:0 0 auto}
+.mis-pct{color:var(--text);font-size:var(--fs-20);font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.mis-barra{height:6px;margin:var(--s-2) 0}
+.mis-barra i{background:var(--ap)}
+.mis-proxima{display:flex;align-items:center;gap:var(--s-2);width:100%;min-height:var(--tap);margin-top:var(--s-1);padding:0 var(--s-3);border:0;border-radius:var(--r-ctl);background:var(--surface-2);color:var(--text);font-size:var(--fs-15);text-align:left;cursor:pointer}
+.mis-proxima-rot{flex:0 0 auto;color:var(--muted);font-size:var(--fs-13);font-weight:600}
+.mis-proxima-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mis-prox{display:flex;align-items:center;color:var(--accent);font-size:var(--fs-13);margin-top:var(--s-2);word-break:break-word}
+.mis-prox.vacia{color:var(--warning);font-weight:600}
+.mis-meta{color:var(--muted);font-size:var(--fs-13);margin-top:var(--s-2)}
 .misprog{display:flex;gap:var(--s-3);align-items:center;margin:var(--s-4) 0 var(--s-1) 0}
 .misprog > b{font-size:var(--fs-24);color:var(--accent);min-width:64px}
 .mis-proxbox{border:1px solid var(--accent);background:var(--accent-soft);border-radius:var(--r-card);padding:var(--s-3) var(--s-3)}

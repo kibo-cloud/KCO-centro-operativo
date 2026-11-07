@@ -1356,6 +1356,10 @@
   function pintarChipsGen(contId, defs, actual, cuenta, alElegir) {
     var cont = $(contId);
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+    pintarChipsEn(cont, defs, actual, cuenta, alElegir);
+  }
+
+  function pintarChipsEn(cont, defs, actual, cuenta, alElegir) {
     var i;
     for (i = 0; i < defs.length; i++) {
       (function (def) {
@@ -1540,6 +1544,11 @@
     l2.appendChild(badge('', horaCorta(it.creado)));
     cu.appendChild(l2);
 
+    if (it.tipo === 'compra' && K.esFabrica(it.contexto) && esActivo(it.estado)) {
+      var be = barraEtapas(it);
+      if (be) { cu.appendChild(be); }
+    }
+
     var hs = alertaEntrega(it);
     if (hs > 0) {
       var a = document.createElement('div');
@@ -1575,7 +1584,7 @@
       } else {
         var sig = estadoSiguiente(it);
         if (sig) {
-          accion2('acc2', 'siguiente', 'Pasar a ' + sig.nom, 'arrow-right', sig.nom, function () { cambiarEstado(it.id, sig.id); });
+          accion2('acc2 pildora', 'siguiente', 'Siguiente etapa: ' + sig.nom, 'arrow-right', sig.nom, function () { cambiarEstado(it.id, sig.id); });
         }
       }
     }
@@ -1985,17 +1994,18 @@
     return caja;
   }
 
-  /* Switch de orden de una lista (Tareas, Compras) en su caja de index.html,
-     con la pista de arrastre cuando la lista se puede ordenar. Devuelve si la
-     lista va en orden manual. */
-  function pintarOrdenLista(cajaId, id, pistaId, que) {
-    var caja = $(cajaId), manual = contexto !== 'todo' && K.ordenAhora(contexto) === 'manual';
+  /* Orden de una lista (Tareas, Compras): el boton compacto en su caja de
+     index.html y, cuando la lista se puede ordenar, la pista de arrastre
+     justo arriba de la lista. Devuelve si la lista va en orden manual. */
+  function pintarOrdenLista(cajaId, id, pistaId, que, listaId) {
+    var caja = $(cajaId), manual = contexto !== 'todo' && K.ordenAhora(contexto) === 'manual', vieja = $(pistaId), lista = $(listaId);
     vaciar(caja);
+    if (vieja && vieja.parentNode) { vieja.parentNode.removeChild(vieja); }
     pintarOrdenAhora(caja, id);
     if (manual && !soloLectura) {
-      var pista = nodo('div', 'sec-nota', 'Manten\u00E9 presionada ' + que + ' y arrastrala. Es el mismo orden que en Ahora.');
+      var pista = nodo('div', 'sec-nota pista-orden', 'Manten\u00E9 presionada ' + que + ' y arrastrala. Es el mismo orden que en Ahora.');
       pista.id = pistaId;
-      caja.appendChild(pista);
+      lista.parentNode.insertBefore(pista, lista);
     }
     return manual;
   }
@@ -2576,14 +2586,20 @@
     return visibles;
   }
 
+  /* Tareas: barra de avance compacta y una fila de filtros: el chip-menu de
+     estado ("Activos", con los siete), las etiquetas y el orden a la derecha. */
   function pintarTablero() {
     progreso('tarea', '', 'progTxt', 'progBarra');
-    var defs = [{ id: 'activos', ico: '', nom: 'Activos' }].concat(ESTADOS_TAREA);
-    pintarChipsGen('chips', defs, filtro, function (id) { return contar('tarea', id); }, function (id) {
-      filtro = id; escribir(K_FILTRO, filtro); pintar();
-    });
+    var defs = [{ id: 'activos', ico: '', nom: 'Activos' }].concat(ESTADOS_TAREA), cont = $('chips'), ops = [], rot = 'Activos', i;
+    vaciar(cont);
+    for (i = 0; i < defs.length; i++) {
+      ops.push({ id: defs[i].id, nom: defs[i].nom, n: contar('tarea', defs[i].id) });
+      if (defs[i].id === filtro) { rot = defs[i].nom; }
+    }
+    menuChip(cont, { id: 'menuEstado', rot: rot, etiqueta: 'Estado', ops: ops, actual: filtro, attr: 'data-filtro',
+      activo: filtro !== 'activos', alElegir: function (id) { filtro = id; escribir(K_FILTRO, filtro); pintar(); } });
     pintarChipsTag();
-    var manual = pintarOrdenLista('cajaOrdenTablero', 'ordenTareas', 'pistaTareas', 'una tarea');
+    var manual = pintarOrdenLista('cajaOrdenTablero', 'ordenTareas', 'pistaTareas', 'una tarea', 'lista');
     if (pintarLista('tarea', filtro, 'lista', 'vacioTablero', manual, 'pistaTareas') === 0) { vacioTareas(); }
   }
 
@@ -2610,19 +2626,64 @@
     }
   }
 
+  /* Compras de fabrica: seis contadores de etapa arriba (56px, filtran; los
+     de 0 no se pueden tocar salvo el que esta elegido). Tocar el elegido
+     vuelve a Abiertas. */
+  var ETAPA_CORTA = { cotizando: 'Cotiz.', esperando_oc: 'OC', esperando_aprob: 'Aprob.', oc_enviada: 'Enviada', esperando_entrega: 'Entrega', recibido: 'Recib.' };
+  var N_ETAPAS = 6;
+
+  function pintarEtapas(cont) {
+    var g = nodo('div', 'etapas'), i;
+    g.setAttribute('role', 'group');
+    g.setAttribute('aria-label', 'Etapas de compra');
+    for (i = 0; i < N_ETAPAS; i++) {
+      (function (est) {
+        var n = contar('compra', est.id), on = filtroCompra === est.id;
+        var b = nodo('button', 'etapa' + (on ? ' on' : ''));
+        b.type = 'button';
+        b.setAttribute('data-filtro', est.id);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.setAttribute('aria-label', est.nom + ': ' + n);
+        b.disabled = n === 0 && !on;
+        b.appendChild(nodo('b', 'mono', '' + n));
+        b.appendChild(nodo('span', '', ETAPA_CORTA[est.id] || est.nom));
+        b.onclick = function () { filtroCompra = on ? 'activos' : est.id; escribir(K_FILTROC, filtroCompra); pintar(); };
+        g.appendChild(b);
+      })(ESTADOS_COMPRA[i]);
+    }
+    cont.appendChild(g);
+  }
+
+  /* La barra de seis segmentos de una compra de fabrica: hasta su etapa. */
+  function barraEtapas(it) {
+    var i, k = -1, b = nodo('div', 'etapas-barra');
+    for (i = 0; i < N_ETAPAS; i++) { if (ESTADOS_COMPRA[i].id === it.estado) { k = i; } }
+    if (k < 0) { return null; }
+    b.setAttribute('role', 'img');
+    b.setAttribute('aria-label', 'Etapa ' + (k + 1) + ' de ' + N_ETAPAS + ': ' + ESTADOS_COMPRA[k].nom);
+    for (i = 0; i < N_ETAPAS; i++) { b.appendChild(nodo('i', i <= k ? 'hecha' : '')); }
+    return b;
+  }
+
   function pintarCompras() {
     /* Los rotulos siguen el modo del apartado; Todo junta los dos flujos. */
-    var esHogar = contexto !== 'todo' && !K.esFabrica(contexto);
+    var esHogar = contexto !== 'todo' && !K.esFabrica(contexto), fabrica = contexto !== 'todo' && !esHogar;
+    var cont = $('chipsCompra'), fila = nodo('div', 'chips');
     progreso('compra', '', 'progCompraTxt', 'progCompraBarra');
     $('rotCompras').textContent = esHogar ? 'Lista de compras' : (contexto === 'todo' ? 'Compras cerradas' : 'Material recibido');
     var base = esHogar ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
     /* En Todo conviven los dos flujos: se suman los casilleros de la lista simple. */
     if (contexto === 'todo') { base = ESTADOS_COMPRA.slice(0, 6).concat(ESTADOS_COMPRA_HOGAR); }
+    /* En fabrica las etapas van en los contadores; abajo quedan Abiertas y Cancelado. */
+    if (fabrica) { base = ESTADOS_COMPRA.slice(N_ETAPAS); }
     var defs = [{ id: 'activos', ico: '', nom: esHogar ? 'Por comprar' : 'Abiertas' }].concat(base);
-    pintarChipsGen('chipsCompra', defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
+    vaciar(cont);
+    if (fabrica) { pintarEtapas(cont); }
+    cont.appendChild(fila);
+    pintarChipsEn(fila, defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
       filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
     });
-    var manual = pintarOrdenLista('cajaOrdenCompras', 'ordenCompras', 'pistaCompras', 'una compra');
+    var manual = pintarOrdenLista('cajaOrdenCompras', 'ordenCompras', 'pistaCompras', 'una compra', 'listaCompras');
     if (pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras', manual, 'pistaCompras') > 0) { return; }
     if (filtroCompra !== 'activos') {
       estadoVacio($('vacioCompras'), { id: 'compras-filtro', ico: 'cart', tit: 'Nada en ' + estadoInfo(filtroCompra).nom,
@@ -3504,6 +3565,25 @@
     }
   }
 
+  /* Pestanas de Listas: Tareas, Compras y Notas con su cuenta (Compras y
+     Notas solo si el apartado las usa). */
+  function pintarPestanasListas(conCompras, conNotas) {
+    var defs = [
+      { id: 'segBtnTareas', v: 'tablero', cnt: 'cntTareas', n: function () { return contar('tarea', 'activos'); }, usa: true },
+      { id: 'segBtnCompras', v: 'compras', cnt: 'cntCompras', n: function () { return contar('compra', 'activos'); }, usa: conCompras },
+      { id: 'segBtnNotas', v: 'notas', cnt: 'cntNotas', n: function () { return K.notasVisibles(notasAp, { ctx: contexto, archivadas: false, q: '' }).length; }, usa: conNotas }
+    ], i, b, on;
+    if (VISTA_TAB[vista] !== 'tabTareas') { return; }
+    for (i = 0; i < defs.length; i++) {
+      b = $(defs[i].id);
+      on = vista === defs[i].v;
+      b.className = on ? 'lstab on' : 'lstab';
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.style.display = defs[i].usa ? '' : 'none';
+      $(defs[i].cnt).textContent = defs[i].usa ? '' + defs[i].n() : '';
+    }
+  }
+
   function pintar() {
     var v, conCompras = usaCompras(contexto), conNotas = K.usaNotas(contexto);
     /* Un repintado a mitad de un arrastre (reloj, otra pestana) lo cancela:
@@ -3534,11 +3614,7 @@
     pintarInfoApartado();
     pintarNavLateral();
     $('segTareas').style.display = vista === 'tablero' || vista === 'compras' || vista === 'notas' ? 'flex' : 'none';
-    $('segBtnTareas').className = vista === 'tablero' ? 'segbtn on' : 'segbtn';
-    $('segBtnCompras').className = vista === 'compras' ? 'segbtn on' : 'segbtn';
-    $('segBtnCompras').style.display = conCompras ? '' : 'none';
-    $('segBtnNotas').className = vista === 'notas' ? 'segbtn on' : 'segbtn';
-    $('segBtnNotas').style.display = conNotas ? '' : 'none';
+    pintarPestanasListas(conCompras, conNotas);
     /* La barra de captura dice que guarda en esta pestana (tarea, compra, nota). */
     pintarPistaCaptura();
     pintarChipsCaptura();
@@ -7032,18 +7108,26 @@
     return { txt: '\u2192 ' + a.item.texto, motivo: a.motivo, accion: a };
   }
 
+  /* Tarjeta de mision: nombre con el punto del apartado, % a la derecha,
+     barra de 6px del color del apartado, la fila "Proxima" (toca y abre la
+     tarea, o la mision si lo proximo es un hito) y los datos. Sin proxima
+     accion lo dice en warning; en pausa, borde punteado. La tarjeta abre la
+     mision (boton de encabezado para teclado y lector). */
   function nodoMision(p, compacto) {
     var pr = K.progresoProyecto(p, items);
-    var c = nodo('button', 'mision' + (p.estado === 'terminado' ? ' fin' : '') + (p.estado === 'pausado' ? ' pausa' : '') + (compacto ? ' compacta' : ''));
-    c.type = 'button';
+    var c = nodo('div', 'mision' + (p.estado === 'terminado' ? ' fin' : '') + (p.estado === 'pausado' ? ' pausa' : '') + (compacto ? ' compacta' : ''));
     c.setAttribute('data-mision', p.id);
-    var top = nodo('div', 'mis-top');
+    if (c.style && typeof c.style.setProperty === 'function') { c.style.setProperty('--ap', 'var(--pal-' + colorCtx(p.contexto) + ')'); }
+    var top = nodo('button', 'mis-top');
+    top.type = 'button';
+    top.setAttribute('aria-label', 'Misi\u00F3n ' + p.nombre + ', ' + pr.pct + ' %' + (p.estado === 'pausado' ? ', en pausa' : ''));
     var mn = nodo('span', 'mis-nom', p.nombre);
     mn.insertBefore(punto(p.contexto), mn.firstChild);
     top.appendChild(mn);
     top.appendChild(nodo('b', 'mono mis-pct', pr.pct + '%'));
+    top.onclick = function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } abrirMision(p.id); };
     c.appendChild(top);
-    var barra = nodo('div', 'barra');
+    var barra = nodo('div', 'barra mis-barra');
     var bi = nodo('i', '');
     bi.style.width = pr.pct + '%';
     barra.appendChild(bi);
@@ -7051,14 +7135,26 @@
     if (p.estado === 'terminado') {
       c.appendChild(nodo('div', 'mis-prox mono', 'Misi\u00F3n cumplida ' + (p.terminado ? fechaNota(p.terminado) : ''), 'flag'));
     } else {
-      var px = textoProxima(p);
-      c.appendChild(nodo('div', 'mis-prox' + (px ? '' : ' vacia'), px ? px.txt : '\u2192 Defini la proxima accion'));
+      var a = K.proximaAccion(p, items, hoyClave(), Date.now());
+      if (a) {
+        var px = nodo('button', 'mis-proxima');
+        px.type = 'button';
+        px.appendChild(nodo('span', 'mis-proxima-rot', 'Pr\u00F3xima'));
+        px.appendChild(nodo('span', 'mis-proxima-txt', a.tipo === 'hito' ? 'Hito: ' + a.hito.texto : a.item.texto));
+        px.onclick = function (ev) {
+          if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+          if (a.tipo === 'hito') { abrirMision(p.id); } else { abrirItem(a.item.id); }
+        };
+        c.appendChild(px);
+      } else {
+        c.appendChild(nodo('div', 'mis-prox vacia', 'Sin pr\u00F3xima acci\u00F3n \u00B7 definila', 'alert-triangle'));
+      }
     }
     if (!compacto) {
       var meta = [];
-      if (pr.hitosTotal > 0) { meta.push(pr.hitosHechos + '/' + pr.hitosTotal + ' hitos'); }
-      meta.push(pr.tareasHechas + '/' + pr.tareasTotal + ' tareas');
-      if (p.estado === 'pausado') { meta.push('en pausa'); }
+      if (pr.hitosTotal > 0) { meta.push('Hitos ' + pr.hitosHechos + '/' + pr.hitosTotal); }
+      meta.push('Tareas ' + pr.tareasHechas + '/' + pr.tareasTotal);
+      meta.push(nomCtx(p.contexto));
       c.appendChild(nodo('div', 'mis-meta mono', meta.join(' \u00B7 ')));
     }
     c.onclick = function () { abrirMision(p.id); };
@@ -7089,36 +7185,61 @@
     cont.appendChild(s);
   }
 
+  /* Grupo de Misiones a la vista (Activas, Pausa, Cumplidas). En memoria. */
+  var filtroMis = 'activo';
+  var GRUPOS_MIS = [
+    { id: 'activo', nom: 'Activas', vacio: 'Sin misiones activas' },
+    { id: 'pausado', nom: 'Pausa', vacio: 'Ninguna misi\u00F3n en pausa' },
+    { id: 'terminado', nom: 'Cumplidas', vacio: 'Todav\u00EDa ninguna cumplida' }
+  ];
+
   function pintarMisiones() {
     var cont = $('misionesCuerpo');
     vaciar(cont);
-    var nueva = nodo('button', 'bloque pri', 'Nueva misi\u00F3n', 'plus');
-    nueva.type = 'button';
-    nueva.id = 'btnNuevaMision';
-    nueva.onclick = function () { abrirMision(null); };
-    var act = misionesVisibles('activo'), pau = misionesVisibles('pausado'), fin = misionesVisibles('terminado'), i;
-    if (act.length + pau.length + fin.length === 0) {
+    var grupos = { activo: misionesVisibles('activo'), pausado: misionesVisibles('pausado'), terminado: misionesVisibles('terminado') }, i, g;
+    if (grupos.activo.length + grupos.pausado.length + grupos.terminado.length === 0) {
       cont.appendChild(vacioNuevo('div', { id: 'misiones', ico: 'target',
         tit: contexto === 'todo' ? 'Sin misiones todav\u00EDa' : 'Sin misiones en ' + nomCtx(contexto),
         txt: 'Una misi\u00F3n es un objetivo con hitos y tareas. KCO te dice cu\u00E1l es el pr\u00F3ximo movimiento de cada una.',
         acc: 'Nueva misi\u00F3n', accIco: 'plus', accId: 'btnNuevaMision', alTocar: function () { abrirMision(null); } }));
       return;
     }
-    cont.appendChild(nueva);
-    function grupo(titulo, lista, id, ico) {
-      if (lista.length === 0) { return; }
-      var s = nodo('section', 'sec');
-      s.id = id;
-      var h = nodo('h3', 'sec-tit');
-      h.appendChild(nodo('span', '', titulo, ico));
-      h.appendChild(nodo('b', 'mono', '' + lista.length));
-      s.appendChild(h);
-      for (i = 0; i < lista.length; i++) { s.appendChild(nodoMision(lista[i], false)); }
-      cont.appendChild(s);
+    var cab = nodo('div', 'mis-cab'), seg = nodo('div', 'seg');
+    seg.setAttribute('role', 'group');
+    seg.setAttribute('aria-label', 'Misiones');
+    for (i = 0; i < GRUPOS_MIS.length; i++) {
+      (function (d) {
+        var on = filtroMis === d.id, b = nodo('button', on ? 'segbtn on' : 'segbtn');
+        b.type = 'button';
+        b.setAttribute('data-mis-filtro', d.id);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.appendChild(nodo('span', '', d.nom));
+        b.appendChild(nodo('b', 'mono', '' + grupos[d.id].length));
+        b.onclick = function () { filtroMis = d.id; pintar(); };
+        seg.appendChild(b);
+      })(GRUPOS_MIS[i]);
     }
-    grupo('Activas', act, 'secMisActivas', 'target');
-    grupo('En pausa', pau, 'secMisPausadas', 'pause');
-    grupo('Cumplidas', fin, 'secMisCumplidas', 'flag');
+    cab.appendChild(seg);
+    var nueva = nodo('button', 'mis-nueva');
+    nueva.type = 'button';
+    nueva.id = 'btnNuevaMision';
+    nueva.setAttribute('aria-label', 'Nueva misi\u00F3n');
+    nueva.setAttribute('title', 'Nueva misi\u00F3n');
+    nueva.appendChild(svgIco('plus'));
+    nueva.onclick = function () { abrirMision(null); };
+    cab.appendChild(nueva);
+    cont.appendChild(cab);
+    var lista = grupos[filtroMis] || grupos.activo, s = nodo('div', 'mis-lista');
+    s.id = 'misLista';
+    s.setAttribute('data-grupo', filtroMis);
+    for (i = 0; i < lista.length; i++) { s.appendChild(nodoMision(lista[i], false)); }
+    if (lista.length === 0) {
+      for (i = 0; i < GRUPOS_MIS.length; i++) {
+        if (GRUPOS_MIS[i].id === filtroMis) { g = GRUPOS_MIS[i]; }
+      }
+      s.appendChild(nodo('div', 'vacio chico', g ? g.vacio : ''));
+    }
+    cont.appendChild(s);
   }
 
   /* ---------- hoja de mision ---------- */

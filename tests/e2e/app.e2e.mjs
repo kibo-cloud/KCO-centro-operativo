@@ -4631,14 +4631,20 @@ export const tests = [
       assert.deepEqual(await listRows(page, 'listaCompras'), [list[0].id], 'shown in the list being looked at');
       const ev = (await events(page)).filter((e) => e.itemId === list[0].id).map((e) => [e.tipo, e.desde, e.hasta]);
       assert.deepEqual(ev, [['captura', '', 'por_comprar'], ['estado', 'por_comprar', 'comprado']], 'same history as capture + manual move');
-      // Factory flow: its own state chips.
+      // Factory flow: its stage counters. A stage at 0 cannot be tapped, so a purchase is moved there first.
       await page.eval("document.querySelector('#ctxsel [data-ctx=\"taller\"]').click()");
       await sleep(80);
-      await page.click('#chipsCompra [data-filtro="oc_enviada"]');
+      await page.click('#chipsCompra [data-filtro="activos"]');
       await page.type('#txtCaptura', 'rodamientos', true);
       list = await items(page);
-      assert.deepEqual([list[1].estado, list[1].contexto], ['oc_enviada', 'taller']);
-      assert.deepEqual(await listRows(page, 'listaCompras'), [list[1].id]);
+      assert.equal(await page.eval("document.querySelector('#chipsCompra [data-filtro=\"oc_enviada\"]').disabled"), true, 'empty stage disabled');
+      for (let k = 0; k < 3; k++) await page.click('#listaCompras li.item[data-id="' + list[1].id + '"] [data-acc="siguiente"]');
+      assert.equal((await items(page))[1].estado, 'oc_enviada');
+      await page.click('#chipsCompra [data-filtro="oc_enviada"]');
+      await page.type('#txtCaptura', 'rodamientos 2', true);
+      list = await items(page);
+      assert.deepEqual([list[2].estado, list[2].contexto], ['oc_enviada', 'taller']);
+      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), [list[1].id, list[2].id].sort());
       // Todo mixes both flows: a state the target flow lacks keeps the default.
       await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
       await sleep(80);
@@ -4646,16 +4652,16 @@ export const tests = [
       assert.doesNotMatch(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /Comprado/, 'no state in the hint when it does not apply');
       await page.type('#txtCaptura', 'correas', true);
       list = await items(page);
-      assert.deepEqual([list[2].estado, list[2].contexto], ['cotizando', 'taller'], 'never a hogar state in a factory section');
+      assert.deepEqual([list[3].estado, list[3].contexto], ['cotizando', 'taller'], 'never a hogar state in a factory section');
       await page.click('#chipsCompra [data-filtro="recibido"]');
       await page.type('#txtCaptura', 'bulones', true);
       list = await items(page);
-      assert.deepEqual([list[3].estado, list[3].contexto], ['recibido', 'taller'], 'a valid state applies in Todo');
+      assert.deepEqual([list[4].estado, list[4].contexto], ['recibido', 'taller'], 'a valid state applies in Todo');
       // Activos: the default as always.
       await page.click('#chipsCompra [data-filtro="activos"]');
       await page.type('#txtCaptura', 'grasa', true);
       list = await items(page);
-      assert.equal(list[4].estado, 'cotizando');
+      assert.equal(list[5].estado, 'cotizando');
     }
   },
   {
@@ -5132,6 +5138,157 @@ export const tests = [
       assert.equal(lg.ss, 'dotted', 'secret: dotted border');
       assert.match(lg.st, /Seguí jugando/);
       assert.ok(lg.lock);
+    }
+  },
+  {
+    name: 'listas (Cabina): first-level 48px tabs Tareas N · Compras N · Notas N with a 2px accent underline; Compras/Notas only where the section uses them',
+    storage: Object.assign(ORDER_SEED(), { 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST() }),
+    async fn(page) {
+      await page.click('#tabTareas');
+      const t = await page.eval(`(function(){var a=document.createElement('i');a.style.color='var(--accent)';document.body.appendChild(a);var ac=getComputedStyle(a).color;a.remove();
+        return {segs:document.querySelectorAll('#segTareas .segbtn').length,ac:ac,tabs:Array.prototype.map.call(document.querySelectorAll('#segTareas .lstab'),function(b){var s=getComputedStyle(b);
+        return {id:b.id,txt:b.textContent,h:Math.round(b.getBoundingClientRect().height),bw:s.borderBottomWidth,bc:s.borderBottomColor,sel:b.getAttribute('aria-selected'),vis:b.offsetParent!==null};})};})()`);
+      assert.equal(t.segs, 0, 'no internal segmented control');
+      assert.deepEqual(t.tabs.map((x) => x.id), ['segBtnTareas', 'segBtnCompras', 'segBtnNotas']);
+      assert.ok(t.tabs.every((x) => x.h === 48), '48px tabs');
+      assert.match(t.tabs[0].txt, /^Tareas\d+$/);
+      assert.match(t.tabs[2].txt, /^Notas2$/, 'taller has two live notes (one more archived)');
+      assert.equal(t.tabs[0].sel, 'true');
+      assert.equal(t.tabs[0].bw, '2px');
+      assert.equal(t.tabs[0].bc, t.ac, 'accent underline on the active tab');
+      await page.click('#segBtnNotas');
+      assert.equal(await page.eval("document.getElementById('segBtnNotas').getAttribute('aria-selected')"), 'true');
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"mercado\"]').click()");
+      await sleep(80);
+      assert.equal(await page.visible('#segBtnNotas'), false, 'Mercado has notes off');
+    }
+  },
+  {
+    name: 'listas (Cabina): Tareas has a 4px progress bar and one filter row: the state chip-menu (Activos with the 7 states), tag chips and the order button at the right',
+    storage: ORDER_SEED(),
+    async fn(page) {
+      await toTasks(page);
+      const r = await page.eval(`(function(){var row=document.querySelector('#vistaTablero .filtros-lista'),b=document.querySelector('#chips .menu-chip-btn'),o=document.querySelector('#ordenTareas .menu-chip-btn');
+        return {bar:Math.round(document.querySelector('#vistaTablero .barra').getBoundingClientRect().height),txt:b.textContent,exp:b.getAttribute('aria-expanded'),
+          ops:document.querySelectorAll('#chips .menu-op').length,hidden:document.querySelector('#chips .menu-chip-lista').hidden,
+          right:Math.round(row.getBoundingClientRect().right-o.getBoundingClientRect().right),inRow:row.contains(o)&&row.contains(b),top:Math.abs(o.getBoundingClientRect().top-b.getBoundingClientRect().top)};})()`);
+      assert.equal(r.bar, 4, '4px bar');
+      assert.equal(r.txt, 'Activos');
+      assert.equal(r.exp, 'false');
+      assert.equal(r.ops, 7, 'Activos + the six states');
+      assert.equal(r.hidden, true);
+      assert.ok(r.inRow, 'state menu and order button share the row');
+      assert.ok(r.right <= 1, 'order button at the right');
+      assert.ok(r.top <= 2, 'same line');
+      await page.click('#chips .menu-chip-btn');
+      assert.ok(await page.visible('#chips [data-filtro="proceso"]'), 'the menu opens');
+      await page.key('Escape');
+      assert.equal(await page.eval("document.querySelector('#chips .menu-chip-lista').hidden"), true, 'Escape closes it');
+      assert.equal(await page.eval("document.activeElement === document.querySelector('#chips .menu-chip-btn')"), true, 'focus back on the chip');
+      await page.click('#chips .menu-chip-btn');
+      await page.click('#chips [data-filtro="proceso"]');
+      assert.equal(await page.text('#chips .menu-chip-btn'), 'En proceso');
+      assert.deepEqual(await listRows(page, 'lista'), ['B'], 'filtered');
+      await page.type('#txtCaptura', 'nueva en proceso', true);
+      assert.equal((await items(page)).pop().estado, 'proceso', 'capture takes the active state');
+    }
+  },
+  {
+    name: 'compras (Cabina): six 56px stage counters filter (zero ones disabled); each card has a 6-segment stage bar and a 44px "Siguiente etapa" pill naming the destination that advances it',
+    storage: (() => {
+      const s = ORDER_SEED();
+      const l = JSON.parse(s['kibco.items']);
+      const iso = new Date(Date.now() - 86400000).toISOString();
+      const c = (id, estado) => ({ id, texto: 'compra ' + id, contexto: 'taller', tipo: 'compra', estado, nivel: 'normal', creado: iso, actualizado: iso, estadoDesde: iso });
+      l.push(c('P1', 'cotizando'), c('P2', 'cotizando'), c('P3', 'oc_enviada'));
+      s['kibco.items'] = JSON.stringify(l);
+      return s;
+    })(),
+    async fn(page) {
+      await toTasks(page);
+      await page.click('#segBtnCompras');
+      const e = await page.eval(`Array.prototype.map.call(document.querySelectorAll('#chipsCompra .etapas .etapa'),function(b){return [b.getAttribute('data-filtro'),b.querySelector('b').textContent,b.disabled,Math.round(b.getBoundingClientRect().height)];})`);
+      assert.deepEqual(e.map((x) => x[0]), ['cotizando', 'esperando_oc', 'esperando_aprob', 'oc_enviada', 'esperando_entrega', 'recibido']);
+      assert.deepEqual(e.map((x) => x[1]), ['2', '0', '0', '1', '0', '0']);
+      assert.deepEqual(e.map((x) => x[2]), [false, true, true, false, true, true], 'zero counters disabled');
+      assert.ok(e.every((x) => x[3] >= 56), '56px counters');
+      assert.match(await page.text('#chipsCompra'), /Abiertas/);
+      await page.click('#chipsCompra [data-filtro="cotizando"]');
+      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), ['P1', 'P2'], 'the counter filters');
+      await page.click('#chipsCompra [data-filtro="cotizando"]');
+      assert.equal((await listRows(page, 'listaCompras')).length, 3, 'tapping it again: Abiertas');
+      const card = '#listaCompras li.item[data-id="P3"]';
+      const b = await page.eval(`(function(){var li=document.querySelector('${card}'),bar=li.querySelector('.etapas-barra'),p=li.querySelector('[data-acc="siguiente"]');
+        return {seg:bar.querySelectorAll('i').length,done:bar.querySelectorAll('i.hecha').length,lab:bar.getAttribute('aria-label'),pill:p.textContent,aria:p.getAttribute('aria-label'),h:Math.round(p.getBoundingClientRect().height)};})()`);
+      assert.equal(b.seg, 6);
+      assert.equal(b.done, 4, 'OC enviada is stage 4');
+      assert.match(b.lab, /Etapa 4 de 6/);
+      assert.equal(b.pill, 'Esperando entrega');
+      assert.equal(b.aria, 'Siguiente etapa: Esperando entrega');
+      assert.ok(b.h >= 44, '44px pill');
+      await page.click(card + ' [data-acc="siguiente"]');
+      assert.equal((await items(page)).find((i) => i.id === 'P3').estado, 'esperando_entrega', 'the pill advances it');
+    }
+  },
+  {
+    name: 'notas (Cabina): a 2-column grid; pinned notes carry the pin and an accent border; search, Archivadas and Nueva nota share the top bar',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'taller', 'kibco.notas': NOTE_LIST() },
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnNotas');
+      const g = await page.eval(`(function(){var c=document.querySelectorAll('#listaNotas li.notacard'),a=c[0].getBoundingClientRect(),b=c[1].getBoundingClientRect(),f=document.querySelector('#listaNotas li.notacard.fijada'),
+        x=document.createElement('i');x.style.color='var(--accent)';document.body.appendChild(x);var ac=getComputedStyle(x).color;x.remove();var bar=document.querySelector('.notasbarra');
+        return {n:c.length,sameRow:Math.abs(a.top-b.top)<1,side:b.left>a.right-1,pin:!!f.querySelector('.nota-pin svg'),bc:getComputedStyle(f.querySelector('.nota-abrir')).borderTopColor,ac:ac,
+          tit:getComputedStyle(c[0].querySelector('.nota-tit')).fontSize,ext:getComputedStyle(c[0].querySelector('.nota-ext')).webkitLineClamp,
+          bar:[bar.contains(document.getElementById('txtBuscaNotas')),bar.contains(document.getElementById('btnNotasArchivo')),bar.contains(document.getElementById('btnNuevaNota'))]};})()`);
+      assert.equal(g.n, 2);
+      assert.ok(g.sameRow && g.side, 'two columns');
+      assert.ok(g.pin, 'pin icon');
+      assert.equal(g.bc, g.ac, 'pinned: accent border');
+      assert.equal(g.tit, '15px');
+      assert.equal(g.ext, '2', 'two-line excerpt');
+      assert.deepEqual(g.bar, [true, true, true]);
+      assert.doesNotMatch(await page.text('.notasbarra'), EMOJI_UI);
+    }
+  },
+  {
+    name: 'misiones (Cabina): one segmented Activas N · Pausa N · Cumplidas N plus a 52px "+"; the card has the apartado-colored 6px bar, a tappable 44px Próxima row and Hitos/Tareas meta; no next action warns; paused is dotted',
+    storage: (() => {
+      const s = misionSeed(true);
+      const ps = JSON.parse(s['kibco.proyectos']);
+      const now = new Date().toISOString();
+      ps.push({ id: 'pvac', nombre: 'Sin nada', objetivo: '', contexto: 'apps', estado: 'activo', hitos: [], creado: now, actualizado: now });
+      ps.push({ id: 'ppau', nombre: 'Mudar el taller', objetivo: '', contexto: 'hogar', estado: 'pausado', hitos: [], creado: now, actualizado: now });
+      s['kibco.proyectos'] = JSON.stringify(ps);
+      return s;
+    })(),
+    async fn(page) {
+      await page.click('#tabMisiones');
+      const m = await page.eval(`(function(){var segs=document.querySelectorAll('#misionesCuerpo .seg'),n=document.getElementById('btnNuevaMision').getBoundingClientRect(),c=document.querySelector('#misLista [data-mision="pkco"]'),
+        p=c.querySelector('.mis-proxima'),bar=c.querySelector('.mis-barra i'),y=document.createElement('i');y.style.color='var(--pal-violeta)';document.body.appendChild(y);var vi=getComputedStyle(y).color;y.remove();
+        return {segs:segs.length,btns:Array.prototype.map.call(segs[0].querySelectorAll('button'),function(b){return b.textContent;}),nw:[Math.round(n.width),Math.round(n.height)],
+          nom:getComputedStyle(c.querySelector('.mis-nom')).fontSize,pct:getComputedStyle(c.querySelector('.mis-pct')).fontSize,bh:Math.round(c.querySelector('.mis-barra').getBoundingClientRect().height),
+          bc:getComputedStyle(bar).backgroundColor,vi:vi,ph:Math.round(p.getBoundingClientRect().height),ptxt:p.textContent,meta:c.querySelector('.mis-meta').textContent,
+          warn:document.querySelector('#misLista [data-mision="pvac"] .mis-prox.vacia').textContent};})()`);
+      assert.equal(m.segs, 1, 'one segmented');
+      assert.deepEqual(m.btns, ['Activas2', 'Pausa1', 'Cumplidas0']);
+      assert.deepEqual(m.nw, [52, 52], '52px + button');
+      assert.equal(m.nom, '17px');
+      assert.equal(m.pct, '20px');
+      assert.equal(m.bh, 6, '6px bar');
+      assert.equal(m.bc, m.vi, 'bar in the section color (apps is violeta)');
+      assert.ok(m.ph >= 44, '44px Próxima row');
+      assert.match(m.ptxt, /^Próxima.*tarea de mision/);
+      assert.match(m.meta, /^Hitos 1\/2 · Tareas 0\/1 · Apps$/);
+      assert.equal(m.warn, 'Sin próxima acción · definila');
+      await page.click('#misLista [data-mision="pkco"] .mis-proxima');
+      await sleep(150);
+      assert.ok(await isOpen(page, 'tapaItem'), 'Próxima opens its task');
+      await page.key('Escape');
+      await sleep(150);
+      await page.click('#misionesCuerpo [data-mis-filtro="pausado"]');
+      assert.equal(await page.eval("getComputedStyle(document.querySelector('#misLista [data-mision=\"ppau\"]')).borderTopStyle"), 'dotted');
+      assert.equal(await page.count('#misLista [data-mision="pkco"]'), 0, 'only paused ones');
     }
   }
 ];
