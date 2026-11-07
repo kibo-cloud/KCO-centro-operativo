@@ -4319,7 +4319,7 @@ export const tests = [
     name: 'kebab: every active card has a "more" button that opens the card tray (Ahora and Tareas) without opening the card',
     storage: Object.assign(ORDER_SEED(), { 'kibco.tema': 'claro' }),
     async fn(page) {
-      await sleep(450); // measure the cards at rest (entry animation)
+      await enReposo(page, '#secSigue'); // measure the cards at rest (entry animation)
       const sel = '#secSigue li.item[data-id="B"] [data-acc="mas"]';
       assert.equal(await page.count(sel), 1, 'kebab on the Ahora card');
       assert.equal(await page.eval(`document.querySelector('${sel}').getAttribute('aria-expanded')`), 'false');
@@ -4915,7 +4915,7 @@ export const tests = [
       const occ = (await items(page)).find((i) => i.rutinaId === 'rgata' && i.ocurrencia === ymd(0));
       const card = `#lista li.item[data-id="${occ.id}"]`;
       await page.click(card + ' [data-acc="mas"]');
-      await sleep(450);
+      await enReposo(page, card);
       const t = await page.eval(`(function(){var b=document.querySelector('${card} .bandeja-swipe');if(!b)return null;
         return {acc:Array.prototype.map.call(b.querySelectorAll('[data-bandeja]'),function(x){return x.getAttribute('data-bandeja');}),w:Math.round(b.getBoundingClientRect().width),
           shift:Math.round(document.querySelector('${card}').getBoundingClientRect().left+document.querySelector('${card}').clientLeft-document.querySelector('${card} .desliza').getBoundingClientRect().left)};})()`);
@@ -4926,7 +4926,7 @@ export const tests = [
       await page.key('Escape');
       await sleep(120);
       await page.eval(`document.querySelector('${card}').dispatchEvent(new KeyboardEvent('keydown',{key:'ContextMenu',keyCode:93,bubbles:true,cancelable:true}))`);
-      await sleep(150);
+      await abierta(page, 'tapaRapido');
       assert.ok(await isOpen(page, 'tapaRapido'), 'quick menu open');
       const rap = await page.eval("Array.prototype.filter.call(document.querySelectorAll('#tapaRapido [data-rap]'),function(b){return b.style.display!=='none';}).map(function(b){return b.getAttribute('data-rap');})");
       assert.deepEqual(rap, ['prioridad', 'borrar'], 'the quick menu tailors the same way');
@@ -5135,17 +5135,17 @@ export const tests = [
       assert.ok(await page.visible('#timeline'));
       assert.equal(await page.visible('#diarioCuerpo'), false);
       await page.click('#btnReporte');
-      await sleep(150);
+      await abierta(page, 'tapaReporte');
       assert.ok(await isOpen(page, 'tapaReporte'), 'Reporte opens the share sheet');
       assert.deepEqual(await page.eval("Array.prototype.map.call(document.querySelectorAll('#tapaReporte .fila-acc'),function(b){return b.id+':'+b.textContent.trim();})"),
         ['btnRelevo:Reporte de turno', 'btnResumen:Resumen']);
       await page.click('#btnResumen');
-      await sleep(150);
+      await abierta(page, 'tapaTexto');
       assert.ok(await isOpen(page, 'tapaTexto'), 'the text sheet replaces it');
       assert.equal(await isOpen(page, 'tapaReporte'), false);
       assert.equal(await page.text('#textoTitulo'), 'Resumen');
       await page.key('Escape');
-      await sleep(150);
+      await cerrada(page, 'tapaTexto');
       assert.equal(await isOpen(page, 'tapaTexto'), false);
       const lg = await page.eval(`(function(){var g=document.querySelector('.logro.ganado'),s=document.querySelector('.logro.secreto'),y=document.createElement('i');y.style.color='var(--gold)';document.body.appendChild(y);var gold=getComputedStyle(y).color;y.remove();
         return {gi:getComputedStyle(g.querySelector('.logro-ico')).color,gold:gold,ss:getComputedStyle(s).borderTopStyle,st:s.textContent,lock:!!s.querySelector('svg')};})()`);
@@ -5297,7 +5297,7 @@ export const tests = [
       assert.match(m.meta, /^Hitos 1\/2 · Tareas 0\/1 · Apps$/);
       assert.equal(m.warn, 'Sin próxima acción · definila');
       await page.click('#misLista [data-mision="pkco"] .mis-proxima');
-      await sleep(150);
+      await abierta(page, 'tapaItem');
       assert.ok(await isOpen(page, 'tapaItem'), 'Próxima opens its task');
       await page.key('Escape');
       await sleep(150);
@@ -5387,7 +5387,8 @@ export const tests = [
     name: 'sheets skeleton: top radius 20, a 40x5 handle, a 48-52px header with a 17/700 title and a 44px X',
     async fn(page) {
       await page.click('#btnAjustes');
-      await sleep(450);
+      await abierta(page, 'tapaAjustes');
+      await enReposo(page, '#tapaAjustes');
       const r = await page.eval(`(function(){var h=document.querySelector('#tapaAjustes .hoja'),a=h.querySelector('.asa'),f=h.querySelector('.hoja-fila'),t=f.querySelector('h2'),x=f.querySelector('.hoja-x'),
         hs=getComputedStyle(h),ab=a.getBoundingClientRect(),xb=x.getBoundingClientRect(),y=document.createElement('i');y.style.background='var(--overlay)';document.body.appendChild(y);
         var ov=getComputedStyle(y).backgroundColor;y.remove();
@@ -5409,7 +5410,7 @@ export const tests = [
       await openFirstItem(page);
       const texto = await page.eval("document.getElementById('txtTituloItem').value");
       await page.click('#btnBorrar');
-      await sleep(400);
+      await abierta(page, 'tapaConfirmar');
       assert.ok(await isOpen(page, 'tapaConfirmar'));
       const r = await page.eval(`(function(){var t=document.getElementById('tapaConfirmar'),i=t.querySelector('.conf-ico'),no=document.getElementById('btnConfNo'),si=document.getElementById('btnConfSi'),
         ib=i.getBoundingClientRect(),nb=no.getBoundingClientRect(),sb=si.getBoundingClientRect(),y=document.createElement('i');y.style.background='var(--danger-soft)';y.style.color='var(--danger)';document.body.appendChild(y);
@@ -5443,7 +5444,7 @@ export const tests = [
       await openAjustes(page);
       await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
       await page.click('#btnApBorrar');
-      await sleep(400);
+      await abierta(page, 'tapaConfirmar');
       assert.ok(await isOpen(page, 'tapaConfirmar'), 'the confirmation opens at once');
       assert.equal(await page.text('#confTitulo'), '¿Borrar el apartado Mercado?');
       assert.ok(await page.eval("document.getElementById('tapaConfirmar').contains(document.getElementById('cajaApMover'))"), 'selector inside the confirmation');
@@ -5521,7 +5522,7 @@ export const tests = [
       await page.click('#gridNivel [data-nivel="urgente"]');
       assert.equal((await items(page)).find((i) => i.id === first.id).nivel, 'urgente', 'saves at once');
       await page.click('#btnFichaMas');
-      await sleep(400);
+      await abierta(page, 'tapaMasItem');
       assert.ok(await isOpen(page, 'tapaMasItem'));
       const m = await page.eval(`(function(){var t=document.getElementById('tapaMasItem'),b=document.getElementById('btnBorrar'),y=document.createElement('i');y.style.color='var(--danger-ink-2)';document.body.appendChild(y);
         var red=getComputedStyle(y).color;y.remove();
@@ -5530,7 +5531,7 @@ export const tests = [
       assert.ok(m.inside && m.last, 'Borrar closes the list');
       assert.equal(m.col, m.red, 'Borrar in red');
       await page.click('#btnBorrar');
-      await sleep(400);
+      await abierta(page, 'tapaConfirmar');
       assert.ok(await isOpen(page, 'tapaConfirmar'));
     }
   },
@@ -5591,19 +5592,24 @@ export const tests = [
   },
   {
     name: 'level sheet: a level-up and an achievement come after the toast in one .hoja-nivel sheet',
+    // The page clock is frozen at noon (fijarHora): the early-bird achievement (04:00-07:00) never joins in.
     storage: (() => {
-      const list = [];
+      const noon = new Date(); noon.setHours(12, 0, 0, 0);
+      const t = noon.getTime(), list = [];
       for (let i = 0; i < 4; i++) list.push({ id: 'x' + i, texto: 'imp ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
-        creado: new Date(Date.now() - 86400000 * 2).toISOString(), estadoDesde: new Date(Date.now() - 86400000).toISOString() });
-      list.push({ id: 'y', texto: 'la que sube', contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente', nivel: 'normal', creado: new Date(Date.now() - 86400000).toISOString() });
+        creado: new Date(t - 86400000 * 2).toISOString(), estadoDesde: new Date(t - 86400000).toISOString() });
+      list.push({ id: 'y', texto: 'la que sube', contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente', nivel: 'normal', creado: new Date(t - 86400000).toISOString() });
       return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list), 'kibco.progreso': JSON.stringify({ nivelVisto: 1, logros: {} }) };
     })(),
     async fn(page) {
+      await fijarHora(page, 12);
+      assert.equal(await page.eval('new Date().getHours()'), 12, 'page clock at noon');
       await page.click('.hero [data-hero="hecho"]');
-      await sleep(200);
+      await esperarHasta(async () => /^Completado: /.test(await page.text('#qpaso')), 2000, 'the toast');
       assert.match(await page.text('#qpaso'), /^Completado: la que sube$/, 'the toast stays short');
       assert.equal(await isOpen(page, 'tapaNivel'), false, 'queued after the toast');
-      await sleep(9300);
+      await abierta(page, 'tapaNivel', 12000);
+      await enReposo(page, '#tapaNivel');
       assert.ok(await isOpen(page, 'tapaNivel'), 'the level sheet follows the toast');
       const r = await page.eval(`(function(){var h=document.querySelector('#tapaNivel .hoja');return {cls:h.className,n:h.querySelector('.nivel-aro').textContent,
         txt:h.textContent,logros:h.querySelectorAll('.nivel-logro').length,aro:Math.round(h.querySelector('.nivel-aro').getBoundingClientRect().width),rad:getComputedStyle(h).borderTopLeftRadius,seguir:document.getElementById('btnSeguirNivel').textContent};})()`);
@@ -5614,14 +5620,11 @@ export const tests = [
       assert.equal(r.aro, 88);
       assert.equal(r.rad, '20px');
       assert.match(r.txt, /Subiste de nivel/);
-      // Completing between 04:00 and 07:00 also wins the early-bird achievement (clock-dependent, kco-core madrugadas).
-      const h = new Date().getHours();
-      assert.equal(r.logros, h >= 4 && h < 7 ? 2 : 1, 'the achievement rides in the same sheet');
+      assert.equal(r.logros, 1, 'the achievement rides in the same sheet (and no early-bird one at noon)');
       assert.match(r.txt, /Logro: Primer paso/);
       assert.equal(r.seguir, 'Seguir');
       await page.click('#btnSeguirNivel');
-      await sleep(300);
-      assert.equal(await isOpen(page, 'tapaNivel'), false);
+      await cerrada(page, 'tapaNivel');
     }
   },
   {
@@ -5649,14 +5652,14 @@ export const tests = [
       assert.match(r.ed, /Editar y ordenar\s*5/);
       assert.match(r.sol, /Solicitantes\s*1/);
       await page.click('#btnEditarApartados');
-      await sleep(400);
+      await abierta(page, 'tapaApartados');
       assert.ok(await isOpen(page, 'tapaApartados'));
       assert.ok(await page.eval("document.getElementById('tapaApartados').contains(document.getElementById('listaApartados'))"));
       assert.ok(await page.eval("!!document.querySelector('#listaApartados .asa-orden')"), 'drag handle');
       await page.key('Escape');
       await sleep(300);
       await page.click('#btnSolicitantes');
-      await sleep(400);
+      await abierta(page, 'tapaSolic');
       assert.ok(await isOpen(page, 'tapaSolic'));
       const x = await page.rect('#chipsSolic [data-borrar="Juan"]');
       assert.deepEqual([x.w, x.h], [44, 44], '44px remove');
@@ -5665,7 +5668,7 @@ export const tests = [
       await page.key('Escape');
       await sleep(300);
       await page.click('#btnAcerca');
-      await sleep(400);
+      await abierta(page, 'tapaAcerca');
       assert.ok(await isOpen(page, 'tapaAcerca'));
       assert.match(await page.text('#tapaAcerca'), /Kevin Vásquez/);
     }
@@ -5685,7 +5688,7 @@ export const tests = [
       assert.ok(r.grupos >= 2, 'grouped by section');
       assert.equal(r.ico, r.res, 'one state icon per result');
       await page.click('#resultados .busca-res');
-      await sleep(300);
+      await abierta(page, 'tapaItem');
       assert.ok(await isOpen(page, 'tapaItem'));
     }
   },
@@ -5695,7 +5698,7 @@ export const tests = [
     async fn(page) {
       await toTasks(page);
       await page.click('#lista li.item[data-id="f1"]');
-      await sleep(300);
+      await abierta(page, 'tapaItem');
       assert.ok(await isOpen(page, 'tapaItem'));
       const r = await page.eval(`(function(){var b=document.getElementById('btnBorrar');return {disp:b.style.display,grupo:b.parentNode.hidden};})()`);
       assert.equal(r.disp, 'none', 'no Borrar while read-only');
@@ -5736,7 +5739,7 @@ export const tests = [
       assert.ok(await page.visible('#btnLatNuevoAp'), 'Nuevo apartado row');
       assert.match(await page.text('#btnLatNuevoAp'), /Nuevo apartado/);
       await page.click('#btnLatNuevoAp');
-      await sleep(300);
+      await abierta(page, 'tapaApartado');
       assert.ok(await isOpen(page, 'tapaApartado'), 'opens the section editor');
     }
   },
@@ -5762,7 +5765,7 @@ export const tests = [
       assert.equal(r.chips, false, 'the rail Pulso replaces the Ahora chips row at 1280+');
       assert.equal(await page.count('[data-tile]') > 0, true, 'the Ahora chips stay in the DOM (unique data-tile)');
       await page.click('#rail .rail-mision');
-      await sleep(300);
+      await abierta(page, 'tapaMision');
       assert.ok(await isOpen(page, 'tapaMision'), 'a mission opens its sheet');
       await page.key('Escape');
       await sleep(300);
@@ -5814,7 +5817,7 @@ export const tests = [
       assert.equal(await page.eval('document.activeElement.id'), 'txtBuscaBarra', '/ focuses the search field');
       assert.equal(await page.eval("document.getElementById('txtBuscaBarra').value"), '', 'the key is not typed');
       await page.type('#txtBuscaBarra', 'presu');
-      await sleep(300);
+      await abierta(page, 'tapaBuscar');
       assert.ok(await isOpen(page, 'tapaBuscar'), 'typing opens the search');
       assert.equal(await page.eval('document.activeElement.id'), 'txtBusca', 'typing continues in the search sheet');
       assert.equal(await page.eval("document.getElementById('txtBusca').value"), 'presu');
@@ -5981,8 +5984,219 @@ export const tests = [
       await page.click('#navLateral [data-vista="hoy"]');
       assert.equal(await page.eval('window.__xpN'), 1, 'one XP computation per paint');
     }
+  },
+  // ---------- T7: test debt from the T1-T6 reviews ----------
+  {
+    name: 'checklist (T7): a step and a milestone toggle swap the checkbox icon and flip aria-pressed',
+    storage: (() => {
+      const s = misionSeed(false);
+      s['kibco.items'] = JSON.stringify([{ id: 'p1', texto: 'con pasos', contexto: 'apps', tipo: 'tarea', estado: 'pendiente', nivel: 'normal',
+        creado: new Date().toISOString(), pasos: [{ texto: 'uno', hecho: false }] }]);
+      return s;
+    })(),
+    async fn(page) {
+      const probe = (sel) => page.eval(`(function(){var b=document.querySelector(${JSON.stringify(sel)}),s=b.querySelector('svg').innerHTML;
+        return {p:b.getAttribute('aria-pressed'),on:s===KCOIconos.crear('checkbox-on').innerHTML,off:s===KCOIconos.crear('checkbox').innerHTML};})()`);
+      await toTasks(page);
+      await page.click('#lista li.item[data-id="p1"]');
+      await abierta(page, 'tapaItem');
+      const sel = '#listaPasos [data-paso="0"]';
+      assert.deepEqual(await probe(sel), { p: 'false', on: false, off: true });
+      await page.click(sel);
+      assert.deepEqual(await probe(sel), { p: 'true', on: true, off: false }, 'checked: checkbox-on, pressed');
+      await page.click(sel);
+      assert.deepEqual(await probe(sel), { p: 'false', on: false, off: true }, 'unchecked again');
+      await page.key('Escape');
+      await esperarHasta(async () => !(await isOpen(page, 'tapaItem')), 2000, 'the item sheet to close');
+      await page.click('#tabMisiones');
+      await page.click('#misLista [data-mision="pkco"] .mis-top');
+      await abierta(page, 'tapaMision');
+      const h = '#misHitos [data-hito="h2"]';
+      assert.deepEqual(await probe(h), { p: 'false', on: false, off: true });
+      await page.click(h);
+      assert.deepEqual(await probe(h), { p: 'true', on: true, off: false }, 'milestone checked');
+      assert.deepEqual(await probe('#misHitos [data-hito="h1"]'), { p: 'true', on: true, off: false });
+      await page.click('#misHitos [data-hito="h1"]');
+      assert.deepEqual(await probe('#misHitos [data-hito="h1"]'), { p: 'false', on: false, off: true }, 'milestone unchecked');
+    }
+  },
+  {
+    name: 'capture (T7): under the Activos filter in Tareas the placeholder says "Activos"; Ahora does not',
+    storage: Object.assign(seed(), { 'kibco.contexto': 'trabajo', 'kibco.contextoCaptura': 'trabajo' }),
+    async fn(page) {
+      const ph = () => page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')");
+      assert.doesNotMatch(await ph(), /Activos/, 'Ahora: no state');
+      await toTasks(page);
+      assert.match(await ph(), /^Tarea en Trabajo · Activos$/);
+      await page.click('#menuEstado .menu-chip-btn');
+      await page.click('#menuEstado [data-filtro="esperando"]');
+      assert.match(await ph(), /· Esperando$/, 'another state names that state');
+      await page.click('#menuEstado .menu-chip-btn');
+      await page.click('#menuEstado [data-filtro="activos"]');
+      assert.match(await ph(), /· Activos$/);
+    }
+  },
+  {
+    name: 'chip-menu (T7): an outside pointerdown closes it, a pointerdown inside does not; read-only disables its options',
+    storage: Object.assign(seed(), { 'kibco.contexto': 'trabajo' }),
+    async fn(page) {
+      const st = () => page.eval("(function(){var b=document.querySelector('#ordenAhora .menu-chip-btn'),l=document.getElementById('ordenAhoraOps');return {exp:b.getAttribute('aria-expanded'),hid:l.hidden};})()");
+      await page.click('#ordenAhora .menu-chip-btn');
+      assert.deepEqual(await st(), { exp: 'true', hid: false }, 'open');
+      await page.eval("document.getElementById('ordenAhoraOps').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))");
+      assert.deepEqual(await st(), { exp: 'true', hid: false }, 'inside keeps it open');
+      await page.eval("document.querySelector('main').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))");
+      assert.deepEqual(await st(), { exp: 'false', hid: true }, 'outside closes it');
+      assert.equal(await page.eval("Array.prototype.some.call(document.querySelectorAll('#ordenAhora .menu-op'),function(o){return o.disabled;})"), false);
+      await page.eval("window.dispatchEvent(new StorageEvent('storage',{key:'kibco.items'}))");
+      await page.eval("window.dispatchEvent(new StorageEvent('storage',{key:'kibco.apartados'}))");
+      await page.click('#ordenAhora .menu-chip-btn');
+      assert.equal(await page.eval("Array.prototype.every.call(document.querySelectorAll('#ordenAhora .menu-op'),function(o){return o.disabled;})"), true, 'read-only: options disabled');
+      const before = await page.storage('kibco.apartados');
+      await page.click('#ordenAhora [data-orden="manual"]');
+      assert.equal(await page.storage('kibco.apartados'), before, 'nothing written');
+    }
+  },
+  {
+    name: 'ajustes (T7): dragging a section by its grip and dropping saves the new order; a pointercancel leaves it as it was',
+    storage: seed(),
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#btnEditarApartados');
+      await abierta(page, 'tapaApartados');
+      await enReposo(page, '#tapaApartados');
+      const start = await apRows(page);
+      const drag = (id, toId, cancel) => page.eval(`(function(){var f=document.querySelector('#listaApartados [data-ap="${id}"]'),a=f.querySelector('.asa-orden'),t=document.querySelector('#listaApartados [data-ap="${toId}"]').getBoundingClientRect(),
+        r=a.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,y1=t.bottom-2,o={bubbles:true,cancelable:true,pointerId:7,pointerType:'touch',isPrimary:true,clientX:x};
+        a.dispatchEvent(new PointerEvent('pointerdown',Object.assign({},o,{clientY:y})));
+        a.dispatchEvent(new PointerEvent('pointermove',Object.assign({},o,{clientY:(y+y1)/2})));
+        a.dispatchEvent(new PointerEvent('pointermove',Object.assign({},o,{clientY:y1})));
+        var lifted=f.className.indexOf('arrastrando')>-1;
+        a.dispatchEvent(new PointerEvent(${cancel ? "'pointercancel'" : "'pointerup'"},Object.assign({},o,{clientY:y1})));
+        return lifted;})()`);
+      assert.ok(await drag(start[0], start[2], true), 'the row lifts');
+      assert.deepEqual(await apRows(page), start, 'pointercancel: unchanged');
+      assert.deepEqual(await storedSectionIds(page), start, 'nothing saved');
+      await drag(start[0], start[2], false);
+      const want = [start[1], start[2], start[0]].concat(start.slice(3));
+      assert.deepEqual(await apRows(page), want, 'the drop moves it below the target');
+      assert.deepEqual(await storedSectionIds(page), want, 'and saves the order');
+    }
+  },
+  {
+    name: 'ajustes (T7): pasting a multi-line list into a catalog field splits it into separate values',
+    storage: Object.assign(seed(), { 'kibco.solicitantes': JSON.stringify(['Juan']) }),
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#btnSolicitantes');
+      await abierta(page, 'tapaSolic');
+      const prevented = await page.eval(`(function(){var i=document.getElementById('txtNuevoSolic'),d=new DataTransfer();d.setData('text','Ana\\r\\nBeto\\n\\nCarla');i.focus();
+        var ev=new ClipboardEvent('paste',{clipboardData:d,bubbles:true,cancelable:true});i.dispatchEvent(ev);return ev.defaultPrevented;})()`);
+      assert.ok(prevented, 'the paste is taken over');
+      assert.equal(await page.eval("document.getElementById('txtNuevoSolic').value"), 'Ana; Beto; Carla');
+      await page.click('#btnSumarSolic');
+      assert.deepEqual(JSON.parse(await page.storage('kibco.solicitantes')).sort(), ['Ana', 'Beto', 'Carla', 'Juan']);
+      const one = await page.eval(`(function(){var i=document.getElementById('txtNuevoSolic'),d=new DataTransfer();d.setData('text','Dora');i.value='';
+        var ev=new ClipboardEvent('paste',{clipboardData:d,bubbles:true,cancelable:true});i.dispatchEvent(ev);return ev.defaultPrevented;})()`);
+      assert.equal(one, false, 'a one-line paste is left to the browser');
+    }
+  },
+  {
+    name: 'ficha (T7): the Más sub-sheet actions hand off: Mover a Compras, Volver a tarea, Hacer recurrente and Compartir',
+    storage: Object.assign(seed(), { 'kibco.contexto': 'trabajo' }),
+    async fn(page) {
+      const id = JSON.parse(seed()['kibco.items'])[0].id;
+      const it = async () => (await items(page)).find((i) => i.id === id);
+      const mas = async (btn) => {
+        if (!(await isOpen(page, 'tapaItem'))) {
+          await page.eval(`(function(){var l=document.querySelector('li.item[data-id="${id}"] .txt');l.click();})()`);
+          await abierta(page, 'tapaItem');
+        }
+        await page.click('#btnFichaMas');
+        await abierta(page, 'tapaMasItem');
+        assert.ok(await page.visible(btn), btn + ' offered');
+        await page.click(btn);
+        await esperarHasta(async () => !(await isOpen(page, 'tapaMasItem')), 2000, 'Más to close');
+      };
+      await toTasks(page);
+      await mas('#btnAcompra');
+      assert.equal((await it()).tipo, 'compra', 'Mover a Compras');
+      await page.click('#segBtnCompras');
+      await mas('#btnVolverTarea');
+      assert.equal((await it()).tipo, 'tarea', 'Volver a tarea');
+      await page.click('#segBtnTareas');
+      await mas('#btnHacerRutina');
+      await abierta(page, 'tapaRutina');
+      assert.equal(await page.eval("document.getElementById('txtRutina').value"), 'Enviar presupuesto bomba', 'the routine editor starts from the task');
+      await page.key('Escape');
+      await esperarHasta(async () => !(await isOpen(page, 'tapaRutina')), 2000, 'the routine editor to close');
+      await page.eval('try{delete Navigator.prototype.share;}catch(e){} navigator.share=undefined;');
+      await mas('#btnCompartirItem');
+      await abierta(page, 'tapaTexto');
+      assert.match(await page.eval("document.getElementById('txtSalida').value"), /^Enviar presupuesto bomba\n\(/);
+    }
+  },
+  {
+    name: 'desktop (T7): Nuevo apartado in the sidebar is disabled read-only; the rail appears when the window grows across 1280',
+    width: 1100, height: 900, mobile: false,
+    storage: Object.assign(seed(), { 'kibco.proyectos': misionSeed(false)['kibco.proyectos'] }),
+    async fn(page) {
+      const railShown = () => page.eval("(function(){var r=document.getElementById('rail');return getComputedStyle(r).display!=='none'&&!!r.querySelector('.rail-nivel');})()");
+      assert.equal(await railShown(), false, 'no rail at 1100');
+      await page.viewport(1366, 900, false);
+      await esperarHasta(railShown, 2000, 'the rail painted by the matchMedia listener');
+      assert.equal(await page.count('#rail .rail-mision'), 1);
+      assert.equal(await page.eval("document.getElementById('btnLatNuevoAp').disabled"), false);
+      await page.eval("window.dispatchEvent(new StorageEvent('storage',{key:'kibco.apartados'}))");
+      assert.equal(await page.eval("document.getElementById('btnLatNuevoAp').disabled"), true, 'read-only disables Nuevo apartado');
+      await page.click('#btnLatNuevoAp');
+      assert.equal(await isOpen(page, 'tapaApartado'), false, 'and it opens nothing');
+    }
+  },
+  {
+    name: 'a11y (T7): no visible interactive control in the main views is under 44px at 390px',
+    storage: Object.assign(seed(), { 'kibco.pistas': '{"completar":true}', 'kibco.proyectos': misionSeed(false)['kibco.proyectos'] }),
+    async fn(page) {
+      const views = [['ahora', '#tabAhora'], ['hoy', '#tabHoy'], ['tareas', '#segBtnTareas'], ['compras', '#segBtnCompras'], ['notas', '#segBtnNotas'],
+        ['misiones', '#tabMisiones'], ['progreso', '#tabRegistro']];
+      const bad = [];
+      for (const [v, sel] of views) {
+        if (v === 'tareas') await page.click('#tabTareas');
+        await page.click(sel);
+        await enReposo(page, 'main');
+        for (const b of await page.eval(PROBE_44)) bad.push(v + ': ' + b);
+      }
+      assert.equal(bad.length, 0, 'under 44px: ' + bad.join(' | '));
+    }
   }
 ];
+
+
+// Interactive controls (outside sheets) whose box is under 44px in either side.
+// Screen-reader-only and zero-size nodes are not tap targets. Justified exclusion:
+// the 12 week bars of the Progreso chart (.sem): 12 x 44px does not fit a 358px
+// column; each bar is a full-height column (>= 44px tall, >= 24px wide, checked here).
+const PROBE_44 = `(function(){var l=document.querySelectorAll('button,a[href],input:not([type=hidden]),select,textarea,[role=button],[role=switch],[role=tab]'),bad=[],i,e,r,s;
+  for(i=0;i<l.length;i++){e=l[i];if(e.closest('.tapa,#lateral,#rail'))continue;r=e.getBoundingClientRect();if(r.width*r.height<=4)continue;
+    if(e.classList.contains('sem')){if(r.height<44||r.width<24)bad.push('week bar '+Math.round(r.width)+'x'+Math.round(r.height));continue;}
+    s=getComputedStyle(e);if(s.visibility==='hidden'||e.getClientRects().length===0)continue;
+    if(Math.round(r.width)<44||Math.round(r.height)<44)bad.push((e.id?'#'+e.id:e.tagName.toLowerCase()+'.'+String(e.className).split(' ').join('.'))+' '+Math.round(r.width)+'x'+Math.round(r.height)+' "'+(e.getAttribute('aria-label')||e.textContent||'').trim().slice(0,30)+'"');}
+  return bad;})()`;
+
+// Waits until no animation or transition runs inside sel (cards at rest, sheets settled).
+const enReposo = (page, sel, timeout = 3000) => esperarHasta(() => page.eval(`(function(){var e=document.querySelector(${JSON.stringify(sel)});if(!e||!e.getAnimations)return !!e;
+  var a=e.getAnimations({subtree:true});for(var i=0;i<a.length;i++){if(a[i].playState==='running'||a[i].pending)return false;}return true;})()`), timeout, 'animations to settle in ' + sel);
+// Waits until the sheet (.tapa) with this id is open (abierta) or closed (cerrada).
+const abierta = (page, id, timeout = 3000) => esperarHasta(() => isOpen(page, id), timeout, id + ' to open');
+const cerrada = (page, id, timeout = 3000) => esperarHasta(async () => !(await isOpen(page, id)), timeout, id + ' to close');
+// Freezes the page's wall clock at hour h of today (time still flows from there), then reloads so the app boots on it.
+async function fijarHora(page, h) {
+  await page.addInitScript(`(function(){var R=Date,n=new R(),t=new R(n.getFullYear(),n.getMonth(),n.getDate(),${h},0,0).getTime(),off=t-R.now();
+    function D(){if(!(this instanceof D)){return new R(R.now()+off).toString();}var a=[].slice.call(arguments);if(a.length===0){return new R(R.now()+off);}
+      return new (Function.prototype.bind.apply(R,[null].concat(a)))();}
+    D.prototype=R.prototype;D.now=function(){return R.now()+off;};D.parse=R.parse;D.UTC=R.UTC;window.Date=D;})()`);
+  await page.reload();
+}
 
 // ORDER_SEED('manual') plus W (done) and E (inbox), with the given manual ranks.
 function RANKED_ORDER_SEED(rk) {

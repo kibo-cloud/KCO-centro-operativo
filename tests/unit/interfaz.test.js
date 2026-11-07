@@ -26,8 +26,58 @@ function sinFuncion(src, nombre) {
   const i = src.indexOf('function ' + nombre + '(');
   assert.ok(i > -1, nombre + ' exists');
   const fin = src.indexOf('\n  }\n', i);
+  assert.ok(fin > -1, nombre + ' has a closing marker');
   return src.slice(0, i) + src.slice(fin);
 }
+
+/* ---------- copy (handoff section 10) ---------- */
+const ENTIDADES = { aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', ntilde: 'ñ', Aacute: 'Á', Eacute: 'É',
+  Iacute: 'Í', Oacute: 'Ó', Uacute: 'Ú', Ntilde: 'Ñ', iquest: '¿', iexcl: '¡', middot: '·', amp: '&', nbsp: ' ', quot: '"', rarr: '→' };
+const decodificar = (s) => s.replace(/\\u([0-9A-Fa-f]{4})/g, (m, h) => String.fromCharCode(parseInt(h, 16)))
+  .replace(/&([A-Za-z]+);/g, (m, n) => (ENTIDADES[n] !== undefined ? ENTIDADES[n] : m));
+/* UI strings of a JS file: string literals (comments removed) that read as copy,
+   i.e. contain a space or start with a capital; one-word lowercase literals are
+   internal tokens ('mision', 'dias' as a routine type). */
+function textosJs(src) {
+  const sin = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const r = [];
+  const re = /'((?:[^'\\\n]|\\.)*)'/g;
+  let m;
+  while ((m = re.exec(sin))) {
+    const t = decodificar(m[1]);
+    if (/\s/.test(t.trim()) || /^[A-ZÁÉÍÓÚÑ¿¡]/.test(t)) { r.push(t); }
+  }
+  return r;
+}
+/* Visible text and accessible attributes of index.html (no comments, scripts or styles). */
+function textosHtml(src) {
+  const sin = src.replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style)[\s\S]*?<\/\1>/g, '');
+  const r = [];
+  let m;
+  const attr = /(?:placeholder|aria-label|title|alt)="([^"]*)"/g;
+  while ((m = attr.exec(sin))) { r.push(decodificar(m[1])); }
+  for (const t of sin.replace(/<[^>]*>/g, '\n').split('\n')) { if (t.trim()) { r.push(decodificar(t.trim())); } }
+  return r;
+}
+/* Whole words only: class names and selectors (rail-mision) are not copy. Plural
+   "misiones" has no accent. */
+const palabra = (w, f) => new RegExp('(^|[^\\w-])(' + w + ')(?![\\w-])', f);
+const SIN_TILDE = [palabra('Busqueda', 'i'), palabra('mision', 'i'), palabra('aca'), palabra('Mas'), palabra('dias', 'i')];
+
+test('copy: UI strings carry the accents of handoff section 10 (Búsqueda, misión, acá, Más, días)', () => {
+  const malas = [];
+  for (const [f, textos] of [['kco-app.js', textosJs(app)], ['kco-core.js', textosJs(leer('kco-core.js'))], ['index.html', textosHtml(html)]]) {
+    for (const t of textos) { if (SIN_TILDE.some((re) => re.test(t))) { malas.push(f + ': ' + t.slice(0, 80)); } }
+  }
+  assert.deepEqual(malas, []);
+});
+
+test('copy: the checker sees escaped accents as accents and flags the plain words', () => {
+  assert.deepEqual(textosJs("var a = 'Misi\\u00F3n nueva'; var b = 'mision'; var c = 'Sin mision';"), ['Misión nueva', 'Sin mision']);
+  assert.ok(SIN_TILDE.some((re) => re.test('Sin mision')));
+  assert.ok(!SIN_TILDE.some((re) => re.test('Misión nueva')));
+  assert.deepEqual(textosHtml('<p>Cada cuantos d&iacute;as</p><input placeholder="Busqueda">'), ['Busqueda', 'Cada cuantos días']);
+});
 
 test('ui: kco-app.js has no emoji outside the plain-text share report', () => {
   const ui = sinFuncion(app, 'textoRelevo').split('\n');
