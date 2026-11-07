@@ -45,8 +45,8 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
 | T1 | Tokens and base: new tokens, `pal-todo` (+ `pal-gris` alias, contrast test), type scale floor 13, normalized spacing/radii, single segmented control, buttons, new icons, replace **all** UI emojis | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-1-tokens` | done (`719c1ec`; RDD medium, reviewed and acknowledged) |
 | T2 | Shell: top bar (context page indicator, XP ring), new tab bar (Listas, Progreso), capture with `#btnEnviar` + shortcut row | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-2-shell` | done (`739f2c6`; RDD medium, reviewed and acknowledged) |
 | T3 | Item card: priority by ring, swipe tray `.bandeja-swipe`, drag handle in Manual, first-run hints (`kibco.pistas`) | delegated | `feat/redesign-cabina-3-card` | done (`63072e2`, `22faf60`; RDD medium, reviewed and acknowledged) |
-| T4 | Views: Ahora (hero first + filter chips), Hoy (7-day strip), Listas (top-level tabs, purchase stages, notes grid), Misiones, Progreso | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-4-views` | done (`73f7c30`, `5e37c53`, `91b6253`) |
-| T5 | Sheets: progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets | delegated | `feat/redesign-cabina-5-sheets` | pending |
+| T4 | Views: Ahora (hero first + filter chips), Hoy (7-day strip), Listas (top-level tabs, purchase stages, notes grid), Misiones, Progreso | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-4-views` | done (`73f7c30`, `5e37c53`, `91b6253`; RDD medium, reviewed and acknowledged) |
+| T5 | Sheets: progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-5-sheets` | done (`c7f8026`, `eee6be9`, `b040c69`, `5e29915`, `549defa`) |
 | T6 | Desktop: sidebar with sub-rows, right rail (>= 1280) | delegated | `feat/redesign-cabina-6-desktop` | pending |
 | T7 | Tests (new suggested tests), SW 2.6.0, copy accents review, docs, `versiones/KCO v2.6.0` | delegated | `feat/redesign-cabina-7-release` | pending |
 
@@ -160,7 +160,56 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
   disabled) counter. The kebab spec now waits 450ms to measure the cards at rest (flaked once in a full run).
   Verify: `npm run check` ok; `npm test` 141/141; `npm run e2e` 237 passed, 0 failed (on `91b6253`).
 
+- 2026-11-07: T4 review: RDD assessed medium, consent granted, review approved and acknowledged. Reviewed
+  boundary is now `8544ed2`. Follow-ups for T7: R3-003 (E2E for the chip-menu outside-pointerdown close and the
+  read-only disabled options), R3-004 (replace the fixed sleeps in the kebab spec and the new specs with
+  measurable waits). R3-001, R3-002 and the Progreso restoration were fixed in T5.
+- 2026-11-07: T5 done on `feat/redesign-cabina-5-sheets` (delegated writer). Commits `c7f8026` (T4 review fixes
+  and Progreso restoration), `eee6be9` (sheet skeleton + Confirmar), `b040c69` (Ficha + single Agregar field),
+  `5e29915` (toast, XP flight, level sheet), `549defa` (Ajustes, search, remaining sheets, CHANGELOG).
+  Review fixes: Progreso shows Actividad por contexto (`#secPorCtx`, 4px bars in each section color) and Lo que
+  terminaste (`#secTerminadas`) after Logros, before the Bitacora; the light-theme hero keeps `--sh-2`.
+  R3-001 (hero without Manana for routine occurrences) and R3-002 (Compras chips scroll at 360px in Todo) specs
+  already passed at T4 head: they are regression guards; the chips row gets `scroll-x` back for parity.
+  Sheets: handle 40x5, 48px header, 44px X. Confirmar: header-less `role=alertdialog` (`data-sin-cab`),
+  `.conf-ico` 56px danger-soft, titles '¿Borrar ...?', Cancelar outline left, filled action right (accent
+  for non-destructive confirmations); `pedirConfirmacion(titulo, detalle, accion, o)` with `si/ico/peligro/
+  deshacer/conDestino`. Section delete: `#cajaApMover` ('Mover sus datos a') lives in the confirmation and
+  Si, borrar stays disabled until a target is picked.
+  Ficha: rows `#fichaProps .prop[data-prop]` (nivel, ctx, rec, estado, rutina, mision, pedido, tag, anclado,
+  pausa) with panels `.prop-panel` (one open at a time, in-memory `fichaPanel`); sections
+  `.ficha-sec[data-sec=pasos|comentarios]`; chips `.ficha-agregar [data-agregar]` (revealed state in memory,
+  `fichaAbiertos`, reset per open); Anclar, En espera and Rutina chips act directly; quick actions follow
+  `accionesRapidas`; `#btnFichaMas` opens `#tapaMasItem` (groups, Borrar last in red; actions use relevo).
+  Decision: empty sections and folded rows use the `hidden` attribute (out of layout and the accessibility
+  tree) instead of being detached, because the sheet controls are addressed by id all over kco-app.js.
+  Single Agregar field `.campo-agregar` (48px, + left, Enter saves); its send button shows only with text
+  (`:placeholder-shown`), kept for touch keyboards without Enter.
+  Toast: `mostrarToast` (icon `#deshacerIco`, one action, `Deshacer`, `#deshacerCuenta` 3px 9s). XP:
+  `.xp-vuelo` flies to `#btnNivel` (600ms, ring `.pulso`; reduced motion or no ring: fade in place). Level and
+  achievements queue in `colaNivel` and show in `#tapaNivel .hoja-nivel` when the toast ends (or once the
+  open sheets close); several events, one sheet; undo drops the queued celebration (level and achievement stay
+  won and in the journal). `feedbackProgreso` now returns '' (toast text stays short).
+  Ajustes: `.backup-card` (`aviso-backup` past the threshold, `#vBackupTit`), groups `.grupo` with
+  `.fila-ajuste` 52px rows; sub-sheets `#tapaApartados` (grip `.asa-orden` drag + arrows), `#tapaAvisos`,
+  `#tapaSolic`, `#tapaDest`, `#tapaAcerca`; `#btnLuz` is `role=switch`. Catalog inputs paste multi-line
+  lists as '; '-separated values (no feature lost). Search: full screen under 760px, `#txtBusca` focused,
+  `.busca-grupo` headers and `.busca-res` rows (still `li.item` for the chunked list). First run: 2-column
+  grid with an icon per template.
+  Deviations: deleting a section keeps 'No se puede deshacer' (there is no undo for it; the mockup's 9 s line
+  would be false). Editors (apartado, rutina, mision, nota, compartir) take the common skeleton and the single
+  Agregar field, destructive actions stay last and filled danger; hiding their optional fields behind
+  'Agregar' is deferred to T7 (follow-up). Sheet classes must not carry state: `abrirHoja` rewrites
+  `className`, so sheet-specific CSS targets ids (`#tapaBuscar`, `#tapaNivel`).
+  Test-first: 4 review specs (2 observed RED: Progreso order, hero shadow; 2 regression guards) and 11 T5 specs
+  observed RED before implementation, then GREEN. E2E changed only where T5 changes behavior (handoff 8): toast
+  text (XP/level/achievement out of `#qpaso`), Ficha rows instead of `#gridNivel`/`#gridCtx` on screen,
+  Rutina row before `#cajaOcurrencia`, the section-delete target inside Confirmar, the dialog-roles spec
+  (Confirmar and the level sheet have no header), the Ajustes structure (groups and sub-sheets) and the
+  section icon selector (a grip comes first now).
+  Verify (on `549defa`): `npm run check` ok; `npm test` 141/141; `npm run e2e` 252 passed, 0 failed.
+
 ## Next step
 
-T5 sheets (progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets) on
-`feat/redesign-cabina-5-sheets`, stacked on `feat/redesign-cabina-4-views`. Parent: RDD assess T4 with base `c0ffd20`.
+T6 desktop (sidebar sub-rows, right rail >= 1280) on `feat/redesign-cabina-6-desktop`, stacked on
+`feat/redesign-cabina-5-sheets`. Parent: RDD assess T5 with base `8544ed2`.
