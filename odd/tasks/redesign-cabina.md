@@ -46,8 +46,8 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
 | T2 | Shell: top bar (context page indicator, XP ring), new tab bar (Listas, Progreso), capture with `#btnEnviar` + shortcut row | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-2-shell` | done (`739f2c6`; RDD medium, reviewed and acknowledged) |
 | T3 | Item card: priority by ring, swipe tray `.bandeja-swipe`, drag handle in Manual, first-run hints (`kibco.pistas`) | delegated | `feat/redesign-cabina-3-card` | done (`63072e2`, `22faf60`; RDD medium, reviewed and acknowledged) |
 | T4 | Views: Ahora (hero first + filter chips), Hoy (7-day strip), Listas (top-level tabs, purchase stages, notes grid), Misiones, Progreso | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-4-views` | done (`73f7c30`, `5e37c53`, `91b6253`; RDD medium, reviewed and acknowledged) |
-| T5 | Sheets: progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-5-sheets` | done (`c7f8026`, `eee6be9`, `b040c69`, `5e29915`, `549defa`) |
-| T6 | Desktop: sidebar with sub-rows, right rail (>= 1280) | delegated | `feat/redesign-cabina-6-desktop` | pending |
+| T5 | Sheets: progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-5-sheets` | done (`c7f8026`, `eee6be9`, `b040c69`, `5e29915`, `549defa`; RDD medium, reviewed and acknowledged) |
+| T6 | Desktop: sidebar with sub-rows, right rail (>= 1280) | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-6-desktop` | done (`5e89829`, `754d932`) |
 | T7 | Tests (new suggested tests), SW 2.6.0, copy accents review, docs, `versiones/KCO v2.6.0` | delegated | `feat/redesign-cabina-7-release` | pending |
 
 ## Acceptance criteria
@@ -209,7 +209,44 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
   section icon selector (a grip comes first now).
   Verify (on `549defa`): `npm run check` ok; `npm test` 141/141; `npm run e2e` 252 passed, 0 failed.
 
+- 2026-11-07: T5 review: RDD assessed medium, consent granted, review approved and acknowledged (the first
+  capture attempt failed on a provider rate limit; retried on the reoffered slot). Reviewed boundary is now
+  `92d98f9`. Follow-ups for T7: R3-002 (E2E for the Ajustes section drag by grip: a drop saves the order,
+  pointercancel leaves it), R3-003 (E2E pasting a multi-line catalog list splits it into values), R3-004 (E2E
+  for the Más sub-sheet actions Mover a Compras, Volver a tarea, Hacer recurrente, Compartir), R3-005 (level
+  sheet spec: replace the fixed 9.3s sleep with a poll). R3-001 fixed in T6.
+- 2026-11-07: T6 done on `feat/redesign-cabina-6-desktop` (delegated writer). Commits `5e89829` (R3-001) and
+  `754d932` (desktop).
+  R3-001: `pintarHojaItem` sets Borrar's read-only visibility before counting the Más groups (spec observed RED
+  on the T5 head, then GREEN).
+  Sidebar (>= 1024): rows 44px (`--tap`), "Apartados" label, Listas row followed by sub-rows
+  `#navLateral .lat-sub[data-lista=tablero|compras|notas]` (Tareas/Compras/Notas with counts; Compras and Notas
+  hidden when the apartado does not use them). Sub-rows use `data-lista`, not `data-vista`, so the five view
+  selectors stay unique; inside Listas the sub-row carries `aria-current=page` and Listas `aria-current=true`.
+  Progreso shows `#navNivel` "NV n" in brasa. `#btnLatNuevoAp` opens the section editor (disabled read-only).
+  Central column: title 24/700, `.buscar-barra` with `#txtBuscaBarra` and a `/` kbd hint (replaces `#btnBuscar`
+  on desktop); typing or Enter moves the text to `#tapaBuscar` and focus to `#txtBusca` (results live in the
+  sheet; the header field is left clean). Shortcut `/` focuses that field on desktop (phone/tablet: capture,
+  unchanged); `n` always the capture. Capture 56px, radius 12, `--sh-2`, send button inside at the right.
+  Hero in one row (grid: text left, buttons right). Keyboard focus on cards: accent border + 3px halo.
+  Rail (>= 1280): `<aside id="rail">`, 320px (`--rail-w`), painted by `pintarRail` only while
+  `matchMedia('(min-width: 1280px)')` matches (listener repaints when crossing). Level card `.rail-nivel` (opens
+  Progreso), Pulso 2x2 `.rail-tile[data-rail-tile]` sharing `filtroAhora` (from another view a tile goes to
+  Ahora with that filter; on Ahora the active tile goes back to Todo; 0 = disabled), Misiones activas
+  `.rail-mision` (up to 4, opens the mission). Decision: at >= 1280 the Ahora chips row is hidden by CSS (the
+  rail replaces it, as in the mockup); it stays in the DOM, so `data-tile` keeps one owner and the chips come
+  back below 1280 with the same state. XP flight: `destinoXP()` = visible ring, else the sidebar NV badge
+  (class `latido`); reduced motion or no target: fade in place.
+  Tablet 760-1023: verified unchanged (720 column, sheets <= 640), regression spec added.
+  Test-first: 8 new E2E specs (R3-001, sidebar, rail, rail filters, search, XP flight, central column, tablet)
+  observed RED, then GREEN (the tablet spec failed only on the missing `#rail`).
+  E2E changed only where T6 changes desktop behavior: `/` focuses the search field (capture-bar spec), the
+  1366 column centers between sidebar and rail (shell spec), desktop card focus is a 3px halo instead of an
+  outline (keyboard spec). Clock fix: the level-sheet spec expects the early-bird achievement too when it runs
+  between 04:00 and 07:00 (it failed on the T5 head at 05:27 as well).
+  Verify (on `754d932`): `npm run check` ok; `npm test` 141/141; `npm run e2e` 260 passed, 0 failed.
+
 ## Next step
 
-T6 desktop (sidebar sub-rows, right rail >= 1280) on `feat/redesign-cabina-6-desktop`, stacked on
-`feat/redesign-cabina-5-sheets`. Parent: RDD assess T5 with base `8544ed2`.
+T7 release (tests, SW 2.6.0, copy, docs, `versiones/KCO v2.6.0`) on `feat/redesign-cabina-7-release`, stacked
+on `feat/redesign-cabina-6-desktop`. Parent: RDD assess T6 with base `92d98f9`.
