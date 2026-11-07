@@ -167,9 +167,25 @@
   <button class="tab" id="tabRegistro" data-tab="progreso" type="button" role="tab" aria-selected="false"><span class="tab-ico" data-ico="trending-up"></span><span class="tab-rot">Progreso</span></button>
 </nav>
 
+<!-- Toast: icono + una sola accion (con elipsis) + Deshacer, y la cuenta
+     regresiva de 9 s en una barra de 3px. -->
 <div class="deshacer" id="barraDeshacer" role="status" aria-live="polite">
+  <span class="deshacer-ico" id="deshacerIco" aria-hidden="true"></span>
   <div class="qpaso" id="qpaso"></div>
-  <button type="button" id="btnDeshacer">DESHACER</button>
+  <button type="button" id="btnDeshacer">Deshacer</button>
+  <div class="deshacer-cuenta" id="deshacerCuenta" aria-hidden="true"></div>
+</div>
+
+<!-- Nivel nuevo / logros: hoja breve centrada, encolada despues del toast;
+     varios eventos juntos van en una sola hoja. kco-app.js mostrarNivel. -->
+<div class="tapa tapa-nivel" id="tapaNivel" data-sin-cab="1">
+  <div class="hoja hoja-nivel">
+    <div class="nivel-aro" id="nivelAro" aria-hidden="true">1</div>
+    <div class="nivel-sube" id="nivelSube">Subiste de nivel</div>
+    <h2 id="nivelTitulo">Nivel</h2>
+    <div class="nivel-logros" id="nivelLogros"></div>
+    <button class="bloque brasa" id="btnSeguirNivel" type="button">Seguir</button>
+  </div>
 </div>
 
 <div class="tapa" id="tapaCtx" role="dialog" aria-modal="true" aria-labelledby="ctxTitulo">

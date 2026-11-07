@@ -1177,7 +1177,43 @@ li.item.prevista{border-style:dotted;background:transparent;opacity:.8}
 .ctxbar-pista i{display:block;height:100%;border-radius:var(--r-pill)}
 .ctxbar-n{flex:0 0 auto;min-width:72px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
 #secTerminadas .mision{margin-bottom:var(--s-2)}
-.deshacer.celebra{border-color:var(--accent);background:linear-gradient(90deg,var(--accent-soft),var(--surface-2))}
+/* Toast (Cabina): --surface-3, radio 12, --sh-2, 52px; icono, una accion con
+   elipsis y Deshacer en el acento; abajo la cuenta regresiva de 3px. */
+.deshacer{height:52px;padding:0 var(--s-1) 0 var(--s-4);border:0;background:var(--surface-3);overflow:hidden;gap:var(--s-3)}
+.deshacer-ico{flex:0 0 auto;display:inline-flex;color:var(--success)}
+.deshacer-ico .ico{width:20px;height:20px;margin:0}
+.deshacer .qpaso{font-size:var(--fs-15)}
+.deshacer button{border:0;background:none;color:var(--accent);padding:0 var(--s-3);font-size:var(--fs-15);font-weight:650}
+.deshacer-cuenta{position:absolute;left:0;right:0;bottom:0;height:3px}
+.deshacer-cuenta i{display:block;height:100%;background:var(--accent);transform-origin:0 50%;animation:kcoCuenta 9s linear both}
+@keyframes kcoCuenta{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+/* XP: pastilla en brasa que vuela al anillo; el anillo hace un pulso. */
+.xp-vuelo{position:fixed;z-index:var(--z-toast);margin-left:-32px;padding:var(--s-1) var(--s-3);border-radius:var(--r-pill);background:var(--brasa-soft);color:var(--brasa);font-size:var(--fs-13);font-weight:700;font-variant-numeric:tabular-nums;pointer-events:none;white-space:nowrap;
+  transition:transform var(--dur-fest) var(--ease),opacity var(--dur-fest) ease}
+.xp-vuelo.quieto{animation:kcoXPFundido var(--dur-fest) ease both}
+@keyframes kcoXPFundido{0%{opacity:0}30%{opacity:1}100%{opacity:0}}
+.anillo-xp.pulso .anillo-xp-aro{animation:kcoPulso var(--dur-fest) var(--ease)}
+@keyframes kcoPulso{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+/* Hoja de nivel / logro: breve y centrada, radio 20 y borde brasa al 40 %. */
+.tapa.tapa-nivel{align-items:center;justify-content:center;padding:var(--s-4)}
+.hoja.hoja-nivel{max-width:360px;border:1px solid var(--brasa);border-color:color-mix(in srgb,var(--brasa) 40%,transparent);border-radius:var(--r-sheet);
+  padding:var(--s-6) var(--s-5) var(--s-5);text-align:center;opacity:0;transform:scale(.96);transition:transform var(--dur-3) var(--ease),opacity var(--dur-3) ease}
+.tapa.on .hoja.hoja-nivel{opacity:1;transform:none}
+.nivel-aro{position:relative;display:flex;align-items:center;justify-content:center;width:88px;height:88px;margin:0 auto var(--s-4);border-radius:50%;
+  color:var(--brasa);font-size:var(--fs-32);font-weight:750;font-variant-numeric:tabular-nums}
+.nivel-aro::before{content:'';position:absolute;top:6px;right:6px;bottom:6px;left:6px;border-radius:50%;background:var(--surface)}
+.nivel-aro{z-index:0}
+.nivel-aro::before{z-index:-1}
+.nivel-sube{color:var(--brasa);font-size:var(--fs-13);font-weight:600}
+.hoja-nivel h2{margin:var(--s-1) 0 var(--s-4) 0;font-size:var(--fs-24);font-weight:750}
+.nivel-logros{display:flex;flex-direction:column;gap:var(--s-2);text-align:left}
+.nivel-logros[hidden]{display:none}
+.nivel-logro{display:flex;align-items:center;gap:var(--s-3);padding:var(--s-3);border:1px solid var(--gold-border);border-radius:var(--r-card);background:var(--gold-faint)}
+.nivel-logro-ico{flex:0 0 auto;width:24px;height:24px;margin:0;color:var(--gold)}
+.nivel-logro-tx{display:flex;flex-direction:column;min-width:0}
+.nivel-logro-tx b{font-size:var(--fs-15)}
+.nivel-logro-tx small{color:var(--muted);font-size:var(--fs-13)}
+.bloque.brasa{margin-top:var(--s-5);background:var(--brasa);border-color:var(--brasa);color:var(--accent-contrast);font-weight:650}
 /* Foco de teclado visible en el color del contexto (el toque no lo muestra). */
 button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,#txtCaptura:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .tab:focus-visible,.ctxfila:focus-visible,.lat-item:focus-visible{outline-offset:-3px}

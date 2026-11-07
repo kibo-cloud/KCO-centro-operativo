@@ -2070,7 +2070,8 @@ export const tests = [
       await page.eval(`(function(){var l=JSON.parse(localStorage.getItem('kibco.items'));l[0].creado=new Date(Date.now()-3600000).toISOString();l[0].nivel='importante';localStorage.setItem('kibco.items',JSON.stringify(l));})()`);
       await page.reload();
       await page.click('.hero [data-hero="hecho"]');
-      assert.match(await page.text('#qpaso'), /\+25 XP/);
+      assert.equal(await page.text('.xp-vuelo'), '+25 XP', 'the XP flies to the ring');
+      assert.ok(!/XP/.test(await page.text('#qpaso')), 'the toast keeps one action');
       assert.equal(await page.count('#ahoraCuerpo #tarjetaNivel'), 0, 'the level card left Ahora');
       await page.click('#btnNivel');
       assert.match(await page.text('#tarjetaNivel'), /25 \/ 100 XP/);
@@ -2090,7 +2091,7 @@ export const tests = [
     })(),
     async fn(page) {
       await page.click('.hero [data-hero="hecho"]');
-      assert.match(await page.text('#qpaso'), /Nivel 2!/);
+      assert.ok(!/Nivel/.test(await page.text('#qpaso')), 'the toast stays short; the level sheet follows it');
       assert.equal(JSON.parse(await page.storage('kibco.progreso')).nivelVisto, 2);
       assert.ok((await events(page)).some((e) => e.tipo === 'nivel' && e.hasta === '2'));
     }
@@ -2117,7 +2118,7 @@ export const tests = [
       await page.eval(`(function(){var l=JSON.parse(localStorage.getItem('kibco.items'));l[0].creado=new Date(Date.now()-3600000).toISOString();localStorage.setItem('kibco.items',JSON.stringify(l));})()`);
       await page.reload();
       await page.click('.hero [data-hero="hecho"]');
-      assert.match(await page.text('#qpaso'), /Primer paso/);
+      assert.equal(await page.text('#qpaso'), 'Completado: algo', 'the achievement waits for the level sheet');
       const prog = JSON.parse(await page.storage('kibco.progreso'));
       assert.ok(prog.logros.primer_paso);
       assert.ok((await events(page)).some((e) => e.tipo === 'logro' && e.hasta === 'Primer paso'));
@@ -5536,6 +5537,79 @@ export const tests = [
       const q = await page.eval("Array.prototype.filter.call(document.querySelectorAll('#tapaItem .rapidas .rbtn'),function(b){return b.offsetParent!==null;}).map(function(b){return b.id;})");
       assert.deepEqual(q, ['btnHecho']);
       assert.ok(await page.eval("Array.prototype.some.call(document.querySelectorAll('#tapaItem .ficha-props .prop:not([hidden])'),function(p){return p.getAttribute('data-prop')==='rutina';})"), 'Rutina row');
+    }
+  },
+  {
+    name: 'toast: role status, one action with ellipsis, Deshacer in the accent and a 3px countdown bar',
+    storage: seed(),
+    async fn(page) {
+      await page.click('.hero [data-hero="hecho"]');
+      await sleep(250);
+      const r = await page.eval(`(function(){var d=document.getElementById('barraDeshacer'),q=document.getElementById('qpaso'),b=document.getElementById('btnDeshacer'),c=d.querySelector('.deshacer-cuenta'),
+        st=getComputedStyle(d),y=document.createElement('i');y.style.color='var(--accent)';y.style.background='var(--surface-3)';document.body.appendChild(y);var ac=getComputedStyle(y).color,s3=getComputedStyle(y).backgroundColor;y.remove();
+        return {role:d.getAttribute('role'),h:Math.round(d.getBoundingClientRect().height),rad:st.borderTopLeftRadius,bg:st.backgroundColor,s3:s3,ico:!!d.querySelector('.deshacer-ico svg'),
+          txt:q.textContent,ell:getComputedStyle(q).textOverflow,b:b.textContent,bc:getComputedStyle(b).color,ac:ac,
+          ch:c?Math.round(c.getBoundingClientRect().height):0,anim:c?getComputedStyle(c.firstElementChild||c).animationDuration:''};})()`);
+      assert.equal(r.role, 'status');
+      assert.equal(r.h, 52);
+      assert.equal(r.rad, '12px');
+      assert.equal(r.bg, r.s3, '--surface-3');
+      assert.ok(r.ico, 'an icon');
+      assert.match(r.txt, /^Completado: /);
+      assert.ok(!/XP|Nivel|Logro/.test(r.txt), 'one action only: ' + r.txt);
+      assert.equal(r.ell, 'ellipsis');
+      assert.equal(r.b, 'Deshacer');
+      assert.equal(r.bc, r.ac, 'Deshacer in the accent');
+      assert.equal(r.ch, 3, '3px countdown');
+      assert.equal(r.anim, '9s');
+    }
+  },
+  {
+    name: 'xp: a "+N XP" brasa pill flies to the ring and the ring pulses',
+    async fn(page) {
+      await capture(page, 'tarea de valor');
+      await page.eval(`(function(){var l=JSON.parse(localStorage.getItem('kibco.items'));l[0].creado=new Date(Date.now()-3600000).toISOString();localStorage.setItem('kibco.items',JSON.stringify(l));})()`);
+      await page.reload();
+      await page.click('.hero [data-hero="hecho"]');
+      await sleep(30);
+      const r = await page.eval(`(function(){var p=document.querySelector('.xp-vuelo'),y=document.createElement('i');y.style.color='var(--brasa)';document.body.appendChild(y);var br=getComputedStyle(y).color;y.remove();
+        return {p:p?p.textContent:'',c:p?getComputedStyle(p).color:'',br:br,pulso:document.getElementById('btnNivel').className.indexOf('pulso')>-1};})()`);
+      assert.match(r.p, /^\+[0-9]+ XP$/);
+      assert.equal(r.c, r.br, 'brasa pill');
+      assert.ok(r.pulso, 'the ring pulses');
+      await sleep(800);
+      assert.equal(await page.count('.xp-vuelo'), 0, 'the pill is gone after its 600ms flight');
+    }
+  },
+  {
+    name: 'level sheet: a level-up and an achievement come after the toast in one .hoja-nivel sheet',
+    storage: (() => {
+      const list = [];
+      for (let i = 0; i < 4; i++) list.push({ id: 'x' + i, texto: 'imp ' + i, contexto: 'trabajo', tipo: 'tarea', estado: 'completado', nivel: 'importante',
+        creado: new Date(Date.now() - 86400000 * 2).toISOString(), estadoDesde: new Date(Date.now() - 86400000).toISOString() });
+      list.push({ id: 'y', texto: 'la que sube', contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente', nivel: 'normal', creado: new Date(Date.now() - 86400000).toISOString() });
+      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list), 'kibco.progreso': JSON.stringify({ nivelVisto: 1, logros: {} }) };
+    })(),
+    async fn(page) {
+      await page.click('.hero [data-hero="hecho"]');
+      await sleep(200);
+      assert.match(await page.text('#qpaso'), /^Completado: la que sube$/, 'the toast stays short');
+      assert.equal(await isOpen(page, 'tapaNivel'), false, 'queued after the toast');
+      await sleep(9300);
+      assert.ok(await isOpen(page, 'tapaNivel'), 'the level sheet follows the toast');
+      const r = await page.eval(`(function(){var h=document.querySelector('#tapaNivel .hoja');return {cls:h.className,n:h.querySelector('.nivel-aro').textContent,
+        txt:h.textContent,logros:h.querySelectorAll('.nivel-logro').length,aro:Math.round(h.querySelector('.nivel-aro').getBoundingClientRect().width),rad:getComputedStyle(h).borderTopLeftRadius,seguir:document.getElementById('btnSeguirNivel').textContent};})()`);
+      assert.match(r.cls, /hoja-nivel/);
+      assert.equal(r.n, '2');
+      assert.equal(r.aro, 88);
+      assert.equal(r.rad, '20px');
+      assert.match(r.txt, /Subiste de nivel/);
+      assert.equal(r.logros, 1, 'the achievement rides in the same sheet');
+      assert.match(r.txt, /Logro: Primer paso/);
+      assert.equal(r.seguir, 'Seguir');
+      await page.click('#btnSeguirNivel');
+      await sleep(300);
+      assert.equal(await isOpen(page, 'tapaNivel'), false);
     }
   }
 ];

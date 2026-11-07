@@ -3708,6 +3708,9 @@
       seriesCapas.pop();
       n++;
     }
+    if (n > 0 && pilaCapas.length === 0 && colaNivel.length > 0 && !revertir && typeof window.setTimeout === 'function') {
+      window.setTimeout(function () { if (colaNivel.length > 0 && pilaCapas.length === 0 && !revertir) { mostrarNivel(); } }, 400);
+    }
     return n;
   }
 
@@ -4795,16 +4798,29 @@
     m.style.paddingBottom = activo ? '152px' : '';
   }
 
-  function ofrecerDeshacer(texto, fn) {
-    revertir = fn;
-    $('btnDeshacer').style.display = '';
+  /* El toast: icono, una sola accion y Deshacer; la barra de 3px cuenta los
+     9 s (se rearma con cada toast). */
+  function mostrarToast(texto, ico, ms) {
+    var ic = $('deshacerIco'), cu = $('deshacerCuenta');
+    vaciar(ic);
+    ic.appendChild(svgIco(ico || 'check-circle'));
+    vaciar(cu);
+    var barra = document.createElement('i');
+    barra.style.animationDuration = (ms / 1000) + 's';
+    cu.appendChild(barra);
     huecoDeshacer(true);
     $('qpaso').textContent = texto;
     $('barraDeshacer').className = 'deshacer on';
     if (relojDeshacer) { window.clearTimeout(relojDeshacer); }
     if (typeof window.setTimeout === 'function') {
-      relojDeshacer = window.setTimeout(ocultarDeshacer, SEG_DESHACER);
+      relojDeshacer = window.setTimeout(ocultarDeshacer, ms);
     }
+  }
+
+  function ofrecerDeshacer(texto, fn, ico) {
+    revertir = fn;
+    $('btnDeshacer').style.display = '';
+    mostrarToast(texto, ico || (/^Borrad|sacado|borrada/.test(texto) ? 'trash' : 'check-circle'), SEG_DESHACER);
   }
 
   function ocultarDeshacer() {
@@ -4813,12 +4829,78 @@
     if (relojDeshacer) { window.clearTimeout(relojDeshacer); relojDeshacer = null; }
     var b = $('barraDeshacer');
     if (b) { b.className = 'deshacer'; }
+    /* El festejo espera al toast: recien cuando se va (y sin hojas abiertas). */
+    if (colaNivel.length > 0 && pilaCapas.length === 0) { mostrarNivel(); }
   }
 
+  /* Deshacer tambien descarta el festejo pendiente: el nivel y el logro quedan
+     ganados (y en el diario), pero no se festeja algo que se acaba de deshacer. */
   function hacerDeshacer() {
     var fn = revertir;
+    colaNivel = [];
     ocultarDeshacer();
     if (fn) { fn(); }
+  }
+
+  /* ---------- festejo: XP al anillo y hoja de nivel ---------- */
+  var colaNivel = [];
+
+  /* Una pastilla "+N XP" en brasa vuela al anillo de la barra (600 ms) y el
+     anillo hace un pulso. Sin anillo a la vista (escritorio) o con movimiento
+     reducido no vuela: aparece y se desvanece donde esta. */
+  function volarXP(n) {
+    if (!document.body || typeof window.setTimeout !== 'function') { return; }
+    var p = nodo('span', 'xp-vuelo', '+' + n + ' XP'), anillo = $('btnNivel'), t = $('barraDeshacer');
+    p.setAttribute('aria-hidden', 'true');
+    var y0 = window.innerHeight - 180, x0 = window.innerWidth / 2;
+    if (t && t.getBoundingClientRect) { var tb = t.getBoundingClientRect(); if (tb.height > 0) { y0 = tb.top - 24; } }
+    p.style.left = x0 + 'px';
+    p.style.top = y0 + 'px';
+    document.body.appendChild(p);
+    var ab = anillo && anillo.offsetParent !== null ? anillo.getBoundingClientRect() : null;
+    if (ab && !movimientoReducido()) {
+      var dx = ab.left + ab.width / 2 - x0, dy = ab.top + ab.height / 2 - y0;
+      p.getBoundingClientRect();
+      p.style.transform = 'translate3d(' + Math.round(dx) + 'px,' + Math.round(dy) + 'px,0) scale(.6)';
+      p.style.opacity = '0';
+    } else {
+      p.className = 'xp-vuelo quieto';
+    }
+    if (anillo) {
+      anillo.className = anillo.className.replace(/ ?pulso/g, '') + ' pulso';
+      window.setTimeout(function () { anillo.className = anillo.className.replace(/ ?pulso/g, ''); }, 650);
+    }
+    window.setTimeout(function () { if (p.parentNode) { p.parentNode.removeChild(p); } }, 650);
+  }
+
+  /* La hoja de nivel junta todo lo que quedo en cola: el nivel mas alto
+     alcanzado y cada logro, con un solo "Seguir". */
+  function mostrarNivel() {
+    var ev = colaNivel, i, nivel = null, logros = [];
+    colaNivel = [];
+    for (i = 0; i < ev.length; i++) {
+      if (ev[i].tipo === 'nivel' && (!nivel || ev[i].nivel > nivel.nivel)) { nivel = ev[i]; }
+      if (ev[i].tipo === 'logro') { logros.push(ev[i].logro); }
+    }
+    if (!nivel && logros.length === 0) { return; }
+    var nv = K.nivelPorXP(xpTotal()), aro = $('nivelAro');
+    aro.textContent = '' + (nivel ? nivel.nivel : nv.nivel);
+    aro.style.background = 'conic-gradient(var(--brasa) ' + (nivel ? 100 : nv.pct) + '%, var(--surface-3) 0)';
+    $('nivelSube').textContent = nivel ? 'Subiste de nivel' : (logros.length > 1 ? 'Logros desbloqueados' : 'Logro desbloqueado');
+    $('nivelTitulo').textContent = nivel ? nivel.titulo : logros[0].nom;
+    var cont = $('nivelLogros');
+    vaciar(cont);
+    for (i = 0; i < logros.length; i++) {
+      var f = nodo('div', 'nivel-logro');
+      f.appendChild(svgIco(logros[i].icono || 'trophy', 'nivel-logro-ico'));
+      var tx = nodo('div', 'nivel-logro-tx');
+      tx.appendChild(nodo('b', '', 'Logro: ' + logros[i].nom));
+      tx.appendChild(nodo('small', '', logros[i].desc));
+      f.appendChild(tx);
+      cont.appendChild(f);
+    }
+    cont.hidden = logros.length === 0;
+    abrirHoja('tapaNivel');
   }
 
   function fotoDe(it) {
@@ -6861,6 +6943,7 @@
   };
 
   $('btnDeshacer').onclick = function () { hacerDeshacer(); };
+  $('btnSeguirNivel').onclick = function () { cerrarHoja('tapaNivel'); };
 
   $('txtBuscaNotas').oninput = function () { buscaNotas = this.value; pintarNotas(); };
   $('btnNotasArchivo').onclick = function () { verArchivadas = !verArchivadas; pintarNotas(); };
@@ -7028,17 +7111,18 @@
      subio de nivel, lo deja en el diario. El nivel celebrado nunca baja: si se
      reabre algo y se pierde XP, no se vuelve a festejar el mismo nivel. */
   function feedbackProgreso(xpAntes) {
-    var ahora = xpTotal(), d = ahora - xpAntes, txt = '';
-    if (d > 0) { txt = ' \u00B7 +' + d + ' XP'; }
+    var ahora = xpTotal(), d = ahora - xpAntes;
+    if (d > 0) { volarXP(d); }
     var nv = K.nivelPorXP(ahora);
     if (nv.nivel > memProgreso.nivelVisto && !soloLectura) {
       memProgreso.nivelVisto = nv.nivel;
       guardarProgreso();
       anotarEventos([{ id: nuevoId('e'), ts: new Date().toISOString(), tipo: 'nivel', itemId: '',
         texto: nv.titulo, contexto: ctxCaptura, desde: '', hasta: '' + nv.nivel }]);
-      txt = txt + ' \u00B7 Nivel ' + nv.nivel + '!';
+      colaNivel.push({ tipo: 'nivel', nivel: nv.nivel, titulo: nv.titulo });
     }
-    return txt + revisarLogros();
+    revisarLogros();
+    return '';
   }
 
   /* Tarjeta de nivel (brasa), primera de Progreso: nivel y racha, titulo del
@@ -7096,9 +7180,9 @@
       for (i = 0; i < nuevos.length; i++) {
         evs.push({ id: nuevoId('e'), ts: ahora, tipo: 'logro', itemId: '', texto: nuevos[i].desc,
           contexto: ctxCaptura, desde: nuevos[i].id, hasta: nuevos[i].nom });
-        txt = txt + ' \u00B7 Logro: ' + nuevos[i].nom;
       }
       if (!anotarEventos(evs)) { return ''; }
+      for (i = 0; i < nuevos.length; i++) { colaNivel.push({ tipo: 'logro', logro: nuevos[i] }); }
     }
     for (i = 0; i < nuevos.length; i++) { memProgreso.logros[nuevos[i].id] = ahora; }
     guardarProgreso();
@@ -7765,13 +7849,9 @@
 
   /* Aviso breve de logro: reusa la barra de deshacer sin accion. */
   function celebrar(texto) {
-    $('qpaso').textContent = texto;
     $('btnDeshacer').style.display = 'none';
     revertir = null;
-    huecoDeshacer(true);
-    $('barraDeshacer').className = 'deshacer on celebra';
-    if (relojDeshacer) { window.clearTimeout(relojDeshacer); }
-    relojDeshacer = window.setTimeout(ocultarDeshacer, 4000);
+    mostrarToast(texto, 'flag', 4000);
   }
 
   /* ---------- rutinas ----------
