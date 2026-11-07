@@ -1060,7 +1060,7 @@
   function pintarAnilloXP() {
     var b = $('btnNivel'), nv;
     if (!b) { return; }
-    nv = K.nivelPorXP(xpTotal());
+    nv = K.nivelPorXP(xpDelPase().total);
     $('anilloNivel').textContent = '' + nv.nivel;
     b.setAttribute('aria-label', 'Nivel ' + nv.nivel + ' \u00B7 ' + nv.titulo + ', ' + nv.pct + ' %. Abrir Progreso');
     if (b.style && typeof b.style.setProperty === 'function') { b.style.setProperty('--pct', '' + nv.pct); }
@@ -3566,7 +3566,7 @@
       b.className = on ? 'lat-item on' : 'lat-item';
       /* Dentro de Listas la pagina actual es la subfila; Listas es su seccion. */
       if (on) { b.setAttribute('aria-current', v === 'tablero' ? 'true' : 'page'); } else { b.removeAttribute('aria-current'); }
-      if (v === 'registro') { cn.textContent = 'NV ' + K.nivelPorXP(xpTotal()).nivel; continue; }
+      if (v === 'registro') { cn.textContent = 'NV ' + K.nivelPorXP(xpDelPase().total).nivel; continue; }
       cn.textContent = v !== 'tablero' && n[v] > 0 ? '' + n[v] : '';
     }
   }
@@ -3626,6 +3626,11 @@
   }
 
   function pintar() {
+    xpPase = K.calcularXP(items, proyectos);
+    try { pintarPase(); } finally { xpPase = null; }
+  }
+
+  function pintarPase() {
     var v, conCompras = usaCompras(contexto), conNotas = K.usaNotas(contexto);
     /* Un repintado a mitad de un arrastre (reloj, otra pestana) lo cancela:
        las filas que se movian ya no existen. */
@@ -6992,7 +6997,15 @@
     abrirHoja('tapaBuscar');
     enfocar($('txtBusca'));
   }
-  $('txtBuscaBarra').oninput = function () { if ($('txtBuscaBarra').value !== '') { buscarDesdeBarra(); } };
+  /* Con un IME (acentos compuestos, teclados asiaticos) el texto no se mueve a
+     mitad de la composicion: se pasa al terminarla (compositionend). */
+  $('txtBuscaBarra').oninput = function (ev) {
+    if (ev && ev.isComposing) { return; }
+    if ($('txtBuscaBarra').value !== '') { buscarDesdeBarra(); }
+  };
+  $('txtBuscaBarra').addEventListener('compositionend', function () {
+    if ($('txtBuscaBarra').value !== '') { buscarDesdeBarra(); }
+  });
   $('txtBuscaBarra').onkeydown = function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); buscarDesdeBarra(); } };
   $('btnLatNuevoAp').onclick = function () { if (!soloLectura) { abrirEditorApartado(''); } };
   $('txtBusca').oninput = function () { pintarBusqueda(); };
@@ -7273,6 +7286,12 @@
 
   function xpTotal() { return K.calcularXP(items, proyectos).total; }
 
+  /* XP de un pase de pintar(): el anillo, la barra lateral, el rail y la tarjeta
+     de nivel lo leen del mismo calculo. Fuera de un pase (o despues de un cambio,
+     que siempre repinta) se calcula de nuevo: nunca queda un valor viejo. */
+  var xpPase = null;
+  function xpDelPase() { return xpPase || K.calcularXP(items, proyectos); }
+
   /* Despues de algo que puede dar XP: devuelve el texto de feedback y, si se
      subio de nivel, lo deja en el diario. El nivel celebrado nunca baja: si se
      reabre algo y se pierde XP, no se vuelve a festejar el mismo nivel. */
@@ -7294,7 +7313,7 @@
   /* Tarjeta de nivel (brasa), primera de Progreso: nivel y racha, titulo del
      nivel, barra de 8px y lo que falta para el siguiente. */
   function pintarTarjetaNivel(cont) {
-    var x = K.calcularXP(items, proyectos);
+    var x = xpDelPase();
     var nv = K.nivelPorXP(x.total);
     var hoyXP = x.porDia['#' + hoyClave()] || 0;
     var sig = K.nivelPorXP(x.total + nv.falta);
@@ -7678,7 +7697,7 @@
   }
 
   function railNivel(r) {
-    var x = K.calcularXP(items, proyectos), nv = K.nivelPorXP(x.total), hoyXP = x.porDia['#' + hoyClave()] || 0, racha = rachaGlobal();
+    var x = xpDelPase(), nv = K.nivelPorXP(x.total), hoyXP = x.porDia['#' + hoyClave()] || 0, racha = rachaGlobal();
     var c = nodo('button', 'rail-nivel');
     c.type = 'button';
     c.setAttribute('aria-label', 'Nivel ' + nv.nivel + ' \u00B7 ' + nv.titulo + ', ' + nv.enNivel + ' de ' + nv.tramo + ' XP. Abrir Progreso');
@@ -7741,6 +7760,7 @@
         bi.style.width = pr.pct + '%';
         barra.appendChild(bi);
         b.appendChild(barra);
+        b.setAttribute('data-rail-mision', m.id);
         b.onclick = function () { abrirMision(m.id); };
         s.appendChild(b);
       })(act[i]);
@@ -7748,21 +7768,31 @@
     r.appendChild(s);
   }
 
+  /* Clave unica de un control del rail (tile, mision o tarjeta de nivel), para
+     devolverle el foco despues de rehacerlo. Todas las misiones comparten clase. */
+  function claveRail(el) {
+    var t = el.getAttribute('data-rail-tile'), m = el.getAttribute('data-rail-mision');
+    if (t) { return 't:' + t; }
+    if (m) { return 'm:' + m; }
+    return (' ' + el.className + ' ').indexOf(' rail-nivel ') > -1 ? 'nivel' : null;
+  }
+
   function pintarRail() {
-    var r = $('rail'), a = document.activeElement, foco = null, f;
+    var r = $('rail'), a = document.activeElement, foco = null, f = null, l, i;
     if (mqRail === undefined) {
       mqRail = window.matchMedia ? window.matchMedia('(min-width: 1280px)') : null;
       if (mqRail && typeof mqRail.addListener === 'function') { mqRail.addListener(function () { pintarRail(); }); }
     }
     if (!r || !mqRail || !mqRail.matches) { return; }
     /* Se rehace entero: el foco de teclado vuelve al mismo boton. */
-    if (a && r.contains(a)) { foco = a.getAttribute('data-rail-tile') || a.className.split(' ')[0]; }
+    if (a && a !== r && r.contains(a)) { foco = claveRail(a); }
     vaciar(r);
     railNivel(r);
     railPulso(r);
     railMisiones(r);
     if (foco) {
-      f = r.querySelector('[data-rail-tile="' + foco + '"]') || r.querySelector('.' + foco);
+      l = r.querySelectorAll('[data-rail-tile], [data-rail-mision], .rail-nivel');
+      for (i = 0; i < l.length && !f; i++) { if (claveRail(l[i]) === foco) { f = l[i]; } }
       if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } }
     }
   }

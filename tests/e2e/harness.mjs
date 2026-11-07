@@ -51,6 +51,18 @@ function findBrowser() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Polls fn (sync or async) every step ms until it returns a truthy value, which is
+// returned; throws with msg after timeout ms. A measurable wait instead of a fixed sleep.
+async function esperarHasta(fn, timeout = 3000, msg = 'condition', step = 30) {
+  const fin = Date.now() + timeout;
+  for (;;) {
+    const v = await fn();
+    if (v) return v;
+    if (Date.now() > fin) throw new Error('esperarHasta: timeout (' + timeout + 'ms) waiting for ' + msg);
+    await sleep(step);
+  }
+}
+
 export async function launchBrowser() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kco-e2e-'));
   const proc = spawn(findBrowser(), [
@@ -303,4 +315,4 @@ export async function openPage(browser, baseUrl) {
   return page;
 }
 
-export { sleep, ROOT };
+export { sleep, esperarHasta, ROOT };

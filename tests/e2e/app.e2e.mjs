@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { sleep, ROOT } from './harness.mjs';
+import { sleep, esperarHasta, ROOT } from './harness.mjs';
 
 const OUT = path.join(ROOT, 'tests', 'e2e', 'out');
 // Emoji and pictographs: the interface shows stroke icons and words instead (Cabina).
@@ -5894,6 +5894,92 @@ export const tests = [
       await sleep(400);
       const h = await page.eval("document.querySelector('#tapaAjustes .hoja').getBoundingClientRect().width");
       assert.ok(h <= 640, 'sheet up to 640: ' + h);
+    }
+  },
+  // ---------- T7: review fixes (T6 R3-001, T6 R3-003, T2 R3-004) ----------
+  {
+    name: 'rail (T7): a repaint keeps the keyboard focus on the same mission, tile or level card, not the first mission',
+    width: 1366, height: 900, mobile: false,
+    storage: (() => {
+      const s = seed();
+      const mk = (id, nombre) => ({ id, nombre, objetivo: '', contexto: 'apps', estado: 'activo', hitos: [{ id: id + 'h', texto: 'hito' }],
+        creado: new Date().toISOString(), actualizado: new Date().toISOString() });
+      s['kibco.proyectos'] = JSON.stringify([mk('m1', 'Uno'), mk('m2', 'Dos'), mk('m3', 'Tres')]);
+      return s;
+    })(),
+    async fn(page) {
+      await page.emulateFocus();
+      assert.equal(await page.count('#rail .rail-mision'), 3);
+      const repaint = () => page.eval("window.dispatchEvent(new StorageEvent('storage',{key:'kibco.apartados'}))");
+      for (const k of [1, 2]) {
+        const want = await page.eval(`(function(){var b=document.querySelectorAll('#rail .rail-mision')[${k}];b.focus();return b.getAttribute('aria-label');})()`);
+        await repaint();
+        assert.equal(await page.eval("document.activeElement.getAttribute('aria-label')"), want, 'focus stays on mission ' + (k + 1));
+        assert.ok(await page.eval('document.getElementById(\'rail\').contains(document.activeElement)'));
+      }
+      await page.eval("document.querySelector('#rail [data-rail-tile=\"hoy\"]').focus()");
+      await repaint();
+      assert.equal(await page.eval("document.activeElement.getAttribute('data-rail-tile')"), 'hoy', 'a tile keeps its focus');
+      await page.eval("document.querySelector('#rail .rail-nivel').focus()");
+      await repaint();
+      assert.ok(await page.eval("document.activeElement.classList.contains('rail-nivel')"), 'the level card keeps its focus');
+    }
+  },
+  {
+    name: 'desktop search (T7): typing mid IME composition stays in the header field; compositionend hands the text to the search sheet',
+    width: 1366, height: 900, mobile: false,
+    storage: seed(),
+    async fn(page) {
+      await page.emulateFocus();
+      await page.eval(`(function(){var b=document.getElementById('txtBuscaBarra');b.focus();b.value='pre';
+        b.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true,data:'pre'}));})()`);
+      await cerrada(page, 'tapaBuscar');
+      assert.equal(await isOpen(page, 'tapaBuscar'), false, 'no hand-off while composing');
+      assert.equal(await page.eval("document.getElementById('txtBuscaBarra').value"), 'pre', 'the composed text stays');
+      await page.eval("document.getElementById('txtBuscaBarra').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'pre'}))");
+      await esperarHasta(() => isOpen(page, 'tapaBuscar'), 2000, 'the search sheet');
+      assert.equal(await page.eval("document.getElementById('txtBusca').value"), 'pre');
+      assert.equal(await page.eval("document.getElementById('txtBuscaBarra').value"), '', 'the header field is left clean');
+      assert.match(await page.text('#resultados'), /Enviar presupuesto bomba/);
+    }
+  },
+  {
+    name: 'xp (T7): total XP is computed once per paint and every XP view stays right after completing and undoing',
+    width: 1366, height: 900, mobile: false,
+    storage: seed(),
+    async fn(page) {
+      await page.eval("(function(){var o=KCOCore.calcularXP;window.__xpN=0;KCOCore.calcularXP=function(){window.__xpN++;return o.apply(this,arguments);};})()");
+      const views = () => page.eval(`(function(){var it=JSON.parse(localStorage.getItem('kibco.items')||'[]'),pr=JSON.parse(localStorage.getItem('kibco.proyectos')||'[]');
+        var nv=KCOCore.nivelPorXP(KCOCore.calcularXP(it,pr).total),rn=document.querySelector('#rail .rail-nivel');
+        return {want:nv.nivel+'|'+nv.pct+'|'+nv.enNivel+' de '+nv.tramo,ring:document.getElementById('anilloNivel').textContent+'|'+document.getElementById('btnNivel').style.getPropertyValue('--pct'),
+          nav:document.querySelector('#navLateral [data-vista="registro"]').textContent,nivel:nv.nivel,pct:nv.pct,rail:rn?rn.getAttribute('aria-label'):'',
+          card:(document.getElementById('tarjetaNivel')||{}).textContent||''};})()`);
+      const check = (v, label) => {
+        const [n, pct, en] = v.want.split('|');
+        assert.equal(v.ring, n + '|' + pct, label + ': ring');
+        assert.match(v.nav, new RegExp('NV ' + n + '(\\D|$)'), label + ': sidebar badge');
+        assert.ok(v.rail.indexOf(en + ' XP') > -1, label + ': rail level card ' + v.rail + ' / ' + en);
+      };
+      await page.eval('window.__xpN=0');
+      await page.click('#navLateral [data-vista="registro"]');
+      assert.equal(await page.eval('window.__xpN'), 1, 'one XP computation for the whole Progreso paint (ring, sidebar, rail, level card)');
+      const v0 = await views();
+      check(v0, 'start');
+      assert.match(v0.card, new RegExp('Nivel ' + v0.nivel));
+      await page.click('#navLateral [data-vista="ahora"]');
+      await page.click('.hero [data-hero="hecho"]');
+      await sleep(150);
+      const v1 = await views();
+      check(v1, 'after completing');
+      assert.notEqual(v1.want, v0.want, 'completing changed the XP');
+      await page.click('#btnDeshacer');
+      await sleep(150);
+      const v2 = await views();
+      check(v2, 'after undo');
+      assert.equal(v2.want, v0.want, 'undo restores the XP');
+      await page.eval('window.__xpN=0');
+      await page.click('#navLateral [data-vista="hoy"]');
+      assert.equal(await page.eval('window.__xpN'), 1, 'one XP computation per paint');
     }
   }
 ];
