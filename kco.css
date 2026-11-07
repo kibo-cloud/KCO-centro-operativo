@@ -105,6 +105,7 @@
   --tabbar-pie:max(var(--s-5), var(--safe-bottom));
   --capbar-h:64px;
   --sidebar-w:240px;
+  --rail-w:320px;
   --col-max:760px;
 
   /* Paleta de los apartados (KCOCore.COLORES): cada apartado elige una clave y
@@ -259,6 +260,8 @@ button:active{transform:scale(.97)}
 .punto.pal-gris{background:var(--pal-gris)}
 
 .lateral{display:none}
+/* Buscador visible y rail derecho: solo en escritorio. */
+.buscar-barra,.rail{display:none}
 header.appbar{
   position:sticky;top:0;z-index:var(--z-bar);
   display:flex;align-items:center;gap:var(--s-1);
@@ -1249,7 +1252,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .lat-nom small{color:var(--muted);font-weight:500;font-size:var(--fs-13);margin-top:2px}
   .lat-nav,.lat-ctx{display:flex;flex-direction:column;gap:2px}
   .lat-item,.lateral .ctxfila{
-    display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:40px;
+    display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:var(--tap);
     padding:0 var(--s-3);border:0;border-radius:var(--r-ctl);background:none;
     color:var(--text);font-size:var(--fs-15);font-weight:500;text-align:left;cursor:pointer;
   }
@@ -1264,6 +1267,20 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .lateral .ctxfila.on .ctxfila-n{color:var(--accent)}
   @media (hover:hover){.lat-item:not(.on):hover,.lateral .ctxfila:not(.on):hover{background:var(--surface-2)}}
   .lat-rot{padding:var(--s-6) var(--s-3) var(--s-2) var(--s-3);color:var(--muted);font-size:var(--fs-13);font-weight:600}
+  /* Subfilas de Listas: indentadas a la altura del nombre (icono 20 + gap). */
+  .lat-sub{display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:var(--tap);padding:0 var(--s-3) 0 calc(var(--s-3) + 20px + var(--s-3));
+    border:0;border-radius:var(--r-ctl);background:none;color:var(--muted);font-size:var(--fs-15);font-weight:500;text-align:left;cursor:pointer}
+  .lat-sub-nom{flex:1;min-width:0}
+  .lat-sub.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .lat-sub.on .lat-item-n{color:var(--accent)}
+  /* Con una subfila activa, Listas marca la seccion sin repetir el fondo. */
+  .lat-item[data-vista="tablero"].on{background:none}
+  .lat-item-n.nv{color:var(--brasa);font-weight:700}
+  .lat-item-n.nv.latido{display:inline-block;animation:kcoPulso var(--dur-fest) var(--ease)}
+  .lat-nuevo{margin-top:var(--s-1);color:var(--accent)}
+  .lat-nuevo .ico{width:20px;height:20px;margin:0;color:var(--accent)}
+  .lat-sub:focus-visible{outline-offset:-3px}
+  @media (hover:hover){.lat-sub:not(.on):hover{background:var(--surface-2);color:var(--text)}}
 
   /* Barra, captura y main ocupan todo el ancho (la barra de scroll de main queda
      en el borde de la ventana); el padding centra una columna de --col-max. */
@@ -1271,15 +1288,37 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .aviso,.avisover{width:100%;max-width:calc(var(--col-max) - 2 * var(--s-6));margin-left:auto;margin-right:auto}
   header.appbar{position:static;min-height:0;padding:var(--s-8) var(--pad-col) var(--s-3) var(--pad-col);border-bottom:0;background:none}
   .appbar-tit{display:block}
+  /* Buscador visible con la pista del atajo /; reemplaza al boton de lupa. */
+  #btnBuscar{display:none}
+  .buscar-barra{display:flex;align-items:center;gap:var(--s-2);width:260px;height:var(--tap);margin-right:var(--s-1);padding:0 var(--s-2) 0 var(--s-3);
+    border:1px solid var(--border);border-radius:var(--r-ctl);background:var(--surface);color:var(--muted);cursor:text}
+  .buscar-barra:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .buscar-barra-ico{display:flex}
+  .buscar-barra-ico .ico{width:18px;height:18px;margin:0}
+  .buscar-barra input{flex:1;min-width:0;height:100%;padding:0;border:0;background:none;color:var(--text);font-family:inherit;font-size:var(--fs-15);outline:none}
+  .buscar-barra input::placeholder{color:var(--muted)}
+  .buscar-barra input:focus-visible{outline:none}
+  .buscar-barra kbd{padding:0 var(--s-2);border:1px solid var(--border-strong);border-radius:var(--r-ctl);color:var(--muted);font-family:inherit;font-size:var(--fs-13);line-height:20px}
   .captura{position:static;padding:var(--s-2) var(--pad-col) var(--s-3) var(--pad-col);background:var(--bg);border-top:0}
   html[data-escribiendo] .captura{padding-bottom:var(--s-3)}
   html[data-capchips] .captura,html[data-escribiendo] .captura{background:var(--bg);border-top:0;box-shadow:none}
   /* Escritorio: enviar siempre visible; vacio queda gris y deshabilitado. */
   .captura-enviar:disabled{display:flex;background:var(--surface-3);color:var(--faint);cursor:default}
-  #txtCaptura{border-radius:var(--r-card);background:var(--surface);box-shadow:var(--sh-1)}
-  #txtCaptura:focus{box-shadow:0 0 0 3px var(--accent-soft),var(--sh-1)}
+  /* Captura de 56px, radio 12 y sombra 2, con enviar adentro a la derecha. */
+  #txtCaptura{min-height:56px;padding-right:64px;border-radius:var(--r-card);background:var(--surface);box-shadow:var(--sh-2)}
+  #txtCaptura:focus{box-shadow:0 0 0 3px var(--accent-soft),var(--sh-2)}
+  .captura-enviar{position:absolute;top:50%;right:var(--s-2);width:var(--tap);height:var(--tap);border-radius:var(--r-ctl);transform:translateY(-50%)}
   main{padding:var(--s-2) var(--pad-col) var(--s-10) var(--pad-col)}
   .deshacer{left:var(--sidebar-w);right:0;bottom:var(--s-6);max-width:calc(var(--col-max) - 2 * var(--s-6));margin:0 auto}
+  /* Hero en una fila: texto a la izquierda, los tres botones a la derecha. */
+  .hero:not(.calma){display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--s-6)}
+  .hero:not(.calma) > *{grid-column:1}
+  .hero:not(.calma) .hero-accs{grid-column:2;grid-row:1 / span 3;align-self:center;margin-top:0}
+  .hero:not(.calma) .hero-sig{grid-column:1 / -1}
+  .hero:not(.calma) .hero-accs .bloque{flex:0 0 auto;width:auto;min-width:96px;padding:0 var(--s-4)}
+  .hero:not(.calma) .hero-accs .bloque.hero-hecho{min-width:120px}
+  /* Foco de teclado en la lista (j/k, Tab): borde de acento y halo de 3px. */
+  li.item.fila:focus-visible,li.item.kbsel:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 
   /* Hojas como dialogo centrado de hasta 560px: se apilan (ficha + confirmar)
      sin taparse de costado y el foco atrapado tiene sentido visual; un panel
@@ -1293,6 +1332,44 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .tapa.on .hoja{opacity:1;transform:none}
   .hoja-cab{padding-top:var(--s-3)}
   .asa{display:none}
+}
+
+/* Escritorio ancho (>= 1280px): rail derecho de 320px con la tarjeta de nivel,
+   el Pulso 2x2 (los mismos filtros de Ahora, que dejan de repetirse como chips)
+   y las misiones activas. La columna se centra entre la barra lateral y el rail. */
+@media (min-width:1280px){
+  body{padding-right:var(--rail-w)}
+  #ahoraCuerpo .pulso{display:none}
+  .deshacer{right:var(--rail-w)}
+  .rail{
+    position:fixed;top:0;right:0;bottom:0;z-index:var(--z-bar);
+    display:flex;flex-direction:column;gap:var(--s-5);width:var(--rail-w);overflow-y:auto;
+    padding:var(--s-8) var(--s-5) var(--s-5) var(--s-5);background:var(--bg);border-left:1px solid var(--border);
+  }
+  .rail-nivel{display:flex;flex-direction:column;gap:var(--s-2);width:100%;padding:var(--s-4);border:1px solid var(--brasa);border-color:color-mix(in srgb,var(--brasa) 38%,transparent);
+    border-radius:var(--r-card);background:var(--surface-2);box-shadow:var(--sh-2);color:var(--text);font-size:var(--fs-13);text-align:left;cursor:pointer}
+  .rail-nivel-cab{display:flex;justify-content:space-between;gap:var(--s-2);font-weight:600}
+  .rail-nivel-n{color:var(--brasa)}
+  .rail-racha{color:var(--muted)}
+  .rail-nivel .rail-barra{height:8px;margin-top:0;background:var(--surface-3)}
+  .rail-nivel .rail-barra i{background:var(--brasa)}
+  .rail-xp{color:var(--muted);font-variant-numeric:tabular-nums}
+  .rail-pulso{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-2)}
+  .rail-tile{display:flex;flex-direction:column;align-items:flex-start;gap:var(--s-1);min-height:72px;padding:var(--s-3);border:1px solid var(--border);
+    border-radius:var(--r-card);background:var(--surface);color:var(--muted);font-size:var(--fs-13);font-weight:500;text-align:left;cursor:pointer}
+  .rail-tile b{color:var(--text);font-size:var(--fs-24);font-weight:700;line-height:var(--lh-tight);font-variant-numeric:tabular-nums}
+  .rail-tile.rojo b{color:var(--danger)}
+  .rail-tile.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .rail-tile:disabled{opacity:.5;cursor:default}
+  .rail-rot{margin:0 0 var(--s-2);color:var(--muted);font-size:var(--fs-13);font-weight:600}
+  .rail-mision{--ap:var(--accent);display:block;width:100%;margin-bottom:var(--s-2);padding:var(--s-3);border:1px solid var(--border);border-radius:var(--r-card);
+    background:var(--surface);color:var(--text);font-size:var(--fs-15);font-weight:600;text-align:left;cursor:pointer}
+  .rail-mision-cab{display:flex;justify-content:space-between;gap:var(--s-2)}
+  .rail-mision-nom{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rail-mision-pct{flex:0 0 auto;color:var(--muted);font-size:var(--fs-13);font-variant-numeric:tabular-nums}
+  .rail-barra{display:block;height:6px;margin-top:var(--s-2)}
+  .rail-mision .rail-barra i{background:var(--ap)}
+  @media (hover:hover){.rail-tile:not(.on):not(:disabled):hover,.rail-mision:hover{background:var(--surface-2)}.rail-nivel:hover{background:var(--surface-3)}}
 }
 
 /* Ajustes: tarjeta de backup (warning-soft pasado el umbral) y listas

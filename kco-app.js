@@ -3502,31 +3502,72 @@
     return r;
   }
 
+  /* Subfilas de Listas en la barra lateral (data-lista, no data-vista: los
+     selectores de las cinco vistas siguen siendo unicos). */
+  var NAV_LISTAS = [
+    { v: 'tablero', nom: 'Tareas' },
+    { v: 'compras', nom: 'Compras' },
+    { v: 'notas', nom: 'Notas' }
+  ];
+
+  function botonNav(d) {
+    var x = nodo('button', 'lat-item', '');
+    x.type = 'button';
+    x.setAttribute('data-vista', d.v);
+    x.appendChild(svgIco(d.ico));
+    x.appendChild(nodo('span', 'lat-item-nom', d.nom));
+    var cn = nodo('span', 'lat-item-n' + (d.v === 'ahora' ? ' rojo' : '') + (d.v === 'registro' ? ' nv' : ''), '');
+    /* Progreso lleva el nivel ("NV 3", brasa): destino del vuelo de XP en escritorio. */
+    if (d.v === 'registro') { cn.id = 'navNivel'; }
+    x.appendChild(cn);
+    x.onclick = function () { irAVista(d.v === 'tablero' && (vista === 'compras' || vista === 'notas') ? vista : d.v); };
+    return x;
+  }
+
+  function botonSubLista(d) {
+    var x = nodo('button', 'lat-sub', '');
+    x.type = 'button';
+    x.setAttribute('data-lista', d.v);
+    x.appendChild(nodo('span', 'lat-sub-nom', d.nom));
+    x.appendChild(nodo('span', 'lat-item-n', ''));
+    x.onclick = function () { irAVista(d.v); };
+    return x;
+  }
+
   /* Se arma una vez; cada pintado actualiza estado y cuentas sin rehacer los
-     botones (el foco de teclado no se pierde al navegar). */
+     botones (el foco de teclado no se pierde al navegar). Listas lleva sus
+     subfilas (Compras y Notas solo si el apartado las usa). */
   function pintarNavLateral() {
     var nav = $('navLateral'), n = cuentasVistas(), i, b, v, on, cn;
     if (!nav.firstChild) {
       for (i = 0; i < NAV_VISTAS.length; i++) {
-        (function (d) {
-          var x = nodo('button', 'lat-item', '');
-          x.type = 'button';
-          x.setAttribute('data-vista', d.v);
-          x.appendChild(svgIco(d.ico));
-          x.appendChild(nodo('span', 'lat-item-nom', d.nom));
-          x.appendChild(nodo('span', 'lat-item-n' + (d.v === 'ahora' ? ' rojo' : ''), ''));
-          x.onclick = function () { irAVista(d.v === 'tablero' && (vista === 'compras' || vista === 'notas') ? vista : d.v); };
-          nav.appendChild(x);
-        })(NAV_VISTAS[i]);
+        nav.appendChild(botonNav(NAV_VISTAS[i]));
+        if (NAV_VISTAS[i].v === 'tablero') {
+          for (v = 0; v < NAV_LISTAS.length; v++) { nav.appendChild(botonSubLista(NAV_LISTAS[v])); }
+        }
       }
     }
+    $('btnLatNuevoAp').disabled = soloLectura;
+    var subN = { tablero: contar('tarea', 'activos'), compras: usaCompras(contexto) ? contar('compra', 'activos') : -1,
+      notas: K.usaNotas(contexto) ? K.notasVisibles(notasAp, { ctx: contexto, archivadas: false, q: '' }).length : -1 };
     for (b = nav.firstChild; b; b = b.nextSibling) {
+      cn = b.getElementsByTagName('span')[1];
+      v = b.getAttribute('data-lista');
+      if (v) {
+        on = vista === v;
+        b.className = on ? 'lat-sub on' : 'lat-sub';
+        b.style.display = subN[v] < 0 ? 'none' : '';
+        if (on) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); }
+        cn.textContent = subN[v] > 0 ? '' + subN[v] : '';
+        continue;
+      }
       v = b.getAttribute('data-vista');
       on = VISTA_TAB[vista] === VISTA_TAB[v];
       b.className = on ? 'lat-item on' : 'lat-item';
-      if (on) { b.setAttribute('aria-current', 'page'); } else { b.removeAttribute('aria-current'); }
-      cn = b.getElementsByTagName('span')[1];
-      cn.textContent = n[v] > 0 ? '' + n[v] : '';
+      /* Dentro de Listas la pagina actual es la subfila; Listas es su seccion. */
+      if (on) { b.setAttribute('aria-current', v === 'tablero' ? 'true' : 'page'); } else { b.removeAttribute('aria-current'); }
+      if (v === 'registro') { cn.textContent = 'NV ' + K.nivelPorXP(xpTotal()).nivel; continue; }
+      cn.textContent = v !== 'tablero' && n[v] > 0 ? '' + n[v] : '';
     }
   }
 
@@ -3625,6 +3666,7 @@
     else if (vista === 'notas') { pintarNotas(); }
     else if (vista === 'misiones') { pintarMisiones(); }
     else { pintarRegistro(); }
+    pintarRail();
     actualizarAvisoBackup();
     /* Una hoja de mision abierta refleja al instante lo que cambio debajo. */
     if (misionAbierta && $('tapaMision').className === 'tapa on') { pintarHojaMision(); }
@@ -4847,19 +4889,28 @@
   /* ---------- festejo: XP al anillo y hoja de nivel ---------- */
   var colaNivel = [];
 
-  /* Una pastilla "+N XP" en brasa vuela al anillo de la barra (600 ms) y el
-     anillo hace un pulso. Sin anillo a la vista (escritorio) o con movimiento
-     reducido no vuela: aparece y se desvanece donde esta. */
+  /* Destino del vuelo de XP: el anillo de la barra (telefono, tableta) o el
+     "NV" de la fila Progreso de la barra lateral (escritorio, sin anillo). */
+  function destinoXP() {
+    var a = $('btnNivel'), nv = $('navNivel');
+    if (a && a.offsetParent !== null) { return { el: a, clase: 'pulso' }; }
+    if (nv && nv.offsetParent !== null) { return { el: nv, clase: 'latido' }; }
+    return null;
+  }
+
+  /* Una pastilla "+N XP" en brasa vuela al anillo de la barra o al NV de la
+     barra lateral (600 ms) y el destino hace un pulso. Sin destino a la vista
+     o con movimiento reducido no vuela: aparece y se desvanece donde esta. */
   function volarXP(n) {
     if (!document.body || typeof window.setTimeout !== 'function') { return; }
-    var p = nodo('span', 'xp-vuelo', '+' + n + ' XP'), anillo = $('btnNivel'), t = $('barraDeshacer');
+    var p = nodo('span', 'xp-vuelo', '+' + n + ' XP'), dest = destinoXP(), t = $('barraDeshacer');
     p.setAttribute('aria-hidden', 'true');
     var y0 = window.innerHeight - 180, x0 = window.innerWidth / 2;
     if (t && t.getBoundingClientRect) { var tb = t.getBoundingClientRect(); if (tb.height > 0) { y0 = tb.top - 24; } }
     p.style.left = x0 + 'px';
     p.style.top = y0 + 'px';
     document.body.appendChild(p);
-    var ab = anillo && anillo.offsetParent !== null ? anillo.getBoundingClientRect() : null;
+    var ab = dest ? dest.el.getBoundingClientRect() : null;
     if (ab && !movimientoReducido()) {
       var dx = ab.left + ab.width / 2 - x0, dy = ab.top + ab.height / 2 - y0;
       p.getBoundingClientRect();
@@ -4868,9 +4919,10 @@
     } else {
       p.className = 'xp-vuelo quieto';
     }
-    if (anillo) {
-      anillo.className = anillo.className.replace(/ ?pulso/g, '') + ' pulso';
-      window.setTimeout(function () { anillo.className = anillo.className.replace(/ ?pulso/g, ''); }, 650);
+    if (dest) {
+      var el = dest.el, re = new RegExp(' ?' + dest.clase, 'g');
+      el.className = el.className.replace(re, '') + ' ' + dest.clase;
+      window.setTimeout(function () { el.className = el.className.replace(re, ''); }, 650);
     }
     window.setTimeout(function () { if (p.parentNode) { p.parentNode.removeChild(p); } }, 650);
   }
@@ -6665,7 +6717,9 @@
       return;
     }
     ev.preventDefault();
-    enfocar($('txtCaptura'));
+    /* Escritorio: / va al buscador visible de la barra; n siempre a la captura. */
+    var bb = $('txtBuscaBarra');
+    enfocar(k === '/' && bb && bb.offsetParent !== null ? bb : $('txtCaptura'));
   });
 
   $('tabAhora').onclick = function () { irAVista('ahora'); };
@@ -6927,6 +6981,20 @@
   $('btnConfNo').onclick = function () { confAccion = null; cerrarHoja('tapaConfirmar'); };
 
   $('btnBuscar').onclick = function () { $('txtBusca').value = ''; pintarBusqueda(); abrirHoja('tapaBuscar'); enfocar($('txtBusca')); };
+  /* Buscador visible de escritorio: lo tipeado pasa a la hoja de busqueda (que
+     tiene los resultados) y se sigue escribiendo ahi; el campo de la barra
+     queda limpio. Enter con el campo vacio abre la hoja igual. */
+  function buscarDesdeBarra() {
+    var bb = $('txtBuscaBarra'), q = bb.value;
+    bb.value = '';
+    $('txtBusca').value = q;
+    pintarBusqueda();
+    abrirHoja('tapaBuscar');
+    enfocar($('txtBusca'));
+  }
+  $('txtBuscaBarra').oninput = function () { if ($('txtBuscaBarra').value !== '') { buscarDesdeBarra(); } };
+  $('txtBuscaBarra').onkeydown = function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); buscarDesdeBarra(); } };
+  $('btnLatNuevoAp').onclick = function () { if (!soloLectura) { abrirEditorApartado(''); } };
   $('txtBusca').oninput = function () { pintarBusqueda(); };
   $('txtBusca').onkeyup = function () { pintarBusqueda(); };
 
@@ -7590,6 +7658,113 @@
     var i;
     for (i = 0; i < act.length && i < 4; i++) { s.appendChild(nodoMision(act[i], true)); }
     cont.appendChild(s);
+  }
+
+  /* ---------- rail derecho de escritorio (>= 1280px) ----------
+     Tarjeta de nivel (abre Progreso), Pulso 2x2 y Misiones activas. El Pulso
+     usa el mismo filtro en memoria que los chips de Ahora (filtroAhora); sus
+     botones llevan data-rail-tile para que data-tile siga siendo unico. Solo
+     se pinta mientras se ve: debajo de 1280 no cuesta nada. */
+  var mqRail;
+
+  function cuentaFiltrosAhora() {
+    var l = activosVisibles(), hoy = hoyClave(), ahora = Date.now(), c = {}, i, j, f;
+    for (j = 0; j < FILTROS_AHORA.length; j++) {
+      f = FILTROS_AHORA[j].id;
+      c[f] = 0;
+      for (i = 0; i < l.length; i++) { if (enFiltroAhora(f, l[i], hoy, ahora)) { c[f]++; } }
+    }
+    return c;
+  }
+
+  function railNivel(r) {
+    var x = K.calcularXP(items, proyectos), nv = K.nivelPorXP(x.total), hoyXP = x.porDia['#' + hoyClave()] || 0, racha = rachaGlobal();
+    var c = nodo('button', 'rail-nivel');
+    c.type = 'button';
+    c.setAttribute('aria-label', 'Nivel ' + nv.nivel + ' \u00B7 ' + nv.titulo + ', ' + nv.enNivel + ' de ' + nv.tramo + ' XP. Abrir Progreso');
+    var cab = nodo('span', 'rail-nivel-cab');
+    cab.appendChild(nodo('span', 'rail-nivel-n', 'Nivel ' + nv.nivel + ' \u00B7 ' + nv.titulo));
+    if (racha.actual > 0) { cab.appendChild(nodo('span', 'rail-racha', 'Racha ' + racha.actual + ' d')); }
+    c.appendChild(cab);
+    var barra = nodo('span', 'barra rail-barra'), bi = nodo('i', '');
+    bi.style.width = nv.pct + '%';
+    barra.appendChild(bi);
+    c.appendChild(barra);
+    c.appendChild(nodo('span', 'mono rail-xp', nv.enNivel + '/' + nv.tramo + ' XP' + (hoyXP > 0 ? ' \u00B7 +' + hoyXP + ' hoy' : '')));
+    c.onclick = function () { irAVista('registro'); };
+    r.appendChild(c);
+  }
+
+  function railPulso(r) {
+    var cu = cuentaFiltrosAhora(), p = nodo('div', 'rail-pulso'), i;
+    p.setAttribute('role', 'group');
+    p.setAttribute('aria-label', 'Filtrar Ahora');
+    for (i = 1; i < FILTROS_AHORA.length; i++) {
+      (function (f) {
+        var on = vista === 'ahora' && filtroAhora === f.id;
+        var b = nodo('button', 'rail-tile' + (f.id === 'atencion' ? ' rojo' : '') + (on ? ' on' : ''));
+        b.type = 'button';
+        b.setAttribute('data-rail-tile', f.id);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.appendChild(nodo('b', 'mono', '' + cu[f.id]));
+        b.appendChild(nodo('span', 'rail-tile-rot', f.nom));
+        b.disabled = cu[f.id] === 0 && !on;
+        /* Desde otra vista lleva a Ahora con ese filtro; en Ahora, tocar el
+           activo vuelve a Todo (como los chips). */
+        b.onclick = function () {
+          if (vista !== 'ahora') { filtroAhora = f.id; irAVista('ahora'); return; }
+          filtroAhora = filtroAhora === f.id ? 'todo' : f.id;
+          pintar();
+        };
+        p.appendChild(b);
+      })(FILTROS_AHORA[i]);
+    }
+    r.appendChild(p);
+  }
+
+  function railMisiones(r) {
+    var act = misionesVisibles('activo'), i;
+    if (act.length === 0) { return; }
+    var s = nodo('section', 'rail-mis');
+    s.appendChild(nodo('h2', 'rail-rot', 'Misiones activas'));
+    for (i = 0; i < act.length && i < 4; i++) {
+      (function (m) {
+        var pr = K.progresoProyecto(m, items), b = nodo('button', 'rail-mision');
+        b.type = 'button';
+        b.setAttribute('aria-label', 'Misi\u00F3n ' + m.nombre + ', ' + pr.pct + ' %');
+        if (b.style && typeof b.style.setProperty === 'function') { b.style.setProperty('--ap', 'var(--pal-' + colorCtx(m.contexto) + ')'); }
+        var cab = nodo('span', 'rail-mision-cab');
+        cab.appendChild(nodo('span', 'rail-mision-nom', m.nombre));
+        cab.appendChild(nodo('span', 'mono rail-mision-pct', pr.pct + ' %'));
+        b.appendChild(cab);
+        var barra = nodo('span', 'barra rail-barra'), bi = nodo('i', '');
+        bi.style.width = pr.pct + '%';
+        barra.appendChild(bi);
+        b.appendChild(barra);
+        b.onclick = function () { abrirMision(m.id); };
+        s.appendChild(b);
+      })(act[i]);
+    }
+    r.appendChild(s);
+  }
+
+  function pintarRail() {
+    var r = $('rail'), a = document.activeElement, foco = null, f;
+    if (mqRail === undefined) {
+      mqRail = window.matchMedia ? window.matchMedia('(min-width: 1280px)') : null;
+      if (mqRail && typeof mqRail.addListener === 'function') { mqRail.addListener(function () { pintarRail(); }); }
+    }
+    if (!r || !mqRail || !mqRail.matches) { return; }
+    /* Se rehace entero: el foco de teclado vuelve al mismo boton. */
+    if (a && r.contains(a)) { foco = a.getAttribute('data-rail-tile') || a.className.split(' ')[0]; }
+    vaciar(r);
+    railNivel(r);
+    railPulso(r);
+    railMisiones(r);
+    if (foco) {
+      f = r.querySelector('[data-rail-tile="' + foco + '"]') || r.querySelector('.' + foco);
+      if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } }
+    }
   }
 
   /* Grupo de Misiones a la vista (Activas, Pausa, Cumplidas). En memoria. */

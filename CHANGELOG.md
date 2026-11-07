@@ -3,7 +3,7 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
-## Sin publicar — rediseño "Cabina" (fases 1-5: tokens, base, armazón, tarjeta, vistas y hojas)
+## Sin publicar — rediseño "Cabina" (fases 1-6: tokens, base, armazón, tarjeta, vistas, hojas y escritorio)
 
 Esquema 5 sin cambios. Una sola clave nueva, `kibco.pistas` (banderas de las pistas de primera
 vez); las demás claves y formatos no cambian. El service worker sigue en 2.5.0 hasta la fase de
@@ -100,12 +100,23 @@ release.
 - Búsqueda a pantalla completa con el campo enfocado y los resultados agrupados por apartado;
   la primera vez muestra las plantillas en una grilla de dos columnas; filas de 52 px en las
   listas de acciones (menú rápido, Compartir).
+- Escritorio (desde 1024 px): barra lateral de 240 con la K en brasa, filas de 44 px con su cuenta
+  (Ahora en rojo), Listas con las subfilas Tareas, Compras y Notas (Compras y Notas solo si el
+  apartado las usa), Progreso con "NV 3" en brasa (ahí vuela el +XP) y la sección Apartados con
+  "Nuevo apartado". Columna central: título 24/700, buscador visible con el atajo /, captura de
+  56 px con enviar adentro, hero en una fila (texto a la izquierda, botones a la derecha) y foco de
+  teclado visible en la lista (borde de acento y halo de 3 px).
+- Escritorio ancho (desde 1280 px): rail derecho de 320 px con la tarjeta de nivel, el Pulso 2×2
+  (Atención, Hoy, Inbox, Esperando: los mismos filtros de Ahora, que ahí dejan de repetirse como
+  chips) y las misiones activas.
 
 ### Corregido
 
 - La bandeja de la tarjeta ofrece lo mismo que el menú rápido para ese ítem: con datos de solo
   lectura solo Más; una ocurrencia de rutina no ofrece Hoy ni Mañana (correrla dejaba dos el mismo
   día; tampoco el hero). La tarjeta se corre lo que mide la bandeja.
+- La subhoja Más de la ficha ya no muestra el grupo vacío de Borrar en el primer pintado con datos
+  de solo lectura.
 - La pista de primera vez solo se gasta en Tareas o Compras de Listas, sin una hoja encima.
 - La ✕ del día en la captura saca exactamente la hora y la palabra que se leyeron (también con
   espacios de más, como "@  9:30").

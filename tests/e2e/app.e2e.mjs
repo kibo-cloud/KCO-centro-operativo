@@ -2665,7 +2665,8 @@ export const tests = [
       assert.equal(r.al, 0);
       assert.ok(r.aw >= 220 && r.aw <= 260, 'sidebar ~240px, got ' + r.aw);
       assert.ok(r.ml >= r.aw, 'content column starts after the sidebar');
-      assert.ok(Math.abs((r.ml + r.mw / 2) - (r.aw + (1366 - r.aw) / 2)) <= 10, 'column centered in the space right of the sidebar');
+      // At 1366 the right rail (320px, Cabina T6) takes the right edge: the column centers between both.
+      assert.ok(Math.abs((r.ml + r.mw / 2) - (r.aw + (1366 - r.aw - 320) / 2)) <= 10, 'column centered between the sidebar and the rail');
       assert.ok(r.mw <= 760, 'content column at most 760px, got ' + r.mw);
       assert.ok(r.cTop < r.mTop, 'capture bar sits at the top of the main column');
       assert.equal(r.nav, 5);
@@ -3196,7 +3197,7 @@ export const tests = [
     }
   },
   {
-    name: 'capture bar: n and / focus it; typing inside a field or with a sheet open is never hijacked',
+    name: 'capture bar: n focuses it and / the desktop search field; typing inside a field or with a sheet open is never hijacked',
     storage: seed(),
     width: 1366, height: 900, mobile: false,
     async fn(page) {
@@ -3208,8 +3209,11 @@ export const tests = [
       assert.equal(await value(), '', 'the shortcut key is not typed');
       await page.eval('document.activeElement.blur()');
       await page.press('/');
-      assert.equal(await active(), 'txtCaptura', '/ focuses the capture bar');
-      assert.equal(await value(), '');
+      assert.equal(await active(), 'txtBuscaBarra', '/ focuses the visible search field on desktop (Cabina)');
+      assert.equal(await page.eval("document.getElementById('txtBuscaBarra').value"), '');
+      await page.eval('document.activeElement.blur()');
+      await page.press('n');
+      assert.equal(await active(), 'txtCaptura');
       // Already typing: n and / are just characters.
       await page.press('n');
       await page.press('/');
@@ -3514,7 +3518,8 @@ export const tests = [
       await page.press('j');
       assert.equal(await sel(), list[0], 'j selects the first row');
       assert.equal(await page.eval("document.activeElement.className.indexOf('kbsel')>-1"), true, 'marked as selected');
-      assert.notEqual(await page.eval('getComputedStyle(document.activeElement).outlineStyle'), 'none', 'visible focus ring');
+      // Desktop (Cabina T6): the focus is an accent border with a 3px halo instead of an outline.
+      assert.match(await page.eval('getComputedStyle(document.activeElement).boxShadow'), /0px 0px 0px 3px/, 'visible focus ring');
       await page.press('j');
       await page.press('j');
       assert.equal(await sel(), list[2]);
@@ -5609,7 +5614,9 @@ export const tests = [
       assert.equal(r.aro, 88);
       assert.equal(r.rad, '20px');
       assert.match(r.txt, /Subiste de nivel/);
-      assert.equal(r.logros, 1, 'the achievement rides in the same sheet');
+      // Completing between 04:00 and 07:00 also wins the early-bird achievement (clock-dependent, kco-core madrugadas).
+      const h = new Date().getHours();
+      assert.equal(r.logros, h >= 4 && h < 7 ? 2 : 1, 'the achievement rides in the same sheet');
       assert.match(r.txt, /Logro: Primer paso/);
       assert.equal(r.seguir, 'Seguir');
       await page.click('#btnSeguirNivel');
@@ -5693,6 +5700,200 @@ export const tests = [
       const r = await page.eval(`(function(){var b=document.getElementById('btnBorrar');return {disp:b.style.display,grupo:b.parentNode.hidden};})()`);
       assert.equal(r.disp, 'none', 'no Borrar while read-only');
       assert.equal(r.grupo, true, 'its group is hidden on the first paint, not one repaint later');
+    }
+  },
+  {
+    name: 'desktop (Cabina): sidebar with K in brasa, 44px view rows with counts, Listas sub-rows Tareas/Compras/Notas that navigate, NV badge in brasa and an Apartados section with Nuevo apartado',
+    width: 1366, height: 900, mobile: false,
+    storage: Object.assign(ORDER_SEED(), { 'kibco.apartados': NOTE_SECTIONS, 'kibco.notas': NOTE_LIST(), 'kibco.contexto': 'taller' }),
+    async fn(page) {
+      const brasa = await page.eval("(function(){var y=document.createElement('i');y.style.color='var(--brasa)';document.body.appendChild(y);var c=getComputedStyle(y).color;y.remove();return c;})()");
+      assert.equal(await page.eval("getComputedStyle(document.querySelector('.lat-logo')).backgroundColor"), brasa, 'K in brasa');
+      assert.equal(await page.text('.lat-nom'), 'KCOCentro operativo');
+      const rows = await page.eval("Array.prototype.map.call(document.querySelectorAll('#navLateral .lat-item, #navLateral .lat-sub'),function(b){return [b.getAttribute('data-vista')||b.getAttribute('data-lista'),Math.round(b.getBoundingClientRect().height)];})");
+      assert.deepEqual(rows.map((r) => r[0]), ['ahora', 'hoy', 'tablero', 'tablero', 'compras', 'notas', 'misiones', 'registro'], 'Listas, then its three sub-rows');
+      assert.ok(rows.every((r) => r[1] === 44), '44px rows: ' + JSON.stringify(rows));
+      const sub = await page.eval("(function(){var a=document.querySelector('#navLateral .lat-item[data-vista=\"tablero\"]').getBoundingClientRect(),b=document.querySelector('#navLateral .lat-sub[data-lista=\"compras\"] .lat-sub-nom').getBoundingClientRect(),c=document.querySelector('#navLateral .lat-item[data-vista=\"tablero\"] .lat-item-nom').getBoundingClientRect();return b.left-c.left;})()");
+      assert.ok(sub >= 0, 'sub-rows are indented under Listas');
+      await page.click('#navLateral [data-lista="compras"]');
+      assert.ok(await page.visible('#vistaCompras'), 'Compras sub-row opens Compras');
+      assert.equal(await page.eval("document.querySelector('#navLateral [data-lista=\"compras\"]').getAttribute('aria-current')"), 'page');
+      await page.click('#navLateral [data-lista="notas"]');
+      assert.ok(await page.visible('#vistaNotas'), 'Notas sub-row opens Notas');
+      assert.match(await page.text('#navLateral [data-lista="notas"]'), /^Notas2$/, 'with its count');
+      await page.click('#navLateral [data-lista="tablero"]');
+      assert.ok(await page.visible('#vistaTablero'), 'Tareas sub-row opens Tareas');
+      await page.click('#ctxLateral [data-ctx="mercado"]');
+      assert.equal(await page.visible('#navLateral [data-lista="notas"]'), false, 'Mercado has notes off: no Notas sub-row');
+      assert.equal(await page.visible('#navLateral [data-lista="compras"]'), true);
+      await page.click('#ctxLateral [data-ctx="estudio"]');
+      assert.equal(await page.visible('#navLateral [data-lista="compras"]'), false, 'Estudio has no purchases: no Compras sub-row');
+      const nv = await page.eval("(function(){var b=document.getElementById('navNivel');return {t:b.textContent,c:getComputedStyle(b).color,in:document.querySelector('#navLateral [data-vista=\"registro\"]').contains(b)};})()");
+      assert.match(nv.t, /^NV \d+$/);
+      assert.equal(nv.c, brasa, 'NV badge in brasa');
+      assert.ok(nv.in, 'on the Progreso row');
+      assert.equal(await page.text('#rotCtxLateral'), 'Apartados');
+      assert.ok(await page.visible('#btnLatNuevoAp'), 'Nuevo apartado row');
+      assert.match(await page.text('#btnLatNuevoAp'), /Nuevo apartado/);
+      await page.click('#btnLatNuevoAp');
+      await sleep(300);
+      assert.ok(await isOpen(page, 'tapaApartado'), 'opens the section editor');
+    }
+  },
+  {
+    name: 'desktop (Cabina): the right rail (level card, Pulso 2x2, Misiones activas) shows at 1280+ and hides at 1024-1279, where the Ahora chips come back',
+    width: 1366, height: 900, mobile: false,
+    storage: Object.assign(seed(), { 'kibco.proyectos': misionSeed(false)['kibco.proyectos'] }),
+    async fn(page) {
+      const r = await page.eval(`(function(){var a=document.getElementById('rail'),b=a.getBoundingClientRect(),m=document.getElementById('vistaAhora').getBoundingClientRect(),l=document.getElementById('lateral').getBoundingClientRect();
+        return {d:getComputedStyle(a).display,w:b.width,r:b.right,ml:m.left,mr:m.right,lw:l.width,niv:(a.querySelector('.rail-nivel')||{}).textContent||'',
+          tiles:Array.prototype.map.call(a.querySelectorAll('[data-rail-tile]'),function(t){return t.getAttribute('data-rail-tile');}),
+          cols:getComputedStyle(a.querySelector('.rail-pulso')).gridTemplateColumns.split(' ').length,mis:a.querySelectorAll('.rail-mision').length,
+          chips:document.querySelector('#ahoraCuerpo .pulso').offsetParent!==null};})()`);
+      assert.notEqual(r.d, 'none', 'rail shown at 1366');
+      assert.equal(r.w, 320);
+      assert.equal(r.r, 1366, 'docked right');
+      assert.ok(r.mr <= 1366 - 320, 'the column ends before the rail');
+      assert.ok(Math.abs((r.ml + r.mr) / 2 - (r.lw + (1366 - r.lw - 320) / 2)) <= 10, 'column centered between sidebar and rail');
+      assert.match(r.niv, /Nivel \d+/);
+      assert.deepEqual(r.tiles, ['atencion', 'hoy', 'inbox', 'esperando']);
+      assert.equal(r.cols, 2, '2x2');
+      assert.equal(r.mis, 1, 'the active mission');
+      assert.equal(r.chips, false, 'the rail Pulso replaces the Ahora chips row at 1280+');
+      assert.equal(await page.count('[data-tile]') > 0, true, 'the Ahora chips stay in the DOM (unique data-tile)');
+      await page.click('#rail .rail-mision');
+      await sleep(300);
+      assert.ok(await isOpen(page, 'tapaMision'), 'a mission opens its sheet');
+      await page.key('Escape');
+      await sleep(300);
+      await page.viewport(1100, 900, false);
+      await sleep(150);
+      assert.equal(await page.eval("getComputedStyle(document.getElementById('rail')).display"), 'none', 'no rail at 1100');
+      assert.ok(await page.visible('#ahoraCuerpo .pulso'), 'the chips row is back');
+      await page.viewport(390, 844, true);
+      await sleep(150);
+      assert.equal(await page.eval("getComputedStyle(document.getElementById('rail')).display"), 'none', 'no rail on the phone');
+    }
+  },
+  {
+    name: 'desktop (Cabina): the rail Pulso filters Ahora with the same in-memory filter as the chips, from any view',
+    width: 1366, height: 900, mobile: false,
+    storage: seed(),
+    async fn(page) {
+      const pressed = (sel) => page.eval(`document.querySelector(${JSON.stringify(sel)}).getAttribute('aria-pressed')`);
+      const n = await page.eval("+document.querySelector('#rail [data-rail-tile=\"inbox\"] b').textContent");
+      assert.equal(n, 2, 'two inbox items');
+      await page.click('#rail [data-rail-tile="inbox"]');
+      assert.equal(await pressed('#rail [data-rail-tile="inbox"]'), 'true');
+      assert.equal(await page.eval("document.querySelector('[data-filtro-ahora]').getAttribute('data-filtro-ahora')"), 'inbox');
+      assert.equal(await page.count('#secFiltro li.item'), 2);
+      await page.click('#rail [data-rail-tile="inbox"]');
+      assert.equal(await page.count('#secFiltro'), 0, 'tapping the active tile goes back to Todo');
+      assert.equal(await pressed('#rail [data-rail-tile="inbox"]'), 'false');
+      await page.click('#navLateral [data-vista="hoy"]');
+      assert.equal(await pressed('#rail [data-rail-tile="hoy"]'), 'false', 'outside Ahora no tile is pressed');
+      await page.click('#rail [data-rail-tile="hoy"]');
+      assert.ok(await page.visible('#vistaAhora'), 'a tile brings Ahora');
+      assert.equal(await page.eval("document.querySelector('[data-filtro-ahora]').getAttribute('data-filtro-ahora')"), 'hoy');
+      await page.viewport(1100, 900, false);
+      await sleep(150);
+      assert.equal(await pressed('#ahoraCuerpo [data-tile="hoy"]'), 'true', 'the chips share the state');
+    }
+  },
+  {
+    name: 'desktop (Cabina): a visible search field with a / hint in the header; / focuses it and typing opens the search with the text',
+    width: 1366, height: 900, mobile: false,
+    storage: seed(),
+    async fn(page) {
+      await page.emulateFocus();
+      assert.ok(await page.visible('#txtBuscaBarra'), 'search field visible');
+      assert.equal(await page.visible('#btnBuscar'), false, 'no icon-only search button on desktop');
+      assert.equal(await page.text('.buscar-barra kbd'), '/');
+      await page.eval('document.activeElement&&document.activeElement.blur()');
+      await page.press('/');
+      assert.equal(await page.eval('document.activeElement.id'), 'txtBuscaBarra', '/ focuses the search field');
+      assert.equal(await page.eval("document.getElementById('txtBuscaBarra').value"), '', 'the key is not typed');
+      await page.type('#txtBuscaBarra', 'presu');
+      await sleep(300);
+      assert.ok(await isOpen(page, 'tapaBuscar'), 'typing opens the search');
+      assert.equal(await page.eval('document.activeElement.id'), 'txtBusca', 'typing continues in the search sheet');
+      assert.equal(await page.eval("document.getElementById('txtBusca').value"), 'presu');
+      assert.match(await page.text('#resultados'), /Enviar presupuesto bomba/);
+      await page.key('Escape');
+      await sleep(300);
+      assert.equal(await page.eval("document.getElementById('txtBuscaBarra').value"), '', 'the header field is left clean');
+      await page.viewport(390, 844, true);
+      await sleep(150);
+      assert.equal(await page.visible('#txtBuscaBarra'), false, 'phone: icon button only');
+      assert.ok(await page.visible('#btnBuscar'));
+    }
+  },
+  {
+    name: 'desktop (Cabina): the +XP pill flies to the sidebar NV badge; with reduced motion it fades in place',
+    width: 1366, height: 900, mobile: false,
+    storage: Object.assign(seed(), { 'kibco.pistas': '{"completar":true}' }),
+    async fn(page) {
+      await page.click('.hero [data-hero="hecho"]');
+      await sleep(30);
+      const r = await page.eval(`(function(){var p=document.querySelector('.xp-vuelo'),b=document.getElementById('navNivel').getBoundingClientRect();
+        return {cls:p.className,tr:p.style.transform,x0:parseFloat(p.style.left),y0:parseFloat(p.style.top),bx:b.left+b.width/2,by:b.top+b.height/2,
+          late:document.getElementById('navNivel').className.indexOf('latido')>-1};})()`);
+      assert.equal(r.cls, 'xp-vuelo', 'it flies');
+      const m = r.tr.match(/translate3d\((-?\d+)px, ?(-?\d+)px/);
+      assert.ok(m, 'translated: ' + r.tr);
+      assert.ok(Math.abs(r.x0 + +m[1] - r.bx) <= 2 && Math.abs(r.y0 + +m[2] - r.by) <= 2, 'lands on the NV badge');
+      assert.ok(r.late, 'the badge beats');
+      await sleep(800);
+      await page.emulateMedia([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+      await page.click('.hero [data-hero="hecho"]');
+      await sleep(30);
+      assert.equal(await page.eval("document.querySelector('.xp-vuelo').className"), 'xp-vuelo quieto', 'reduced motion: fade in place');
+    }
+  },
+  {
+    name: 'desktop (Cabina): central column with a 24/700 title, a 56px capture (radius 12, shadow), the hero in one row and a visible keyboard focus on the list',
+    width: 1366, height: 900, mobile: false,
+    storage: Object.assign(seed(), { 'kibco.pistas': '{"completar":true}' }),
+    async fn(page) {
+      await page.emulateFocus();
+      const r = await page.eval(`(function(){var t=getComputedStyle(document.getElementById('tituloVista')),c=document.getElementById('txtCaptura'),cs=getComputedStyle(c),
+        tx=document.querySelector('.hero-txt').getBoundingClientRect(),ac=document.querySelector('.hero-accs').getBoundingClientRect(),ca=document.querySelector('.hero-cab').getBoundingClientRect();
+        return {fs:t.fontSize,fw:t.fontWeight,h:Math.round(c.getBoundingClientRect().height),rad:cs.borderTopLeftRadius,sh:cs.boxShadow,
+          accLeft:ac.left,txtRight:tx.right,accTop:ac.top,txtBottom:tx.bottom,cabTop:ca.top};})()`);
+      assert.equal(r.fs, '24px');
+      assert.equal(r.fw, '700');
+      assert.equal(r.h, 56, '56px capture');
+      assert.equal(r.rad, '12px');
+      assert.notEqual(r.sh, 'none', 'shadow 2');
+      assert.ok(r.accLeft >= r.txtRight, 'hero buttons right of the text');
+      assert.ok(r.accTop < r.txtBottom, 'in the same row');
+      await page.eval('document.activeElement&&document.activeElement.blur()');
+      await page.press('j');
+      await sleep(60);
+      const f = await page.eval(`(function(){var l=document.querySelector('li.item.kbsel'),s=getComputedStyle(l),y=document.createElement('i');y.style.color='var(--accent)';document.body.appendChild(y);var a=getComputedStyle(y).color;y.remove();
+        return {focus:document.activeElement===l,bc:s.borderTopColor,ac:a,sh:s.boxShadow};})()`);
+      assert.ok(f.focus, 'j focuses a card');
+      assert.equal(f.bc, f.ac, 'accent border');
+      assert.match(f.sh, /0px 0px 0px 3px/, '3px halo: ' + f.sh);
+    }
+  },
+  {
+    name: 'tablet (Cabina): at 900px the phone shell stays, with a centered 720 column and sheets up to 640',
+    width: 900, height: 1200,
+    storage: seed(),
+    async fn(page) {
+      const r = await page.eval(`(function(){var m=document.querySelector('main'),s=getComputedStyle(m),w=m.getBoundingClientRect().width-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight);
+        return {tabs:getComputedStyle(document.querySelector('.tabs')).display,lat:getComputedStyle(document.getElementById('lateral')).display,rail:getComputedStyle(document.getElementById('rail')).display,
+          w:w,pl:parseFloat(s.paddingLeft),pr:parseFloat(s.paddingRight)};})()`);
+      assert.notEqual(r.tabs, 'none', 'bottom tabs');
+      assert.equal(r.lat, 'none');
+      assert.equal(r.rail, 'none');
+      assert.ok(r.w <= 720 && r.w >= 680, 'about a 720 column: ' + r.w);
+      assert.ok(Math.abs(r.pl - r.pr) <= 1, 'centered');
+      await page.click('#btnAjustes');
+      await sleep(400);
+      const h = await page.eval("document.querySelector('#tapaAjustes .hoja').getBoundingClientRect().width");
+      assert.ok(h <= 640, 'sheet up to 640: ' + h);
     }
   }
 ];

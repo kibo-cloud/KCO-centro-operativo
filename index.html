@@ -18,12 +18,13 @@
 </head>
 <body class="pal-todo" data-ctx="todo">
 
-<!-- Escritorio (>= 1024px): barra lateral con vistas y contextos. En movil no se muestra. -->
+<!-- Escritorio (>= 1024px): barra lateral con vistas (Listas con sus subfilas) y apartados. En movil no se muestra. -->
 <aside class="lateral" id="lateral" aria-label="Navegaci&oacute;n">
   <div class="lat-marca"><span class="lat-logo" aria-hidden="true">K</span><span class="lat-nom">KCO<small>Centro operativo</small></span></div>
   <nav class="lat-nav" id="navLateral" aria-label="Vistas"></nav>
-  <div class="lat-rot" id="rotCtxLateral">Contextos</div>
+  <div class="lat-rot" id="rotCtxLateral">Apartados</div>
   <div class="lat-ctx" id="ctxLateral" role="group" aria-labelledby="rotCtxLateral"></div>
+  <button class="lat-item lat-nuevo" id="btnLatNuevoAp" type="button" data-ico="plus">Nuevo apartado</button>
 </aside>
 
 <header class="appbar">
@@ -37,6 +38,8 @@
   </div>
   <h1 class="appbar-tit" id="tituloVista">Ahora</h1>
   <span class="crece"></span>
+  <!-- Escritorio: buscador visible (atajo /); lo tipeado sigue en la hoja de busqueda. -->
+  <label class="buscar-barra" for="txtBuscaBarra"><span class="buscar-barra-ico" data-ico="search" aria-hidden="true"></span><input id="txtBuscaBarra" type="search" autocomplete="off" placeholder="Buscar" aria-label="Buscar" aria-keyshortcuts="/"><kbd aria-hidden="true">/</kbd></label>
   <!-- Anillo de XP: porcentaje del nivel en brasa y el numero de nivel; abre Progreso. -->
   <button class="iconobtn anillo-xp" id="btnNivel" type="button" aria-label="Nivel 1. Abrir Progreso" title="Progreso">
     <span class="anillo-xp-aro" aria-hidden="true"><span class="anillo-xp-n" id="anilloNivel">1</span></span>
@@ -157,6 +160,9 @@
 
   <div class="pie" id="pie"></div>
 </main>
+
+<!-- Escritorio ancho (>= 1280px): rail derecho con nivel, Pulso y misiones (kco-app pintarRail). -->
+<aside class="rail" id="rail" aria-label="Resumen"></aside>
 
 <!-- Movil: barra de pestanas inferior. En escritorio la reemplaza la barra lateral. -->
 <nav class="tabs" role="tablist" aria-label="Vistas">
