@@ -138,22 +138,21 @@
   </div>
 
   <div id="vistaRegistro" style="display:none">
-    <div class="seg" role="group" aria-label="Lectura del historial">
-      <button class="segbtn" id="btnModoDiario" type="button" data-ico="book">Diario</button>
-      <button class="segbtn on" id="btnModoCampana" type="button" data-ico="trophy">Campa&ntilde;a</button>
-      <button class="segbtn" id="btnModoRegistro" type="button" data-ico="list">Registro</button>
-    </div>
-    <div id="cajaRango">
-      <div class="chips scroll-x" id="chipsRango"></div>
-      <div class="grid">
-        <button class="bloque" id="btnRelevo" type="button" style="margin-top:0" data-ico="repeat">Reporte de turno</button>
-        <button class="bloque" id="btnResumen" type="button" style="margin-top:0" data-ico="clipboard">Resumen</button>
+    <div id="campanaCuerpo"></div>
+    <section class="sec bitacora" id="secBitacora" aria-labelledby="rotBitacora">
+      <h3 class="sec-tit" id="rotBitacora"><span data-ico="book">Bit&aacute;cora</span></h3>
+      <div class="seg" role="group" aria-label="Lectura de la bit&aacute;cora">
+        <button class="segbtn on" id="btnModoDiario" type="button" aria-pressed="true">Diario</button>
+        <button class="segbtn" id="btnModoRegistro" type="button" aria-pressed="false">Detalle</button>
       </div>
-    </div>
-    <div id="diarioCuerpo"></div>
-    <div id="campanaCuerpo" style="display:none"></div>
-    <div id="timeline" style="display:none"></div>
-    <div class="vacio" id="vacioRegistro">Sin movimientos en este periodo.</div>
+      <div class="rango-fila" id="cajaRango">
+        <div class="chips" id="chipsRango" role="group" aria-label="Per&iacute;odo"></div>
+        <button class="chip rango-reporte" id="btnReporte" type="button" aria-haspopup="dialog" aria-controls="tapaReporte" data-ico="share">Reporte</button>
+      </div>
+      <div id="diarioCuerpo"></div>
+      <div id="timeline" style="display:none"></div>
+      <div class="vacio" id="vacioRegistro">Sin movimientos en este periodo.</div>
+    </section>
   </div>
 
   <div class="pie" id="pie"></div>
@@ -418,6 +417,16 @@
     <input id="txtBusca" type="text" autocomplete="off" placeholder="Buscar en todos los contextos...">
     <ul id="resultados"></ul>
     <div class="vacio" id="vacioBusca">Escribi para buscar.</div>
+  </div>
+</div>
+
+<div class="tapa" id="tapaReporte" role="dialog" aria-modal="true" aria-labelledby="repTitulo">
+  <div class="hoja">
+    <h2 id="repTitulo">Compartir</h2>
+    <div class="acciones">
+      <button class="fila-acc" id="btnRelevo" type="button" data-ico="repeat">Reporte de turno</button>
+      <button class="fila-acc" id="btnResumen" type="button" data-ico="clipboard">Resumen</button>
+    </div>
   </div>
 </div>
 

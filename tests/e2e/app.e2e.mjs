@@ -964,7 +964,6 @@ export const tests = [
     async fn(page) {
       await scheme(page, 'light');
       await page.click('#tabRegistro');
-      await page.click('#btnModoCampana');
       const rows = () => page.eval("Array.prototype.map.call(document.querySelectorAll('#secMetas [data-meta-ap]'),function(r){" +
         "return r.getAttribute('data-meta-ap')+'|'+r.querySelector('.apmeta-nom').textContent+'|'+r.querySelector('.apmeta-txt').textContent+'|'+r.className+'|'+r.querySelector('[role=\"progressbar\"]').getAttribute('aria-valuenow');})");
       assert.deepEqual(await rows(), [
@@ -1778,7 +1777,8 @@ export const tests = [
     storage: seed(),
     async fn(page) {
       assert.equal(await page.text('.hero .hero-txt'), 'Enviar presupuesto bomba');
-      assert.match(await page.text('.hero .hero-meta'), /Vencida/);
+      assert.match(await page.text('.hero .hero-motivo'), /Vencida/, 'the reason sits right of the label');
+      assert.match(await page.eval("document.querySelector('.hero .hero-motivo').className"), /peligro/, 'overdue reason in danger');
       assert.ok(await page.count('#secInbox li.item') >= 1);
       await page.screenshot(path.join(OUT, 'ahora.png'));
     }
@@ -1824,6 +1824,7 @@ export const tests = [
       await page.click('#tabHoy');
       assert.ok(await page.visible('#secVencidas'));
       assert.ok(await page.visible('#secParaHoy'));
+      await page.click('.tira-dias [data-dia="' + ymd(2) + '"]');
       assert.ok(await page.visible('#dia-' + ymd(2)));
       assert.match(await page.text('#dia-' + ymd(2)), /Grabar video/);
       await page.screenshot(path.join(OUT, 'hoy.png'));
@@ -1906,6 +1907,7 @@ export const tests = [
     storage: rutinaSeed([], { tipo: 'semana', dias: [new Date(Date.now() + 2 * 86400000).getDay()] }),
     async fn(page) {
       await page.click('#tabHoy');
+      await page.click('.tira-dias [data-dia="' + ymd(2) + '"]');
       assert.ok(await page.count('#dia-' + ymd(2) + ' li.prevista') === 1);
       assert.equal((await items(page)).filter((i) => i.rutinaId === 'rgata' && i.ocurrencia >= ymd(1)).length, 0);
     }
@@ -2067,10 +2069,12 @@ export const tests = [
       await page.reload();
       await page.click('.hero [data-hero="hecho"]');
       assert.match(await page.text('#qpaso'), /\+25 XP/);
-      assert.match(await page.text('#tarjetaNivel'), /25\/100 XP/);
-      assert.match(await page.text('#tarjetaNivel'), /\+25 XP hoy/);
+      assert.equal(await page.count('#ahoraCuerpo #tarjetaNivel'), 0, 'the level card left Ahora');
+      await page.click('#btnNivel');
+      assert.match(await page.text('#tarjetaNivel'), /25 \/ 100 XP/);
+      assert.match(await page.text('#tarjetaNivel'), /\+25 hoy/);
       await page.click('#btnDeshacer');
-      assert.match(await page.text('#tarjetaNivel'), /0\/100 XP/, 'undo takes the XP back');
+      assert.match(await page.text('#tarjetaNivel'), /0 \/ 100 XP/, 'undo takes the XP back');
     }
   },
   {
@@ -2100,7 +2104,8 @@ export const tests = [
     async fn(page) {
       assert.equal(JSON.parse(await page.storage('kibco.progreso')).nivelVisto, 2);
       assert.ok(!(await events(page)).some((e) => e.tipo === 'nivel'), 'no fake level-up event');
-      assert.match(await page.text('#tarjetaNivel'), /NV 2/);
+      await page.click('#tabRegistro');
+      assert.match(await page.text('#tarjetaNivel'), /Nivel 2/);
     }
   },
   {
@@ -2127,13 +2132,14 @@ export const tests = [
       return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list) };
     })(),
     async fn(page) {
-      await page.click('#tarjetaNivel');
+      await page.click('#btnNivel');
       assert.ok(await page.visible('#campanaCuerpo'));
       const txt = await page.text('#campanaCuerpo');
       assert.match(txt, /9días activos/);
-      assert.match(txt, /9racha actual/);
+      assert.match(txt, /9mejor racha/);
+      assert.match(await page.text('#tarjetaNivel'), /Racha de 9 días/, 'the current streak rides on the level card');
       assert.match(txt, /7 días avanzando/);
-      assert.match(txt, /Logro secreto/);
+      assert.match(txt, /SecretoSeguí jugando/);
       assert.doesNotMatch(txt, /Madrugador/);
       assert.doesNotMatch(txt, EMOJI_UI, 'achievements use stroke icons, no emoji');
       assert.equal(await page.count('#secLogros .logro'), await page.count('#secLogros svg.logro-ico'), 'one icon per achievement');
@@ -2490,7 +2496,8 @@ export const tests = [
       assert.deepEqual([Math.round(pill.w), Math.round(pill.h)], [56, 32], 'icon pill 56x32');
       await page.click('.tabs [data-tab="progreso"]');
       assert.equal(await page.eval("document.querySelector('.tabs [data-tab=\"progreso\"]').getAttribute('aria-selected')"), 'true');
-      assert.ok(await page.eval("document.getElementById('btnModoCampana').className.indexOf('on')>-1"), 'Campaña is the first reading of Progreso');
+      assert.equal(await page.eval("document.querySelector('#vistaRegistro').firstElementChild.id"), 'campanaCuerpo', 'Campaña is the first reading of Progreso');
+      assert.equal(await page.eval("document.querySelector('#campanaCuerpo').firstElementChild.id"), 'tarjetaNivel', 'the level card leads');
       assert.equal(await page.visible('#campanaCuerpo'), true, 'the campaign shows');
       await sleep(300); // the pill color transition settles
       const bg = await page.eval(`(function(){var p=document.createElement('i');p.style.background='var(--brasa-soft)';document.body.appendChild(p);
@@ -2516,7 +2523,7 @@ export const tests = [
       assert.match(ring, /conic-gradient/, 'conic ring');
       await page.click('header .anillo-xp');
       assert.equal(await page.eval("document.querySelector('.tabs [data-tab=\"progreso\"]').getAttribute('aria-selected')"), 'true');
-      assert.ok(await page.eval("document.getElementById('btnModoCampana').className.indexOf('on')>-1"), 'opens on Campaña');
+      assert.ok(await page.visible('#tarjetaNivel'), 'opens on Campaña (the level card)');
     }
   },
   {
@@ -3609,7 +3616,6 @@ export const tests = [
       assert.equal(await page.count('#vacioRegistro .vacio-acc'), 0, 'no widen action once the range is Todo');
       await page.click('#btnModoRegistro');
       await emptyState(page, '#vacioRegistro[data-vacio="registro"]', false);
-      await page.click('#btnModoCampana');
       const camp = await emptyState(page, '#campanaCuerpo [data-vacio="campana"]');
       assert.match(camp.text, /campa\u00F1a/i);
       assert.equal(await page.count('#campanaCuerpo .stats'), 0, 'no wall of zeros');
@@ -4298,12 +4304,13 @@ export const tests = [
     name: 'kebab: every active card has a "more" button that opens the card tray (Ahora and Tareas) without opening the card',
     storage: Object.assign(ORDER_SEED(), { 'kibco.tema': 'claro' }),
     async fn(page) {
+      await sleep(450); // measure the cards at rest (entry animation)
       const sel = '#secSigue li.item[data-id="B"] [data-acc="mas"]';
       assert.equal(await page.count(sel), 1, 'kebab on the Ahora card');
       assert.equal(await page.eval(`document.querySelector('${sel}').getAttribute('aria-expanded')`), 'false');
       assert.match(await page.eval(`document.querySelector('${sel}').getAttribute('aria-label')`), /^Más opciones: tarea B$/);
       const r = await page.rect(sel);
-      assert.ok(r.w >= 44 && r.h >= 44, 'a 44px touch target');
+      assert.ok(r.w >= 44 && r.h >= 44, 'a 44px touch target: ' + JSON.stringify(r));
       const card = await page.rect('#secSigue li.item[data-id="B"]');
       assert.ok(r.r <= card.r + 0.5, 'inside the card');
       assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal overflow');
@@ -4378,7 +4385,7 @@ export const tests = [
       assert.deepEqual(rows.slice(0, 2).sort(), ['V1', 'V2'], 'overdue items lead the manual list by score');
       assert.deepEqual(rows.slice(2), ['A', 'B', 'C', 'D']);
       assert.match(await page.text('#secSigue li.item[data-id="V1"]'), /Vencida hace 17 d/, 'the urgency label stays on the card');
-      assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo').getAttribute('data-tile')"), 'secSigue', 'the Atencion tile points to the manual list');
+      assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo').getAttribute('data-tile')"), 'atencion', 'the Atencion chip filters');
       assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo b').textContent"), '2', 'the Atencion count still works');
       // contextmenu on an overdue row never opens the quick menu in Manual.
       await page.eval(`document.querySelector('#secSigue li.item[data-id="V2"]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);
@@ -4402,7 +4409,7 @@ export const tests = [
       // Automatico: the alert section is back.
       await page.click('#ordenAhora [data-orden="auto"]');
       assert.equal(await page.count('#secAtencion'), 1, 'Automatico keeps Requiere atencion');
-      assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo').getAttribute('data-tile')"), 'secAtencion');
+      assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo').getAttribute('data-tile')"), 'atencion');
     }
   },
   {
@@ -4411,7 +4418,7 @@ export const tests = [
     async fn(page) {
       await toTasks(page);
       assert.equal(await listOrderOn(page, 'ordenTareas'), 'manual', 'the shared switch is shown in Tareas');
-      assert.equal(await page.eval("document.querySelector('#ordenTareas .seg').getAttribute('aria-label')"), 'Orden en Taller');
+      assert.equal(await page.eval("document.querySelector('#ordenTareas .menu-chip-lista').getAttribute('aria-label')"), 'Orden en Taller');
       assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'C', 'D']);
       assert.equal(await page.count('#lista.ordenable'), 1, 'the Tareas list is draggable');
       await page.eval("document.getElementById('lista').scrollIntoView(true)");
@@ -4936,6 +4943,196 @@ export const tests = [
       assert.deepEqual(JSON.parse(await page.storage('kibco.pistas')), { completar: true });
       assert.ok(await page.visible('.pista-gesto'));
     }
+  },
+  {
+    name: 'ahora (Cabina): the hero is the first block, the level card is gone and the chips Todo/Atención/Hoy/Inbox/Esperando filter the list',
+    storage: seed(),
+    async fn(page) {
+      assert.match(await page.eval("document.getElementById('ahoraCuerpo').firstElementChild.className"), /\bhero\b/, 'hero first');
+      assert.equal(await page.count('#ahoraCuerpo #tarjetaNivel, #ahoraCuerpo .progxp'), 0, 'no level card in Ahora');
+      const chips = await page.eval("Array.prototype.map.call(document.querySelectorAll('#ahoraCuerpo .pulso [data-tile]'),function(b){return [b.getAttribute('data-tile'),+b.querySelector('b').textContent,b.getAttribute('aria-pressed'),Math.round(b.getBoundingClientRect().height)];})");
+      const order = ['todo', 'atencion', 'hoy', 'inbox', 'esperando'];
+      assert.deepEqual(chips.map((c) => c[0]), order.filter((id) => chips.some((c) => c[0] === id)), 'chips in order');
+      assert.deepEqual(chips.map((c) => c[0]), order, 'the seed has something in every filter');
+      assert.ok(chips.every((c) => c[1] > 0 && c[3] >= 44), 'counts and 44px chips: ' + JSON.stringify(chips));
+      assert.equal(chips[0][2], 'true', 'Todo starts active');
+      assert.ok(await page.count('#ahoraCuerpo .pulso .tile.rojo .tile-punto') === 1, 'Atención carries the red dot');
+      const inboxN = chips.find((c) => c[0] === 'inbox')[1];
+      await page.click('#ahoraCuerpo [data-tile="inbox"]');
+      assert.equal(await page.eval("document.querySelector('[data-tile=\"inbox\"]').getAttribute('aria-pressed')"), 'true');
+      const ids = await page.eval("Array.prototype.map.call(document.querySelectorAll('#secFiltro li.item'),function(l){return l.getAttribute('data-id');})");
+      assert.equal(ids.length, inboxN, 'the list shows exactly the inbox');
+      const list = await items(page);
+      assert.ok(ids.every((id) => list.find((i) => i.id === id).estado === 'entrada'), 'only inbox items');
+      assert.equal(await page.count('#secSigue, #secEsperando, #secMisiones'), 0, 'the other sections step aside');
+      assert.match(await page.eval("document.getElementById('ahoraCuerpo').firstElementChild.className"), /\bhero\b/, 'the hero stays first');
+      await page.click('#ahoraCuerpo [data-tile="esperando"]');
+      assert.match(await page.text('#secFiltro'), /Respuesta de RRHH/);
+      assert.equal(await page.count('#secFiltro li.item'), chips.find((c) => c[0] === 'esperando')[1]);
+      await page.click('#ahoraCuerpo [data-tile="esperando"]');
+      assert.equal(await page.eval("document.querySelector('[data-tile=\"todo\"]').getAttribute('aria-pressed')"), 'true', 'tapping the active chip goes back to Todo');
+      assert.equal(await page.count('#secFiltro'), 0);
+      assert.ok(await page.count('#secSigue') === 1);
+    }
+  },
+  {
+    name: 'ahora (Cabina): chips at 0 are not in the DOM and a filter that empties falls back to Todo',
+    storage: ORDER_SEED(),
+    async fn(page) {
+      const tiles = await page.eval("Array.prototype.map.call(document.querySelectorAll('[data-tile]'),function(b){return b.getAttribute('data-tile');})");
+      assert.deepEqual(tiles, ['todo'], 'nothing overdue, for today, in the inbox or waiting: only Todo');
+      await capture(page, 'algo nuevo');
+      assert.equal(await page.count('[data-tile="inbox"]'), 1, 'the inbox chip appears with its first item');
+      await page.click('[data-tile="inbox"]');
+      assert.equal(await page.count('#secFiltro li.item'), 1);
+      await page.click('#secFiltro [data-acc="parahoy"]');
+      assert.equal(await page.count('[data-tile="inbox"]'), 0, 'gone at 0');
+      assert.equal(await page.eval("document.querySelector('[data-tile=\"todo\"]').getAttribute('aria-pressed')"), 'true', 'back to Todo');
+    }
+  },
+  {
+    name: 'ahora (Cabina): the hero has the reason at the right of its label, 48px buttons with Hecho widest, and the order switch is one compact Manual/Automático button',
+    storage: ORDER_SEED(),
+    async fn(page) {
+      const h = await page.eval(`(function(){var c=document.querySelector('.hero'),s=getComputedStyle(c),r=c.querySelector('.hero-cab').children;
+        var b=Array.prototype.map.call(c.querySelectorAll('.hero-accs button'),function(x){return [x.getAttribute('data-hero'),Math.round(x.getBoundingClientRect().height),x.getBoundingClientRect().width];});
+        return {bg:s.backgroundColor,s2:getComputedStyle(document.body).getPropertyValue('--surface-2').trim(),sh:s.boxShadow,pad:s.paddingTop,rad:s.borderTopLeftRadius,
+          rot:r[0].textContent,ico:!!r[0].querySelector('svg'),fs:getComputedStyle(c.querySelector('.hero-txt')).fontSize,fw:getComputedStyle(c.querySelector('.hero-txt')).fontWeight,b:b};})()`);
+      assert.equal(h.rot, 'Siguiente movimiento');
+      assert.ok(h.ico, 'zap icon');
+      assert.equal(h.fs, '20px');
+      assert.equal(h.fw, '650');
+      assert.equal(h.pad, '16px');
+      assert.equal(h.rad, '12px');
+      assert.notEqual(h.sh, 'none', 'shadow 2');
+      assert.deepEqual(h.b.map((x) => x[0]), ['hecho', 'empezar', 'manana']);
+      assert.ok(h.b.every((x) => x[1] === 48), '48px buttons');
+      assert.ok(h.b[0][2] > h.b[1][2], 'Hecho is the widest');
+      await page.eval("document.querySelector('[data-tile]').scrollIntoView()");
+      const o = await page.eval(`(function(){var b=document.querySelector('#ordenAhora .menu-chip-btn'),l=document.querySelector('#ordenAhora .menu-chip-lista');
+        return {txt:b.textContent,exp:b.getAttribute('aria-expanded'),hidden:l.hidden,h:Math.round(b.getBoundingClientRect().height),segs:document.querySelectorAll('#ordenAhora .seg').length};})()`);
+      assert.equal(o.txt, 'Automático');
+      assert.equal(o.exp, 'false');
+      assert.equal(o.hidden, true, 'options folded');
+      assert.equal(o.segs, 0, 'no segmented control');
+      assert.ok(o.h >= 44);
+      await page.click('#ordenAhora .menu-chip-btn');
+      assert.equal(await page.eval("document.querySelector('#ordenAhora .menu-chip-btn').getAttribute('aria-expanded')"), 'true');
+      assert.ok(await page.visible('#ordenAhora [data-orden="manual"]'));
+      await page.click('#ordenAhora [data-orden="manual"]');
+      assert.equal(JSON.parse(await page.storage('kibco.apartados'))[0].ordenAhora, 'manual');
+      assert.equal(await page.text('#ordenAhora .menu-chip-btn'), 'Manual');
+    }
+  },
+  {
+    name: 'hoy (Cabina): header with the date, "N de M hechas", a 52px ring and a 7-day strip; tapping a day shows its list; Hecho hoy and Más adelante fold with aria-expanded',
+    storage: (() => {
+      const s = seed();
+      const l = JSON.parse(s['kibco.items']);
+      const iso = new Date(Date.now() - 3 * 86400000).toISOString();
+      l.push({ id: 'lejos', texto: 'Turno lejano', contexto: 'trabajo', tipo: 'tarea', estado: 'pendiente', nivel: 'normal', fecha: ymd(10), creado: iso, actualizado: iso, estadoDesde: iso });
+      s['kibco.items'] = JSON.stringify(l);
+      return s;
+    })(),
+    async fn(page) {
+      await page.click('#tabHoy');
+      const c = await page.eval(`(function(){var f=document.querySelector('.hoy-fecha'),a=document.querySelector('.anillo-hoy'),r=a.getBoundingClientRect();
+        var t=Array.prototype.map.call(document.querySelectorAll('.tira-dias .tira-dia'),function(b){return [b.getAttribute('data-dia'),Math.round(b.getBoundingClientRect().height),b.className,b.querySelectorAll('.tira-punto').length];});
+        return {fs:getComputedStyle(f).fontSize,fw:getComputedStyle(f).fontWeight,sub:document.querySelector('.hoy-sub').textContent,w:Math.round(r.width),h:Math.round(r.height),n:a.textContent,role:a.getAttribute('role'),t:t};})()`);
+      assert.equal(c.fs, '24px');
+      assert.equal(c.fw, '700');
+      assert.match(c.sub, /^\d+ de \d+ hechas?/);
+      assert.deepEqual([c.w, c.h], [52, 52], '52px ring');
+      assert.match(c.n, /^\d+\/\d+$/);
+      assert.equal(c.role, 'img');
+      assert.equal(c.t.length, 7, 'seven days');
+      assert.equal(c.t[0][0], ymd(0));
+      assert.match(c.t[0][2], /\bhoy\b/, 'today is the filled one');
+      assert.ok(c.t.every((d) => d[1] >= 56), '56px buttons');
+      assert.ok(c.t.find((d) => d[0] === ymd(2))[3] >= 1, 'a day with something shows dots');
+      assert.equal(await page.count('.sec-titulo-grande, [id^="dia-"]'), 0, 'no "Próximos días" sections');
+      await page.click('.tira-dias [data-dia="' + ymd(2) + '"]');
+      assert.match(await page.text('#dia-' + ymd(2)), /Grabar video/);
+      assert.equal(await page.count('#secParaHoy'), 0, 'the chosen day replaces the sections');
+      assert.equal(await page.eval("document.querySelector('[data-dia=\"" + ymd(2) + "\"]').getAttribute('aria-pressed')"), 'true');
+      await page.click('.tira-dias [data-dia="' + ymd(0) + '"]');
+      assert.equal(await page.count('#secParaHoy'), 1, 'today again');
+      const fold = await page.eval("(function(){var b=document.querySelector('#secMasAdelante .sec-plegar');return [b.tagName,b.getAttribute('aria-expanded'),document.getElementById(b.getAttribute('aria-controls')).hidden];})()");
+      assert.deepEqual(fold, ['BUTTON', 'false', true], 'Más adelante starts folded');
+      await page.click('#secMasAdelante .sec-plegar');
+      assert.equal(await page.eval("document.querySelector('#secMasAdelante .sec-plegar').getAttribute('aria-expanded')"), 'true');
+      assert.ok(await page.visible('#secMasAdelante li.item[data-id="lejos"]'));
+      const done0 = +(await page.text('.hoy-sub')).split(' ')[0];
+      await page.click('#secParaHoy [data-acc="listo"]');
+      await sleep(100);
+      assert.equal(await page.eval("document.querySelector('#secHechasHoy .sec-plegar').getAttribute('aria-expanded')"), 'false', 'Hecho hoy folded');
+      assert.equal(await page.eval("document.getElementById('secHechasHoyLista').hidden"), true);
+      assert.match(await page.text('.hoy-sub'), new RegExp('^' + (done0 + 1) + ' de \\d+ hechas'));
+      assert.match(await page.text('#secRutinasHoy .sec-tit'), /Crear rutina|Gestionar rutinas/, 'the routines link sits in its header');
+    }
+  },
+  {
+    name: 'progreso (Cabina): level card first, 2x2 stats, 12-week chart with the current week in brasa, Bitácora Diario · Detalle with range chips and a Reporte sheet',
+    storage: (() => {
+      const list = [];
+      for (let d = 0; d < 9; d++) list.push({ id: 'c' + d, texto: 'avance ' + d, contexto: d % 2 ? 'apps' : 'personal', tipo: 'tarea', estado: 'completado',
+        nivel: 'normal', creado: new Date(Date.now() - (d + 2) * 86400000).toISOString(), estadoDesde: (() => { const x = new Date(Date.now() - d * 86400000); x.setHours(12, 0, 0, 0); return x.toISOString(); })() });
+      return { 'kibco.esquema': '4', 'kibco.items': JSON.stringify(list) };
+    })(),
+    async fn(page) {
+      await capture(page, 'algo para el diario');
+      await page.click('.hero [data-hero="hecho"]');
+      await page.click('#tabRegistro');
+      const p = await page.eval(`(function(){var c=document.getElementById('tarjetaNivel'),br=document.createElement('i');br.style.color='var(--brasa)';document.body.appendChild(br);var brasa=getComputedStyle(br).color;br.remove();
+        var bar=c.querySelector('.nivel-barra'),st=document.querySelectorAll('#campanaCuerpo .stats .stat'),g=document.querySelector('.semanas');
+        return {first:document.getElementById('campanaCuerpo').firstElementChild.id,nv:c.querySelector('.nivel-n').textContent,tit:getComputedStyle(c.querySelector('.nivel-tit')).fontSize,
+          bh:Math.round(bar.getBoundingClientRect().height),bc:getComputedStyle(bar.querySelector('i')).backgroundColor,brasa:brasa,xp:c.querySelector('.nivel-xp').textContent,falta:c.querySelector('.nivel-falta').textContent,
+          stats:st.length,sfs:getComputedStyle(st[0].querySelector('b')).fontSize,role:g.getAttribute('role'),lab:g.getAttribute('aria-label'),
+          cur:getComputedStyle(g.querySelector('.sem.actual i')).backgroundColor,old:getComputedStyle(g.querySelector('.sem:not(.actual) i')).backgroundColor};})()`);
+      assert.equal(p.first, 'tarjetaNivel');
+      assert.match(p.nv, /^Nivel \d+$/);
+      assert.equal(p.tit, '32px');
+      assert.equal(p.bh, 8, '8px bar');
+      assert.equal(p.bc, p.brasa, 'brasa bar');
+      assert.match(p.xp, /^\d+ \/ \d+ XP/);
+      assert.match(p.falta, /^\d+ para \S+/);
+      assert.equal(p.stats, 4);
+      assert.equal(p.sfs, '24px');
+      assert.equal(p.role, 'img');
+      assert.match(p.lab, /Completadas por semana/);
+      assert.equal(p.cur, p.brasa, 'current week in brasa');
+      assert.notEqual(p.old, p.brasa, 'other weeks neutral');
+      assert.equal(await page.count('#btnModoCampana'), 0, 'Campaña is not a mode anymore');
+      assert.equal(await page.text('#btnModoDiario'), 'Diario');
+      assert.equal(await page.text('#btnModoRegistro'), 'Detalle');
+      assert.equal(await page.eval("document.getElementById('btnModoDiario').getAttribute('aria-pressed')"), 'true');
+      assert.deepEqual(await page.eval("Array.prototype.map.call(document.querySelectorAll('#chipsRango [data-filtro]'),function(b){return b.textContent.trim();})"), ['Hoy', '7 d', '30 d', 'Todo']);
+      await page.click('#chipsRango [data-filtro="todo"]');
+      assert.match(await page.text('#diarioCuerpo .diario-dia'), /\d+ completadas?/, 'day header counts in words');
+      assert.equal(await page.eval("getComputedStyle(document.querySelector('#diarioCuerpo .diario-ev b')).fontSize"), '15px');
+      await page.click('#btnModoRegistro');
+      assert.ok(await page.visible('#timeline'));
+      assert.equal(await page.visible('#diarioCuerpo'), false);
+      await page.click('#btnReporte');
+      await sleep(150);
+      assert.ok(await isOpen(page, 'tapaReporte'), 'Reporte opens the share sheet');
+      assert.deepEqual(await page.eval("Array.prototype.map.call(document.querySelectorAll('#tapaReporte .fila-acc'),function(b){return b.id+':'+b.textContent.trim();})"),
+        ['btnRelevo:Reporte de turno', 'btnResumen:Resumen']);
+      await page.click('#btnResumen');
+      await sleep(150);
+      assert.ok(await isOpen(page, 'tapaTexto'), 'the text sheet replaces it');
+      assert.equal(await isOpen(page, 'tapaReporte'), false);
+      assert.equal(await page.text('#textoTitulo'), 'Resumen');
+      await page.key('Escape');
+      await sleep(150);
+      assert.equal(await isOpen(page, 'tapaTexto'), false);
+      const lg = await page.eval(`(function(){var g=document.querySelector('.logro.ganado'),s=document.querySelector('.logro.secreto'),y=document.createElement('i');y.style.color='var(--gold)';document.body.appendChild(y);var gold=getComputedStyle(y).color;y.remove();
+        return {gi:getComputedStyle(g.querySelector('.logro-ico')).color,gold:gold,ss:getComputedStyle(s).borderTopStyle,st:s.textContent,lock:!!s.querySelector('svg')};})()`);
+      assert.equal(lg.gi, lg.gold, 'won: gold icon');
+      assert.equal(lg.ss, 'dotted', 'secret: dotted border');
+      assert.match(lg.st, /Seguí jugando/);
+      assert.ok(lg.lock);
+    }
   }
 ];
 
@@ -4985,7 +5182,7 @@ function PAGED_ORDER_SEED() {
   return s;
 }
 const listRows = (page, id) => page.eval(`Array.prototype.map.call(document.querySelectorAll('#${id} li.item'),function(l){return l.getAttribute('data-id');})`);
-const listOrderOn = (page, id) => page.eval(`(function(){var b=document.querySelector('#${id} .segbtn.on');return b?b.getAttribute('data-orden'):null;})()`);
+const listOrderOn = (page, id) => page.eval(`(function(){var b=document.querySelector('#${id} .menu-op.on');return b?b.getAttribute('data-orden'):null;})()`);
 
 // ORDER_SEED plus two overdue Taller tasks (17 and 3 days).
 function ATTENTION_SEED(mode) {
@@ -5030,7 +5227,7 @@ function LONG_ORDER_SEED() {
   return s;
 }
 const orderRows = (page) => page.eval("Array.prototype.map.call(document.querySelectorAll('#secSigue li.item'),function(l){return l.getAttribute('data-id');})");
-const orderOn = (page) => page.eval("(function(){var b=document.querySelector('#ordenAhora .segbtn.on');return b?b.getAttribute('data-orden'):null;})()");
+const orderOn = (page) => page.eval("(function(){var b=document.querySelector('#ordenAhora .menu-op.on');return b?b.getAttribute('data-orden'):null;})()");
 
 function ymd(offset) {
   const d = new Date();

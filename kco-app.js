@@ -85,8 +85,8 @@
 
   var RANGOS = [
     { id: 'hoy', nom: 'Hoy', dias: 1 },
-    { id: 'd7', nom: '7 d\u00EDas', dias: 7 },
-    { id: 'd30', nom: '30 d\u00EDas', dias: 30 },
+    { id: 'd7', nom: '7 d', dias: 7 },
+    { id: 'd30', nom: '30 d', dias: 30 },
     { id: 'todo', nom: 'Todo', dias: 0 }
   ];
 
@@ -109,7 +109,8 @@
   var rango = 'd7';
   /* DIARIO tiene tres lecturas del mismo historial: curada, cruda y campaña. */
   /* Progreso (ex Diario) abre en Campa\u00F1a. */
-  var modoDiario = 'campana';
+  /* Bitacora de Progreso: 'diario' (por dia) o 'registro' (Detalle, el log). */
+  var modoDiario = 'diario';
   var soloLectura = false;
   /* Solo lectura porque los datos son de una version mas nueva: ahi tampoco
      se restaura, porque pisaria datos que esta version no entiende. */
@@ -1895,29 +1896,93 @@
     if (!guardarRegistro(l)) { avisar('No se pudo guardar el orden (fallo al guardar). No se cambi\u00F3 nada.'); }
   }
 
-  /* El switch Automatico/Manual del apartado. Es el mismo en Ahora, Tareas y
-     Compras; cada vista lo pinta con su propio id. */
+  /* ---------- chip-menu ----------
+     Un boton compacto (rotulo + chevron) que despliega sus opciones debajo,
+     sin hoja encima: el orden (Manual / Automatico) y el estado de Tareas.
+     Una abierta a la vez; Escape (vuelve el foco al boton), tocar afuera,
+     elegir o repintar la cierran. o = { id, clase, rot, ico, etiqueta,
+     ops: [{ id, nom, n }], actual, attr, activo, alElegir }. */
+  var menuAbierto = null;
+
+  function cerrarMenuChip(devolver) {
+    var m = menuAbierto;
+    if (!m) { return; }
+    menuAbierto = null;
+    m.lista.hidden = true;
+    m.boton.setAttribute('aria-expanded', 'false');
+    if (devolver && document.documentElement.contains(m.boton)) { enfocar(m.boton); }
+  }
+
+  function menuChip(cont, o) {
+    var caja = nodo('div', 'menu-chip' + (o.clase ? ' ' + o.clase : ''));
+    var b = nodo('button', 'chip menu-chip-btn' + (o.activo ? ' on' : ''));
+    var l = nodo('div', 'menu-chip-lista'), i;
+    if (o.id) { caja.id = o.id; }
+    l.id = (o.id || 'menu') + 'Ops';
+    l.hidden = true;
+    l.setAttribute('role', 'group');
+    l.setAttribute('aria-label', o.etiqueta || o.rot);
+    b.type = 'button';
+    b.setAttribute('aria-expanded', 'false');
+    b.setAttribute('aria-controls', l.id);
+    if (o.etiqueta) { b.setAttribute('aria-label', o.etiqueta + ': ' + o.rot); }
+    if (o.ico) { b.appendChild(svgIco(o.ico)); }
+    b.appendChild(nodo('span', 'menu-chip-rot', o.rot));
+    b.appendChild(svgIco('chevron-down', 'menu-chip-chev'));
+    for (i = 0; i < o.ops.length; i++) {
+      (function (op) {
+        var on = op.id === o.actual, x = nodo('button', 'menu-op' + (on ? ' on' : ''));
+        x.type = 'button';
+        x.setAttribute(o.attr, op.id);
+        x.setAttribute('aria-pressed', on ? 'true' : 'false');
+        x.appendChild(nodo('span', '', op.nom));
+        if (typeof op.n === 'number') { x.appendChild(nodo('b', 'mono', '' + op.n)); }
+        x.disabled = !!o.deshabilitado;
+        x.onclick = function () { cerrarMenuChip(false); o.alElegir(op.id); };
+        l.appendChild(x);
+      })(o.ops[i]);
+    }
+    b.onclick = function (ev) {
+      if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+      if (menuAbierto && menuAbierto.boton === b) { cerrarMenuChip(false); return; }
+      cerrarMenuChip(false);
+      l.hidden = false;
+      b.setAttribute('aria-expanded', 'true');
+      menuAbierto = { boton: b, lista: l, caja: caja };
+      enfocar(l.querySelector('.menu-op.on') || l.firstChild);
+    };
+    caja.onkeydown = function (ev) {
+      var k = ev.key || '';
+      if (menuAbierto && menuAbierto.caja === caja && (k === 'Escape' || k === 'Esc' || ev.keyCode === 27)) {
+        ev.preventDefault();
+        if (ev.stopPropagation) { ev.stopPropagation(); }
+        cerrarMenuChip(true);
+      }
+    };
+    caja.appendChild(b);
+    caja.appendChild(l);
+    cont.appendChild(caja);
+    return caja;
+  }
+
+  if (document.addEventListener) {
+    document.addEventListener('pointerdown', function (ev) {
+      if (menuAbierto && !menuAbierto.caja.contains(ev.target)) { cerrarMenuChip(false); }
+    }, true);
+  }
+
+  /* El orden del apartado: un boton compacto "Manual" / "Autom\u00E1tico" con sus
+     dos opciones. Es el mismo en Ahora, Tareas y Compras; cada vista lo pinta
+     con su propio id. */
   function pintarOrdenAhora(cont, id) {
     if (contexto === 'todo') { return; }
-    var modo = K.ordenAhora(contexto), caja = nodo('div', 'orden-ahora'), seg = nodo('div', 'seg'), i;
+    var modo = K.ordenAhora(contexto), caja = nodo('div', 'orden-ahora');
     var defs = [{ id: 'auto', nom: 'Autom\u00E1tico' }, { id: 'manual', nom: 'Manual' }];
-    caja.id = id;
-    caja.appendChild(nodo('span', 'orden-rot', 'Orden'));
-    seg.setAttribute('role', 'group');
-    seg.setAttribute('aria-label', 'Orden en ' + nomCtx(contexto));
-    for (i = 0; i < defs.length; i++) {
-      (function (d) {
-        var b = nodo('button', modo === d.id ? 'segbtn on' : 'segbtn', d.nom);
-        b.type = 'button';
-        b.setAttribute('data-orden', d.id);
-        b.setAttribute('aria-pressed', modo === d.id ? 'true' : 'false');
-        b.disabled = soloLectura;
-        b.onclick = function () { fijarOrdenAhora(d.id); };
-        seg.appendChild(b);
-      })(defs[i]);
-    }
-    caja.appendChild(seg);
+    menuChip(caja, { id: id, clase: 'derecha', rot: modo === 'manual' ? 'Manual' : 'Autom\u00E1tico', ico: 'list',
+      etiqueta: 'Orden en ' + nomCtx(contexto), ops: defs, actual: modo, attr: 'data-orden', deshabilitado: soloLectura,
+      alElegir: function (m) { fijarOrdenAhora(m); } });
     cont.appendChild(caja);
+    return caja;
   }
 
   /* Switch de orden de una lista (Tareas, Compras) en su caja de index.html,
@@ -2651,7 +2716,7 @@
   function resumenDia(c) {
     var p = [];
     function cuenta(n, uno, varios) { if (n) { p.push(n + ' ' + (n === 1 ? uno : varios)); } }
-    cuenta(c.hechas, 'hecha', 'hechas');
+    cuenta(c.hechas, 'completada', 'completadas');
     cuenta(c.rutinas, 'rutina', 'rutinas');
     cuenta(c.hitos, 'hito', 'hitos');
     cuenta(c.misiones, 'misi\u00F3n', 'misiones');
@@ -2707,17 +2772,20 @@
       acc: todo ? '' : 'Ver todo', alTocar: function () { rango = 'todo'; pintar(); } });
   }
 
+  /* Progreso: la campana arriba (nivel, numeros, objetivos, semanas,
+     logros) y la Bitacora abajo, con Diario o Detalle (el antiguo Registro). */
   function pintarRegistro() {
-    $('btnModoDiario').className = modoDiario === 'diario' ? 'segbtn on' : 'segbtn';
-    $('btnModoRegistro').className = modoDiario === 'registro' ? 'segbtn on' : 'segbtn';
-    $('btnModoCampana').className = modoDiario === 'campana' ? 'segbtn on' : 'segbtn';
-    $('cajaRango').style.display = modoDiario === 'campana' ? 'none' : 'block';
-    $('diarioCuerpo').style.display = modoDiario === 'diario' ? 'block' : 'none';
-    $('timeline').style.display = modoDiario === 'registro' ? 'block' : 'none';
-    $('campanaCuerpo').style.display = modoDiario === 'campana' ? 'block' : 'none';
-    if (modoDiario === 'campana') { $('vacioRegistro').style.display = 'none'; pintarCampana(); return; }
+    if (modoDiario !== 'registro') { modoDiario = 'diario'; }
+    var d = modoDiario === 'diario';
+    $('btnModoDiario').className = d ? 'segbtn on' : 'segbtn';
+    $('btnModoDiario').setAttribute('aria-pressed', d ? 'true' : 'false');
+    $('btnModoRegistro').className = d ? 'segbtn' : 'segbtn on';
+    $('btnModoRegistro').setAttribute('aria-pressed', d ? 'false' : 'true');
+    $('diarioCuerpo').style.display = d ? 'block' : 'none';
+    $('timeline').style.display = d ? 'none' : 'block';
+    pintarCampana();
     pintarChipsGen('chipsRango', RANGOS, rango, function () { return ''; }, function (id) { rango = id; pintar(); });
-    if (modoDiario === 'diario') { pintarDiario(); return; }
+    if (d) { pintarDiario(); return; }
     var cont = $('timeline');
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
     var lista = eventosFiltrados();
@@ -2884,29 +2952,41 @@
     return b;
   }
 
+  /* Hero "Siguiente movimiento": rotulo con rayo y el motivo a la derecha
+     (en rojo si esta vencida), titulo, datos cortos y tres botones de 48px.
+     "Despues" ofrece los dos que siguen. Urgente lleva el borde rojo. */
   function nodoHero(r, siguientes) {
-    var it = r.item;
+    var it = r.item, hoy = hoyClave(), dia = K.diaDe(it);
+    var vencida = dia !== '' && dia < hoy;
     var c = nodo('div', 'hero' + claseNivel(it));
     c.setAttribute('data-id', it.id);
-    c.appendChild(nodo('div', 'hero-rot', 'Siguiente movimiento', 'zap'));
+    var cab = nodo('div', 'hero-cab');
+    cab.appendChild(nodo('span', 'hero-rot', 'Siguiente movimiento', 'zap'));
+    if (r.motivo) { cab.appendChild(nodo('span', 'hero-motivo mono' + (vencida ? ' peligro' : ''), r.motivo)); }
+    c.appendChild(cab);
     c.appendChild(nodo('div', 'hero-txt', it.texto));
-    var meta = [r.motivo, nomCtx(it.contexto)];
-    var pr = it.proyectoId ? buscarProyectoNombre(it.proyectoId) : '';
+    var meta = [], pasos = pasosDe(it), pr = it.proyectoId ? buscarProyectoNombre(it.proyectoId) : '';
+    if (it.nivel !== 'normal') { meta.push(K.infoNivel(it.nivel).nom); }
+    meta.push(nomCtx(it.contexto));
+    if (pasos.length > 0) { meta.push('Pasos ' + pasosHechos(pasos) + '/' + pasos.length); }
+    if (it.recordatorio !== '' && fechaObj(it.recordatorio)) { meta.push('Recordatorio ' + hhmm(fechaObj(it.recordatorio))); }
     if (pr !== '') { meta.push(pr); }
-    c.appendChild(nodo('div', 'hero-meta mono', meta.join(' \u00B7 ')));
-    var accs = nodo('div', 'hero-accs');
+    c.appendChild(nodo('div', 'hero-meta', meta.join(' \u00B7 ')));
+    var accs = nodo('div', 'hero-accs'), op = accionesRapidas(it);
     var ap = accionPrincipal(it);
-    if (ap) { botonHero(accs, 'bloque pri', ap.txt, ap.fn, ap.ico).setAttribute('data-hero', 'hecho'); }
+    if (ap) { botonHero(accs, 'bloque pri hero-hecho', ap.txt, ap.fn, ap.ico).setAttribute('data-hero', 'hecho'); }
     if (it.tipo === 'tarea' && it.estado !== 'proceso') {
       botonHero(accs, 'bloque', 'Empezar', function () { cambiarEstado(it.id, 'proceso'); }, 'play').setAttribute('data-hero', 'empezar');
     }
-    botonHero(accs, 'bloque', 'Ma\u00F1ana', function () {
-      posponer(it.id);
-    }, 'forward').setAttribute('data-hero', 'manana');
+    if (op.manana) {
+      botonHero(accs, 'bloque', 'Ma\u00F1ana', function () {
+        posponer(it.id);
+      }, 'forward').setAttribute('data-hero', 'manana');
+    }
     c.appendChild(accs);
     if (siguientes.length > 0) {
       var sg = nodo('div', 'hero-sig');
-      sg.appendChild(nodo('span', '', 'Despu\u00E9s '));
+      sg.appendChild(nodo('span', 'hero-sig-rot', 'Despu\u00E9s'));
       var j;
       for (j = 0; j < siguientes.length; j++) {
         (function (s) {
@@ -2970,18 +3050,56 @@
     });
   }
 
-  function tile(cont, ico, n, rot, destino, clase) {
-    var b = nodo('button', 'tile' + (clase ? ' ' + clase : '') + (n === 0 ? ' cero' : ''));
+  /* Fila de filtros de Ahora (antes "Pulso"): Todo, Atencion, Hoy, Inbox y
+     Esperando, con su cuenta. Filtran la lista de abajo; los que estan en 0
+     no se muestran. El filtro vive en memoria: la app arranca en Todo. */
+  var filtroAhora = 'todo';
+  var FILTROS_AHORA = [
+    { id: 'todo', nom: 'Todo' },
+    { id: 'atencion', nom: 'Atenci\u00F3n', tit: 'Requiere atenci\u00F3n', ico: 'alert-circle' },
+    { id: 'hoy', nom: 'Hoy', tit: 'Para hoy', ico: 'calendar' },
+    { id: 'inbox', nom: 'Inbox', tit: 'Inbox', ico: 'inbox' },
+    { id: 'esperando', nom: 'Esperando', tit: 'Esperando', ico: 'hourglass' }
+  ];
+
+  function enFiltroAhora(f, it, hoy, ahora) {
+    if (f === 'atencion') { return K.situacion(it, hoy, ahora) === 'atencion'; }
+    if (f === 'hoy') { return K.diaDe(it) === hoy; }
+    if (f === 'inbox') { return it.tipo === 'tarea' && it.estado === 'entrada'; }
+    if (f === 'esperando') { return K.situacion(it, hoy, ahora) === 'esperando'; }
+    return true;
+  }
+
+  function tile(cont, f, n) {
+    var on = filtroAhora === f.id;
+    var b = nodo('button', 'tile' + (f.id === 'atencion' ? ' rojo' : '') + (on ? ' on' : ''));
     b.type = 'button';
-    b.setAttribute('data-tile', destino);
+    b.setAttribute('data-tile', f.id);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (f.id === 'atencion') { b.appendChild(nodo('span', 'tile-punto')).setAttribute('aria-hidden', 'true'); }
+    b.appendChild(nodo('span', 'tile-rot', f.nom));
     b.appendChild(nodo('b', 'mono', '' + n));
-    b.appendChild(nodo('span', '', rot));
-    b.appendChild(svgIco(ico, 'tile-ico'));
-    b.onclick = function () {
-      var s = $(destino);
-      if (s && s.scrollIntoView) { try { s.scrollIntoView(true); } catch (e) {} }
-    };
+    /* Tocar el filtro activo vuelve a Todo. */
+    b.onclick = function () { filtroAhora = on ? 'todo' : f.id; pintar(); };
     cont.appendChild(b);
+  }
+
+  /* Lo que deja pasar el filtro, en el orden del ranking (y despues lo que el
+     ranking no puntua, como lo que espera a otros). */
+  function pintarFiltradoAhora(cont, f, ranking, lista, hoy, ahora) {
+    var r = [], vistos = {}, i, lim, ul;
+    for (i = 0; i < ranking.length; i++) {
+      vistos['#' + ranking[i].item.id] = true;
+      if (enFiltroAhora(f.id, ranking[i].item, hoy, ahora)) { r.push(ranking[i]); }
+    }
+    for (i = 0; i < lista.length; i++) {
+      if (!vistos['#' + lista[i].id] && enFiltroAhora(f.id, lista[i], hoy, ahora)) { r.push({ item: lista[i], motivo: '' }); }
+    }
+    ul = seccion(cont, 'secFiltro', f.tit, r.length, '', f.ico);
+    ul.setAttribute('data-filtro-ahora', f.id);
+    lim = limiteTrozo('secFiltro', contexto + '|' + f.id);
+    for (i = 0; i < r.length && i < lim; i++) { ul.appendChild(nodoItem(r[i].item, r[i].motivo, f.id === 'inbox' ? 'triage' : '')); }
+    if (r.length > lim) { botonVerMas(ul, 'secFiltro', r.length - lim, pintar); }
   }
 
   function pintarAhora() {
@@ -2993,26 +3111,21 @@
     /* Orden manual: por apartado, nunca en Todo. */
     var manual = contexto !== 'todo' && K.ordenAhora(contexto) === 'manual';
     if (manual) { ranking = K.ordenarManual(ranking); }
-    var esperando = [], inbox = [], nAt = 0, nHoy = 0, i, s;
+    var esperando = [], inbox = [], i, s;
+    var cuenta = { todo: lista.length, atencion: 0, hoy: 0, inbox: 0, esperando: 0 };
     for (i = 0; i < lista.length; i++) {
       s = K.situacion(lista[i], hoy, ahora);
-      if (s === 'atencion') { nAt++; }
+      if (s === 'atencion') { cuenta.atencion++; }
       if (s === 'esperando') { esperando.push(lista[i]); }
-      if (K.diaDe(lista[i]) === hoy) { nHoy++; }
+      if (K.diaDe(lista[i]) === hoy) { cuenta.hoy++; }
       if (lista[i].tipo === 'tarea' && lista[i].estado === 'entrada') { inbox.push(lista[i]); }
     }
+    cuenta.inbox = inbox.length;
+    cuenta.esperando = esperando.length;
+    /* Un filtro que se quedo sin nada vuelve a Todo. */
+    if (!cuenta[filtroAhora]) { filtroAhora = 'todo'; }
 
-    pintarProgresoArriba(cont);
-
-    var pulso = nodo('div', 'pulso');
-    /* En Manual no hay seccion de atencion aparte: el tile lleva a la lista ordenable. */
-    tile(pulso, 'alert-circle', nAt, 'Atenci\u00F3n', manual ? 'secSigue' : 'secAtencion', nAt > 0 ? 'rojo' : '');
-    tile(pulso, 'calendar', nHoy, 'Hoy', 'secSigue', '');
-    tile(pulso, 'inbox', inbox.length, 'Inbox', 'secInbox', '');
-    tile(pulso, 'hourglass', esperando.length, 'Esperando', 'secEsperando', '');
-    cont.appendChild(pulso);
-    pintarOrdenAhora(cont, 'ordenAhora');
-
+    /* 1. El siguiente movimiento, primero. */
     var mostrados = {};
     if (lista.length === 0) {
       cont.appendChild(vacioNuevo('div', { id: 'ahora', ico: 'check-circle', tit: 'Todo en orden',
@@ -3020,8 +3133,8 @@
         acc: 'Capturar', accIco: 'plus', alTocar: irACaptura }));
     } else if (ranking.length === 0) {
       var calma = nodo('div', 'hero calma');
-      calma.appendChild(nodo('div', 'hero-rot', 'Todo en orden', 'check-circle'));
-      calma.appendChild(nodo('div', 'hero-txt', 'Lo que queda esta esperando a otros o tiene dia m\u00E1s adelante.'));
+      calma.appendChild(nodo('div', 'hero-cab')).appendChild(nodo('span', 'hero-rot', 'Todo en orden', 'check-circle'));
+      calma.appendChild(nodo('div', 'hero-txt', 'Lo que queda est\u00E1 esperando a otros o tiene d\u00EDa m\u00E1s adelante.'));
       cont.appendChild(calma);
     } else {
       var sig = [];
@@ -3030,8 +3143,29 @@
       mostrados['#' + ranking[0].item.id] = true;
     }
 
-    /* En Manual lo que requiere atencion entra en la lista ordenable (con su
-       motivo en rojo) en vez de quedar en una seccion fija que no se arrastra. */
+    /* 2. Filtros (solo los que tienen algo). */
+    if (lista.length > 0) {
+      var pulso = nodo('div', 'pulso');
+      pulso.setAttribute('role', 'group');
+      pulso.setAttribute('aria-label', 'Filtrar Ahora');
+      for (i = 0; i < FILTROS_AHORA.length; i++) {
+        if (cuenta[FILTROS_AHORA[i].id] > 0) { tile(pulso, FILTROS_AHORA[i], cuenta[FILTROS_AHORA[i].id]); }
+      }
+      cont.appendChild(pulso);
+    }
+    /* 3. Orden del apartado (boton compacto). */
+    pintarOrdenAhora(cont, 'ordenAhora');
+
+    if (filtroAhora !== 'todo') {
+      for (i = 0; i < FILTROS_AHORA.length; i++) {
+        if (FILTROS_AHORA[i].id === filtroAhora) { pintarFiltradoAhora(cont, FILTROS_AHORA[i], ranking, lista, hoy, ahora); }
+      }
+      return;
+    }
+
+    /* 4. Secciones. En Manual lo que requiere atencion entra en la lista
+       ordenable (con su motivo en rojo) en vez de quedar en una seccion fija
+       que no se arrastra. */
     var at = [];
     for (i = 0; i < ranking.length && !manual; i++) {
       if (ranking[i].situacion === 'atencion' && !mostrados['#' + ranking[i].item.id]) { at.push(ranking[i]); }
@@ -3060,8 +3194,8 @@
         if ((!mostrados['#' + ranking[i].item.id] || (manual && i === 0)) && ranking[i].item.estado !== 'entrada') { resto++; }
       }
       var notaS = manual ? 'Manten\u00E9 presionada una tarea y arrastrala. La primera es el siguiente movimiento.' +
-        (resto > siguen.length ? ' El resto esta en Tareas.' : '') :
-        (resto > siguen.length ? 'Las ' + siguen.length + ' que m\u00E1s pesan. El resto esta en Tareas.' : '');
+        (resto > siguen.length ? ' El resto est\u00E1 en Listas.' : '') :
+        (resto > siguen.length ? 'Las ' + siguen.length + ' que m\u00E1s pesan. El resto est\u00E1 en Listas.' : '');
       var ulS = seccion(cont, 'secSigue', 'A continuaci\u00F3n', resto, notaS, 'arrow-right');
       for (i = 0; i < siguen.length; i++) {
         ulS.appendChild(nodoItem(siguen[i].item, siguen[i].motivo));
@@ -3113,12 +3247,84 @@
     return DIAS_SEMANA[d.getDay()] + ' ' + d.getDate() + ' ' + MESES[d.getMonth()];
   }
 
-  var DIAS_PROXIMOS = 7;
+  /* Tira de 7 dias de Hoy: hoy y los seis que siguen. Tocar un dia muestra
+     su lista (con las rutinas previstas, punteadas); hoy vuelve a las
+     secciones del dia. El dia elegido vive en memoria ('' = hoy). */
+  var DIAS_TIRA = 7;
+  var DIAS_CORTOS = ['dom', 'lun', 'mar', 'mi\u00E9', 'jue', 'vie', 's\u00E1b'];
+  var diaHoy = '';
+  /* Secciones plegables de Hoy: true = plegada (arrancan plegadas). */
+  var plegadas = {};
+
+  function seccionPlegable(cont, id, titulo, n, ico) {
+    var s = nodo('section', 'sec plegable'), h = nodo('h3', 'sec-tit'), b = nodo('button', 'sec-plegar');
+    var ul = nodo('ul', 'lista'), cerrada = plegadas[id] !== false;
+    s.id = id;
+    ul.id = id + 'Lista';
+    b.type = 'button';
+    b.setAttribute('aria-controls', ul.id);
+    b.appendChild(nodo('span', 'sec-plegar-rot', titulo, ico));
+    b.appendChild(nodo('b', 'mono', '' + n));
+    b.appendChild(svgIco('chevron-down', 'sec-chev'));
+    function aplicar() {
+      ul.hidden = cerrada;
+      b.setAttribute('aria-expanded', cerrada ? 'false' : 'true');
+      s.className = cerrada ? 'sec plegable' : 'sec plegable abierta';
+    }
+    b.onclick = function () { cerrada = !cerrada; plegadas[id] = cerrada; aplicar(); };
+    aplicar();
+    h.appendChild(b);
+    s.appendChild(h);
+    s.appendChild(ul);
+    cont.appendChild(s);
+    return ul;
+  }
+
+  function pintarTiraDias(cont, hoy, sel) {
+    var tira = nodo('div', 'tira-dias'), d;
+    tira.setAttribute('role', 'group');
+    tira.setAttribute('aria-label', 'Elegir d\u00EDa');
+    for (d = 0; d < DIAS_TIRA; d++) {
+      (function (clave, esHoy) {
+        var n = itemsDelDia(clave).length + (esHoy ? 0 : rutinasPrevistas(clave).length);
+        var f = K.deClave(clave), on = clave === sel, k;
+        var b = nodo('button', 'tira-dia' + (esHoy ? ' hoy' : '') + (on ? ' on' : ''));
+        b.type = 'button';
+        b.setAttribute('data-dia', clave);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.setAttribute('aria-label', (esHoy ? 'Hoy, ' : '') + tituloDia(clave) + ': ' + n + (n === 1 ? ' pendiente' : ' pendientes'));
+        b.appendChild(nodo('span', 'tira-rot', esHoy ? 'Hoy' : DIAS_CORTOS[f.getDay()]));
+        b.appendChild(nodo('b', 'mono tira-n', '' + f.getDate()));
+        var pts = nodo('span', 'tira-puntos');
+        pts.setAttribute('aria-hidden', 'true');
+        for (k = 0; k < n && k < 3; k++) { pts.appendChild(nodo('i', 'tira-punto')); }
+        b.appendChild(pts);
+        b.onclick = function () { diaHoy = esHoy ? '' : clave; pintar(); };
+        tira.appendChild(b);
+      })(K.sumarDias(hoy, d), d === 0);
+    }
+    cont.appendChild(tira);
+  }
+
+  /* Un dia de la tira que no es hoy: sus items y sus rutinas previstas. */
+  function pintarDiaElegido(cont, hoy, clave) {
+    var delDia = itemsDelDia(clave), previstas = rutinasPrevistas(clave), i;
+    var tit = (clave === K.sumarDias(hoy, 1) ? 'Ma\u00F1ana \u00B7 ' : '') + capital(tituloDia(clave));
+    var ul = seccion(cont, 'dia-' + clave, tit, delDia.length + previstas.length, '', 'calendar');
+    for (i = 0; i < delDia.length; i++) { ul.appendChild(nodoItem(delDia[i], '')); }
+    for (i = 0; i < previstas.length; i++) { ul.appendChild(nodoPrevista(previstas[i])); }
+    if (delDia.length + previstas.length === 0) {
+      ul.appendChild(vacioNuevo('li', { id: 'dia', ico: 'calendar', tit: 'Nada para ese d\u00EDa',
+        txt: 'Eleg\u00ED un d\u00EDa en la ficha de una tarea o termin\u00E1 una captura con "ma\u00F1ana".' }));
+    }
+  }
 
   function pintarHoy() {
     var cont = $('hoyCuerpo');
     vaciar(cont);
     var hoy = hoyClave(), i, it;
+    /* Un dia elegido que ya paso (o que salio de la tira) vuelve a hoy. */
+    if (diaHoy !== '' && (diaHoy <= hoy || diaHoy > K.sumarDias(hoy, DIAS_TIRA - 1))) { diaHoy = ''; }
     var vencidas = [], hechas = [];
     for (i = 0; i < items.length; i++) {
       it = items[i];
@@ -3128,39 +3334,47 @@
       if (K.esHecho(it.estado) && K.claveDeIso(it.estadoDesde) === hoy) { hechas.push(it); }
     }
     var deHoy = itemsDelDia(hoy);
-    var rut = ocurrenciasDeHoy();
+    var rut = ocurrenciasDeHoy(), rutPend = 0;
+    for (i = 0; i < rut.length; i++) { if (esActivo(rut[i].estado)) { rutPend++; } }
 
-    var cab = nodo('div', 'hoy-cab');
-    cab.appendChild(nodo('div', 'hoy-fecha', capital(tituloDia(hoy))));
+    /* Cabecera: fecha, cuanto va hecho y el anillo del dia. */
     var total = hechas.length + deHoy.length + vencidas.length;
     var pct = total === 0 ? 0 : Math.round((hechas.length * 100) / total);
-    cab.appendChild(nodo('div', 'mono hoy-cuenta', hechas.length + '/' + total + ' \u00B7 ' + pct + '%'));
+    var cab = nodo('div', 'hoy-cab'), txt = nodo('div', 'hoy-cab-txt');
+    txt.appendChild(nodo('div', 'hoy-fecha', capital(tituloDia(hoy))));
+    txt.appendChild(nodo('div', 'hoy-sub', hechas.length + ' de ' + total + (total === 1 ? ' hecha' : ' hechas') +
+      (rutPend > 0 ? ' \u00B7 faltan ' + rutPend + (rutPend === 1 ? ' rutina' : ' rutinas') : '')));
+    cab.appendChild(txt);
+    var anillo = nodo('div', 'anillo-hoy');
+    anillo.setAttribute('role', 'img');
+    anillo.setAttribute('aria-label', hechas.length + ' de ' + total + ' hechas hoy');
+    if (anillo.style && typeof anillo.style.setProperty === 'function') { anillo.style.setProperty('--pct', '' + pct); }
+    anillo.appendChild(nodo('span', 'mono anillo-hoy-n', hechas.length + '/' + total));
+    cab.appendChild(anillo);
     cont.appendChild(cab);
-    var barra = nodo('div', 'barra');
-    var bi = nodo('i', '');
-    bi.style.width = pct + '%';
-    barra.appendChild(bi);
-    cont.appendChild(barra);
 
-    if (rut.length > 0) {
-      var hechasR = 0;
-      for (i = 0; i < rut.length; i++) { if (!esActivo(rut[i].estado)) { hechasR++; } }
-      var ulR = seccion(cont, 'secRutinasHoy', 'Rutinas de hoy', hechasR + '/' + rut.length, '', 'repeat');
-      ordenar(rut);
-      rut.sort(function (a, b) { return esActivo(a.estado) === esActivo(b.estado) ? 0 : (esActivo(a.estado) ? -1 : 1); });
-      for (i = 0; i < rut.length; i++) {
-        var ruD = buscarRutina(rut[i].rutinaId);
-        ulR.appendChild(nodoItem(rut[i], ruD ? lineaRacha(ruD) : ''));
-      }
-    }
-    var gest = nodo('button', 'bloque', 'Rutinas' + (rutinas.length ? ' (' + rutinas.length + ')' : ': crear la primera'), 'repeat');
+    pintarTiraDias(cont, hoy, diaHoy || hoy);
+    if (diaHoy !== '') { pintarDiaElegido(cont, hoy, diaHoy); return; }
+
+    /* Rutinas de hoy, con el acceso a todas en su encabezado. */
+    var hechasR = rut.length - rutPend;
+    var ulR = seccion(cont, 'secRutinasHoy', 'Rutinas de hoy', rut.length ? hechasR + '/' + rut.length : '', '', 'repeat');
+    var gest = nodo('button', 'sec-link', rutinas.length ? 'Gestionar rutinas (' + rutinas.length + ')' : 'Crear rutina');
     gest.type = 'button';
     gest.id = 'btnRutinas';
     gest.onclick = function () { abrirListaRutinas(); };
-    cont.appendChild(gest);
+    ulR.parentNode.firstChild.appendChild(gest);
+    ulR.parentNode.firstChild.className = 'sec-tit con-link';
+    ordenar(rut);
+    rut.sort(function (a, b) { return esActivo(a.estado) === esActivo(b.estado) ? 0 : (esActivo(a.estado) ? -1 : 1); });
+    for (i = 0; i < rut.length; i++) {
+      var ruD = buscarRutina(rut[i].rutinaId);
+      ulR.appendChild(nodoItem(rut[i], ruD ? lineaRacha(ruD) : ''));
+    }
     if (vencidas.length > 0) {
       var ulV = seccion(cont, 'secVencidas', 'Vencidas', vencidas.length,
         'Ten\u00EDan d\u00EDa y ya pas\u00F3. Ma\u00F1ana, en la ficha o en Ahora, las corre un d\u00EDa.', 'alert-circle');
+      ulV.parentNode.className = 'sec peligro';
       ordenar(vencidas);
       for (i = 0; i < vencidas.length; i++) { ulV.appendChild(nodoItem(vencidas[i], 'Era ' + nombreDia(K.diaDe(vencidas[i])))); }
     }
@@ -3174,38 +3388,19 @@
     }
     for (i = 0; i < noRut.length; i++) { ulH.appendChild(nodoItem(noRut[i], '')); }
     if (hechas.length > 0) {
-      var ulD = seccion(cont, 'secHechasHoy', 'Hecho hoy', hechas.length, '', 'check-circle');
+      var ulD = seccionPlegable(cont, 'secHechasHoy', 'Hecho hoy', hechas.length, 'check-circle');
       for (i = hechas.length - 1; i >= 0; i--) { ulD.appendChild(nodoItem(hechas[i], '')); }
     }
-
-    var prox = nodo('div', 'sec-titulo-grande', 'Pr\u00F3ximos d\u00EDas');
-    cont.appendChild(prox);
-    var alguno = false, d, clave;
-    for (d = 1; d <= DIAS_PROXIMOS; d++) {
-      clave = K.sumarDias(hoy, d);
-      var delDia = itemsDelDia(clave);
-      var previstas = rutinasPrevistas(clave);
-      if (delDia.length === 0 && previstas.length === 0) { continue; }
-      alguno = true;
-      var ulP = seccion(cont, 'dia-' + clave, (d === 1 ? 'Ma\u00F1ana \u00B7 ' : '') + (d === 1 ? tituloDia(clave) : capital(tituloDia(clave))),
-        delDia.length + previstas.length);
-      for (i = 0; i < delDia.length; i++) { ulP.appendChild(nodoItem(delDia[i], '')); }
-      for (i = 0; i < previstas.length; i++) { ulP.appendChild(nodoPrevista(previstas[i])); }
-    }
-    var luego = [];
-    var tope = K.sumarDias(hoy, DIAS_PROXIMOS);
+    /* Mas adelante: lo que queda despues de la tira. */
+    var luego = [], tope = K.sumarDias(hoy, DIAS_TIRA - 1);
     for (i = 0; i < items.length; i++) {
       it = items[i];
       if (enContexto(it) && esActivo(it.estado) && K.diaDe(it) > tope) { luego.push(it); }
     }
     if (luego.length > 0) {
-      alguno = true;
       luego.sort(function (a, b) { var x = K.diaDe(a), y = K.diaDe(b); return x < y ? -1 : (x > y ? 1 : 0); });
-      var ulL = seccion(cont, 'secMasAdelante', 'M\u00E1s adelante', luego.length, '', 'layers');
+      var ulL = seccionPlegable(cont, 'secMasAdelante', 'M\u00E1s adelante', luego.length, 'layers');
       for (i = 0; i < luego.length && i < 10; i++) { ulL.appendChild(nodoItem(luego[i], tituloDia(K.diaDe(luego[i])))); }
-    }
-    if (!alguno) {
-      cont.appendChild(nodo('div', 'vacio chico', 'Nada agendado en los proximos ' + DIAS_PROXIMOS + ' d\u00EDas.'));
     }
   }
 
@@ -3317,6 +3512,7 @@
     if (esperaOrden) { clearTimeout(esperaOrden); esperaOrden = null; }
     /* Las tarjetas se rehacen: la bandeja abierta se va con ellas. */
     bandeja = null;
+    menuAbierto = null;
     /* La linea de la pista vive mientras no se cambie de vista. */
     if (pistaLista && pistaLista.vista !== vista) { pistaLista = null; }
     /* Un apartado sin compras (o sin notas) no tiene esa vista: vuelve a Tareas. */
@@ -6002,7 +6198,11 @@
     var v = K.quitarNivelCaptura($('txtCaptura').value);
     fijarCaptura(v, v.length);
   };
-  $('btnNivel').onclick = function () { modoDiario = 'campana'; if (vista === 'registro') { pintar(); } else { irAVista('registro'); } };
+  /* El anillo abre Progreso arriba de todo: la tarjeta de nivel. */
+  $('btnNivel').onclick = function () {
+    if (vista === 'registro') { pintar(); } else { irAVista('registro'); }
+    if (typeof window.scrollTo === 'function') { window.scrollTo(0, 0); }
+  };
 
   /* n o / llevan a la barra de captura (Todoist, Gmail), salvo que ya se este
      escribiendo en un campo o haya una hoja abierta: nunca se roba una tecla. */
@@ -6080,7 +6280,6 @@
   $('tabMisiones').onclick = function () { irAVista('misiones'); };
   $('btnModoDiario').onclick = function () { modoDiario = 'diario'; pintar(); };
   $('btnModoRegistro').onclick = function () { modoDiario = 'registro'; pintar(); };
-  $('btnModoCampana').onclick = function () { modoDiario = 'campana'; pintar(); };
   $('btnGuardarMision').onclick = function () { guardarDatosMision(); };
   $('txtMisNombre').onchange = function () { if (misionAbierta) { guardarDatosMision(); } };
   $('txtMisObjetivo').onchange = function () { if (misionAbierta) { guardarDatosMision(); } };
@@ -6327,8 +6526,20 @@
   $('txtBusca').oninput = function () { pintarBusqueda(); };
   $('txtBusca').onkeyup = function () { pintarBusqueda(); };
 
-  $('btnRelevo').onclick = function () { mostrarTexto('Reporte de Turno', textoRelevo()); };
-  $('btnResumen').onclick = function () { mostrarTexto('Resumen', textoResumen()); };
+  /* "Reporte" de la Bitacora: una hoja con Reporte de turno y Resumen; el
+     texto elegido la reemplaza en el mismo toque (relevo). */
+  function compartirReporte(titulo, texto) {
+    if (pilaCapas.length > 0 && pilaCapas[pilaCapas.length - 1] === 'tapaReporte') {
+      cerrarParaRelevo('tapaReporte');
+      mostrarTexto(titulo, texto());
+      soltarRelevo();
+      return;
+    }
+    mostrarTexto(titulo, texto());
+  }
+  $('btnReporte').onclick = function () { abrirHoja('tapaReporte'); };
+  $('btnRelevo').onclick = function () { compartirReporte('Reporte de Turno', textoRelevo); };
+  $('btnResumen').onclick = function () { compartirReporte('Resumen', textoResumen); };
   $('btnCompartirTexto').onclick = function () {
     var t = $('txtSalida').value;
     if (navigator.share) { compartir('KCO', t); } else { copiar(t); }
@@ -6579,27 +6790,37 @@
     return txt + revisarLogros();
   }
 
-  function pintarProgresoArriba(cont) {
+  /* Tarjeta de nivel (brasa), primera de Progreso: nivel y racha, titulo del
+     nivel, barra de 8px y lo que falta para el siguiente. */
+  function pintarTarjetaNivel(cont) {
     var x = K.calcularXP(items, proyectos);
     var nv = K.nivelPorXP(x.total);
     var hoyXP = x.porDia['#' + hoyClave()] || 0;
-    var c = nodo('button', 'progxp');
-    c.type = 'button';
+    var sig = K.nivelPorXP(x.total + nv.falta);
+    var racha = rachaGlobal();
+    var c = nodo('div', 'nivel-card');
     c.id = 'tarjetaNivel';
-    var fila = nodo('div', 'progxp-fila');
-    fila.appendChild(nodo('span', 'progxp-nv', 'NV ' + nv.nivel + ' \u00B7 ' + nv.titulo, 'star'));
-    fila.appendChild(nodo('span', 'mono progxp-n', nv.enNivel + '/' + nv.tramo + ' XP'));
-    c.appendChild(fila);
-    var barra = nodo('div', 'barra');
+    var cab = nodo('div', 'nivel-cab');
+    cab.appendChild(nodo('span', 'nivel-n', 'Nivel ' + nv.nivel, 'star'));
+    if (racha.actual > 0) {
+      cab.appendChild(nodo('span', 'nivel-racha', 'Racha de ' + racha.actual + (racha.actual === 1 ? ' d\u00EDa' : ' d\u00EDas'), 'flame'));
+    }
+    c.appendChild(cab);
+    c.appendChild(nodo('div', 'nivel-tit', nv.titulo));
+    var barra = nodo('div', 'barra nivel-barra');
+    barra.setAttribute('role', 'progressbar');
+    barra.setAttribute('aria-label', 'XP del nivel ' + nv.nivel);
+    barra.setAttribute('aria-valuemin', '0');
+    barra.setAttribute('aria-valuemax', '' + nv.tramo);
+    barra.setAttribute('aria-valuenow', '' + nv.enNivel);
     var bi = nodo('i', '');
     bi.style.width = nv.pct + '%';
     barra.appendChild(bi);
     c.appendChild(barra);
-    var det = [hoyXP > 0 ? '+' + hoyXP + ' XP hoy' : 'Hoy todavia sin XP', x.total + ' XP en total', 'faltan ' + nv.falta + ' para NV ' + (nv.nivel + 1)];
-    var racha = rachaGlobal();
-    if (racha.actual > 0) { det.unshift('Racha ' + racha.actual + (racha.actual === 1 ? ' d\u00EDa' : ' d\u00EDas')); }
-    c.appendChild(nodo('div', 'mono progxp-det', det.join(' \u00B7 ')));
-    c.onclick = function () { irAVista('registro'); modoDiario = 'campana'; pintar(); };
+    var pie = nodo('div', 'nivel-pie');
+    pie.appendChild(nodo('span', 'mono nivel-xp', nv.enNivel + ' / ' + nv.tramo + ' XP' + (hoyXP > 0 ? ' \u00B7 +' + hoyXP + ' hoy' : '')));
+    pie.appendChild(nodo('span', 'mono nivel-falta', nv.falta + ' para ' + sig.titulo));
+    c.appendChild(pie);
     cont.appendChild(c);
   }
 
@@ -6653,7 +6874,9 @@
     vaciar(cont);
     var hoy = hoyClave();
     var st = K.estadisticas(items, proyectos, rutinas, hoy);
-    var nv = K.nivelPorXP(st.xp);
+
+    /* 1. El nivel, siempre primero (tambien vive en el anillo de la barra). */
+    pintarTarjetaNivel(cont);
 
     /* Campana vacia: sin un primer dia activo no hay racha, semanas ni
        contextos que mostrar; en vez de una pared de ceros, que hacer y los
@@ -6663,61 +6886,37 @@
         txt: 'Complet\u00E1 tu primera tarea: desde ese d\u00EDa cuentan los d\u00EDas activos, la racha, el XP y los logros.',
         acc: 'Ir a Ahora', accIco: 'zap', alTocar: function () { irAVista('ahora'); } }));
       pintarMetas(cont, hoy);
-      pintarLogros(cont);
+      pintarLogros(cont, st);
       return;
     }
 
-    var cab = nodo('div', 'camp-cab');
-    cab.appendChild(nodo('div', 'camp-nv', 'Nivel ' + nv.nivel, 'star'));
-    cab.appendChild(nodo('div', 'camp-tit', nv.titulo));
-    cab.appendChild(nodo('div', 'mono camp-xp', st.xp + ' XP \u00B7 faltan ' + nv.falta + ' para el nivel ' + (nv.nivel + 1)));
-    var barra = nodo('div', 'barra');
-    var bi = nodo('i', '');
-    bi.style.width = nv.pct + '%';
-    barra.appendChild(bi);
-    cab.appendChild(barra);
-    cab.appendChild(nodo('div', 'mono camp-desde', st.primerDia
-      ? 'Campa\u00F1a en curso desde el ' + fechaLarga(st.primerDia)
-      : 'La campa\u00F1a empieza con lo primero que completes.'));
-    cont.appendChild(cab);
-
+    /* 2. Cuatro numeros. */
     var g = nodo('div', 'stats');
-    statTile(g, st.diasActivos, 'd\u00EDas activos', 'nunca baja');
-    statTile(g, st.racha, 'racha actual', 'mejor ' + st.rachaMejor + (st.racha > 0 && !st.hoyActivo ? ' \u00B7 hoy en juego' : ''));
+    statTile(g, st.diasActivos, 'd\u00EDas activos', 'desde el ' + fechaLarga(st.primerDia));
+    statTile(g, st.rachaMejor, 'mejor racha', st.racha > 0 ? 'actual ' + st.racha + (st.hoyActivo ? '' : ' \u00B7 hoy en juego') : '');
     statTile(g, st.tareasHechas + st.comprasHechas, 'completadas', st.rutinasHechas + ' rutinas aparte');
     statTile(g, st.misionesFin, 'misiones cumplidas', st.hitos + ' hitos');
     cont.appendChild(g);
 
+    /* 3-5. Objetivos, semanas y logros. */
     pintarMetas(cont, hoy);
     pintarSemanas(cont, st.semanas);
-    pintarPorContexto(cont, st);
-    pintarLogros(cont);
-
-    var fin = [], i;
-    for (i = 0; i < proyectos.length; i++) { if (proyectos[i].estado === 'terminado') { fin.push(proyectos[i]); } }
-    if (fin.length > 0) {
-      fin.sort(function (a, b) { return a.terminado < b.terminado ? 1 : -1; });
-      var s = nodo('section', 'sec');
-      var h = nodo('h3', 'sec-tit');
-      h.appendChild(nodo('span', '', 'Lo que terminaste', 'flag'));
-      h.appendChild(nodo('b', 'mono', '' + fin.length));
-      s.appendChild(h);
-      for (i = 0; i < fin.length && i < 12; i++) { s.appendChild(nodoMision(fin[i], true)); }
-      cont.appendChild(s);
-    }
+    pintarLogros(cont, st);
   }
 
-  /* Una serie (avances por semana): barras de un solo tono, base comun, sin
-     segundo eje. Tocar una barra dice su valor; el resumen va en texto. */
+  /* Una serie (avances por semana): barras neutras con base comun y la
+     semana actual en brasa, sin segundo eje. Tocar una barra dice su valor;
+     el grafico entero se lee en su aria-label. */
   function pintarSemanas(cont, semanas) {
     var s = nodo('section', 'sec');
+    s.id = 'secSemanas';
     var h = nodo('h3', 'sec-tit');
-    h.appendChild(nodo('span', '', '\u00DAltimas 12 semanas', 'trending-up'));
-    var total = 0, max = 0, i;
+    h.appendChild(nodo('span', '', 'Completadas \u00B7 \u00FAltimas 12 semanas', 'trending-up'));
+    var total = 0, max = 0, i, esta = semanas.length ? semanas[semanas.length - 1].avances : 0;
     for (i = 0; i < semanas.length; i++) { total += semanas[i].avances; if (semanas[i].avances > max) { max = semanas[i].avances; } }
-    h.appendChild(nodo('b', 'mono', total + ' avances'));
+    h.appendChild(nodo('b', 'mono', 'esta: ' + esta));
     s.appendChild(h);
-    var cap = nodo('div', 'mono sem-cap', 'Toca una semana para ver el detalle.');
+    var cap = nodo('div', 'mono sem-cap', 'Toc\u00E1 una semana para ver el detalle.');
     var graf = nodo('div', 'semanas');
     graf.setAttribute('role', 'img');
     var resumen = [];
@@ -6737,7 +6936,8 @@
         graf.appendChild(col);
       })(semanas[i], i === semanas.length - 1);
     }
-    graf.setAttribute('aria-label', 'Avances por semana: ' + resumen.join(', '));
+    graf.setAttribute('aria-label', 'Completadas por semana, las \u00FAltimas ' + semanas.length + ': ' + total +
+      ' en total, ' + esta + ' esta semana. ' + resumen.join(', '));
     s.appendChild(graf);
     s.appendChild(cap);
     cont.appendChild(s);
@@ -6765,44 +6965,16 @@
     cont.appendChild(s);
   }
 
-  /* Donde se fue el esfuerzo: completadas y XP por contexto, rotulo en texto. */
-  function pintarPorContexto(cont, st) {
-    var s = nodo('section', 'sec');
-    var h = nodo('h3', 'sec-tit');
-    h.appendChild(nodo('span', '', 'Actividad por contexto', 'compass'));
-    s.appendChild(h);
-    var max = 0, i, c, n;
-    for (i = 0; i < K.CONTEXTOS.length; i++) { n = st.porContexto[K.CONTEXTOS[i].id] || 0; if (n > max) { max = n; } }
-    for (i = 0; i < K.CONTEXTOS.length; i++) {
-      c = K.CONTEXTOS[i];
-      n = st.porContexto[c.id] || 0;
-      var xp = st.xpPorContexto['#' + c.id] || 0;
-      var f = nodo('div', 'ctxbar' + (n === 0 ? ' cero' : ''));
-      var cn = nodo('span', 'ctxbar-nom', c.nom);
-      cn.insertBefore(icoApartado(c.id, 'ctxbar-ico'), cn.firstChild);
-      cn.insertBefore(punto(c.id), cn.firstChild);
-      f.appendChild(cn);
-      var pista = nodo('span', 'ctxbar-pista');
-      var b = nodo('i', '');
-      b.style.width = (max === 0 ? 0 : Math.round((n * 100) / max)) + '%';
-      pista.appendChild(b);
-      f.appendChild(pista);
-      f.appendChild(nodo('span', 'mono ctxbar-n', n + ' \u00B7 ' + xp + ' XP'));
-      s.appendChild(f);
-    }
-    cont.appendChild(s);
-  }
-
-  function pintarLogros(cont) {
+  function pintarLogros(cont, st) {
     var s = nodo('section', 'sec');
     s.id = 'secLogros';
     var h = nodo('h3', 'sec-tit');
     var ganados = 0, i;
     for (i = 0; i < K.LOGROS.length; i++) { if (memProgreso.logros.hasOwnProperty(K.LOGROS[i].id)) { ganados++; } }
     h.appendChild(nodo('span', '', 'Logros', 'trophy'));
-    h.appendChild(nodo('b', 'mono', ganados + '/' + K.LOGROS.length));
+    h.appendChild(nodo('b', 'mono', ganados + ' de ' + K.LOGROS.length));
     s.appendChild(h);
-    var st = K.estadisticas(items, proyectos, rutinas, hoyClave());
+    st = st || K.estadisticas(items, proyectos, rutinas, hoyClave());
     var g = nodo('div', 'logros');
     for (i = 0; i < K.LOGROS.length; i++) {
       var l = K.LOGROS[i];
@@ -6811,8 +6983,8 @@
       c.setAttribute('data-logro', l.id);
       if (!gano && l.secreto) {
         c.appendChild(svgIco('lock', 'logro-ico'));
-        c.appendChild(nodo('b', '', 'Logro secreto'));
-        c.appendChild(nodo('small', '', 'Se revela cuando lo ganes.'));
+        c.appendChild(nodo('b', '', 'Secreto'));
+        c.appendChild(nodo('small', '', 'Segu\u00ED jugando'));
       } else {
         c.appendChild(svgIco(l.icono || 'trophy', 'logro-ico'));
         c.appendChild(nodo('b', '', l.nom));
