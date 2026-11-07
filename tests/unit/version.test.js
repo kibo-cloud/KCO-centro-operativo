@@ -90,3 +90,14 @@ test('iconos.js loads before kco-app.js, is precached and is ES5-checked', funct
   assert.ok(leer('sw.js').indexOf("'./iconos.js'") > -1, 'iconos.js is in the SW precache list');
   assert.ok(leer('tests/check-es5.mjs').indexOf("'iconos.js'") > -1, 'iconos.js is in the ES5 gate');
 });
+
+test('manifest theme and background colors match the dark --bg and the dark theme-color meta', function () {
+  var man = JSON.parse(leer('manifest.webmanifest'));
+  var meta = /<meta name="theme-color" content="(#[0-9A-Fa-f]{6})" media="\(prefers-color-scheme: dark\)">/.exec(leer('index.html'));
+  var bg = /:root\{[\s\S]*?\s--bg:\s*(#[0-9A-Fa-f]{6})/.exec(leer('kco.css'));
+  assert.ok(meta, 'index.html has a dark theme-color meta');
+  assert.ok(bg, 'kco.css declares --bg');
+  assert.equal(meta[1].toUpperCase(), bg[1].toUpperCase());
+  assert.equal(man.theme_color.toUpperCase(), bg[1].toUpperCase());
+  assert.equal(man.background_color.toUpperCase(), bg[1].toUpperCase());
+});

@@ -9,7 +9,10 @@ atajos de teclado) para que capturar, decidir y editar cueste menos toques. La 2
 contextos fijos: cada persona arma sus **apartados** (con plantillas para empezar), con
 objetivo, descripcion, modo de compras y **notas**. La 2.3 hace que la barra capture segun la
 pestaña (una compra en Compras, una nota en Notas) y deja ordenar a mano el Ahora de cada
-apartado.
+apartado. La 2.6 ("Cabina") rediseña la interfaz: superficies sobrias, un foco por pantalla, dos
+colores con roles fijos (el acento del apartado dice dónde estás; la brasa, identidad y progreso),
+cero emojis, un solo control de cada tipo, pestañas Listas y Progreso, ficha con divulgación
+progresiva y, en escritorio ancho, un rail derecho.
 
 Ciclo: capturar -> decidir -> ejecutar -> registrar -> mirar hacia atras.
 
@@ -33,9 +36,9 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-2.5.0` (`'kibco-' + VERSION` en `sw.js`) |
+| Nombre de cache | `kibco-2.6.0` (`'kibco-' + VERSION` en `sw.js`) |
 | Esquema de datos | `5` (desde 2.2: apartados y notas) |
-| Version de la app | `2.5.0` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
+| Version de la app | `2.6.0` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
 | Tema | Sistema (sigue `prefers-color-scheme`), Claro u Oscuro; colores como tokens en `kco.css`. Oscuro: fondo `#0D0F12`, tarjetas `#161920`, bordes `rgba(255,255,255,.07)` |
 | Acentos por apartado | el color elegido para cada apartado, de una paleta de diez (`azul`, `verde`, `ambar`, `rosa`, `violeta`, `cian`, `naranja`, `rojo`, `lima`, `gris`) con variante clara y oscura; Todo es neutro. Los cinco apartados de siempre conservan sus colores (Trabajo naranja, Casa cian, Apps violeta, Contenido rosa, Personal verde) |
 | Tipografia | sans del sistema para todo el texto, minimo 12 px; `ui-monospace` solo para numeros |
@@ -215,24 +218,28 @@ tampoco, el dia de su recordatorio.
 ## Vistas y navegacion
 
 Cinco pestañas abajo (en escritorio, desde 1024 px, una barra lateral): **AHORA**, **HOY**,
-**TAREAS** (con Tareas / Compras), **MISIONES** y **DIARIO** (con Diario / Campaña /
-Registro). KCO **siempre abre en AHORA**: la pregunta al
-abrir es que hago ahora, no en que pestaña me quede.
+**LISTAS** (pestañas Tareas · Compras · Notas, con su cuenta; Compras y Notas solo si el apartado
+las usa), **MISIONES** y **PROGRESO** (abre en la Campaña; abajo la Bitácora Diario · Detalle).
+KCO **siempre abre en AHORA**: la pregunta al abrir es que hago ahora, no en que pestaña me quede.
+
+Arriba, el chip del apartado con un indicador de página (un punto por apartado; el activo es una
+barra en su acento) y, a la derecha, el anillo de XP en brasa con el nivel: abre Progreso.
 
 ### AHORA: el proximo movimiento
 
-- **Tarjeta de nivel** arriba: nivel, titulo, XP del tramo, XP de hoy y racha. Tocarla abre
-  la Campaña.
-- **Pulso**: cuatro contadores (Atencion, Hoy, Inbox, Esperando) que llevan a su seccion.
-- **Siguiente movimiento**: el item accionable con mas puntaje, con su motivo. Ofrece
-  ✅ Hecho (o la accion de un toque de la compra), ⏵ Empezar si es tarea y no esta en
-  proceso, y ⏭ Mañana. Debajo, los dos siguientes como enlace.
+- **Siguiente movimiento** primero: el item accionable con mas puntaje, con su motivo a la
+  derecha del rotulo (en rojo si esta vencido). Ofrece Hecho (o la accion de un toque de la
+  compra), Empezar si es tarea y no esta en proceso, y Mañana, de 48 px. Debajo, "Después" con
+  los dos siguientes.
+- **Filtros** de 44 px: Todo · Atención · Hoy · Inbox · Esperando, con su cuenta. Filtran la
+  lista de abajo (en memoria); los que estan en 0 no se muestran y un filtro que se vacia vuelve
+  a Todo. La tarjeta de nivel ya no esta en Ahora: vive en el anillo y en Progreso.
 - **Requiere atencion**, **A continuacion** (las seis que mas pesan, sin contar el inbox),
   **Inbox** (hasta ocho), **Esperando** (hasta ocho) y **Misiones activas** (hasta cuatro).
 - Si no hay nada accionable aparece **TODO EN ORDEN**.
 
 **Orden manual por apartado.** Mirando un apartado (no Todo), Ahora tiene el selector
-**Orden: Automatico / Manual**, que cada apartado recuerda. Automatico usa el puntaje de abajo.
+**Orden: Automatico / Manual** (un boton compacto con sus dos opciones), que cada apartado recuerda. Automatico usa el puntaje de abajo.
 En Manual, "A continuacion" pasa a ser una lista de hasta 20 que empieza con el siguiente
 movimiento y se ordena a mano:
 
@@ -273,7 +280,7 @@ que se muestra:
 
 A igual puntaje gana lo creado antes.
 
-**Mañana.** ⏭ Mañana pone la fecha del item en el dia siguiente sin perderlo. Si tenia un
+**Mañana.** Mañana pone la fecha del item en el dia siguiente sin perderlo. Si tenia un
 recordatorio vencido, lo corre al mismo horario de mañana. Se puede deshacer.
 
 **Triaje del inbox.** El inbox son las tareas en Entrada. En AHORA cada una tiene **Para
@@ -288,9 +295,11 @@ HOY muestra, del apartado elegido (o de todos en Todo):
 - **Vencidas**: tenian dia y paso;
 - **Para hoy** (sin las rutinas) y **Hecho hoy**.
 
-**PROXIMOS DIAS** agrupa los siete dias siguientes. Ademas de los items con dia, muestra las
-**ocurrencias previstas** de rutinas activas sin crearlas (marcadas "previsto"). Lo que cae
-despues de esos siete dias va en **Mas adelante** (hasta diez).
+Desde 2.6 la cabecera dice "N de M hechas" con un anillo de 52 px, y una **tira de 7 dias** (hoy
+y los seis siguientes, con puntos de cantidad) reemplaza a PROXIMOS DIAS: tocar un dia muestra su
+lista. Ademas de los items con dia, muestra las **ocurrencias previstas** de rutinas activas sin
+crearlas (marcadas "previsto"). Lo que cae despues de la tira va en **Más adelante** (hasta diez);
+Hecho hoy y Más adelante se pliegan.
 
 ### Navegacion, gestos y animaciones
 
@@ -306,7 +315,7 @@ historial, navegacion externa), el primer atras siguiente se puede consumir sin 
 visible; el proximo ya cierra. Detalle en `docs/ARQUITECTURA.md` (Hojas).
 
 **Gestos.** Swipe horizontal sobre el cuerpo de la app cambia de vista en este orden:
-AHORA - HOY - Tareas - Compras - MISIONES - DIARIO. Swipe horizontal sobre el encabezado
+AHORA - HOY - Tareas - Compras - Notas - MISIONES - PROGRESO. Swipe horizontal sobre el encabezado
 recorre Todo y los apartados activos en su orden (y vuelve a empezar). Un gesto
 cuenta solo si recorre mas de 60 px, si el movimiento horizontal es al menos el doble del
 vertical (para no robarle el gesto al scroll) y si dura menos de 700 ms. Un gesto que
@@ -316,22 +325,25 @@ arranca sobre una barra de chips mueve la barra. Con una hoja abierta los gestos
 con `cubic-bezier(0.16, 1, 0.3, 1)`; el cambio de pestaña entra con un desplazamiento
 lateral corto; los items entran con fade y 6 px de deslizamiento, solo la primera vez que
 aparecen. Si el telefono tiene activado "reducir movimiento" (`prefers-reduced-motion`),
-toda transicion y animacion se reduce a .01 ms: los cambios se ven al instante.
+toda transicion y animacion es un fundido de 120 ms, sin desplazamiento ni escala.
 
 ## Interfaz y atajos
 
-Lo que cambio en 2.1, en el orden en que se usa.
+Lo que cambio en 2.1 y en el rediseño "Cabina" de 2.6, en el orden en que se usa.
 
 | Que | Como se usa |
 |---|---|
 | Tema | Ajustes > Pantalla: Sistema (sigue al telefono), Claro u Oscuro. Se aplica antes del primer pintado, sin destello. El modo luz de planta funciona en los dos temas |
 | Apartado | el chip del encabezado abre el selector de apartados (Todo y los activos, con icono y cuentas). En escritorio, la barra lateral lista vistas y contextos |
-| Captura | la barra queda justo arriba de las pestañas (en escritorio, arriba de la columna). Al tipear aparecen chips con lo que se va a guardar: apartado (o "Nota"), dia y prioridad, leidos con las mismas reglas que al guardar. Tocar el chip del apartado abre "Guardar en" y elige otro apartado solo para esa captura |
-| Hojas | todas son dialogos accesibles: se cierran con la X de arriba, Escape, tocando el fondo, deslizando la cabecera hacia abajo o con atras. El foco queda adentro y vuelve a quien la abrio. En la ficha, el titulo se edita arriba y una fila rapida ofrece Hecho, Hoy, Mañana y Elegir dia. En escritorio la hoja es un dialogo centrado |
-| Tarjetas | un circulo a la izquierda completa (o marca la compra). Deslizar a la derecha completa; a la izquierda abre el menu rapido: Hoy, Mañana, Prioridad, Mover a Compras, Borrar y Mas opciones. Tambien se abre con el boton de tres puntos de la tarjeta, manteniendo apretado (salvo en orden Manual, en Ahora, Tareas o Compras, donde eso arrastra), con clic derecho o con Shift+F10. Todo se puede deshacer |
+| Captura | una pildora de 48 px justo arriba de las pestañas (en escritorio, 56 px arriba de la columna) con una pista por vista ("Tarea en Casa · Activos", "Nueva compra en Trabajo", "Nota en ..."). Al tipear aparecen chips de 44 px con lo que se va a guardar: apartado (o "Nota"), dia y prioridad (dia y prioridad con su ✕, que saca ese trozo del texto), leidos con las mismas reglas que al guardar; el boton enviar y la fila de atajos `#`, `!`, `@` y `nota:`. Tocar el chip del apartado abre "Guardar en" y elige otro apartado solo para esa captura |
+| Hojas | todas son dialogos accesibles (radio 20, asa de 40×5, cabecera con X de 44 px): se cierran con la X, Escape, tocando el fondo, deslizando la cabecera hacia abajo o con atras. El foco queda adentro y vuelve a quien la abrio. En escritorio la hoja es un dialogo centrado |
+| Ficha | divulgacion progresiva: titulo editable, cuatro acciones de 56 px (Hecho; Hoy, Mañana y Elegir dia si se pueden usar), las propiedades con valor como filas de 52 px (Prioridad y Apartado siempre) que abren su editor, Pasos y Comentarios cuando tienen algo y chips **Agregar** con lo vacio. "Más: mover, repetir, compartir, borrar" abre una subhoja agrupada con Borrar al final en rojo. Los editores de apartado, rutina, mision y nota siguen el mismo esqueleto: lo clave arriba, lo opcional vacio detras de Agregar y borrar al final |
+| Confirmar y deshacer | borrar pide un dialogo de alerta que nombra lo que se borra, con Cancelar (contorno) y Sí, borrar (relleno). El toast de 52 px dice una sola accion con Deshacer y una cuenta regresiva de 9 s; el XP vuela al anillo y el nivel nuevo o los logros salen despues en una hoja centrada |
+| Tarjetas | un circulo a la izquierda completa (o marca la compra); la prioridad va en su anillo (urgente grueso rojo con punto, importante grueso ambar, normal fino, baja punteado) y en palabras. Deslizar a la derecha completa; a la izquierda (o el boton de tres puntos) corre la tarjeta y muestra su **bandeja**: Hoy, Mañana, Prioridad (los cuatro niveles en el lugar) y Más (la ficha). Una bandeja a la vez; tocar afuera, deslizar de nuevo o Escape la cierran. El menu rapido sigue con clic derecho, la tecla de menu o Shift+F10. En orden Manual un asa de seis puntos arrastra. La primera vez, en el telefono, la primera tarjeta se asoma con la pista "Deslizá a la derecha para completar". Todo se puede deshacer |
 | Listas largas | Tareas, Compras, Diario, Registro y la busqueda muestran de a 50 filas; **Ver más (N)** suma 50 sin perder el lugar |
 | Estados vacios | cada vista sin contenido muestra un icono, una linea y, si corresponde, la accion para salir de ahi (Capturar, Nueva mision, Ver todo, Borrar busqueda...) |
-| Ajustes | Backup primero (con el ultimo backup), luego Pantalla, Recordatorios, Catalogos e Info (versiones, esquema, cuentas, prefijo) al final |
+| Ajustes | tarjeta de backup arriba (en ambar pasado el aviso) con Descargar y Compartir; despues grupos de filas de 52 px: Apartados (Editar y ordenar, con asa y flechas; Nuevo apartado), Pantalla y avisos (Tema, interruptor de luz de planta, Recordatorios), Compras (Solicitantes, Destinos) y Tus datos (Restaurar, Acerca de KCO), con subhojas |
+| Escritorio | desde 1024 px, barra lateral con las vistas y sus cuentas, Listas con subfilas Tareas · Compras · Notas, "NV n" en Progreso y la seccion Apartados con Nuevo apartado; buscador visible en la cabecera (atajo `/`). Desde 1280 px, un rail derecho con la tarjeta de nivel, el Pulso 2×2 (los mismos filtros de Ahora) y las misiones activas |
 | Actualizacion | cuando hay una version nueva aparece **Nueva versión disponible · Actualizar**. Nada cambia hasta tocar Actualizar: la app recarga una sola vez |
 
 **Teclado** (escritorio o teclado fisico). Ningun atajo actua con una hoja abierta, adentro
@@ -339,7 +351,8 @@ de un campo editable ni con Ctrl, Alt o Meta.
 
 | Tecla | Hace |
 |---|---|
-| `n` o `/` | enfoca la barra de captura |
+| `n` | enfoca la barra de captura |
+| `/` | en escritorio enfoca el buscador; en telefono y tableta, la barra de captura |
 | `j` / `k` | mueve la seleccion a la fila siguiente / anterior de la vista |
 | `x` | completa o reabre la fila elegida (con deshacer) |
 | Enter | abre la ficha de la fila enfocada |
@@ -445,7 +458,7 @@ diario, con `proyectoId`). Una tarea se vincula desde su ficha o se crea desde l
 
 ## Diario, Registro y Campaña
 
-La pestaña DIARIO tiene tres lecturas del mismo historial (`kibco.eventos`):
+La pestaña PROGRESO abre en la **Campaña**; abajo, la **Bitácora** con Diario y Detalle (el Registro), un rango Hoy / 7 d / 30 d / Todo y "Reporte" (Reporte de turno y Resumen). Son tres lecturas del mismo historial (`kibco.eventos`):
 
 | Modo | Que muestra |
 |---|---|
@@ -627,6 +640,7 @@ para un dedo apurado o con guantes.
 | `kibco.apartados` | array JSON del registro de apartados (ver abajo) | 2.2 |
 | `kibco.notas` | array JSON de notas | 2.2 |
 | `kibco.tema` | tema elegido: `sistema` (o ausente), `claro` u `oscuro`. No viaja en el backup | 2.1 |
+| `kibco.pistas` | banderas JSON de las pistas de primera vez (`{"completar":true}` cuando ya se mostro la de completar). Ilegible = `{}`. No viaja en el backup | 2.6 |
 | `<clave>.roto.<timestamp>` | copia intacta de un valor que no se pudo leer (cuarentena) | 0.7 |
 
 `kibco.vista` (ultima pestaña, hasta 1.1.1) ya no se lee ni se escribe: KCO siempre abre en
@@ -770,7 +784,7 @@ preferencias (apartado elegido, filtros, luz, catalogos) o copias de cuarentena 
 Desde Ajustes se descarga o comparte un `.json` (`kco-backup-AAAAMMDD-HHMM.json`):
 
     {
-      "app": "kco", "schema": 5, "version": "2.5.0",
+      "app": "kco", "schema": 5, "version": "2.6.0",
       "exportado": "<fecha ISO>", "contexto": "<apartado actual o todo>",
       "apartados": [...],
       "items": [...], "eventos": [...], "rutinas": [...], "proyectos": [...],
@@ -837,6 +851,14 @@ cambio no aparece nunca. Con la version nueva, la app muestra el aviso "Actualiz
 # CHANGELOG
 
 Desde 2.1.0 el detalle de cada version esta en `CHANGELOG.md`.
+
+## 2.6.0 — rediseño "Cabina"
+
+Cache `kibco-2.6.0`. Esquema 5 sin cambios; una clave nueva, `kibco.pistas`. Interfaz nueva de
+punta a punta: tokens, tarjeta con prioridad por anillo y bandeja de swipe, pestañas Listas y
+Progreso, Ahora con filtros, Hoy con tira de 7 dias, ficha progresiva, Confirmar, toast y hoja de
+nivel, Ajustes agrupado, editores con "Agregar" y escritorio con barra lateral y rail. Detalle en
+`CHANGELOG.md`.
 
 ## 2.5.0 — lo capturado cae en el estado que se mira
 

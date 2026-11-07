@@ -3,11 +3,13 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
-## Sin publicar — rediseño "Cabina" (fases 1-6: tokens, base, armazón, tarjeta, vistas, hojas y escritorio)
+## 2.6.0 — 2026-11-07 — rediseño "Cabina"
 
-Esquema 5 sin cambios. Una sola clave nueva, `kibco.pistas` (banderas de las pistas de primera
-vez); las demás claves y formatos no cambian. El service worker sigue en 2.5.0 hasta la fase de
-release.
+Cache `kibco-2.6.0`. Esquema 5 sin cambios. Una sola clave nueva, `kibco.pistas` (banderas de
+las pistas de primera vez); las demás claves y formatos no cambian. Superficies sobrias, un foco
+por pantalla, dos colores con roles fijos (el acento del apartado dice dónde estás; la brasa,
+identidad y progreso), cero emojis y un solo control de cada tipo. El manifiesto usa el fondo
+nuevo (`#0B0D10`) como color de tema y de fondo, igual que la barra del navegador.
 
 ### Cambiado
 
@@ -109,6 +111,13 @@ release.
 - Escritorio ancho (desde 1280 px): rail derecho de 320 px con la tarjeta de nivel, el Pulso 2×2
   (Atención, Hoy, Inbox, Esperando: los mismos filtros de Ahora, que ahí dejan de repetirse como
   chips) y las misiones activas.
+- Editores de apartado, rutina, misión y nota con el esqueleto de la Ficha: arriba lo clave
+  (apartado: nombre, ícono, color, compras y notas; rutina: qué, frecuencia y apartado; misión:
+  nombre y apartado; nota: texto y apartado) y lo opcional vacío detrás de chips "Agregar"
+  (Descripción, Objetivo, Alias, Etiquetas; Prioridad, Fechas; Objetivo; Título, Etiquetas). Lo
+  que tiene valor siempre se ve. Borrar queda al final, en peligro relleno y con confirmación.
+- Más tildes en la interfaz: "Cada cuántos días", "Día del mes", "Próxima acción", "Escribí para
+  buscar", "Borrar definición"; los editores de rutina y misión dicen "Apartado".
 
 ### Corregido
 
@@ -120,6 +129,12 @@ release.
 - La pista de primera vez solo se gasta en Tareas o Compras de Listas, sin una hoja encima.
 - La ✕ del día en la captura saca exactamente la hora y la palabra que se leyeron (también con
   espacios de más, como "@  9:30").
+- Rail de escritorio: al repintarse, el foco de teclado vuelve a la misma misión (antes saltaba a
+  la primera).
+- Buscador de escritorio: con un teclado que compone (acentos, IME) el texto pasa a la búsqueda
+  al terminar la composición, no a mitad.
+- El XP total se calcula una vez por pintado (antes hasta cuatro veces: anillo, barra lateral,
+  rail y tarjeta de nivel).
 
 ## 2.5.0 — 2026-11-03 — lo capturado cae en el estado que se mira
 

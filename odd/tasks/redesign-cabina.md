@@ -47,8 +47,8 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
 | T3 | Item card: priority by ring, swipe tray `.bandeja-swipe`, drag handle in Manual, first-run hints (`kibco.pistas`) | delegated | `feat/redesign-cabina-3-card` | done (`63072e2`, `22faf60`; RDD medium, reviewed and acknowledged) |
 | T4 | Views: Ahora (hero first + filter chips), Hoy (7-day strip), Listas (top-level tabs, purchase stages, notes grid), Misiones, Progreso | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-4-views` | done (`73f7c30`, `5e37c53`, `91b6253`; RDD medium, reviewed and acknowledged) |
 | T5 | Sheets: progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-5-sheets` | done (`c7f8026`, `eee6be9`, `b040c69`, `5e29915`, `549defa`; RDD medium, reviewed and acknowledged) |
-| T6 | Desktop: sidebar with sub-rows, right rail (>= 1280) | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-6-desktop` | done (`5e89829`, `754d932`) |
-| T7 | Tests (new suggested tests), SW 2.6.0, copy accents review, docs, `versiones/KCO v2.6.0` | delegated | `feat/redesign-cabina-7-release` | pending |
+| T6 | Desktop: sidebar with sub-rows, right rail (>= 1280) | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-6-desktop` | done (`5e89829`, `754d932`; RDD medium, reviewed and acknowledged) |
+| T7 | Tests (new suggested tests), SW 2.6.0, copy accents review, docs, `versiones/KCO v2.6.0` | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-7-release` | done (`f33e7fc`, `2e481f8`, `26c75eb`, release commit below); `versiones/KCO v2.6.0` copy pending (parent) |
 
 ## Acceptance criteria
 
@@ -246,7 +246,50 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
   between 04:00 and 07:00 (it failed on the T5 head at 05:27 as well).
   Verify (on `754d932`): `npm run check` ok; `npm test` 141/141; `npm run e2e` 260 passed, 0 failed.
 
+- 2026-11-07: T6 review: RDD assessed medium, consent granted, review approved and acknowledged. Reviewed
+  boundary is now `37e747b`. Its findings (R3-001 rail focus, R3-002 level-sheet clock, R3-003 IME, R3-004
+  sidebar read-only and rail across 1280) are handled in T7.
+- 2026-11-07: T7 done on `feat/redesign-cabina-7-release` (delegated writer, from `37e747b`). Commits:
+  `f33e7fc` (review fixes), `2e481f8` (test debt), `26c75eb` (editors), then the release commit
+  (`chore(release): 2.6.0 ...`; its hash is in the git log, a commit cannot name itself).
+  Review fixes (specs observed RED on `37e747b`, then GREEN): `pintarRail` restores focus by a unique key
+  (`data-rail-tile`, `data-rail-mision` = mission id, `.rail-nivel`) (T6 R3-001); `#txtBuscaBarra` ignores
+  `input` with `isComposing` and hands off on `compositionend` (T6 R3-003); `pintar()` computes
+  `K.calcularXP` once (`xpPase`, cleared in `finally`) and the ring, sidebar badge, rail and level card read
+  it via `xpDelPase()`; outside a pass it is computed fresh (T2 R3-004; E2E counts 1 call per paint, was 4 on
+  Progreso, and checks the values after completing and undoing).
+  Test debt (no behavior change): `sinFuncion` asserts `fin > -1` (T1 R3-001); E2E for checklist/milestone
+  icon + `aria-pressed` (T1 R3-002), the Activos placeholder (T2 R3-003), chip-menu outside pointerdown and
+  read-only options (T4 R3-003), Ajustes drag by grip with drop/pointercancel (T5 R3-002), multi-line catalog
+  paste (T5 R3-003), the Más hand-offs Mover a Compras / Volver a tarea / Hacer recurrente / Compartir (T5
+  R3-004), sidebar Nuevo apartado read-only and the rail across 1280 via matchMedia (T6 R3-004). Harness
+  `esperarHasta(fn, timeout)`; spec helpers `abierta`, `cerrada`, `enReposo` (no running animations),
+  `fijarHora` (page clock frozen at an hour). The kebab spec, the T4-T6 specs (18 sleep-before-open/close
+  asserts) and the level-sheet spec (was a 9.3s sleep) now poll (T4 R3-004, T5 R3-005); the level sheet runs
+  with the page clock at noon, so it no longer reads the runner's clock (T6 R3-002).
+  Handoff 8 suggested tests: "no interactive control < 44px" in Ahora, Hoy, Tareas, Compras, Notas, Misiones
+  and Progreso at 390px; one justified exclusion, the 12 Progreso week bars `.sem` (28x95: 12 x 44px does not
+  fit 358px; they are checked >= 24 wide and >= 44 tall). Copy test (unit) over UI strings of kco-app.js,
+  kco-core.js (\uXXXX decoded) and index.html (entities decoded): no Busqueda, mision, aca, Mas, dias, plus the
+  T7-fixed accion, proxima, Escribi, definicion, Dia.
+  Editors (handoff 7): `EDITOR_OPC` + `pintarOpcionales(ed)` / `reiniciarOpcionales(ed)`; optional blocks are
+  `.ed-opc` wrappers hidden with the `hidden` attribute, chips `[data-agregar]` in `#apAgregar`, `#rutAgregar`,
+  `#misAgregar`, `#notaAgregar` (class `ficha-agregar`); revealed state in memory, reset per open. Section:
+  key Nombre, Icono, Color, Compras, Notas (Compras/Notas moved above the optional ones); optional Descripcion,
+  Objetivo, Alias, Etiquetas. Routine: key text, Frecuencia, Apartado; optional Prioridad (value = not normal),
+  Fechas (value = end date or start not today). Mission: optional Objetivo. Note: optional Titulo and Etiquetas
+  (only offered when the section has tags); Fijar stays visible (one-tap toggle, like the Ficha's direct chips).
+  Share text: no optional fields, unchanged (deviation, documented). Destructive actions were already last and
+  filled danger with confirmation; the specs assert it. 3 editor specs observed RED, then GREEN; no existing
+  spec changed for the editors. Copy: Cada cuántos, Día del mes, último día, Próxima acción, Escribí, Borrar
+  definición, próxima, Todavía, Agregá; rutina/misión label "Apartado".
+  Release: SW/app/package 2.6.0 (cache `kibco-2.6.0`), `manifest.webmanifest` theme/background `#0B0D10` (new
+  unit test: manifest = dark theme-color meta = `--bg`, observed RED first), CHANGELOG `2.6.0 — 2026-11-07 —
+  rediseño "Cabina"`, LEEME (tabs Listas/Progreso, Ahora filters, Hoy strip, capture, tray, ficha, confirm/toast,
+  ajustes, desktop/rail, `kibco.pistas`), CLAUDE.md (untracked, not committed).
+  Verify (release commit): `npm run check` ok; `npm test` 144/144; `npm run e2e` 274 passed, 0 failed, twice.
+  All T1-T6 follow-ups are fixed; none deferred.
+
 ## Next step
 
-T7 release (tests, SW 2.6.0, copy, docs, `versiones/KCO v2.6.0`) on `feat/redesign-cabina-7-release`, stacked
-on `feat/redesign-cabina-6-desktop`. Parent: RDD assess T6 with base `92d98f9`.
+`versiones/KCO v2.6.0` copy (parent) and user decision on merge/push. Parent: RDD assess T7 with base `37e747b`.
