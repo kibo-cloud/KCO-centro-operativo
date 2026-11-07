@@ -862,7 +862,7 @@ body.luz li.item{border-width:1px}
 /* Mas acciones: lista de filas, sin cajas. */
 .acciones{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-card);overflow:hidden}
 .fila-acc{
-  display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:48px;padding:0 var(--s-4);
+  display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:52px;padding:0 var(--s-4);
   border:0;border-bottom:1px solid var(--border);background:var(--surface-2);color:var(--text);
   font-size:var(--fs-15);text-align:left;cursor:pointer;
 }
@@ -1195,7 +1195,7 @@ li.item.prevista{border-style:dotted;background:transparent;opacity:.8}
 .anillo-xp.pulso .anillo-xp-aro{animation:kcoPulso var(--dur-fest) var(--ease)}
 @keyframes kcoPulso{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
 /* Hoja de nivel / logro: breve y centrada, radio 20 y borde brasa al 40 %. */
-.tapa.tapa-nivel{align-items:center;justify-content:center;padding:var(--s-4)}
+#tapaNivel{align-items:center;justify-content:center;padding:var(--s-4)}
 .hoja.hoja-nivel{max-width:360px;border:1px solid var(--brasa);border-color:color-mix(in srgb,var(--brasa) 40%,transparent);border-radius:var(--r-sheet);
   padding:var(--s-6) var(--s-5) var(--s-5);text-align:center;opacity:0;transform:scale(.96);transition:transform var(--dur-3) var(--ease),opacity var(--dur-3) ease}
 .tapa.on .hoja.hoja-nivel{opacity:1;transform:none}
@@ -1294,3 +1294,56 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .hoja-cab{padding-top:var(--s-3)}
   .asa{display:none}
 }
+
+/* Ajustes: tarjeta de backup (warning-soft pasado el umbral) y listas
+   agrupadas de filas de 52px, radio 12. */
+.backup-card{margin:0 0 var(--s-2);padding:var(--s-4);border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface-2)}
+.backup-card.aviso-backup{border-color:var(--warning);background:var(--warning-soft)}
+.backup-tit{font-size:var(--fs-17);font-weight:700}
+.backup-card.aviso-backup .backup-tit{color:var(--warning)}
+.backup-sub{margin-top:var(--s-1);color:var(--muted);font-size:var(--fs-13)}
+.backup-accs{display:flex;gap:var(--s-2);margin-top:var(--s-3)}
+.backup-accs .bloque{flex:1 1 0;min-width:0;margin-top:0;display:inline-flex;align-items:center;justify-content:center}
+.grupo:not(.acciones){display:flex;flex-direction:column;border-radius:var(--r-card);overflow:hidden;background:var(--surface-2)}
+.fila-ajuste{display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:52px;height:52px;padding:0 var(--s-3) 0 var(--s-4);border:0;border-top:1px solid var(--border);
+  background:none;color:var(--text);font-size:var(--fs-15);text-align:left;cursor:pointer}
+.grupo > .fila-ajuste:first-child{border-top:0}
+.fila-ajuste .ico{flex:0 0 auto;margin:0;color:var(--muted)}
+.fila-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fila-n{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
+button.fila-ajuste:not(.fila-switch)::after{content:'';flex:0 0 auto;width:7px;height:7px;margin-right:var(--s-1);border-top:1.75px solid var(--faint);border-right:1.75px solid var(--faint);transform:rotate(45deg)}
+#btnNuevoApartado::after,#btnNuevoApartado.fila-ajuste::after{content:none}
+#btnNuevoApartado{color:var(--accent)}
+#btnNuevoApartado .ico{color:var(--accent)}
+.fila-tema{cursor:default;padding-right:0}
+.fila-tema .seg{flex:0 0 auto;margin:0;padding:var(--s-1);background:none}
+.fila-tema .segbtn{min-height:var(--tap);padding:0 var(--s-2);font-size:var(--fs-13)}
+.switch{position:relative;flex:0 0 auto;width:44px;height:26px;border-radius:var(--r-pill);background:var(--surface-3);transition:background var(--dur-1) ease}
+.switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:transform var(--dur-1) var(--ease),background var(--dur-1) ease}
+.fila-switch[aria-checked="true"] .switch{background:var(--accent)}
+.fila-switch[aria-checked="true"] .switch::after{transform:translateX(18px);background:var(--accent-contrast)}
+.grupo-nota{margin:var(--s-2) var(--s-1) 0}
+/* Subhoja de apartados: asa de arrastre + flechas accesibles. */
+.apfila .asa-orden{width:24px;height:24px;margin:0 0 0 var(--s-1)}
+.apfila.arrastrando{position:relative;z-index:2;background:var(--surface-3);box-shadow:var(--sh-3)}
+/* Busqueda: a pantalla completa en el telefono; grupos por apartado. */
+.campo-buscar{display:flex;align-items:center;gap:var(--s-2);min-height:var(--ctl-h);padding:0 var(--s-3);border:1px solid var(--border-strong);border-radius:var(--r-card);background:var(--surface-2)}
+.campo-buscar:focus-within{border-color:var(--accent)}
+.campo-buscar input[type=search]{flex:1;min-width:0;height:44px;padding:0;border:0;background:none;color:var(--text);font-family:inherit;outline:none}
+#resultados{list-style:none;margin:var(--s-3) 0 0;padding:0}
+.busca-grupo{display:flex;align-items:center;gap:var(--s-2);margin:var(--s-4) 0 var(--s-2);color:var(--muted);font-size:var(--fs-13);font-weight:600}
+.busca-grupo .punto{margin:0}
+#resultados li.busca-res{min-height:0;margin:0 0 var(--s-1);padding:0;border:0;background:none;box-shadow:none}
+.busca-abrir{display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:52px;padding:var(--s-2) var(--s-3);border:0;border-radius:var(--r-card);background:var(--surface-2);color:var(--text);text-align:left;cursor:pointer}
+.busca-ico{flex:0 0 auto;width:20px;height:20px;margin:0;color:var(--muted)}
+.busca-txt{display:flex;flex-direction:column;min-width:0}
+.busca-txt .txt{font-size:var(--fs-15);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.busca-meta{color:var(--muted);font-size:var(--fs-13)}
+@media (max-width:759px){
+  #tapaBuscar .hoja{height:100%;max-height:100%;border-radius:0;border-top:0}
+}
+/* Primera vez: plantillas en grilla de 2 columnas (icono + nombre + 1 linea). */
+.pllista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.plfila-icono{width:24px;height:24px;margin:0 0 var(--s-1);color:var(--accent)}
+.pllista .plfila-desc{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.pllista .plfila-aps{display:none}

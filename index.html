@@ -178,7 +178,7 @@
 
 <!-- Nivel nuevo / logros: hoja breve centrada, encolada despues del toast;
      varios eventos juntos van en una sola hoja. kco-app.js mostrarNivel. -->
-<div class="tapa tapa-nivel" id="tapaNivel" data-sin-cab="1">
+<div class="tapa" id="tapaNivel" data-sin-cab="1">
   <div class="hoja hoja-nivel">
     <div class="nivel-aro" id="nivelAro" aria-hidden="true">1</div>
     <div class="nivel-sube" id="nivelSube">Subiste de nivel</div>
@@ -451,14 +451,20 @@
       <div id="misProxima"></div>
       <div class="rot">Hitos</div>
       <div id="misHitos"></div>
-      <input id="txtHito" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
-             maxlength="160" placeholder="Nuevo hito. Ej: QA aprobado">
-      <button class="bloque" id="btnAgregarHito" type="button">Agregar hito</button>
+      <div class="campo-agregar">
+        <span class="campo-agregar-mas" data-ico="plus" aria-hidden="true"></span>
+        <input id="txtHito" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" maxlength="160"
+               placeholder="Agregar hito. Ej: QA aprobado" aria-label="Agregar hito">
+        <button class="iconobtn" id="btnAgregarHito" type="button" aria-label="Agregar hito" title="Agregar hito" data-ico="arrow-up"></button>
+      </div>
       <div class="rot">Tareas de la misión</div>
       <ul class="lista" id="misTareas"></ul>
-      <input id="txtMisTarea" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
-             placeholder="Nueva tarea de esta misión">
-      <button class="bloque" id="btnAgregarMisTarea" type="button">Agregar tarea</button>
+      <div class="campo-agregar">
+        <span class="campo-agregar-mas" data-ico="plus" aria-hidden="true"></span>
+        <input id="txtMisTarea" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
+               placeholder="Agregar tarea de esta misi&oacute;n" aria-label="Agregar tarea">
+        <button class="iconobtn" id="btnAgregarMisTarea" type="button" aria-label="Agregar tarea" title="Agregar tarea" data-ico="arrow-up"></button>
+      </div>
       <div class="rot">Estado</div>
       <button class="bloque" id="btnMisPausa" type="button" data-ico="pause">Pausar misión</button>
       <button class="bloque pri" id="btnMisTerminar" type="button" data-ico="flag">Completar misión</button>
@@ -469,8 +475,8 @@
 
 <div class="tapa" id="tapaBuscar">
   <div class="hoja">
-    <h2>Búsqueda universal</h2>
-    <input id="txtBusca" type="text" autocomplete="off" placeholder="Buscar en todos los contextos...">
+    <h2>Buscar</h2>
+    <div class="campo-buscar"><span class="campo-agregar-mas" data-ico="search" aria-hidden="true"></span><input id="txtBusca" type="search" autocomplete="off" enterkeyhint="search" placeholder="Buscar en todos los apartados" aria-label="Buscar"></div>
     <ul id="resultados"></ul>
     <div class="vacio" id="vacioBusca">Escribi para buscar.</div>
   </div>
@@ -515,51 +521,112 @@
   </div>
 </div>
 
+<!-- Ajustes: arriba la tarjeta de backup (warning-soft pasado el umbral);
+     despues listas agrupadas de filas de 52px. Lo largo vive en subhojas:
+     Apartados, Recordatorios, Solicitantes, Destinos y Acerca de. -->
 <div class="tapa" id="tapaAjustes">
   <div class="hoja">
     <h2>Ajustes</h2>
-    <!-- Orden: lo que protege los datos primero (backup), lo informativo al final. -->
-    <div class="rot">Backup</div>
-    <div class="dato"><span>&Uacute;ltimo backup</span><span id="vBackup">-</span></div>
-    <button class="bloque" id="btnExportar" type="button" data-ico="download">Descargar backup (.json)</button>
-    <button class="bloque" id="btnBackupTexto" type="button" data-ico="share">Compartir backup como texto</button>
-    <button class="bloque" id="btnImportar" type="button" data-ico="upload">Restaurar backup</button>
-    <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
-    <div class="rot" id="rotApartados">Apartados</div>
-    <div class="aplista" id="listaApartados" role="list" aria-labelledby="rotApartados"></div>
-    <button class="bloque" id="btnNuevoApartado" type="button" data-ico="plus">Nuevo apartado</button>
-    <div class="rot">Pantalla</div>
-    <div class="seg" id="segTema" role="group" aria-label="Tema">
-      <button class="segbtn" type="button" data-tema="sistema">Sistema</button>
-      <button class="segbtn" type="button" data-tema="claro">Claro</button>
-      <button class="segbtn" type="button" data-tema="oscuro">Oscuro</button>
-    </div>
-    <button class="bloque" id="btnLuz" type="button" data-ico="sun">Modo luz de planta</button>
-    <div class="pista" style="margin-top:8px">Sube el contraste y agranda los textos chicos para leer bajo el sol o los tubos de la planta.</div>
-    <div class="rot">Recordatorios</div>
-    <div class="dato"><span>Notificaciones</span><span id="vNotif">-</span></div>
-    <button class="bloque" id="btnPermiso" type="button" data-ico="bell">Activar notificaciones</button>
-    <div class="pista" style="margin-top:8px">Suenan con KCO abierta o recien usada. Con la app cerrada Android no las dispara: al abrir KCO vas a ver los vencidos arriba.</div>
-    <div id="bloqueCatalogos">
-    <div class="rot">Cat&aacute;logos de compras</div>
-    <div class="pista" style="margin-top:0;margin-bottom:8px">Solicitantes y destinos que KCO fue aprendiendo sola. Borrar uno de acá no toca ninguna compra ya cargada.</div>
-    <div class="dato"><span>Solicitantes</span><span id="vSolic">-</span></div>
-    <div id="chipsSolic" class="catalogo"></div>
-    <textarea id="txtNuevoSolic" rows="3" autocomplete="off" autocapitalize="words"
-              placeholder="Uno por renglon. Se puede pegar una lista entera."></textarea>
-    <button class="bloque" id="btnSumarSolic" type="button" data-ico="plus">Sumar solicitantes</button>
-    <div class="dato" style="margin-top:12px"><span>Destinos / usos</span><span id="vDest">-</span></div>
-    <div id="chipsDest" class="catalogo"></div>
-    <textarea id="txtNuevoDest" rows="3" autocomplete="off" autocapitalize="sentences"
-              placeholder="Uno por renglon. Se puede pegar una lista entera."></textarea>
-    <button class="bloque" id="btnSumarDest" type="button" data-ico="plus">Sumar destinos</button>
+    <div class="backup-card" id="cardBackup">
+      <div class="backup-tit" id="vBackupTit">&Uacute;ltimo backup</div>
+      <div class="backup-sub">Tus datos viven solo en este dispositivo. <span id="vBackup">-</span></div>
+      <div class="backup-accs">
+        <button class="bloque pri" id="btnExportar" type="button" data-ico="download">Descargar</button>
+        <button class="bloque" id="btnBackupTexto" type="button" data-ico="share">Compartir</button>
+      </div>
     </div>
 
-    <div class="rot">Info</div>
+    <div class="grupo-rot" id="rotApartados">Apartados</div>
+    <div class="grupo">
+      <button class="fila-ajuste" id="btnEditarApartados" type="button" aria-haspopup="dialog" aria-controls="tapaApartados"><span class="fila-nom">Editar y ordenar</span><b class="fila-n" id="nApartados"></b></button>
+      <button class="fila-ajuste" id="btnNuevoApartado" type="button" data-ico="plus">Nuevo apartado</button>
+    </div>
+
+    <div class="grupo-rot">Pantalla y avisos</div>
+    <div class="grupo">
+      <div class="fila-ajuste fila-tema"><span class="fila-nom" id="rotTema">Tema</span>
+        <div class="seg" id="segTema" role="group" aria-labelledby="rotTema">
+          <button class="segbtn" type="button" data-tema="sistema">Sistema</button>
+          <button class="segbtn" type="button" data-tema="claro">Claro</button>
+          <button class="segbtn" type="button" data-tema="oscuro">Oscuro</button>
+        </div>
+      </div>
+      <button class="fila-ajuste fila-switch" id="btnLuz" type="button" role="switch" aria-checked="false" aria-describedby="pistaLuz"><span class="fila-nom">Modo luz de planta</span><span class="switch" aria-hidden="true"></span></button>
+      <button class="fila-ajuste" id="btnAvisos" type="button" aria-haspopup="dialog" aria-controls="tapaAvisos"><span class="fila-nom">Recordatorios y notificaciones</span><b class="fila-n" id="vNotif">-</b></button>
+    </div>
+    <div class="pista grupo-nota" id="pistaLuz">Luz de planta: m&aacute;s contraste y textos m&aacute;s grandes para leer bajo el sol o los tubos de la planta.</div>
+
+    <div id="bloqueCatalogos">
+      <div class="grupo-rot">Compras</div>
+      <div class="grupo">
+        <button class="fila-ajuste" id="btnSolicitantes" type="button" aria-haspopup="dialog" aria-controls="tapaSolic"><span class="fila-nom">Solicitantes</span><b class="fila-n" id="vSolic">-</b></button>
+        <button class="fila-ajuste" id="btnDestinos" type="button" aria-haspopup="dialog" aria-controls="tapaDest"><span class="fila-nom">Destinos</span><b class="fila-n" id="vDest">-</b></button>
+      </div>
+    </div>
+
+    <div class="grupo-rot">Tus datos</div>
+    <div class="grupo">
+      <button class="fila-ajuste" id="btnImportar" type="button"><span class="fila-nom">Restaurar desde archivo</span></button>
+      <button class="fila-ajuste" id="btnAcerca" type="button" aria-haspopup="dialog" aria-controls="tapaAcerca"><span class="fila-nom">Acerca de KCO</span><b class="fila-n" id="vAcercaRes"></b></button>
+    </div>
+    <input type="file" id="archivoImport" accept="application/json,.json" style="display:none">
+  </div>
+</div>
+
+<div class="tapa" id="tapaApartados">
+  <div class="hoja">
+    <h2 id="apsTitulo">Apartados</h2>
+    <div class="sub">Toc&aacute; uno para editarlo. Arrastr&aacute; el asa o us&aacute; las flechas para ordenarlos.</div>
+    <div class="aplista" id="listaApartados" role="list" aria-labelledby="apsTitulo"></div>
+  </div>
+</div>
+
+<div class="tapa" id="tapaAvisos">
+  <div class="hoja">
+    <h2>Recordatorios y notificaciones</h2>
+    <div class="dato"><span>Notificaciones</span><span id="vNotif2">-</span></div>
+    <button class="bloque pri" id="btnPermiso" type="button" data-ico="bell">Activar notificaciones</button>
+    <div class="pista">Suenan con KCO abierta o reci&eacute;n usada. Con la app cerrada Android no las dispara: al abrir KCO vas a ver los vencidos arriba.</div>
+  </div>
+</div>
+
+<div class="tapa" id="tapaSolic">
+  <div class="hoja">
+    <h2>Solicitantes</h2>
+    <div class="sub">KCO los fue aprendiendo de tus compras. Borrar uno de ac&aacute; no toca ninguna compra ya cargada.</div>
+    <div class="campo-agregar">
+      <span class="campo-agregar-mas" data-ico="plus" aria-hidden="true"></span>
+      <input id="txtNuevoSolic" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="done"
+             placeholder="Agregar solicitante" aria-label="Agregar solicitante">
+      <button class="iconobtn" id="btnSumarSolic" type="button" aria-label="Agregar solicitante" title="Agregar" data-ico="arrow-up"></button>
+    </div>
+    <div class="pista">Se puede pegar una lista entera: uno por rengl&oacute;n o separados por punto y coma.</div>
+    <div id="chipsSolic" class="catalogo"></div>
+  </div>
+</div>
+
+<div class="tapa" id="tapaDest">
+  <div class="hoja">
+    <h2>Destinos / usos</h2>
+    <div class="sub">M&aacute;quinas, &aacute;reas o sectores que KCO fue aprendiendo. Borrar uno de ac&aacute; no toca ninguna compra.</div>
+    <div class="campo-agregar">
+      <span class="campo-agregar-mas" data-ico="plus" aria-hidden="true"></span>
+      <input id="txtNuevoDest" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done"
+             placeholder="Agregar destino" aria-label="Agregar destino">
+      <button class="iconobtn" id="btnSumarDest" type="button" aria-label="Agregar destino" title="Agregar" data-ico="arrow-up"></button>
+    </div>
+    <div class="pista">Se puede pegar una lista entera: uno por rengl&oacute;n o separados por punto y coma.</div>
+    <div id="chipsDest" class="catalogo"></div>
+  </div>
+</div>
+
+<div class="tapa" id="tapaAcerca">
+  <div class="hoja">
+    <h2>Acerca de KCO</h2>
     <div class="dato"><span>Versi&oacute;n app</span><span id="vApp">-</span></div>
     <div class="dato"><span>Versi&oacute;n service worker</span><span id="vSw">-</span></div>
     <div class="dato"><span>Esquema de datos</span><span id="vEsquema">-</span></div>
-    <div class="dato"><span>Items guardados</span><span id="vTotal">-</span></div>
+    <div class="dato"><span>&Iacute;tems guardados</span><span id="vTotal">-</span></div>
     <div class="dato"><span>Movimientos en registro</span><span id="vEventos">-</span></div>
     <div class="dato"><span>Prefijo de datos</span><span>kibco.</span></div>
     <div class="pie">KCO v<span id="pieVersion">-</span> &middot; esquema <span id="pieEsquema">-</span><br>Desarrollado por Kevin V&aacute;squez</div>
@@ -619,10 +686,12 @@
     <div class="pista" id="apNotasPista"></div>
     <div class="rot" id="rotApTags">Etiquetas</div>
     <div class="aptags" id="apTags" role="list" aria-labelledby="rotApTags"></div>
-    <div class="aplinea">
-      <input id="apTagNuevo" type="text" autocomplete="off" maxlength="30" placeholder="Nueva etiqueta" aria-label="Nueva etiqueta">
-      <button class="gbtn" id="btnApTag" type="button" data-ico="plus">Sumar</button>
-    </div>
+    <div class="campo-agregar">
+        <span class="campo-agregar-mas" data-ico="plus" aria-hidden="true"></span>
+        <input id="apTagNuevo" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" maxlength="30"
+               placeholder="Agregar etiqueta" aria-label="Agregar etiqueta">
+        <button class="iconobtn" id="btnApTag" type="button" aria-label="Agregar etiqueta" title="Agregar etiqueta" data-ico="arrow-up"></button>
+      </div>
     <div class="pista aperror" id="apError" role="alert"></div>
     <button class="bloque pri" id="btnApGuardar" type="button">Guardar apartado</button>
     <div id="cajaApExistente">

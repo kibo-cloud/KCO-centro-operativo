@@ -3,7 +3,7 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
-## Sin publicar — rediseño "Cabina" (fases 1-4: tokens, base, armazón, tarjeta y vistas)
+## Sin publicar — rediseño "Cabina" (fases 1-5: tokens, base, armazón, tarjeta, vistas y hojas)
 
 Esquema 5 sin cambios. Una sola clave nueva, `kibco.pistas` (banderas de las pistas de primera
 vez); las demás claves y formatos no cambian. El service worker sigue en 2.5.0 hasta la fase de
@@ -72,8 +72,34 @@ release.
   "XP / tramo · +N hoy" y cuánto falta para el siguiente; después cuatro números, objetivos,
   12 semanas (la actual en brasa) y logros (ganados en dorado, secretos punteados con "Seguí
   jugando"). Abajo, la Bitácora: Diario · Detalle (el antiguo Registro), rango Hoy / 7 d / 30 d /
-  Todo y "Reporte", que abre una hoja con Reporte de turno y Resumen. Salen de Progreso
-  "Actividad por contexto" y "Lo que terminaste" (las misiones cumplidas siguen en Misiones).
+  Todo y "Reporte", que abre una hoja con Reporte de turno y Resumen. "Actividad por contexto"
+  (barras de 4 px en el color de cada apartado) y "Lo que terminaste" quedan después de Logros.
+- Hojas: radio superior 20, asa de 40×5, cabecera de 48 px con título 17/700 y X de 44 px.
+- Ficha del ítem con divulgación progresiva: subtítulo con el ícono del estado, título editable,
+  cuatro acciones de 56 px (Hecho primario; Hoy, Mañana y Elegir día solo si se pueden usar) y
+  las propiedades con valor como filas de 52 px (Prioridad y Apartado siempre; Recordatorio,
+  Estado si no es el de siempre, Rutina, Misión, Solicitante, Etiqueta, Anclado, En espera solo si
+  tienen algo). Cada fila abre su editor. Pasos y Comentarios aparecen con contenido; lo vacío
+  queda en chips "Agregar" que lo muestran al tocarlos. La fila "Más: mover, repetir, compartir,
+  borrar" abre una subhoja agrupada con Borrar en rojo. Sigue guardando al instante.
+- Campo "Agregar" único en pasos, comentarios, hitos, tareas de misión, etiquetas del apartado y
+  catálogos: 48 px, + a la izquierda, Enter guarda (el botón de enviar aparece con texto). En los
+  catálogos se puede seguir pegando una lista de varios renglones.
+- Confirmar: diálogo de alerta con papelera en un círculo, un título que nombra lo que se borra
+  ("¿Borrar el apartado Casa?"), el detalle (y "Vas a poder deshacerlo durante 9 segundos" donde
+  hay deshacer) y Cancelar (contorno, izquierda) · Sí, borrar (relleno, derecha). Al borrar un
+  apartado con datos, "Mover sus datos a" se elige dentro de la confirmación.
+- Toast de deshacer: 52 px, ícono, una sola acción ("Completado: …") y Deshacer, con la cuenta
+  regresiva de 9 s en una barra de 3 px. El XP vuela al anillo como "+N XP" y el anillo late; el
+  nivel nuevo y los logros salen después del toast en una sola hoja centrada ("Subiste de
+  nivel", logros y "Seguir"). Deshacer descarta ese festejo.
+- Ajustes: tarjeta de backup arriba (en ámbar pasado el aviso) con Descargar y Compartir, y
+  grupos Apartados (Editar y ordenar, con asa de arrastre y flechas; Nuevo apartado), Pantalla y
+  avisos (Tema, interruptor de luz de planta, Recordatorios y notificaciones), Compras
+  (Solicitantes, Destinos) y Tus datos (Restaurar desde archivo, Acerca de KCO), con subhojas.
+- Búsqueda a pantalla completa con el campo enfocado y los resultados agrupados por apartado;
+  la primera vez muestra las plantillas en una grilla de dos columnas; filas de 52 px en las
+  listas de acciones (menú rápido, Compartir).
 
 ### Corregido
 

@@ -817,10 +817,11 @@ export const tests = [
       assert.match(await page.text('#listaApartados [data-ap="viejo"]'), /Archivado/);
       assert.doesNotMatch(await page.text('#listaApartados [data-ap="gym"]'), /Archivado/);
       assert.equal(await page.eval("document.querySelector('#listaApartados [data-ap=\"gym\"] .punto').className"), 'punto pal-lima');
-      assert.equal(await page.eval("document.querySelector('#listaApartados [data-ap=\"gym\"] svg').getAttribute('data-ico-nom')"), 'trophy');
+      assert.equal(await page.eval("document.querySelector('#listaApartados [data-ap=\"gym\"] svg.apfila-ico').getAttribute('data-ico-nom')"), 'trophy');
       assert.ok(await page.visible('#btnNuevoApartado'));
       const order = await page.eval("(function(){var h=document.getElementById('tapaAjustes'),a=h.getElementsByTagName('*'),p={},k;for(k=0;k<a.length;k++){if(a[k].id)p[a[k].id]=k;}return p;})()");
-      assert.ok(order.btnImportar < order.listaApartados && order.listaApartados < order.segTema, 'between Backup and Pantalla');
+      assert.ok(order.btnExportar < order.btnEditarApartados && order.btnEditarApartados < order.segTema, 'the Apartados group sits between the backup card and Pantalla');
+      assert.ok(await page.eval("document.getElementById('tapaApartados').contains(document.getElementById('listaApartados'))"), 'the list lives in its sub-sheet');
       assert.equal(await page.eval('document.documentElement.scrollWidth <= window.innerWidth'), true, 'no horizontal scroll at 390px');
     }
   },
@@ -3655,23 +3656,25 @@ export const tests = [
     }
   },
   {
-    name: 'settings: Ajustes opens with Backup first and Info last, and every setting is still there',
+    name: 'settings: Ajustes opens with the backup card first and every setting is still reachable (in Ajustes or its sub-sheets)',
     storage: seed(),
     async fn(page) {
       await page.click('#btnAjustes');
       await sleep(150);
-      const r = await page.eval(`(function(){var h=document.getElementById('tapaAjustes'),rot=h.querySelectorAll('.rot'),t=[],i;
+      const r = await page.eval(`(function(){var h=document.getElementById('tapaAjustes'),rot=h.querySelectorAll('.grupo-rot'),t=[],i;
         for(i=0;i<rot.length;i++){t.push(rot[i].textContent.trim());}
         function pos(id){var all=h.getElementsByTagName('*');for(var k=0;k<all.length;k++){if(all[k].id===id)return k;}return -1;}
-        var ids=['vBackup','btnExportar','btnBackupTexto','btnImportar','archivoImport','segTema','btnLuz','vNotif','btnPermiso','vSolic','chipsSolic','txtNuevoSolic','btnSumarSolic','vDest','chipsDest','txtNuevoDest','btnSumarDest','vApp','vSw','vEsquema','vTotal','vEventos','pieVersion','pieEsquema'],p={};
+        var sub={tapaApartados:['listaApartados'],tapaAvisos:['btnPermiso','vNotif2'],tapaSolic:['chipsSolic','txtNuevoSolic','btnSumarSolic'],tapaDest:['chipsDest','txtNuevoDest','btnSumarDest'],
+          tapaAcerca:['vApp','vSw','vEsquema','vTotal','vEventos','pieVersion','pieEsquema']},bad=[];
+        for(var k in sub){for(i=0;i<sub[k].length;i++){if(!document.getElementById(k).contains(document.getElementById(sub[k][i])))bad.push(k+':'+sub[k][i]);}}
+        var ids=['vBackup','btnExportar','btnBackupTexto','btnEditarApartados','btnNuevoApartado','segTema','btnLuz','vNotif','btnAvisos','vSolic','btnSolicitantes','vDest','btnDestinos','btnImportar','archivoImport','btnAcerca'],p={};
         for(i=0;i<ids.length;i++){p[ids[i]]=pos(ids[i]);}
-        var pie=h.querySelector('.pie');return {rot:t,p:p,pieLast:!!pie&&pie===h.querySelector('.hoja').lastElementChild};})()`);
-      assert.deepEqual(r.rot, ['Backup', 'Apartados', 'Pantalla', 'Recordatorios', 'Cat\u00E1logos de compras', 'Info']);
+        return {rot:t,p:p,bad:bad};})()`);
+      assert.deepEqual(r.rot, ['Apartados', 'Pantalla y avisos', 'Compras', 'Tus datos']);
       for (const [id, k] of Object.entries(r.p)) assert.ok(k > -1, id + ' is still in Ajustes');
-      assert.ok(r.p.btnExportar < r.p.segTema && r.p.vBackup < r.p.btnExportar, 'backup comes first, with its last-backup date');
-      assert.ok(r.p.vApp > r.p.btnSumarDest, 'version info comes after every setting');
-      assert.ok(r.pieLast, 'the footer closes the sheet');
-      // The backup action still works from its new place.
+      assert.deepEqual(r.bad, [], 'sub-sheet settings in place');
+      assert.ok(r.p.vBackup < r.p.btnExportar && r.p.btnExportar < r.p.btnEditarApartados, 'backup comes first, with its last-backup date');
+      assert.ok(r.p.btnAcerca > r.p.btnDestinos, 'Acerca de comes last');
       assert.equal(await page.visible('#btnExportar'), true);
       assert.ok((await page.rect('#btnExportar')).y < 844, 'backup reachable without scrolling at 390x844');
       await page.screenshot(path.join(OUT, 'ajustes-mobile.png'));
@@ -5600,6 +5603,8 @@ export const tests = [
       const r = await page.eval(`(function(){var h=document.querySelector('#tapaNivel .hoja');return {cls:h.className,n:h.querySelector('.nivel-aro').textContent,
         txt:h.textContent,logros:h.querySelectorAll('.nivel-logro').length,aro:Math.round(h.querySelector('.nivel-aro').getBoundingClientRect().width),rad:getComputedStyle(h).borderTopLeftRadius,seguir:document.getElementById('btnSeguirNivel').textContent};})()`);
       assert.match(r.cls, /hoja-nivel/);
+      const lr = await page.rect('#tapaNivel .hoja');
+      assert.ok(Math.abs(lr.y + lr.h / 2 - 422) < 2, 'centered: ' + lr.y);
       assert.equal(r.n, '2');
       assert.equal(r.aro, 88);
       assert.equal(r.rad, '20px');
@@ -5610,6 +5615,71 @@ export const tests = [
       await page.click('#btnSeguirNivel');
       await sleep(300);
       assert.equal(await isOpen(page, 'tapaNivel'), false);
+    }
+  },
+  {
+    name: 'ajustes: backup card first, grouped 52px rows, theme segmented, luz switch and sub-sheets for Apartados and catalogs',
+    storage: Object.assign(seed(), { 'kibco.ultimoBackup': new Date(Date.now() - 20 * 86400000).toISOString(), 'kibco.solicitantes': JSON.stringify(['Juan']) }),
+    async fn(page) {
+      await openAjustes(page);
+      await sleep(350);
+      const r = await page.eval(`(function(){var h=document.querySelector('#tapaAjustes .hoja'),c=h.querySelector('.backup-card'),y=document.createElement('i');y.style.background='var(--warning-soft)';document.body.appendChild(y);
+        var ws=getComputedStyle(y).backgroundColor;y.remove();var cab=h.querySelector('.hoja-cab');
+        return {first:!!c&&cab.nextElementSibling===c,warn:c.className.indexOf('aviso-backup')>-1,bg:getComputedStyle(c).backgroundColor,ws:ws,txt:c.textContent,
+          grupos:Array.prototype.map.call(h.querySelectorAll('.grupo-rot'),function(g){return g.textContent;}),
+          rows:Array.prototype.map.call(h.querySelectorAll('.grupo .fila-ajuste'),function(f){return Math.round(f.getBoundingClientRect().height);}),
+          luz:document.getElementById('btnLuz').getAttribute('role'),ed:document.getElementById('btnEditarApartados').textContent,
+          sol:document.getElementById('btnSolicitantes').textContent};})()`);
+      assert.ok(r.first, 'backup card on top');
+      assert.ok(r.warn, 'over the threshold');
+      assert.equal(r.bg, r.ws, 'warning-soft');
+      assert.match(r.txt, /Último backup hace 20 días/);
+      assert.match(r.txt, /Descargar/);
+      assert.match(r.txt, /Compartir/);
+      assert.deepEqual(r.grupos, ['Apartados', 'Pantalla y avisos', 'Compras', 'Tus datos']);
+      assert.ok(r.rows.length >= 7 && r.rows.every((x) => x === 52), 'rows ' + r.rows);
+      assert.equal(r.luz, 'switch');
+      assert.match(r.ed, /Editar y ordenar\s*5/);
+      assert.match(r.sol, /Solicitantes\s*1/);
+      await page.click('#btnEditarApartados');
+      await sleep(400);
+      assert.ok(await isOpen(page, 'tapaApartados'));
+      assert.ok(await page.eval("document.getElementById('tapaApartados').contains(document.getElementById('listaApartados'))"));
+      assert.ok(await page.eval("!!document.querySelector('#listaApartados .asa-orden')"), 'drag handle');
+      await page.key('Escape');
+      await sleep(300);
+      await page.click('#btnSolicitantes');
+      await sleep(400);
+      assert.ok(await isOpen(page, 'tapaSolic'));
+      const x = await page.rect('#chipsSolic [data-borrar="Juan"]');
+      assert.deepEqual([x.w, x.h], [44, 44], '44px remove');
+      await page.type('#txtNuevoSolic', 'Pedro', true);
+      assert.deepEqual(JSON.parse(await page.storage('kibco.solicitantes')).sort(), ['Juan', 'Pedro']);
+      await page.key('Escape');
+      await sleep(300);
+      await page.click('#btnAcerca');
+      await sleep(400);
+      assert.ok(await isOpen(page, 'tapaAcerca'));
+      assert.match(await page.text('#tapaAcerca'), /Kevin Vásquez/);
+    }
+  },
+  {
+    name: 'search: full-screen sheet, input focused, results grouped by section with a state icon; a result opens its sheet',
+    storage: seed(),
+    async fn(page) {
+      await page.emulateFocus();
+      await page.click('#btnBuscar');
+      await sleep(400);
+      assert.equal(await page.eval('document.activeElement.id'), 'txtBusca');
+      await page.type('#txtBusca', 'a');
+      const r = await page.eval(`(function(){var h=document.querySelector('#tapaBuscar .hoja'),b=h.getBoundingClientRect();
+        return {h:Math.round(b.height),wh:window.innerHeight,grupos:h.querySelectorAll('.busca-grupo .punto').length,ico:h.querySelectorAll('#resultados .busca-res svg').length,res:h.querySelectorAll('#resultados .busca-res').length};})()`);
+      assert.ok(r.h >= r.wh - 1, 'full screen: ' + r.h + '/' + r.wh);
+      assert.ok(r.grupos >= 2, 'grouped by section');
+      assert.equal(r.ico, r.res, 'one state icon per result');
+      await page.click('#resultados .busca-res');
+      await sleep(300);
+      assert.ok(await isOpen(page, 'tapaItem'));
     }
   }
 ];

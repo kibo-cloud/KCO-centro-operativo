@@ -4989,41 +4989,54 @@
         txt: 'Tareas y compras de todos los contextos, por texto o etiqueta.' });
       return;
     }
-    var i, n = 0, lim = limiteTrozo('resultados', q);
+    /* Resultados agrupados por apartado (en el orden del selector): cabecera
+     con punto y nombre, cada resultado con el icono de su estado y su texto.
+     Tocar uno cambia de apartado si hace falta y abre su ficha. */
+    var i, n = 0, lim = limiteTrozo('resultados', q), grupos = {}, orden = [], k;
     for (i = items.length - 1; i >= 0; i--) {
       var it = items[i];
       var t = tagInfo(it.tag, it.contexto);
       var heno = it.texto.toLowerCase() + ' ' + (t ? t.nom.toLowerCase() : '');
       if (heno.indexOf(q) === -1) { continue; }
-      n++;
-      if (n > lim) { continue; }
-      (function (item) {
-        var li = document.createElement('li');
-        li.className = 'item st-' + item.estado + claseNivel(item);
-        var e = document.createElement('div');
-        e.className = 'etq';
-        e.textContent = nomCtx(item.contexto) +
-          (item.tipo === 'compra' ? ' \u00B7 Compra' : '');
-        var tx = document.createElement('div');
-        tx.className = 'txt';
-        tx.textContent = item.texto;
-        var l2 = document.createElement('div');
-        l2.className = 'linea2';
-        var inf = estadoInfo(item.estado);
-        l2.appendChild(badge('est', inf.nom, inf.ico));
-        l2.appendChild(badge('', horaCorta(item.creado)));
-        li.appendChild(e);
-        li.appendChild(tx);
-        li.appendChild(l2);
-        li.onclick = function () {
-          cerrarParaRelevo('tapaBuscar');
-          if (item.contexto !== contexto) { aplicarContexto(item.contexto, true); }
-          if (item.tipo === 'compra') { irAVista('compras'); }
-          abrirItem(item.id);
-          soltarRelevo();
-        };
-        cont.appendChild(li);
-      })(it);
+      if (!grupos.hasOwnProperty('#' + it.contexto)) { grupos['#' + it.contexto] = []; orden.push(it.contexto); }
+      grupos['#' + it.contexto].push(it);
+    }
+    var defs = K.todosApartados(), pos = {};
+    for (i = 0; i < defs.length; i++) { pos['#' + defs[i].id] = i; }
+    orden.sort(function (x, y) { return (pos['#' + x] === undefined ? 999 : pos['#' + x]) - (pos['#' + y] === undefined ? 999 : pos['#' + y]); });
+    for (k = 0; k < orden.length; k++) {
+      var lista = grupos['#' + orden[k]], cab = null;
+      for (i = 0; i < lista.length; i++) {
+        n++;
+        if (n > lim) { continue; }
+        if (!cab) {
+          cab = nodo('li', 'busca-grupo');
+          cab.appendChild(punto(orden[k]));
+          cab.appendChild(nodo('span', '', nomCtx(orden[k])));
+          cont.appendChild(cab);
+        }
+        (function (item) {
+          var inf = estadoInfo(item.estado);
+          var li = nodo('li', 'item busca-res st-' + item.estado);
+          var bt = document.createElement('button');
+          bt.type = 'button';
+          bt.className = 'busca-abrir';
+          bt.appendChild(svgIco(inf.ico || 'circle', 'busca-ico'));
+          var tx = nodo('span', 'busca-txt');
+          tx.appendChild(nodo('span', 'txt', item.texto));
+          tx.appendChild(nodo('span', 'busca-meta', inf.nom + (item.tipo === 'compra' ? ' \u00B7 Compra' : '') + ' \u00B7 ' + horaCorta(item.creado)));
+          bt.appendChild(tx);
+          li.appendChild(bt);
+          li.onclick = function () {
+            cerrarParaRelevo('tapaBuscar');
+            if (item.contexto !== contexto) { aplicarContexto(item.contexto, true); }
+            if (item.tipo === 'compra') { irAVista('compras'); }
+            abrirItem(item.id);
+            soltarRelevo();
+          };
+          cont.appendChild(li);
+        })(lista[i]);
+      }
     }
     if (n > lim) { botonVerMas(cont, 'resultados', n - lim, pintarBusqueda); }
     $('vacioBusca').style.display = n === 0 ? 'block' : 'none';
@@ -5186,6 +5199,12 @@
       /* Sin ningun backup no hay "hace N d" que contar: solo "nunca". */
       v.textContent = u ? horaCorta(u) + ' \u00B7 hace ' + dias + ' d' : 'nunca';
     }
+    var t = $('vBackupTit'), c = $('cardBackup');
+    if (t) {
+      t.textContent = !leer(K_BACKUP) ? 'Todav\u00EDa no hiciste un backup'
+        : (dias === 0 ? '\u00DAltimo backup hoy' : '\u00DAltimo backup hace ' + dias + (dias === 1 ? ' d\u00EDa' : ' d\u00EDas'));
+    }
+    if (c) { c.className = dias > DIAS_AVISO_BACKUP ? 'backup-card aviso-backup' : 'backup-card'; }
   }
 
   function compartir(titulo, texto) {
@@ -5474,6 +5493,7 @@
     vaciar(cont);
     for (i = 0; i < l.length; i++) { cont.appendChild(filaApartado(l, i)); }
     $('btnNuevoApartado').disabled = soloLectura;
+    $('nApartados').textContent = '' + l.length;
   }
 
   function botonOrden(a, dir, tope) {
@@ -5504,6 +5524,9 @@
     if (!a.activo) { b.appendChild(nodo('span', 'badge apfila-arch', 'Archivado')); }
     b.setAttribute('aria-label', 'Editar ' + a.nom + (a.activo ? '' : ' (archivado)'));
     b.onclick = function () { abrirEditorApartado(a.id); };
+    var asa = svgIco('grip', 'asa-orden');
+    f.appendChild(asa);
+    conectarAsaApartado(asa, f, a.id);
     f.appendChild(b);
     f.appendChild(botonOrden(a, 'subir', !arriba));
     f.appendChild(botonOrden(a, 'bajar', !abajo));
@@ -5577,6 +5600,7 @@
     b.type = 'button';
     b.className = 'plfila-abrir';
     b.setAttribute('data-plantilla', p.id);
+    b.appendChild(svgIco(p.apartados.length ? p.apartados[0].ico : 'layers', 'plfila-icono'));
     b.appendChild(nodo('span', 'plfila-nom', p.nom));
     b.appendChild(nodo('span', 'plfila-desc', p.desc));
     for (i = 0; i < p.apartados.length; i++) {
@@ -5619,6 +5643,54 @@
       return;
     }
     cerrarHoja('tapaPlantillas');
+  }
+
+  /* Arrastrar desde el asa: la fila sigue al dedo o al mouse y al soltar va
+     al lugar donde cayo (dentro de su grupo, activos o archivados). Las
+     flechas hacen lo mismo de a un paso, por teclado o lector de pantalla. */
+  function moverApartadoA(id, hasta) {
+    if (soloLectura) { return; }
+    var l = apartadosEnLista(), pos = -1, i, a;
+    for (i = 0; i < l.length; i++) { if (l[i].id === id) { pos = i; } }
+    if (pos < 0 || hasta === pos || hasta < 0 || hasta >= l.length || l[hasta].activo !== l[pos].activo) { return; }
+    a = l.splice(pos, 1)[0];
+    l.splice(hasta, 0, a);
+    for (i = 0; i < l.length; i++) { l[i] = copiaApartado(l[i]); l[i].orden = i; }
+    guardarRegistro(l);
+  }
+
+  function conectarAsaApartado(asa, f, id) {
+    if (!asa.addEventListener || typeof window.PointerEvent === 'undefined') { return; }
+    var activo = false, idP = null, y0 = 0;
+    function destino(y) {
+      var filas = $('listaApartados').children, n = 0, i, r;
+      for (i = 0; i < filas.length; i++) {
+        if (filas[i] === f) { continue; }
+        r = filas[i].getBoundingClientRect();
+        if (y > r.top + r.height / 2) { n++; }
+      }
+      return n;
+    }
+    asa.addEventListener('pointerdown', function (ev) {
+      if (soloLectura) { return; }
+      activo = true; idP = ev.pointerId; y0 = ev.clientY;
+      try { asa.setPointerCapture(idP); } catch (e) { /* sin captura igual anda */ }
+      f.className = f.className + ' arrastrando';
+      ev.preventDefault();
+    });
+    asa.addEventListener('pointermove', function (ev) {
+      if (!activo || ev.pointerId !== idP) { return; }
+      f.style.transform = 'translate3d(0,' + (ev.clientY - y0) + 'px,0)';
+    });
+    function soltar(ev, cancelado) {
+      if (!activo || ev.pointerId !== idP) { return; }
+      activo = false;
+      f.style.transform = '';
+      f.className = f.className.replace(/ ?arrastrando/g, '');
+      if (!cancelado) { moverApartadoA(id, destino(ev.clientY)); }
+    }
+    asa.addEventListener('pointerup', function (ev) { soltar(ev, false); });
+    asa.addEventListener('pointercancel', function (ev) { soltar(ev, true); });
   }
 
   function moverApartado(id, paso) {
@@ -6404,10 +6476,7 @@
   function aplicarLuz(guardar) {
     aplicarClaseCuerpo();
     var b = $('btnLuz');
-    if (b) {
-      rotular(b, modoLuz ? 'Modo luz de planta: activado' : 'Modo luz de planta');
-      b.className = modoLuz ? 'bloque pri' : 'bloque';
-    }
+    if (b) { b.setAttribute('aria-checked', modoLuz ? 'true' : 'false'); }
     if (guardar) { escribir(K_LUZ, modoLuz ? '1' : '0'); }
   }
 
@@ -6855,7 +6924,7 @@
   };
   $('btnConfNo').onclick = function () { confAccion = null; cerrarHoja('tapaConfirmar'); };
 
-  $('btnBuscar').onclick = function () { $('txtBusca').value = ''; pintarBusqueda(); abrirHoja('tapaBuscar'); };
+  $('btnBuscar').onclick = function () { $('txtBusca').value = ''; pintarBusqueda(); abrirHoja('tapaBuscar'); enfocar($('txtBusca')); };
   $('txtBusca').oninput = function () { pintarBusqueda(); };
   $('txtBusca').onkeyup = function () { pintarBusqueda(); };
 
@@ -6887,10 +6956,37 @@
     $('vTotal').textContent = '' + items.length;
     $('vEventos').textContent = '' + eventos.length;
     $('vNotif').textContent = estadoNotif();
+    $('vNotif2').textContent = estadoNotif();
+    $('vAcercaRes').textContent = 'v' + VERSION_APP + ' \u00B7 ' + items.length + (items.length === 1 ? ' \u00EDtem' : ' \u00EDtems');
     pintarTema();
     pintarApartados();
+    aplicarLuz(false);
     abrirHoja('tapaAjustes');
   };
+  $('btnEditarApartados').onclick = function () { pintarApartados(); abrirHoja('tapaApartados'); };
+  $('btnAvisos').onclick = function () { $('vNotif2').textContent = estadoNotif(); abrirHoja('tapaAvisos'); };
+  $('btnSolicitantes').onclick = function () { pintarCatalogos(); abrirHoja('tapaSolic'); };
+  $('btnDestinos').onclick = function () { pintarCatalogos(); abrirHoja('tapaDest'); };
+  $('btnAcerca').onclick = function () { abrirHoja('tapaAcerca'); };
+  /* Campo Agregar de los catalogos: Enter suma; pegar una lista de varios
+     renglones los separa con punto y coma (un input no guarda saltos). */
+  (function () {
+    var l = [['txtNuevoSolic', 'btnSumarSolic'], ['txtNuevoDest', 'btnSumarDest']], i;
+    for (i = 0; i < l.length; i++) {
+      (function (inp, btn) {
+        inp.onkeydown = function (ev) {
+          var k = ev.key || ev.keyCode;
+          if (k === 'Enter' || k === 13) { ev.preventDefault(); btn.onclick(); }
+        };
+        inp.addEventListener('paste', function (ev) {
+          var d = ev.clipboardData || window.clipboardData, t = d && d.getData ? d.getData('text') : '';
+          if (!t || !/[\r\n]/.test(t)) { return; }
+          ev.preventDefault();
+          inp.value = (inp.value ? inp.value + '; ' : '') + t.split(/[\r\n]+/).join('; ');
+        });
+      })($(l[i][0]), $(l[i][1]));
+    }
+  })();
 
   $('btnNuevoApartado').onclick = function () { if (!soloLectura) { abrirEditorApartado(''); } };
   $('btnApGuardar').onclick = function () { guardarEditorApartado(); };
