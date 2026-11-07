@@ -439,12 +439,23 @@
   </div>
 </div>
 
-<div class="tapa" id="tapaConfirmar">
-  <div class="hoja">
+<!-- Confirmar (alertdialog): icono, titulo que nombra lo que se borra, detalle
+     y, si hace falta, a donde pasan los datos. Cancelar (contorno) a la
+     izquierda, la accion (relleno) a la derecha. Sin cabecera de hoja. -->
+<div class="tapa" id="tapaConfirmar" data-sin-cab="1" role="alertdialog" aria-describedby="confDetalle">
+  <div class="hoja hoja-confirmar">
+    <div class="conf-ico" id="confIco" data-ico="trash" aria-hidden="true"></div>
     <h2 id="confTitulo">Confirmar</h2>
     <div class="sub" id="confDetalle"></div>
-    <button class="bloque peli" id="btnConfSi" type="button">Sí, hacelo</button>
-    <button class="bloque pri" id="btnConfNo" type="button">No, cancelar</button>
+    <div id="cajaApMover" style="display:none">
+      <div class="rot" id="rotApMover">Mover sus datos a</div>
+      <div class="pista" id="apMoverPista"></div>
+      <div class="opciones" id="apDestinos" role="group" aria-labelledby="rotApMover"></div>
+    </div>
+    <div class="conf-botones">
+      <button class="bloque contorno" id="btnConfNo" type="button">Cancelar</button>
+      <button class="bloque peli" id="btnConfSi" type="button">S&iacute;, borrar</button>
+    </div>
   </div>
 </div>
 
@@ -561,11 +572,6 @@
     <div id="cajaApExistente">
       <button class="bloque" id="btnApArchivar" type="button">Archivar</button>
       <button class="bloque peli" id="btnApBorrar" type="button">Borrar apartado</button>
-      <div id="cajaApMover" style="display:none">
-        <div class="rot" id="rotApMover">Pasar sus registros a</div>
-        <div class="pista" id="apMoverPista" style="margin-top:0;margin-bottom:8px"></div>
-        <div class="opciones" id="apDestinos" role="group" aria-labelledby="rotApMover"></div>
-      </div>
       <div class="pista" id="apUltimo"></div>
     </div>
   </div>

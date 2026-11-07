@@ -746,11 +746,26 @@ body.luz li.item{border-width:1px}
   padding:var(--s-2) var(--s-2) var(--s-1) var(--s-4);
   background:var(--surface);touch-action:none;
 }
-.asa{width:36px;height:5px;margin:0 auto var(--s-1);border-radius:var(--r-pill);background:var(--border-strong)}
-.hoja-fila{display:flex;align-items:center;gap:var(--s-2);min-height:var(--tap)}
+.asa{width:40px;height:5px;margin:0 auto var(--s-1);border-radius:var(--r-pill);background:var(--border-strong)}
+.hoja-fila{display:flex;align-items:center;gap:var(--s-2);min-height:var(--ctl-h)}
 .hoja-fila h2{flex:1;min-width:0;margin:0;overflow-wrap:anywhere}
 .hoja-fila .sub{flex:1;min-width:0;margin:0}
-.hoja-x{margin-left:auto}
+.hoja-x{margin-left:auto;flex:0 0 auto;width:var(--tap);height:var(--tap)}
+/* Confirmar (alertdialog): icono en circulo danger-soft, titulo, detalle y
+   dos botones lado a lado; la accion (relleno) a la derecha. */
+.hoja-confirmar{padding-top:var(--s-6);text-align:center}
+.conf-ico{display:flex;align-items:center;justify-content:center;width:56px;height:56px;margin:0 auto var(--s-4);border-radius:50%;background:var(--danger-soft);color:var(--danger)}
+.conf-ico.neutro{background:var(--accent-soft);color:var(--accent)}
+.conf-ico .ico{width:26px;height:26px;margin:0}
+.hoja-confirmar h2{margin:0 0 var(--s-2) 0;font-size:var(--fs-20)}
+.hoja-confirmar .sub{margin:0 0 var(--s-4) 0;font-size:var(--fs-15);line-height:var(--lh-base)}
+.hoja-confirmar #cajaApMover{text-align:left}
+.hoja-confirmar #cajaApMover .rot{margin-top:0}
+.hoja-confirmar #apMoverPista{margin:0 0 var(--s-2)}
+.conf-botones{display:flex;gap:var(--s-2);margin-top:var(--s-5)}
+.conf-botones .bloque{flex:1 1 0;min-width:0;min-height:52px;margin-top:0}
+.bloque.contorno{background:none;border-color:var(--border-strong)}
+.bloque:disabled{opacity:.45;cursor:default}
 .hoja:focus,.hoja h2:focus:not(:focus-visible){outline:none}
 /* Solo para lectores de pantalla (el nombre del dialogo de la ficha). */
 .oculto-vis{position:absolute !important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}

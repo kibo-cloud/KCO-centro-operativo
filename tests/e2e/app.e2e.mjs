@@ -2709,6 +2709,9 @@ export const tests = [
           x:x?x.getAttribute('aria-label'):null,asa:!!t.querySelector('.hoja-cab .asa')});}return out;})()`);
       assert.ok(r.length >= 9, 'all sheets found: ' + r.length);
       for (const s of r) {
+        // Short dialogs without a header (Confirmar, the level sheet) close with their buttons, the backdrop, Escape or back.
+        if (s.id === 'tapaConfirmar') { assert.deepEqual(s, { id: s.id, role: 'alertdialog', modal: 'true', label: true, inside: true, x: null, asa: false }, s.id); continue; }
+        if (s.id === 'tapaNivel') { assert.deepEqual(s, { id: s.id, role: 'dialog', modal: 'true', label: true, inside: true, x: null, asa: false }, s.id); continue; }
         assert.deepEqual(s, { id: s.id, role: 'dialog', modal: 'true', label: true, inside: true, x: 'Cerrar', asa: true }, s.id);
       }
     }
@@ -3956,7 +3959,8 @@ export const tests = [
       await openAjustes(page);
       await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
       await page.click('#btnApBorrar');
-      assert.equal(await isOpen(page, 'tapaConfirmar'), false, 'a note is a record: no straight confirmation');
+      assert.ok(await page.visible('#cajaApMover'), 'a note is a record: the confirmation asks for a target');
+      assert.equal(await page.eval("document.getElementById('btnConfSi').disabled"), true, 'no straight delete');
       assert.match(await page.text('#apMoverPista'), /1 nota/);
       await page.click('#apDestinos [data-ctx="taller"]');
       await page.click('#btnConfSi');
@@ -5366,6 +5370,80 @@ export const tests = [
         var s=getComputedStyle(y).boxShadow;y.remove();return {h:getComputedStyle(h).boxShadow,s:s,tema:document.documentElement.getAttribute('data-tema')};})()`);
       assert.equal(r.tema, 'claro');
       assert.equal(r.h, r.s, 'hero uses --sh-2');
+    }
+  },
+  {
+    name: 'sheets skeleton: top radius 20, a 40x5 handle, a 48-52px header with a 17/700 title and a 44px X',
+    async fn(page) {
+      await page.click('#btnAjustes');
+      await sleep(450);
+      const r = await page.eval(`(function(){var h=document.querySelector('#tapaAjustes .hoja'),a=h.querySelector('.asa'),f=h.querySelector('.hoja-fila'),t=f.querySelector('h2'),x=f.querySelector('.hoja-x'),
+        hs=getComputedStyle(h),ab=a.getBoundingClientRect(),xb=x.getBoundingClientRect(),y=document.createElement('i');y.style.background='var(--overlay)';document.body.appendChild(y);
+        var ov=getComputedStyle(y).backgroundColor;y.remove();
+        return {rad:hs.borderTopLeftRadius,aw:ab.width,ah:ab.height,fh:Math.round(f.getBoundingClientRect().height),ts:getComputedStyle(t).fontSize,tw:getComputedStyle(t).fontWeight,
+          xw:xb.width,xh:xb.height,ov:ov,tapa:getComputedStyle(document.getElementById('tapaAjustes')).backgroundColor,dur:hs.transitionDuration};})()`);
+      assert.equal(r.rad, '20px');
+      assert.deepEqual([r.aw, r.ah], [40, 5], 'handle 40x5');
+      assert.ok(r.fh >= 48 && r.fh <= 52, 'header ' + r.fh);
+      assert.deepEqual([r.ts, r.tw], ['17px', '700']);
+      assert.deepEqual([r.xw, r.xh], [44, 44]);
+      assert.equal(r.tapa, r.ov, 'overlay token');
+      assert.match(r.dur, /0\.32s/, 'enter 320ms');
+    }
+  },
+  {
+    name: 'confirm: an alertdialog with a trash icon, a title naming what goes, undo note, Cancelar outline left and Sí, borrar filled danger right',
+    storage: seed(),
+    async fn(page) {
+      await openFirstItem(page);
+      const texto = await page.eval("document.getElementById('txtTituloItem').value");
+      await page.click('#btnBorrar');
+      await sleep(400);
+      assert.ok(await isOpen(page, 'tapaConfirmar'));
+      const r = await page.eval(`(function(){var t=document.getElementById('tapaConfirmar'),i=t.querySelector('.conf-ico'),no=document.getElementById('btnConfNo'),si=document.getElementById('btnConfSi'),
+        ib=i.getBoundingClientRect(),nb=no.getBoundingClientRect(),sb=si.getBoundingClientRect(),y=document.createElement('i');y.style.background='var(--danger-soft)';y.style.color='var(--danger)';document.body.appendChild(y);
+        var ds=getComputedStyle(y).backgroundColor,dc=getComputedStyle(y).color;y.remove();
+        return {role:t.getAttribute('role'),desc:t.getAttribute('aria-describedby'),svg:!!i.querySelector('svg'),iw:ib.width,ih:ib.height,ibg:getComputedStyle(i).backgroundColor,ds:ds,
+          tit:document.getElementById('confTitulo').textContent,det:document.getElementById('confDetalle').textContent,
+          no:no.textContent,si:si.textContent,left:nb.right<=sb.left,row:Math.abs(nb.top-sb.top)<1,nh:nb.height,sh:sb.height,
+          nbg:getComputedStyle(no).backgroundColor,nbd:getComputedStyle(no).borderTopColor,sbg:getComputedStyle(si).backgroundColor,dc:dc};})()`);
+      assert.equal(r.role, 'alertdialog');
+      assert.equal(r.desc, 'confDetalle');
+      assert.ok(r.svg, 'trash icon');
+      assert.deepEqual([r.iw, r.ih], [56, 56]);
+      assert.equal(r.ibg, r.ds, 'danger-soft circle');
+      assert.equal(r.tit, '¿Borrar «' + texto + '»?');
+      assert.match(r.det, /Vas a poder deshacerlo durante 9 segundos/);
+      assert.deepEqual([r.no, r.si], ['Cancelar', 'Sí, borrar']);
+      assert.ok(r.left && r.row, 'side by side, Cancelar on the left');
+      assert.deepEqual([r.nh, r.sh], [52, 52]);
+      assert.equal(r.nbg, 'rgba(0, 0, 0, 0)', 'Cancelar is outline');
+      assert.equal(r.sbg, r.dc, 'Sí, borrar is filled danger');
+      await page.click('#btnConfSi');
+      await sleep(150);
+      assert.ok(!(await items(page)).some((i) => i.texto === texto), 'deleted');
+    }
+  },
+  {
+    name: 'confirm: deleting a section with data picks "Mover sus datos a" inside the confirmation',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': CUSTOM_SECTIONS,
+      'kibco.items': JSON.stringify([{ id: 'm1', texto: 'yerba', contexto: 'mercado', estado: 'pendiente', creado: '2026-01-01T10:00:00.000Z' }]) },
+    async fn(page) {
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="mercado"] .apfila-abrir');
+      await page.click('#btnApBorrar');
+      await sleep(400);
+      assert.ok(await isOpen(page, 'tapaConfirmar'), 'the confirmation opens at once');
+      assert.equal(await page.text('#confTitulo'), '¿Borrar el apartado Mercado?');
+      assert.ok(await page.eval("document.getElementById('tapaConfirmar').contains(document.getElementById('cajaApMover'))"), 'selector inside the confirmation');
+      assert.equal(await page.text('#rotApMover'), 'Mover sus datos a');
+      assert.equal(await page.eval("document.getElementById('btnConfSi').disabled"), true, 'pick a target first');
+      await page.click('#apDestinos [data-ctx="estudio"]');
+      assert.equal(await page.eval("document.getElementById('btnConfSi').disabled"), false);
+      assert.match(await page.text('#confDetalle'), /Estudio/);
+      await page.click('#btnConfSi');
+      await sleep(150);
+      assert.equal((await items(page))[0].contexto, 'estudio');
     }
   }
 ];

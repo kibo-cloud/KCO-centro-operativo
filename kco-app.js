@@ -3918,8 +3918,13 @@
   function prepararHoja(tapa) {
     var hoja = tapa.querySelector('.hoja'), h2 = hoja.querySelector('h2');
     var cab = hoja.querySelector('.hoja-cab'), fila, asa;
+    var sinCab = tapa.getAttribute('data-sin-cab') === '1';
     if (!h2.id) { h2.id = tapa.id + 'Tit'; }
-    if (!cab) {
+    if (sinCab) {
+      /* Confirmar y la hoja de nivel: dialogo breve sin cabecera (sin asa ni X);
+         se cierra con sus botones, el fondo, Escape o atras. */
+      fila = null;
+    } else if (!cab) {
       cab = nodo('div', 'hoja-cab');
       asa = nodo('div', 'asa');
       asa.setAttribute('aria-hidden', 'true');
@@ -3931,15 +3936,17 @@
     } else {
       fila = cab.querySelector('.hoja-fila');
     }
-    var x = document.createElement('button');
-    x.type = 'button';
-    x.className = 'iconobtn hoja-x';
-    x.setAttribute('aria-label', 'Cerrar');
-    x.setAttribute('title', 'Cerrar');
-    x.appendChild(svgIco('x'));
-    x.onclick = function () { cerrarCapa(tapa.id); };
-    fila.appendChild(x);
-    tapa.setAttribute('role', 'dialog');
+    if (fila) {
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'iconobtn hoja-x';
+      x.setAttribute('aria-label', 'Cerrar');
+      x.setAttribute('title', 'Cerrar');
+      x.appendChild(svgIco('x'));
+      x.onclick = function () { cerrarCapa(tapa.id); };
+      fila.appendChild(x);
+    }
+    if (!tapa.getAttribute('role')) { tapa.setAttribute('role', 'dialog'); }
     tapa.setAttribute('aria-modal', 'true');
     tapa.setAttribute('aria-labelledby', h2.id);
     h2.setAttribute('tabindex', '-1');
@@ -3947,7 +3954,7 @@
     tapa.addEventListener('click', function (ev) {
       if (ev.target === tapa && capaArriba() === tapa.id) { cerrarCapa(tapa.id); }
     });
-    conectarArrastreHoja(tapa, hoja, cab);
+    if (cab) { conectarArrastreHoja(tapa, hoja, cab); }
   }
 
   function prepararHojas() {
@@ -4065,9 +4072,22 @@
     aplicarContexto(orden[sentido === 'izq' ? (pos + 1) % orden.length : (pos + orden.length - 1) % orden.length], true);
   }
 
-  function pedirConfirmacion(titulo, detalle, accion) {
+  /* Confirmar: o.si = texto de la accion (por defecto 'S\u00ED, borrar'),
+     o.ico = icono del circulo, o.peligro = false para una accion que no
+     destruye (boton en el acento), o.deshacer = el detalle suma cuanto dura el
+     deshacer. El selector de destino (apartados) solo lo muestra quien lo pide. */
+  function pedirConfirmacion(titulo, detalle, accion, o) {
+    o = o || {};
+    var peligro = o.peligro !== false, si = $('btnConfSi'), ic = $('confIco');
     $('confTitulo').textContent = titulo;
-    $('confDetalle').textContent = detalle;
+    $('confDetalle').textContent = detalle + (o.deshacer ? ' Vas a poder deshacerlo durante ' + (SEG_DESHACER / 1000) + ' segundos.' : '');
+    vaciar(ic);
+    ic.appendChild(svgIco(o.ico || (peligro ? 'trash' : 'check')));
+    ic.className = peligro ? 'conf-ico' : 'conf-ico neutro';
+    si.textContent = o.si || 'S\u00ED, borrar';
+    si.className = peligro ? 'bloque peli' : 'bloque pri';
+    si.disabled = false;
+    if (!o.conDestino) { $('cajaApMover').style.display = 'none'; }
     confAccion = accion;
     abrirHoja('tapaConfirmar');
   }
@@ -4499,7 +4519,7 @@
         b.setAttribute('title', 'Borrar ' + valor);
         b.appendChild(svgIco('x'));
         b.onclick = function () {
-          pedirConfirmacion('Borrar ' + rotulo, 'Se saca "' + valor + '" de la lista. Las compras que ya lo tienen cargado no se tocan.', function () {
+          pedirConfirmacion('\u00BFBorrar el ' + rotulo + ' \u00AB' + valor + '\u00BB?', 'Se saca de la lista. Las compras que ya lo tienen cargado no se tocan.', function () {
             if (olvidar(lista, clave, valor)) {
               pintarCatalogos();
               pintarDatalists();
@@ -5181,7 +5201,7 @@
     if (!esArray(datos.items)) { avisar('El backup no trae la lista de items.'); return; }
     if (datos.notas !== undefined && !esArray(datos.notas)) { avisar('El backup trae notas que no se pueden leer. No se cambio nada.'); return; }
     if (!apartadosDeBackup(datos)) { avisar(AVISO_APARTADOS_INVALIDOS); return; }
-    pedirConfirmacion('Restaurar backup',
+    pedirConfirmacion('\u00BFRestaurar este backup?',
       'Trae ' + datos.items.length + ' items y ' + (esArray(datos.eventos) ? datos.eventos.length : 0) +
       ' movimientos' + (esArray(datos.rutinas) ? ', ' + datos.rutinas.length + ' rutinas' : '') +
       (esArray(datos.proyectos) ? ', ' + datos.proyectos.length + ' misiones' : '') +
@@ -5639,7 +5659,7 @@
           ' a tareas: las abiertas quedan pendientes, las compradas completadas y las canceladas, canceladas.');
       }
       cerrarParaRelevo('tapaApartado');
-      pedirConfirmacion('Guardar ' + cand.nom, detalle.join(' '), aplicar);
+      pedirConfirmacion('\u00BFGuardar ' + cand.nom + '?', detalle.join(' '), aplicar, { si: 'S\u00ED, guardar', peligro: false });
       soltarRelevo();
       return;
     }
@@ -5762,7 +5782,12 @@
     for (i = 0; i < l.length; i++) { if (l[i].id !== a.id) { cont.appendChild(botonDestinoAp(a, l[i].id)); } }
     $('apMoverPista').textContent = a.nom + ' tiene ' + textoRegistros(r) + '.' +
       (r.eventos ? ' Su historial tambi\u00E9n pasa.' : '') + ' Eleg\u00ED a qu\u00E9 apartado van antes de borrarlo.';
+    cerrarParaRelevo('tapaApartado');
+    pedirConfirmacion('\u00BFBorrar el apartado ' + a.nom + '?', 'Tiene ' + textoRegistros(r) + '. Eleg\u00ED a d\u00F3nde pasan. No se puede deshacer.',
+      null, { conDestino: true });
+    soltarRelevo();
     $('cajaApMover').style.display = '';
+    $('btnConfSi').disabled = true;
     enfocar(cont.firstChild);
   }
 
@@ -5774,14 +5799,25 @@
     b.appendChild(punto(id));
     b.appendChild(icoApartado(id, 'gbtn-ico'));
     b.appendChild(document.createTextNode(nomCtx(id)));
-    b.onclick = function () { confirmarBorradoApartado(a, id); };
+    b.onclick = function () { elegirDestinoAp(a, id); };
     return b;
+  }
+
+  /* Elegir el destino dentro de la confirmacion: se marca, el detalle lo
+     nombra y recien ahi se puede borrar. */
+  function elegirDestinoAp(a, destino) {
+    var r = registrosDe(a.id);
+    marcar($('apDestinos'), 'data-ctx', destino);
+    $('confDetalle').textContent = 'Sus ' + textoRegistros(r) + ' pasan a ' + nomCtx(destino) +
+      (r.eventos ? ', con su historial' : '') + '. No se puede deshacer.';
+    confAccion = function () { borrarApartado(a.id, destino); };
+    $('btnConfSi').disabled = false;
   }
 
   function confirmarBorradoApartado(a, destino) {
     var r = registrosDe(a.id);
     cerrarParaRelevo('tapaApartado');
-    pedirConfirmacion('Borrar ' + a.nom, destino === ''
+    pedirConfirmacion('\u00BFBorrar el apartado ' + a.nom + '?', destino === ''
       ? 'Se borra el apartado ' + a.nom + '. No tiene registros. No se puede deshacer.'
       : 'Se borra el apartado ' + a.nom + ' y sus ' + textoRegistros(r) + ' pasan a ' + nomCtx(destino) +
         (r.eventos ? ', con su historial' : '') + '. No se puede deshacer.',
@@ -6543,8 +6579,7 @@
     /* La ocurrencia vigente de una rutina activa no se borra: se volveria a
        generar sola. Se cierra como omitida y queda en el historial. */
     if (ocurrenciaVigente(it)) {
-      pedirConfirmacion('Borrar ocurrencia', 'Es la ocurrencia vigente de la rutina "' + it.texto +
-        '". Si se borra vuelve a aparecer, asi que se marca como omitida y queda en el historial.', function () {
+      pedirConfirmacion('\u00BFBorrar \u00AB' + it.texto + '\u00BB?', 'Es la ocurrencia vigente de su rutina. Si se borra vuelve a aparecer, as\u00ED que se marca como omitida y queda en el historial.', function () {
         cerrarOcurrencia(it.id, 'omitida');
         itemAbierto = null;
         cerrarHoja('tapaItem');
@@ -6552,7 +6587,8 @@
       });
       return;
     }
-    pedirConfirmacion('Borrar item', 'Se borra "' + it.texto + '". Vas a tener unos segundos para deshacerlo.', function () {
+    pedirConfirmacion('\u00BFBorrar \u00AB' + it.texto + '\u00BB?', 'Se borra con sus pasos y comentarios' +
+      (pasosDe(it).length || notasDe(it).length ? ' (' + pasosDe(it).length + ' pasos, ' + notasDe(it).length + ' comentarios).' : '.'), function () {
       var i, pos = -1;
       for (i = 0; i < items.length; i++) {
         if (items[i].id === it.id) { pos = i; break; }
@@ -6579,7 +6615,7 @@
           } else { items.splice(lugar, 1); }
         });
       })(copia, pos);
-    });
+    }, { deshacer: true });
   }
 
   (function () {
@@ -7533,15 +7569,15 @@
       celebrar('Misi\u00F3n cumplida: ' + q.nombre + feedbackProgreso(xpAntes));
     }
     if (abiertas > 0) {
-      pedirConfirmacion('Completar misi\u00F3n', 'Quedan ' + abiertas + ' tareas abiertas en "' + p.nombre +
-        '". Siguen como tareas normales, vinculadas a la misi\u00F3n cumplida.', cerrar);
+      pedirConfirmacion('\u00BFCompletar la misi\u00F3n ' + p.nombre + '?', 'Quedan ' + abiertas + ' tareas abiertas. Siguen como tareas normales, vinculadas a la misi\u00F3n cumplida.', cerrar,
+        { si: 'S\u00ED, completar', peligro: false, ico: 'flag' });
     } else { cerrar(); }
   }
 
   function borrarMision() {
     var p = misionAbierta ? buscarProyecto(misionAbierta) : null;
     if (!p || soloLectura) { return; }
-    pedirConfirmacion('Borrar misi\u00F3n', 'Se borra "' + p.nombre + '" con sus hitos. Las tareas no se borran: quedan sueltas, con su historial.', function () {
+    pedirConfirmacion('\u00BFBorrar la misi\u00F3n ' + p.nombre + '?', 'Se borra con sus ' + p.hitos.length + ' hitos. Las tareas no se borran: quedan sueltas, con su historial.', function () {
       var i, pos = -1;
       for (i = 0; i < proyectos.length; i++) { if (proyectos[i].id === p.id) { pos = i; } }
       if (pos < 0) { return; }
@@ -7948,8 +7984,7 @@
   function borrarRutina() {
     var r = borrador ? buscarRutina(borrador.id) : null;
     if (!r || soloLectura) { return; }
-    pedirConfirmacion('Borrar rutina', 'Se borra la definicion de "' + r.texto +
-      '". Las ocurrencias que ya pasaron quedan en el historial, y la de hoy, si esta abierta, queda como tarea comun.',
+    pedirConfirmacion('\u00BFBorrar la rutina \u00AB' + r.texto + '\u00BB?', 'Se borra su definici\u00F3n. Las ocurrencias que ya pasaron quedan en el historial, y la de hoy, si esta abierta, queda como tarea comun.',
       function () {
         var i, pos = -1;
         for (i = 0; i < rutinas.length; i++) { if (rutinas[i].id === r.id) { pos = i; } }
