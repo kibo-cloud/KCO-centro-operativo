@@ -44,7 +44,7 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
 |---|---|---|---|---|
 | T1 | Tokens and base: new tokens, `pal-todo` (+ `pal-gris` alias, contrast test), type scale floor 13, normalized spacing/radii, single segmented control, buttons, new icons, replace **all** UI emojis | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-1-tokens` | done (`719c1ec`; RDD medium, reviewed and acknowledged) |
 | T2 | Shell: top bar (context page indicator, XP ring), new tab bar (Listas, Progreso), capture with `#btnEnviar` + shortcut row | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-2-shell` | done (`739f2c6`; RDD medium, reviewed and acknowledged) |
-| T3 | Item card: priority by ring, swipe tray `.bandeja-swipe`, drag handle in Manual, first-run hints (`kibco.pistas`) | delegated | `feat/redesign-cabina-3-card` | done (`63072e2`, `__T3__`) |
+| T3 | Item card: priority by ring, swipe tray `.bandeja-swipe`, drag handle in Manual, first-run hints (`kibco.pistas`) | delegated | `feat/redesign-cabina-3-card` | done (`63072e2`, `22faf60`) |
 | T4 | Views: Ahora (hero first + filter chips), Hoy (7-day strip), Listas (top-level tabs, purchase stages, notes grid), Misiones, Progreso | delegated | `feat/redesign-cabina-4-views` | pending |
 | T5 | Sheets: progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets | delegated | `feat/redesign-cabina-5-sheets` | pending |
 | T6 | Desktop: sidebar with sub-rows, right rail (>= 1280) | delegated | `feat/redesign-cabina-6-desktop` | pending |
@@ -98,7 +98,7 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
   Advisory follow-ups for T7: R3-003 (E2E asserting the placeholder "Activos" under the activos filter in tablero);
   R3-004 (`pintarAnilloXP` recomputes total XP on every `pintar`; consider caching). R3-001/R3-002 fixed in T3.
 - 2026-11-06: T3 done on `feat/redesign-cabina-3-card` (delegated writer). Commits `63072e2` (capture clear-day fix)
-  and `__T3__` (card).
+  and `22faf60` (card).
   Capture (R3-001/R3-002): `leerCaptura` masks what it reads instead of cutting and returns the exact time/day spans;
   `parsearCaptura` wraps it and `quitarDiaCaptura` removes exactly those spans, so every form that shows the day chip
   clears (incl. `@  9:30`). Only behavior change of the parser: `@` followed by several spaces, already accepted
