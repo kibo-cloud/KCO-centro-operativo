@@ -3,7 +3,7 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
-## Sin publicar — rediseño "Cabina" (fases 1-3: tokens, base, armazón y tarjeta)
+## Sin publicar — rediseño "Cabina" (fases 1-4: tokens, base, armazón, tarjeta y vistas)
 
 Esquema 5 sin cambios. Una sola clave nueva, `kibco.pistas` (banderas de las pistas de primera
 vez); las demás claves y formatos no cambian. El service worker sigue en 2.5.0 hasta la fase de
@@ -49,9 +49,38 @@ release.
 - Pista de primera vez: al abrir una lista en el teléfono, la primera tarjeta se asoma mostrando la
   tilde y aparece "Deslizá a la derecha para completar" (una sola vez; sin asomo con movimiento
   reducido).
+- Ahora: primero el "Siguiente movimiento" (motivo a la derecha del rótulo, en rojo si está
+  vencida; Hecho, Empezar y Mañana de 48 px; "Después" con los dos que siguen). Debajo, filtros de
+  44 px Todo · Atención · Hoy · Inbox · Esperando que filtran la lista (los que están en 0 no se
+  muestran) y el orden del apartado como botón compacto Manual / Automático. La tarjeta de nivel
+  deja Ahora: vive en el anillo y en Progreso.
+- Hoy: fecha grande con "N de M hechas · faltan K rutinas" y un anillo de 52 px; una tira de 7 días
+  (hoy relleno en el acento, los demás con puntos de cantidad) reemplaza las secciones de próximos
+  días: tocar un día muestra su lista, con las rutinas previstas. "Gestionar rutinas (N)" va en el
+  encabezado de Rutinas de hoy; Hecho hoy y Más adelante se pliegan.
+- Listas: pestañas de primer nivel Tareas · Compras · Notas con su cuenta (Compras y Notas solo si
+  el apartado las usa). Tareas: barra de avance de 4 px y una fila de filtros con el chip-menú de
+  estado ("Activos", con los siete), las etiquetas y el orden a la derecha. Compras de fábrica:
+  seis contadores de etapa que filtran (los de 0 no se pueden tocar) y, en cada tarjeta, la barra
+  de seis etapas y la pastilla "Siguiente etapa" con el nombre de la etapa destino. Notas en
+  grilla de dos columnas, con buscador, Archivadas y Nueva nota arriba.
+- Misiones: un solo segmentado Activas · Pausa · Cumplidas con su cuenta y un "+" de 52 px. La
+  tarjeta lleva el punto y la barra del color del apartado, la fila "Próxima" (toca y abre la
+  tarea) y "Hitos x/y · Tareas x/y · Apartado"; sin próxima acción dice "Sin próxima acción ·
+  definila"; en pausa, borde punteado.
+- Progreso abre en la tarjeta de nivel (brasa): nivel y racha, título del nivel, barra de 8 px,
+  "XP / tramo · +N hoy" y cuánto falta para el siguiente; después cuatro números, objetivos,
+  12 semanas (la actual en brasa) y logros (ganados en dorado, secretos punteados con "Seguí
+  jugando"). Abajo, la Bitácora: Diario · Detalle (el antiguo Registro), rango Hoy / 7 d / 30 d /
+  Todo y "Reporte", que abre una hoja con Reporte de turno y Resumen. Salen de Progreso
+  "Actividad por contexto" y "Lo que terminaste" (las misiones cumplidas siguen en Misiones).
 
 ### Corregido
 
+- La bandeja de la tarjeta ofrece lo mismo que el menú rápido para ese ítem: con datos de solo
+  lectura solo Más; una ocurrencia de rutina no ofrece Hoy ni Mañana (correrla dejaba dos el mismo
+  día; tampoco el hero). La tarjeta se corre lo que mide la bandeja.
+- La pista de primera vez solo se gasta en Tareas o Compras de Listas, sin una hoja encima.
 - La ✕ del día en la captura saca exactamente la hora y la palabra que se leyeron (también con
   espacios de más, como "@  9:30").
 

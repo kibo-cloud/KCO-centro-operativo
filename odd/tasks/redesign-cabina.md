@@ -44,8 +44,8 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
 |---|---|---|---|---|
 | T1 | Tokens and base: new tokens, `pal-todo` (+ `pal-gris` alias, contrast test), type scale floor 13, normalized spacing/radii, single segmented control, buttons, new icons, replace **all** UI emojis | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-1-tokens` | done (`719c1ec`; RDD medium, reviewed and acknowledged) |
 | T2 | Shell: top bar (context page indicator, XP ring), new tab bar (Listas, Progreso), capture with `#btnEnviar` + shortcut row | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-2-shell` | done (`739f2c6`; RDD medium, reviewed and acknowledged) |
-| T3 | Item card: priority by ring, swipe tray `.bandeja-swipe`, drag handle in Manual, first-run hints (`kibco.pistas`) | delegated | `feat/redesign-cabina-3-card` | done (`63072e2`, `22faf60`) |
-| T4 | Views: Ahora (hero first + filter chips), Hoy (7-day strip), Listas (top-level tabs, purchase stages, notes grid), Misiones, Progreso | delegated | `feat/redesign-cabina-4-views` | pending |
+| T3 | Item card: priority by ring, swipe tray `.bandeja-swipe`, drag handle in Manual, first-run hints (`kibco.pistas`) | delegated | `feat/redesign-cabina-3-card` | done (`63072e2`, `22faf60`; RDD medium, reviewed and acknowledged) |
+| T4 | Views: Ahora (hero first + filter chips), Hoy (7-day strip), Listas (top-level tabs, purchase stages, notes grid), Misiones, Progreso | delegated (writer trigger: 2+ non-trivial files) | `feat/redesign-cabina-4-views` | done (`73f7c30`, `5e37c53`, `91b6253`) |
 | T5 | Sheets: progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets | delegated | `feat/redesign-cabina-5-sheets` | pending |
 | T6 | Desktop: sidebar with sub-rows, right rail (>= 1280) | delegated | `feat/redesign-cabina-6-desktop` | pending |
 | T7 | Tests (new suggested tests), SW 2.6.0, copy accents review, docs, `versiones/KCO v2.6.0` | delegated | `feat/redesign-cabina-7-release` | pending |
@@ -125,7 +125,42 @@ focus trap, Android back, inputs 16 px. SW 2.5.0 -> 2.6.0 (`VERSION_APP` = `sw.j
   read a 43.99998px hit area; the spec now marks the hint as seen and waits for the entry animation (10/10 runs).
   A context menu within 500 ms of a row gesture stays ignored (`gestoReciente`); the swipe-left spec waits for it.
 
+- 2026-11-07: T3 review: RDD assessed medium, consent granted, review approved and acknowledged. Reviewed
+  boundary is now `c0ffd20`. Its warnings R3-001/R3-002 were fixed in T4.
+- 2026-11-07: T4 done on `feat/redesign-cabina-4-views` (delegated writer). Commits `73f7c30` (review fixes),
+  `5e37c53` (Ahora, Hoy, Progreso), `91b6253` (Listas, Misiones).
+  Review fixes: `accionesRapidas(it)` is the one per-item decision for the tray and the quick menu (read-only:
+  only Más / Más opciones; routine occurrence: no Hoy/Mañana, also not in the hero; Mover a Compras only for a
+  loose task). The tray width (and card slide) is 56px per offered button. R3-001: `pintarPistaGesto` acts only
+  for `lista` in `tablero` and `listaCompras` in `compras` with no sheet open. R3-002 specs observed RED;
+  the R3-001 spec passed already at T3 head (only Listas called the painter), so the fix is a guard plus a
+  regression spec.
+  Ahora: hero first (`.hero-motivo` right of the label, `peligro` when overdue), chips `.pulso .tile[data-tile]`
+  with `data-tile` = `todo|atencion|hoy|inbox|esperando`, in-memory `filtroAhora`, filtered list `#secFiltro`,
+  zero chips not rendered, an emptied filter falls back to Todo. The order switch everywhere is a chip-menu
+  (`menuChip`: button + `.menu-chip-lista` of `.menu-op[data-orden]`); the Tareas state menu uses the same
+  helper with `.menu-op[data-filtro]` inside `#chips`.
+  Hoy: `.tira-dias [data-dia]` (today + 6, in-memory `diaHoy`), `#dia-<key>` only for the chosen day,
+  `#btnRutinas` is the header link of `#secRutinasHoy`, foldables `.sec-plegar[aria-expanded]` for
+  `#secHechasHoy`/`#secMasAdelante` (Más adelante = beyond the strip).
+  Listas: `.lstab` tabs (ids `segBtn*` kept, counts `cnt*`), compact progress, `.filtros-lista` row; Compras
+  fábrica `.etapas .etapa[data-filtro]` inside `#chipsCompra` (zero disabled unless chosen), card
+  `.etapas-barra` + `.acc2.pildora[data-acc=siguiente]`; notes 2-column grid, Nueva nota in `.notasbarra`.
+  Misiones: `.mis-cab` segmented `[data-mis-filtro]` (in-memory `filtroMis`) + `#btnNuevaMision` 52px; card is a
+  div with a header button `.mis-top` and `.mis-proxima` (opens the task, or the mission for a milestone).
+  Progreso: `#campanaCuerpo` first with `#tarjetaNivel` (moved from Ahora), Bitácora `#btnModoDiario` /
+  `#btnModoRegistro` (Detalle), `#btnModoCampana` removed, `modoDiario` starts `diario`, `#btnReporte` opens
+  `#tapaReporte` (relay to `#tapaTexto`). Removed from Progreso: Actividad por contexto, Lo que terminaste.
+  Range labels `7 d`/`30 d`; diary day counts say "completadas".
+  Test-first: 13 new E2E specs (3 review fixes, 5 Ahora/Hoy/Progreso, 5 Listas/Misiones) observed RED against the
+  previous code (stash), then GREEN. E2E changed only where T4 changes behavior: `data-tile` filters, hero
+  reason moved to `.hero-motivo`, Hoy day lists behind the strip, level card in Progreso (new text format),
+  campaign stats (mejor racha, secret "Seguí jugando"), Campaña is not a mode, order helpers read `.menu-op.on`,
+  and the capture-state spec moves a purchase to OC enviada with the pill before tapping that (otherwise
+  disabled) counter. The kebab spec now waits 450ms to measure the cards at rest (flaked once in a full run).
+  Verify: `npm run check` ok; `npm test` 141/141; `npm run e2e` 237 passed, 0 failed (on `91b6253`).
+
 ## Next step
 
-T4 views (Ahora hero first + filter chips, Hoy 7-day strip, Listas top-level tabs, Misiones, Progreso) on
-`feat/redesign-cabina-4-views`, stacked on `feat/redesign-cabina-3-card`. Parent: RDD assess T3 with base `e8f7ddd`.
+T5 sheets (progressive item sheet, Confirmar, grouped Ajustes, toast + level sheet, remaining sheets) on
+`feat/redesign-cabina-5-sheets`, stacked on `feat/redesign-cabina-4-views`. Parent: RDD assess T4 with base `c0ffd20`.
