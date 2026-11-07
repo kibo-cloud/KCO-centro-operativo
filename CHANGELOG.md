@@ -3,10 +3,11 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
-## Sin publicar — rediseño "Cabina" (fases 1-2: tokens, base y armazón)
+## Sin publicar — rediseño "Cabina" (fases 1-3: tokens, base, armazón y tarjeta)
 
-Esquema 5 sin cambios. Sin claves ni formatos nuevos. El service worker sigue en 2.5.0 hasta la
-fase de release.
+Esquema 5 sin cambios. Una sola clave nueva, `kibco.pistas` (banderas de las pistas de primera
+vez); las demás claves y formatos no cambian. El service worker sigue en 2.5.0 hasta la fase de
+release.
 
 ### Cambiado
 
@@ -35,6 +36,24 @@ fase de release.
   "Nueva compra en Trabajo", "Nota en …"). Escribiendo: chips de 44 px (día y prioridad con su ✕
   que saca ese trozo del texto), botón enviar redondo visible solo con texto (en escritorio queda
   gris) y fila de atajos #, !, @ y nota:.
+- Tarjeta: alto mínimo 64, texto 15/500, círculo de 22 px en un área de 44. La prioridad va en el
+  anillo del círculo y nunca solo en el color: urgente anillo grueso rojo con punto adentro,
+  importante anillo grueso ámbar, normal fino, baja punteado; siempre con la palabra en los datos.
+  Urgente lleva borde rojo al 45 % sin degradado; prevista, borde punteado.
+- Deslizar a la izquierda (o tocar los tres puntos) corre la tarjeta y muestra su bandeja: Hoy,
+  Mañana, Prioridad (los cuatro niveles en el mismo lugar) y Más (abre la ficha). Una abierta a la
+  vez; tocar afuera, deslizar de nuevo o Escape la cierran. El menú rápido sigue con clic derecho,
+  la tecla de menú o Shift+F10.
+- Orden manual: asa de seis puntos a la izquierda de cada tarjeta (desde el asa se levanta sin
+  esperar), hueco punteado "Soltá acá" y copia elevada e inclinada.
+- Pista de primera vez: al abrir una lista en el teléfono, la primera tarjeta se asoma mostrando la
+  tilde y aparece "Deslizá a la derecha para completar" (una sola vez; sin asomo con movimiento
+  reducido).
+
+### Corregido
+
+- La ✕ del día en la captura saca exactamente la hora y la palabra que se leyeron (también con
+  espacios de más, como "@  9:30").
 
 ## 2.5.0 — 2026-11-03 — lo capturado cae en el estado que se mira
 

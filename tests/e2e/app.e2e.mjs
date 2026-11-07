@@ -2843,7 +2843,11 @@ export const tests = [
     name: 'cards: a round checkbox on the left completes the task; its name carries the task text; undo restores',
     async fn(page) {
       await capture(page, 'llamar a <b>Juan</b>');
+      // Measure the resting card: no first-run peek (covered by its own spec), and the entry
+      // animation (scale) leaves sub-pixel boxes for ~200 ms.
+      await page.eval("localStorage.setItem('kibco.pistas','{\"completar\":true}')");
       await toTasks(page);
+      await sleep(250);
       const r = await page.eval(`(function(){var li=document.querySelector('#lista li.item'),c=li.querySelector('.chk'),v=c.querySelector('.chk-c'),cb=c.getBoundingClientRect(),vb=v.getBoundingClientRect(),
         t=li.querySelector('.txt').getBoundingClientRect();
         return {acc:c.getAttribute('data-acc'),name:c.getAttribute('aria-label'),w:cb.width,h:cb.height,vw:vb.width,left:cb.right<=t.left+1,b:li.querySelectorAll('b').length};})()`);
@@ -2896,7 +2900,7 @@ export const tests = [
     }
   },
   {
-    name: 'cards: swipe left opens the quick menu (Hoy, Mañana, Prioridad, Mover a Compras, Borrar); keyboard reaches the same',
+    name: 'cards: swipe left opens the card tray; the quick menu (Hoy, Mañana, Prioridad, Mover a Compras, Borrar) stays for the context menu and keyboard',
     storage: seed(),
     async fn(page) {
       await toTasks(page);
@@ -2904,7 +2908,12 @@ export const tests = [
       const c = await page.rect('#lista li.item');
       await page.drag(c.x + 320, c.y + c.h / 2, c.x + 60, c.y + c.h / 2);
       await sleep(300);
-      assert.ok(await page.eval("document.getElementById('tapaRapido').className.indexOf('on')>-1"), 'quick menu open');
+      assert.equal(await page.count(`#lista li.item[data-id="${id}"] .bandeja-swipe`), 1, 'swipe left opens the tray');
+      assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa', 'not the quick-menu sheet');
+      await page.eval(`document.querySelector('#segTareas').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))`);
+      // A context menu right after a row gesture is ignored on purpose (gestoReciente, 500 ms).
+      await sleep(550);
+      await openQuickMenu(page, `#lista li.item[data-id="${id}"]`);
       assert.equal(await page.eval("document.getElementById('tapaRapido').getAttribute('role')"), 'dialog');
       assert.deepEqual(await page.eval("Array.prototype.map.call(document.querySelectorAll('#tapaRapido [data-rap]'),function(b){return b.getAttribute('data-rap');})"),
         ['hoy', 'manana', 'prioridad', 'compras', 'borrar']);
@@ -4286,12 +4295,12 @@ export const tests = [
     }
   },
   {
-    name: 'kebab: every active card has a "more" button that opens the quick menu (Ahora and Tareas) without opening the card',
+    name: 'kebab: every active card has a "more" button that opens the card tray (Ahora and Tareas) without opening the card',
     storage: Object.assign(ORDER_SEED(), { 'kibco.tema': 'claro' }),
     async fn(page) {
       const sel = '#secSigue li.item[data-id="B"] [data-acc="mas"]';
       assert.equal(await page.count(sel), 1, 'kebab on the Ahora card');
-      assert.equal(await page.eval(`document.querySelector('${sel}').getAttribute('aria-haspopup')`), 'dialog');
+      assert.equal(await page.eval(`document.querySelector('${sel}').getAttribute('aria-expanded')`), 'false');
       assert.match(await page.eval(`document.querySelector('${sel}').getAttribute('aria-label')`), /^Más opciones: tarea B$/);
       const r = await page.rect(sel);
       assert.ok(r.w >= 44 && r.h >= 44, 'a 44px touch target');
@@ -4302,16 +4311,21 @@ export const tests = [
       await page.screenshot(path.join(OUT, 'kebab-card-light.png'));
       await page.click(sel);
       await sleep(80);
-      assert.ok(await page.eval("document.getElementById('tapaRapido').className.indexOf('on')>-1"), 'quick menu open');
-      assert.equal(await page.text('#rapTitulo'), 'tarea B');
+      assert.equal(await page.count('#secSigue li.item[data-id="B"] .bandeja-swipe'), 1, 'tray open');
+      assert.equal(await page.eval(`document.querySelector('${sel}').getAttribute('aria-expanded')`), 'true');
+      assert.equal(await page.eval("document.querySelector('#secSigue li.item[data-id=\"B\"] .bandeja-swipe').getAttribute('aria-label')"), 'Acciones: tarea B');
       assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'the card did not open');
+      await page.emulateFocus();
+      await page.eval("document.querySelector('#secSigue .bandeja-swipe button').focus()");
       await page.key('Escape');
+      assert.equal(await page.count('#secSigue .bandeja-swipe'), 0, 'Escape closes the tray');
+      assert.equal(await page.eval(`document.activeElement===document.querySelector('${sel}')`), true, 'focus back on the dots');
       await toTasks(page);
       const t = '#lista li.item [data-acc="mas"]';
       assert.ok(await page.count(t) >= 4, 'kebab on Tareas cards');
       await page.click(t);
       await sleep(80);
-      assert.ok(await page.eval("document.getElementById('tapaRapido').className.indexOf('on')>-1"), 'quick menu open from Tareas');
+      assert.equal(await page.count('#lista .bandeja-swipe'), 1, 'tray open from Tareas');
       assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa');
     }
   },
@@ -4682,6 +4696,187 @@ export const tests = [
       await page.type('#txtCaptura', 'desde ahora', true);
       list = await items(page);
       assert.equal(list[6].estado, 'entrada', 'Ahora keeps the inbox default');
+    }
+  },
+  {
+    name: 'card tray: swipe left slides the card 224px over a .bandeja-swipe (Hoy, Mañana, Prioridad, Más); one at a time; outside tap and swipe back close it',
+    storage: seed(),
+    async fn(page) {
+      await toTasks(page);
+      const ids = await page.eval("Array.prototype.map.call(document.querySelectorAll('#lista li.item'),function(l){return l.getAttribute('data-id');})");
+      const swipeLeft = async (id) => {
+        const c = await page.rect(`#lista li.item[data-id="${ids[id]}"]`);
+        await page.drag(c.x + 320, c.y + c.h / 2, c.x + 60, c.y + c.h / 2);
+        await sleep(300);
+      };
+      await swipeLeft(0);
+      assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa', 'no quick-menu sheet on swipe');
+      const t = await page.eval(`(function(){var li=document.querySelector('#lista li.item[data-id="${ids[0]}"]'),b=li.querySelector('.bandeja-swipe');if(!b)return null;
+        var r=b.getBoundingClientRect(),lr=li.getBoundingClientRect(),d=li.querySelector('.desliza').getBoundingClientRect();
+        return {acc:Array.prototype.map.call(b.querySelectorAll('button'),function(x){return x.getAttribute('data-bandeja');}),
+          txt:Array.prototype.map.call(b.querySelectorAll('button'),function(x){return x.textContent;}),
+          w:Array.prototype.map.call(b.querySelectorAll('button'),function(x){return Math.round(x.getBoundingClientRect().width);}),
+          tw:r.width,right:Math.round(lr.right-li.clientLeft-r.right),shift:Math.round(lr.left+li.clientLeft-d.left),mas:b.querySelector('[data-bandeja="mas"]').className};})()`);
+      assert.ok(t, 'the tray is in the card');
+      assert.deepEqual(t.acc, ['hoy', 'manana', 'prioridad', 'mas']);
+      assert.deepEqual(t.txt, ['Hoy', 'Mañana', 'Prioridad', 'Más']);
+      assert.deepEqual(t.w, [56, 56, 56, 56], 'four 56px buttons');
+      assert.ok(Math.abs(t.tw - 224) < 1 && Math.abs(t.right) <= 1, 'a 224px tray on the right edge: ' + t.tw);
+      assert.equal(t.shift, 224, 'the card slid 224px');
+      assert.match(t.mas, /bandeja-mas/, 'Más is the accent button');
+      await swipeLeft(1);
+      assert.equal(await page.count('#lista .bandeja-swipe'), 1, 'only one tray open');
+      assert.equal(await page.count(`#lista li.item[data-id="${ids[1]}"] .bandeja-swipe`), 1, 'the newest one');
+      await page.eval(`document.querySelector('#segTareas').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',isPrimary:true}))`);
+      await sleep(250);
+      assert.equal(await page.count('#lista .bandeja-swipe'), 0, 'a tap outside closes it');
+      await swipeLeft(0);
+      assert.equal(await page.count('#lista .bandeja-swipe'), 1);
+      const before = (await items(page)).find((i) => i.id === ids[0]).estado;
+      const c = await page.rect(`#lista li.item[data-id="${ids[0]}"]`);
+      await page.drag(c.x + 60, c.y + c.h / 2, c.x + 300, c.y + c.h / 2);
+      await sleep(250);
+      assert.equal(await page.count('#lista .bandeja-swipe'), 0, 'swiping back closes it');
+      assert.equal((await items(page)).find((i) => i.id === ids[0]).estado, before, 'swiping back does not complete');
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'no sheet opened');
+    }
+  },
+  {
+    name: 'card tray: the three dots open the same tray; Hoy and Mañana act; Prioridad lists the four levels inline; Más opens the item sheet; the menu key keeps the quick-menu sheet',
+    storage: seed(),
+    async fn(page) {
+      await toTasks(page);
+      const id = (await items(page)).find((i) => i.texto === 'Grabar video tutorial').id;
+      const card = `#lista li.item[data-id="${id}"]`;
+      const open = async () => {
+        await page.click(card + ' [data-acc="mas"]');
+        await sleep(250);
+        assert.equal(await page.count(card + ' .bandeja-swipe'), 1, 'the dots open the tray');
+        assert.equal(await page.eval("document.getElementById('tapaRapido').className"), 'tapa', 'not the sheet');
+      };
+      await open();
+      assert.equal(await page.eval(`document.querySelector('${card} [data-acc="mas"]').getAttribute('aria-expanded')`), 'true');
+      assert.equal(await page.eval("document.getElementById('tapaItem').className"), 'tapa', 'the card did not open');
+      await page.click(card + ' .bandeja-swipe [data-bandeja="hoy"]');
+      assert.equal((await items(page)).find((i) => i.id === id).fecha, ymd(0), 'Hoy');
+      assert.equal(await page.count('#lista .bandeja-swipe'), 0, 'the tray closes after acting');
+      await open();
+      await page.click(card + ' .bandeja-swipe [data-bandeja="manana"]');
+      assert.equal((await items(page)).find((i) => i.id === id).fecha, ymd(1), 'Mañana');
+      await open();
+      await page.click(card + ' .bandeja-swipe [data-bandeja="prioridad"]');
+      const lv = await page.eval(`Array.prototype.map.call(document.querySelectorAll('${card} .bandeja-swipe [data-nivel]'),function(b){return b.getAttribute('data-nivel')+':'+b.getAttribute('aria-pressed');})`);
+      assert.deepEqual(lv, ['urgente:false', 'importante:false', 'normal:true', 'baja:false'], 'four levels, the current one pressed');
+      await page.click(card + ' .bandeja-swipe [data-nivel="urgente"]');
+      assert.equal((await items(page)).find((i) => i.id === id).nivel, 'urgente');
+      await open();
+      await page.click(card + ' .bandeja-swipe [data-bandeja="mas"]');
+      await sleep(200);
+      assert.ok(await page.eval("document.getElementById('tapaItem').className.indexOf('on')>-1"), 'Más opens the item sheet');
+      assert.equal(await page.count('#lista .bandeja-swipe'), 0);
+      await page.key('Escape');
+      await sleep(200);
+      await page.eval(`document.querySelector('${card}').dispatchEvent(new KeyboardEvent('keydown',{key:'ContextMenu',keyCode:93,bubbles:true,cancelable:true}))`);
+      await sleep(120);
+      assert.ok(await page.eval("document.getElementById('tapaRapido').className.indexOf('on')>-1"), 'the menu key opens the quick-menu sheet');
+      assert.equal(await page.count('#lista .bandeja-swipe'), 0, 'not the tray');
+    }
+  },
+  {
+    name: 'card: priority is the ring of the complete circle (urgent ring + inner dot, important ring, normal thin, low dotted) and a word in the metadata',
+    storage: (() => {
+      const s = ORDER_SEED();
+      const l = JSON.parse(s['kibco.items']);
+      l.find((i) => i.id === 'C').nivel = 'urgente';
+      s['kibco.items'] = JSON.stringify(l);
+      return s;
+    })(),
+    async fn(page) {
+      await toTasks(page);
+      const r = await page.eval(`(function(){var o={};['A','B','C','D'].forEach(function(id){var li=document.querySelector('#lista li.item[data-id="'+id+'"]'),c=li.querySelector('.chk-c'),s=getComputedStyle(c),
+        p=li.querySelector('.chk-punto'),ls=getComputedStyle(li),w=li.querySelector('.linea2 [class*="niv-"]');
+        o[id]={bw:parseFloat(s.borderTopWidth),bs:s.borderTopStyle,bc:s.borderTopColor,dot:p?Math.round(p.getBoundingClientRect().width):0,
+          border:ls.borderTopColor,bg:ls.backgroundImage,word:w?w.textContent:'',wordVis:!!w&&getComputedStyle(w).display!=='none',txt:getComputedStyle(li.querySelector('.txt')).color};});
+        var pr=document.createElement('span');pr.style.color='var(--muted)';document.body.appendChild(pr);o.muted=getComputedStyle(pr).color;pr.parentNode.removeChild(pr);return o;})()`);
+      assert.ok(r.C.bw >= 2, 'urgent: thick ring ' + r.C.bw);
+      assert.equal(r.C.dot, 8, 'urgent: 8px inner dot');
+      assert.equal(r.C.word, 'Urgente');
+      assert.ok(r.C.wordVis, 'urgent word visible');
+      assert.match(r.C.border, /rgba\(\d+, \d+, \d+, 0\.45\)/, 'urgent card border at 45%: ' + r.C.border);
+      assert.equal(r.C.bg, 'none', 'no gradient');
+      assert.ok(r.A.bw >= 2 && r.A.dot === 0, 'important: thick ring, no dot');
+      assert.equal(r.A.word, 'Importante');
+      assert.notEqual(r.A.bc, r.C.bc, 'important and urgent rings differ in color');
+      assert.ok(r.B.bw < 2 && r.B.bs === 'solid' && r.B.dot === 0, 'normal: thin solid ring');
+      assert.equal(r.B.word, '', 'normal has no priority word');
+      assert.ok(r.D.bw < 2 && r.D.bs === 'dotted', 'low: thin dotted ring');
+      assert.equal(r.D.word, 'Baja');
+      assert.equal(r.D.txt, r.muted, 'low: muted text');
+    }
+  },
+  {
+    name: 'manual order: a 6-dot drag handle sits at the left of each card only in Manual; dragging from it shows a "Soltá acá" placeholder and a rotated surface-3 ghost',
+    storage: ORDER_SEED('manual'),
+    async fn(page) {
+      await toTasks(page);
+      const r = await page.eval(`(function(){var l=document.querySelectorAll('#lista li.item'),n=0,left=0;for(var i=0;i<l.length;i++){var a=l[i].querySelector('.asa-orden');
+        if(a){n++;if(a.getBoundingClientRect().right<=l[i].querySelector('.chk').getBoundingClientRect().left+1&&a.querySelectorAll('circle').length===6)left++;}}
+        return {rows:l.length,n:n,left:left};})()`);
+      assert.ok(r.rows >= 3);
+      assert.equal(r.n, r.rows, 'every card has a handle');
+      assert.equal(r.left, r.rows, 'six dots, left of the circle');
+      const h = await page.rect('#lista li.item[data-id="A"] .asa-orden');
+      await page.cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: h.x + h.w / 2, y: h.y + h.h / 2 }] });
+      await sleep(60);
+      for (let i = 1; i <= 4; i++) {
+        await page.cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: h.x + h.w / 2, y: h.y + h.h / 2 + i * 10 }] });
+        await sleep(30);
+      }
+      const d = await page.eval(`(function(){var hu=document.querySelector('#lista .orden-hueco'),f=document.querySelector('#lista .orden-fantasma');if(!hu||!f)return null;
+        var s=getComputedStyle(f),sd=getComputedStyle(f.querySelector('.desliza'));return {txt:hu.textContent,hs:getComputedStyle(hu).borderTopStyle,tf:s.transform,sh:s.boxShadow,
+        bg:sd.backgroundColor,s3:getComputedStyle(document.body).getPropertyValue('--surface-3').trim()};})()`);
+      await page.cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await sleep(150);
+      assert.ok(d, 'dragging from the handle lifts the card at once');
+      assert.equal(d.txt, 'Soltá acá');
+      assert.equal(d.hs, 'dashed');
+      assert.notEqual(d.tf, 'none', 'the ghost is rotated');
+      const m = d.tf.match(/matrix\(([^,]+), ([^,]+)/);
+      assert.ok(m && Math.abs(Math.asin(parseFloat(m[2])) * 180 / Math.PI + 1.5) < 0.2, 'rotated -1.5deg: ' + d.tf);
+      assert.notEqual(d.sh, 'none', 'ghost shadow');
+      assert.equal(await page.count('#lista .orden-fantasma, #lista .orden-hueco'), 0, 'cleaned up');
+      await page.click('#ordenTareas [data-orden="auto"]');
+      assert.equal(await page.count('#lista .asa-orden'), 0, 'no handle in Automatico');
+    }
+  },
+  {
+    name: 'first-run hint: the first list opened peeks its first card right and shows "Deslizá a la derecha para completar" once (kibco.pistas)',
+    storage: Object.assign(seed(), { 'kibco.pistas': '{roto' }),
+    async fn(page) {
+      await toTasks(page);
+      assert.equal(await page.text('#lista ~ .pista-gesto, .pista-gesto'), 'Deslizá a la derecha para completar');
+      assert.ok(await page.visible('.pista-gesto'), 'the line is visible');
+      assert.match(await page.eval("document.querySelector('#lista li.item').className"), /asoma/, 'the first card peeks');
+      assert.equal(await page.eval("document.querySelectorAll('#lista li.item.asoma').length"), 1, 'only the first');
+      assert.deepEqual(JSON.parse(await page.storage('kibco.pistas')), { completar: true }, 'flag saved (unreadable value replaced)');
+      await page.click('#tabAhora');
+      await toTasks(page);
+      assert.equal(await page.count('.pista-gesto'), 0, 'shown once');
+      assert.equal(await page.count('#lista li.item.asoma'), 0);
+      await page.reload();
+      await toTasks(page);
+      assert.equal(await page.count('.pista-gesto'), 0, 'not after a reload either');
+    }
+  },
+  {
+    name: 'first-run hint: with reduced motion the line shows without the peek',
+    storage: seed(),
+    async fn(page) {
+      await page.emulateMedia([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+      await toTasks(page);
+      assert.ok(await page.visible('.pista-gesto'), 'the line is visible');
+      assert.equal(await page.count('#lista li.item.asoma'), 0, 'no peek');
+      assert.deepEqual(JSON.parse(await page.storage('kibco.pistas')), { completar: true });
     }
   }
 ];

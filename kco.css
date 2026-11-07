@@ -23,6 +23,7 @@
   --danger:#FF5A4F;
   --danger-soft:rgba(255,90,79,.12);
   --danger-border:rgba(255,90,79,.35);
+  --danger-card:rgba(255,90,79,.45);
   --danger-ink:#FFB4AF;
   --danger-ink-2:#FF9A94;
   --warning:#F2B84B;
@@ -166,6 +167,7 @@ body.pal-gris{--accent:var(--pal-gris);--accent-soft:var(--pal-gris-soft)}
   --danger:#C2261C;
   --danger-soft:rgba(194,38,28,.08);
   --danger-border:rgba(194,38,28,.35);
+  --danger-card:rgba(194,38,28,.45);
   --danger-ink:#8F1515;
   --danger-ink-2:#B01A1A;
   --warning:#8F5208;
@@ -494,7 +496,7 @@ li.item{background:var(--surface);border:1px solid var(--border);border-radius:v
    se oculta por CSS y el dato sigue intacto en el item y en la ficha. */
 li.item .linea2 .badge:last-child{display:none}
 li.item:active{transform:scale(.985)}
-li.item.prio:not(.fila){border-color:var(--danger);background:linear-gradient(90deg,var(--danger-soft),var(--surface) 55%)}
+li.item.prio{border-color:var(--danger-card)}
 li.item.st-completado,li.item.st-recibido{opacity:.5}
 li.item.st-cancelado{opacity:.4}
 li.item.st-completado .txt,li.item.st-cancelado .txt{text-decoration:line-through}
@@ -524,10 +526,17 @@ li.item.baja .txt{color:var(--muted)}
    scroll vertical es del navegador, el gesto horizontal de la fila. */
 li.item.fila{position:relative;display:block;padding:0;overflow:hidden;touch-action:pan-y}
 li.item.fila.arrastra{transform:none}
+/* Tarjeta Cabina: alto minimo 64, padding 8/4/8/0 (el area de 44 del
+   circulo llega al borde izquierdo), texto 15/500. */
 .desliza{
-  position:relative;display:flex;align-items:flex-start;gap:2px;padding:var(--s-3) var(--s-3);
+  position:relative;display:flex;align-items:flex-start;gap:2px;min-height:64px;padding:var(--s-2) var(--s-1) var(--s-2) 0;
   background:var(--surface);transition:transform var(--dur-2) var(--ease);
 }
+.fila .txt{font-weight:500}
+/* Bordes de estado: en claro las tarjetas van sin borde, salvo estos. */
+li.item.fila.prio,:root[data-tema="claro"] li.item.fila.prio{border-color:var(--danger-card)}
+li.item.fila.pausado,:root[data-tema="claro"] li.item.fila.pausado{border-color:var(--warning)}
+li.item.fila.prevista,:root[data-tema="claro"] li.item.fila.prevista{border-color:var(--border-strong)}
 li.item.arrastra .desliza{transition:none}
 li.item.prevista .desliza{background:var(--bg)}
 .rev{
@@ -539,24 +548,32 @@ li[data-rev="ok"] .rev{background:var(--success)}
 li[data-rev="mas"] .rev{background:var(--accent)}
 li[data-rev="ok"] .rev-ok,li[data-rev="mas"] .rev-mas{opacity:.7}
 li[data-umbral="1"] .rev .ico{opacity:1;transform:scale(1)}
-/* Circulo: 44px de toque, 21px a la vista; el anillo toma el color de la
-   prioridad. Al apretarlo se llena con la tilde (sin animar si se pidio
-   movimiento reducido). */
+/* Circulo: 44px de toque, 22px a la vista. La prioridad va en el anillo y
+   nunca solo en el color: urgente 2,5px danger con punto interno de 8px,
+   importante 2,5px warning, normal 1,75px faint, baja 1,75px punteado (y
+   siempre la palabra en los datos). Al apretarlo se llena con la tilde (sin
+   animar si se pidio movimiento reducido). */
 .chk{
   flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:var(--tap);height:var(--tap);
-  margin:-12px 0 -12px -12px;padding:0;border:0;background:none;color:var(--accent-contrast);cursor:pointer;
+  margin:0;padding:0;border:0;background:none;color:var(--accent-contrast);cursor:pointer;
 }
 .chk-c{
-  display:flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:50%;
-  border:2px solid var(--border-strong);transition:background var(--dur-1) ease,border-color var(--dur-1) ease;
+  position:relative;display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;
+  border:1.75px solid var(--faint);transition:background var(--dur-1) ease,border-color var(--dur-1) ease;
 }
 .chk-c .ico{width:13px;height:13px;margin:0;stroke-width:3;opacity:0;transform:scale(.5);transition:opacity var(--dur-1) ease,transform var(--dur-2) var(--ease)}
-li.item.prio .chk-c{border-color:var(--danger)}
-li.item.imp .chk-c{border-color:var(--warning)}
-.chk:active .chk-c,.chk.on .chk-c{background:var(--success);border-color:var(--success)}
+li.item.prio .chk-c{border-width:2.5px;border-color:var(--danger)}
+li.item.imp .chk-c{border-width:2.5px;border-color:var(--warning)}
+li.item.baja .chk-c{border-style:dotted}
+.chk-punto{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--danger)}
+.chk:active .chk-punto{display:none}
+.chk:active .chk-c,.chk.on .chk-c{background:var(--success);border-color:var(--success);border-style:solid}
 .chk:active .chk-c .ico,.chk.on .chk-c .ico{opacity:1;transform:scale(1)}
 @media (hover:hover){.chk:not(.on):hover .chk-c .ico{opacity:.45;transform:scale(1);color:var(--muted)}}
-.fila .cuerpo{padding-top:1px}
+.fila .cuerpo{padding-top:var(--s-3)}
+/* Asa del orden manual (seis puntos), a la izquierda del circulo: arrastra
+   sin esperar. touch-action none: el dedo en el asa nunca hace scroll. */
+.asa-orden{flex:0 0 auto;align-self:center;width:16px;height:24px;margin:0 -4px 0 var(--s-1);color:var(--faint);touch-action:none;cursor:grab}
 /* Datos de la tarjeta: una sola fila apagada, sin cajas; el color queda solo
    para lo que avisa (vencido, urgente, recordatorio). */
 .fila .linea2{gap:2px var(--s-3);margin-top:var(--s-1)}
@@ -566,13 +583,42 @@ li.item.imp .chk-c{border-color:var(--warning)}
 .fila .linea2 .badge.est,.fila .linea2 .badge.dia,.fila .linea2 .badge.tag{color:var(--muted)}
 .fila .linea2 .badge.dia.vencido,.fila .linea2 .badge.niv-urgente,.fila .linea2 .badge.rec.vencido{color:var(--danger)}
 /* Accion secundaria de la fila: icono sin borde (Para hoy) o pastilla (compras). */
-.iconobtn.mini{margin:-12px -8px -12px 0}
+.iconobtn.mini{margin:0}
 .iconobtn.mini .ico{width:20px;height:20px}
-/* Tres puntos (menu rapido): 44px de toque, al borde derecho de la tarjeta. */
-.mas-fila{margin:-12px -12px -12px 0}
+/* Tres puntos (bandeja): 44px de toque, al borde derecho de la tarjeta. */
+.mas-fila{margin:0}
 .mas-fila .ico{width:20px;height:20px}
+/* Bandeja de la tarjeta (kco-app.js abrirBandeja): la tarjeta se corre 224px
+   y quedan cuatro botones de 56px; Mas va en acento. Prioridad la cambia por
+   los cuatro niveles a todo el ancho, cada uno con su anillo. */
+.bandeja-swipe{position:absolute;top:0;right:0;bottom:0;z-index:1;display:flex;width:224px;background:var(--surface-2)}
+.bandeja-btn{
+  flex:0 0 56px;width:56px;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--s-1);
+  padding:0;border:0;background:var(--surface-2);color:var(--text);font-size:var(--fs-13);font-weight:600;cursor:pointer;
+}
+.bandeja-btn .ico{width:20px;height:20px;margin:0}
+.bandeja-rot{white-space:nowrap}
+.bandeja-btn.bandeja-mas{background:var(--accent);color:var(--accent-contrast)}
+.bandeja-swipe.niveles{left:0;width:auto}
+.bandeja-swipe.niveles .bandeja-btn{flex:1 1 0;width:auto}
+.bandeja-btn[aria-pressed="true"]{background:var(--surface-3);color:var(--accent)}
+.bandeja-anillo{width:18px;height:18px;border-radius:50%;border:1.75px solid var(--faint)}
+.bandeja-btn.niv-urgente .bandeja-anillo{border-width:2.5px;border-color:var(--danger);background:radial-gradient(circle,var(--danger) 3.5px,transparent 4px)}
+.bandeja-btn.niv-importante .bandeja-anillo{border-width:2.5px;border-color:var(--warning)}
+.bandeja-btn.niv-baja .bandeja-anillo{border-style:dotted}
+@media (hover:hover){.bandeja-btn:hover{background:var(--surface-3)}.bandeja-btn.bandeja-mas:hover{background:var(--accent)}}
+/* Pista de primera vez: la primera tarjeta se asoma a la derecha y deja ver
+   la tilde verde; la linea explica el gesto (una sola vez, kibco.pistas). */
+@keyframes kcoAsoma{0%,100%{transform:none}30%,70%{transform:translateX(26px)}}
+li.item.fila.asoma .desliza{animation:kcoAsoma 1.4s var(--ease) .3s}
+li.item.fila.asoma .rev{justify-content:flex-start;padding-left:var(--s-1);background:var(--success)}
+li.item.fila.asoma .rev-ok{opacity:1;transform:scale(1)}
+/* Alto entero (20px): la linea no deja la lista en medio pixel. */
+.pista-gesto{display:flex;align-items:center;gap:var(--s-2);height:20px;margin:0 0 var(--s-2);color:var(--muted);font-size:var(--fs-13);line-height:20px}
+.pista-gesto .ico{width:16px;height:16px;margin:0;color:var(--success)}
+@media (prefers-reduced-motion:reduce){li.item.fila.asoma .desliza{animation:none}}
 .acc2{
-  flex:0 0 auto;display:inline-flex;align-items:center;min-height:var(--tap);margin:-8px -4px -8px var(--s-1);
+  flex:0 0 auto;display:inline-flex;align-items:center;min-height:var(--tap);margin:0 0 0 var(--s-1);
   padding:0 var(--s-3);border:0;border-radius:var(--r-pill);background:none;color:var(--accent);
   font-size:var(--fs-13);font-weight:600;white-space:nowrap;cursor:pointer;
 }
@@ -838,8 +884,9 @@ input[type=time],input[type=date]{font-variant-numeric:tabular-nums}
 .lista.ordenable li.item.fila{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html[data-ordenando],html[data-ordenando] *{-webkit-user-select:none;user-select:none}
 li.item.fila.orden-origen{height:0;min-height:0;margin:0;padding:0;border:0;opacity:0;overflow:hidden}
-li.orden-hueco{list-style:none;margin-bottom:var(--s-2);border:2px dashed var(--accent);border-radius:var(--r-card);background:var(--accent-soft);box-sizing:border-box}
-li.item.orden-fantasma{position:absolute;left:0;right:0;z-index:30;margin:0;pointer-events:none;box-shadow:var(--sh-3);transform:scale(1.02);opacity:.96}
+li.orden-hueco{list-style:none;display:flex;align-items:center;justify-content:center;margin-bottom:var(--s-2);border:2px dashed var(--accent);border-radius:var(--r-card);background:var(--accent-soft);box-sizing:border-box;color:var(--accent);font-size:var(--fs-13);font-weight:600}
+li.item.orden-fantasma{position:absolute;left:0;right:0;z-index:30;margin:0;pointer-events:none;background:var(--surface-3);box-shadow:var(--sh-3);transform:rotate(-1.5deg);opacity:.96}
+li.item.orden-fantasma .desliza{background:var(--surface-3)}
 @media (prefers-reduced-motion:reduce){li.item.orden-fantasma{transform:none}}
 .sec-titulo-grande{margin:var(--s-8) 0 0 0;padding-top:var(--s-4);border-top:1px solid var(--border-strong);font-size:var(--fs-15);font-weight:700;color:var(--text)}
 .motivo{color:var(--accent);font-size:var(--fs-13);margin-top:var(--s-1)}
@@ -906,7 +953,7 @@ li.notacard.fijada .nota-abrir{border-color:var(--accent)}
 .badge.mot{color:var(--muted)}
 .badge.racha{color:var(--streak);border-color:var(--streak)}
 .badge .ico{width:14px;height:14px}
-li.item.prevista{border-style:dashed;background:transparent;opacity:.8}
+li.item.prevista{border-style:dotted;background:transparent;opacity:.8}
 .semana{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s-1)}
 .diab{min-height:var(--tap);border-radius:var(--r-ctl);border:1px solid var(--border);background:var(--surface-2);color:var(--muted);font-variant-numeric:tabular-nums;font-size:var(--fs-15);font-weight:700;cursor:pointer}
 .diab.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}

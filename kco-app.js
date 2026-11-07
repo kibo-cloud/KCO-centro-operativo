@@ -1468,8 +1468,12 @@
       chk.setAttribute('data-acc', it.tipo === 'tarea' ? (ah.on ? 'reabrir' : 'listo') : 'comprado');
       chk.setAttribute('aria-label', ah.rot + ': ' + it.texto);
       chk.setAttribute('aria-pressed', ah.on ? 'true' : 'false');
+      /* La prioridad va en el anillo (kco.css, por la clase de la fila) y nunca
+         solo en el color: urgente suma un punto adentro, baja va punteado, y
+         la palabra siempre esta en los datos (badgeNivel). */
       var circ = nodo('span', 'chk-c');
       circ.appendChild(svgIco('check'));
+      if (it.nivel === 'urgente' && !ah.on) { circ.appendChild(nodo('span', 'chk-punto')); }
       chk.appendChild(circ);
       chk.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
@@ -1575,24 +1579,29 @@
       }
     }
 
-    /* Tres puntos: el menu rapido a la vista, sin depender de deslizar ni de
-       mantener apretado (que en orden manual es arrastrar). */
+    /* Tres puntos: la misma bandeja que deslizar a la izquierda, a la vista y
+       sin depender del gesto (mantener apretado en orden manual es arrastrar).
+       La hoja de menu rapido sigue para teclado y lector (tecla de menu). */
+    var mas = null;
     if (esActivo(it.estado)) {
-      var mas = document.createElement('button');
+      mas = document.createElement('button');
       mas.type = 'button';
       mas.className = 'iconobtn mas-fila';
       mas.setAttribute('data-acc', 'mas');
       mas.setAttribute('aria-label', 'M\u00E1s opciones: ' + it.texto);
-      mas.setAttribute('aria-haspopup', 'dialog');
+      mas.setAttribute('aria-expanded', 'false');
       mas.appendChild(svgIco('more-vertical'));
       mas.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
-        abrirMenuRapido(it.id);
+        if (bandeja && bandeja.li === li) { cerrarBandeja(true); return; }
+        abrirBandeja(li, fila, it.id, true);
       };
       fila.appendChild(mas);
     }
 
     li.onclick = function () {
+      /* Con la bandeja abierta, tocar la tarjeta solo la cierra. */
+      if (bandeja && bandeja.li === li) { cerrarBandeja(false); return; }
       if (gestoReciente(li)) { return; }
       abrirItem(it.id);
     };
@@ -1624,10 +1633,163 @@
      vertical que horizontal es scroll y la fila no hace nada (touch-action
      pan-y en kco.css deja el scroll al navegador). Horizontal: la fila sigue al
      dedo; soltando pasado el umbral (80px o un tiron rapido), a la derecha
-     completa (con deshacer, como el circulo) y a la izquierda abre el menu
-     rapido. Mientras una fila tiene el gesto, el swipe entre vistas no cuenta. */
+     completa (con deshacer, como el circulo) y a la izquierda abre la bandeja
+     de la tarjeta. Mientras una fila tiene el gesto, el swipe entre vistas no
+     cuenta. */
   var gestoFila = false;
   var UMBRAL_FILA = 80;
+
+  /* ---------- bandeja de la tarjeta ----------
+     Deslizar a la izquierda (o los tres puntos) corre la tarjeta 224px y deja
+     a la vista cuatro botones de 56px: Hoy, Mañana, Prioridad y Mas (la
+     ficha). Prioridad cambia la bandeja, en el mismo lugar y a todo el ancho,
+     por los cuatro niveles con el actual marcado (aria-pressed): un toque
+     elige, sin hojas encima. Una sola abierta a la vez; tocar afuera, tocar la
+     tarjeta, deslizarla de nuevo, Escape o repintar la cierran. */
+  var ANCHO_BANDEJA = 224;
+  var bandeja = null;
+
+  function cerrarBandeja(devolverFoco) {
+    var b = bandeja;
+    if (!b) { return; }
+    bandeja = null;
+    b.fila.style.transform = '';
+    b.li.className = b.li.className.replace(/ bandeja-on/g, '');
+    if (b.caja.parentNode) { b.caja.parentNode.removeChild(b.caja); }
+    var mas = b.li.querySelector('[data-acc="mas"]');
+    if (mas) { mas.setAttribute('aria-expanded', 'false'); }
+    if (devolverFoco && mas && document.documentElement.contains(mas)) { enfocar(mas); }
+  }
+
+  function botonBandeja(caja, clase, rotulo, ico, fn) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bandeja-btn' + (clase ? ' ' + clase : '');
+    if (ico) { b.appendChild(svgIco(ico)); } else { b.appendChild(nodo('span', 'bandeja-anillo')); }
+    b.appendChild(nodo('span', 'bandeja-rot', rotulo));
+    b.onclick = function (ev) {
+      if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+      fn();
+    };
+    caja.appendChild(b);
+    return b;
+  }
+
+  function pintarBandeja(caja, id, niveles) {
+    var it = buscarItem(id), i;
+    vaciar(caja);
+    if (!it) { return; }
+    if (niveles) {
+      for (i = 0; i < K.NIVELES.length; i++) {
+        (function (n) {
+          var b = botonBandeja(caja, 'niv-' + n.id, n.nom, '', function () {
+            cerrarBandeja(false);
+            fijarNivel(id, n.id);
+          });
+          b.setAttribute('data-nivel', n.id);
+          b.setAttribute('aria-pressed', it.nivel === n.id ? 'true' : 'false');
+        })(K.NIVELES[i]);
+      }
+      return;
+    }
+    botonBandeja(caja, '', 'Hoy', 'calendar', function () {
+      cerrarBandeja(false);
+      if (it.estado === 'entrada') { sacarDeInbox(id, true); } else { fijarFecha(id, hoyClave()); }
+    }).setAttribute('data-bandeja', 'hoy');
+    botonBandeja(caja, '', 'Ma\u00F1ana', 'sun', function () {
+      cerrarBandeja(false);
+      posponer(id);
+    }).setAttribute('data-bandeja', 'manana');
+    botonBandeja(caja, '', 'Prioridad', 'flag', function () {
+      caja.className = caja.className + ' niveles';
+      pintarBandeja(caja, id, true);
+      enfocar(caja.querySelector('[aria-pressed="true"]') || caja.firstChild);
+    }).setAttribute('data-bandeja', 'prioridad');
+    botonBandeja(caja, 'bandeja-mas', 'M\u00E1s', 'more', function () {
+      cerrarBandeja(false);
+      abrirItem(id);
+    }).setAttribute('data-bandeja', 'mas');
+  }
+
+  /* conFoco: abierta desde los tres puntos (clic o teclado), el foco pasa al
+     primer boton; deslizando no se mueve. */
+  function abrirBandeja(li, fila, id, conFoco) {
+    var it = buscarItem(id);
+    cerrarBandeja(false);
+    if (!it || !document.documentElement.contains(li)) { return; }
+    var caja = nodo('div', 'bandeja-swipe');
+    caja.setAttribute('role', 'group');
+    caja.setAttribute('aria-label', 'Acciones: ' + it.texto);
+    caja.onkeydown = function (ev) {
+      var k = ev.key || '';
+      if (k === 'Escape' || k === 'Esc' || ev.keyCode === 27) {
+        ev.preventDefault();
+        if (ev.stopPropagation) { ev.stopPropagation(); }
+        cerrarBandeja(true);
+      }
+    };
+    pintarBandeja(caja, id, false);
+    li.insertBefore(caja, fila);
+    li.className = li.className + ' bandeja-on';
+    fila.style.transform = 'translate3d(-' + ANCHO_BANDEJA + 'px,0,0)';
+    bandeja = { li: li, fila: fila, caja: caja };
+    var mas = li.querySelector('[data-acc="mas"]');
+    if (mas) { mas.setAttribute('aria-expanded', 'true'); }
+    if (conFoco) { enfocar(caja.firstChild); }
+  }
+
+  /* Un toque fuera de la tarjeta con la bandeja abierta la cierra. */
+  if (document.addEventListener) {
+    document.addEventListener('pointerdown', function (ev) {
+      if (bandeja && !bandeja.li.contains(ev.target)) { cerrarBandeja(false); }
+    }, true);
+  }
+
+  /* ---------- pista de primera vez ----------
+     La primera vez que se abre una lista (Tareas o Compras) en un equipo
+     tactil, la primera tarjeta se asoma a la derecha mostrando la tilde y una
+     linea explica el gesto. Se guarda en kibco.pistas (objeto de banderas;
+     ilegible = vacio) y no vuelve. La linea queda mientras no se cambie de
+     vista; con movimiento reducido no hay asomo, solo la linea. */
+  var K_PISTAS = 'kibco.pistas';
+  var pistaLista = null;
+
+  function leerPistas() {
+    var crudo = leer(K_PISTAS), o = null;
+    if (crudo) { try { o = JSON.parse(crudo); } catch (e) { o = null; } }
+    return o && typeof o === 'object' && !(o instanceof Array) ? o : {};
+  }
+
+  function esTactil() {
+    return 'ontouchstart' in window || ((window.navigator && window.navigator.maxTouchPoints) || 0) > 0;
+  }
+
+  function quitarAsomo(li) {
+    if (li && / asoma/.test(li.className)) { li.className = li.className.replace(/ asoma/g, ''); }
+  }
+
+  function pintarPistaGesto(lista, listaId) {
+    var viejo = $('pistaGesto');
+    if (viejo && viejo.parentNode) { viejo.parentNode.removeChild(viejo); }
+    if (pistaLista && pistaLista.id !== listaId) { return; }
+    var li = lista.querySelector('li.item.fila');
+    if (!pistaLista) {
+      if (soloLectura || !li || !li.querySelector('.chk:not(.on)') || !esTactil()) { return; }
+      var p = leerPistas();
+      if (p.completar === true) { return; }
+      p.completar = true;
+      if (!escribir(K_PISTAS, JSON.stringify(p), true)) { return; }
+      pistaLista = { id: listaId, vista: vista };
+      if (!movimientoReducido()) {
+        li.className = li.className + ' asoma';
+        setTimeout(function () { quitarAsomo(li); }, 1900);
+      }
+    }
+    var linea = nodo('div', 'pista-gesto');
+    linea.id = 'pistaGesto';
+    conIcono(linea, 'check', 'Desliz\u00E1 a la derecha para completar');
+    lista.parentNode.insertBefore(linea, lista);
+  }
 
   function gestoReciente(li) {
     var t = parseInt(li.getAttribute('data-gesto') || '0', 10);
@@ -1638,7 +1800,11 @@
     if (!li.addEventListener || typeof window.PointerEvent === 'undefined') { return; }
     var x0 = 0, y0 = 0, t0 = 0, dx = 0, modo = null, idP = null;
     li.addEventListener('pointerdown', function (ev) {
+      /* Cualquier toque corta el asomo de la pista: el dedo manda. */
+      quitarAsomo(li);
       if (ev.pointerType !== 'touch' || ev.isPrimary === false || pilaCapas.length > 0) { return; }
+      /* El asa del orden manual arrastra, no desliza. */
+      if (dentroDeClase(ev.target, li, 'asa-orden')) { return; }
       x0 = ev.clientX; y0 = ev.clientY; t0 = Date.now(); dx = 0; modo = 'duda'; idP = ev.pointerId;
     });
     li.addEventListener('pointermove', function (ev) {
@@ -1650,8 +1816,11 @@
       if (modo === 'duda') {
         if (ay > 10 && ay >= ax) { modo = null; return; }
         if (ax > 10 && ax > ay * 1.5) {
-          modo = 'h';
           gestoFila = true;
+          /* Con la bandeja abierta, deslizar (hacia cualquier lado) la cierra
+             y nada mas: nunca completa ni abre otra cosa. */
+          if (bandeja && bandeja.li === li) { modo = null; li.setAttribute('data-gesto', '' + Date.now()); cerrarBandeja(false); return; }
+          modo = 'h';
           li.className = li.className + ' arrastra';
         } else { return; }
       }
@@ -1675,8 +1844,12 @@
       var ad = dx < 0 ? -dx : dx, ms = Date.now() - t0;
       if (ad < UMBRAL_FILA && !(ad > 40 && ad / (ms > 0 ? ms : 1) > 0.6)) { return; }
       var it = buscarItem(id), acc = it ? accionHecho(it) : null;
-      if (dx > 0 && puedeHecho && acc) { acc.fn(); }
-      if (dx < 0) { abrirMenuRapido(id); }
+      if (dx > 0 && puedeHecho && acc) {
+        /* Ya aprendio el gesto: la linea de la pista se va. */
+        pistaLista = null;
+        acc.fn();
+      }
+      if (dx < 0) { abrirBandeja(li, fila, id, false); }
     }
     li.addEventListener('pointerup', function (ev) { soltar(ev, false); });
     li.addEventListener('pointercancel', function (ev) { soltar(ev, true); });
@@ -1795,6 +1968,16 @@
     return false;
   }
 
+  function dentroDeClase(n, tope, clase) {
+    var re = new RegExp('(^|\\s)' + clase + '(\\s|$)');
+    while (n && n !== tope) {
+      /* Los nodos SVG tienen className objeto: se lee el atributo. */
+      if (n.getAttribute && re.test(n.getAttribute('class') || '')) { return true; }
+      n = n.parentNode;
+    }
+    return false;
+  }
+
   /* Filas reales de la lista (sin la que se arrastra, el hueco ni la copia). */
   function filasOrden(ul) {
     var r = [], n;
@@ -1821,6 +2004,15 @@
   function prepararFilaOrden(li, ul, orden, visibles, pistaId, raiz) {
     if (!li.addEventListener) { return; }
     var id = li.getAttribute('data-id'), espera = null, x0 = 0, y0 = 0, idP = null, fuenteEspera = '';
+    /* Asa de seis puntos a la izquierda: se ve que la fila se ordena y desde
+       ahi se levanta sin esperar. Es decorativa para el lector: el teclado
+       ordena con Alt+Flecha (aria-keyshortcuts). */
+    var fila = li.querySelector('.desliza');
+    if (fila && !fila.querySelector('.asa-orden')) {
+      var asa = svgIco('grip', 'asa-orden');
+      asa.setAttribute('aria-hidden', 'true');
+      fila.insertBefore(asa, fila.firstChild);
+    }
     if (pistaId) { li.setAttribute('aria-describedby', pistaId); }
     li.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
     li.addEventListener('keydown', function (ev) {
@@ -1850,14 +2042,15 @@
         espera = null;
       }
     }
-    function armarEspera(x, y, ref, fuente) {
+    /* enAsa: desde el asa la fila se levanta enseguida (sin los 350 ms). */
+    function armarEspera(x, y, ref, fuente, enAsa) {
       soltarEspera();
       x0 = x; y0 = y; idP = ref; fuenteEspera = fuente;
       espera = setTimeout(function () {
         espera = null;
         esperaOrden = null;
         empezarOrden(li, ul, id, idP, y0, orden, visibles, fuente);
-      }, LARGA_ORDEN);
+      }, enAsa ? 0 : LARGA_ORDEN);
       esperaOrden = espera;
     }
     function movidoAntes(x, y) {
@@ -1872,7 +2065,7 @@
       if (ev.pointerType === 'touch' && conToque) { return; }
       if (ev.pointerType === 'mouse' && ev.button !== 0) { return; }
       if (dentroDeBoton(ev.target, li)) { return; }
-      armarEspera(ev.clientX, ev.clientY, ev.pointerId, 'puntero');
+      armarEspera(ev.clientX, ev.clientY, ev.pointerId, 'puntero', dentroDeClase(ev.target, li, 'asa-orden'));
     });
     li.addEventListener('pointermove', function (ev) {
       if (esDeOrden(ev)) { moverOrden(ev.clientY); return; }
@@ -1904,7 +2097,7 @@
       /* Un segundo dedo (pellizco) no es arrastrar. */
       if (!t || (ev.touches && ev.touches.length > 1)) { soltarEspera(); return; }
       if (ordenActivo || pilaCapas.length > 0 || dentroDeBoton(ev.target, li)) { return; }
-      armarEspera(t.clientX, t.clientY, t.identifier, 'toque');
+      armarEspera(t.clientX, t.clientY, t.identifier, 'toque', dentroDeClase(ev.target, li, 'asa-orden'));
     }, { passive: true });
     /* Ya levantada, el dedo no hace scroll: el primer touchmove se cancela
        antes de que el navegador empiece a desplazar (touch-action pan-y). */
@@ -1940,6 +2133,7 @@
     var hueco = document.createElement('li');
     hueco.className = 'orden-hueco';
     hueco.setAttribute('aria-hidden', 'true');
+    hueco.textContent = 'Solt\u00E1 ac\u00E1';
     hueco.style.height = r.height + 'px';
     var fantasma = li.cloneNode(true);
     fantasma.className = li.className.replace(/ nuevo/g, '') + ' orden-fantasma';
@@ -2276,6 +2470,7 @@
     }
     if (visibles > lim) { botonVerMas(lista, listaId, visibles - lim, pintar); }
     if (manual && !soloLectura && ids.length > 0) { conectarOrden(lista, ordenDelApartado(), ids, pistaId); }
+    pintarPistaGesto(lista, listaId);
     $(vacioId).style.display = visibles === 0 ? 'block' : 'none';
     return visibles;
   }
@@ -3084,6 +3279,10 @@
        las filas que se movian ya no existen. */
     if (ordenActivo) { terminarOrden(true); }
     if (esperaOrden) { clearTimeout(esperaOrden); esperaOrden = null; }
+    /* Las tarjetas se rehacen: la bandeja abierta se va con ellas. */
+    bandeja = null;
+    /* La linea de la pista vive mientras no se cambie de vista. */
+    if (pistaLista && pistaLista.vista !== vista) { pistaLista = null; }
     /* Un apartado sin compras (o sin notas) no tiene esa vista: vuelve a Tareas. */
     if (vista === 'compras' && !conCompras) { vista = 'tablero'; }
     if (vista === 'notas' && !conNotas) { vista = 'tablero'; }
