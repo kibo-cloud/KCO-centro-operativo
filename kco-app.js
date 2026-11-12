@@ -7,7 +7,6 @@
   /* Esquema 5 (2.2.0): los contextos pasan a ser apartados del usuario
      (kibco.apartados). Subirlo sin motivo rompe la compatibilidad de backups. */
   var ESQUEMA = 5;
-  var HORAS_ALERTA_ENTREGA = 48;
   var DIAS_AVISO_BACKUP = 14;
   var LARGO_CAMPO = 60;
   var TOPE_CATALOGO = 200;
@@ -857,20 +856,11 @@
     }
   }
 
-  function horasEn(iso) {
-    var d = fechaObj(iso);
-    if (!d) { return 0; }
-    return (Date.now() - d.getTime()) / 3600000;
-  }
-
-  function alertaEntrega(it) {
-    if (it.tipo !== 'compra' || it.estado !== 'esperando_entrega') { return 0; }
-    /* En pausa el reloj no corre: no tiene sentido reclamar una entrega que
-       vos mismo frenaste. */
-    if (it.pausado === true) { return 0; }
-    var h = horasEn(it.estadoDesde);
-    return h > HORAS_ALERTA_ENTREGA ? h : 0;
-  }
+  /* Dias que una compra lleva esperando entrega pasado el limite (0 si no
+     llego): la regla y el limite viven en KCOCore. */
+  function alertaEntrega(it) { return K.alertaEntrega(it, Date.now()); }
+  /* Marca corta de los reportes: +2d. */
+  var MARCA_ENTREGA = '+' + K.DIAS_ALERTA_ENTREGA + 'd';
 
   /* ---------- pintado ---------- */
 
@@ -1546,11 +1536,11 @@
       if (be) { cu.appendChild(be); }
     }
 
-    var hs = alertaEntrega(it);
-    if (hs > 0) {
+    var diasEntrega = alertaEntrega(it);
+    if (diasEntrega > 0) {
       var a = document.createElement('div');
       a.className = 'alerta48';
-      conIcono(a, 'alert-triangle', Math.floor(hs) + ' hs esperando entrega. Reclamar o cerrar.');
+      conIcono(a, 'alert-triangle', Math.floor(diasEntrega) + ' d esperando entrega. Reclamar o cerrar.');
       cu.appendChild(a);
     }
     fila.appendChild(cu);
@@ -4565,7 +4555,7 @@
 
   /* Pausa: no cambia el casillero ni el estado guardado, solo lo congela.
      Al reanudar se corre estadoDesde hacia adelante el tiempo que estuvo en
-     pausa, asi el contador de +48 hs sigue desde donde quedo en vez de
+     pausa, asi el contador de dias de entrega sigue desde donde quedo en vez de
      arrancar de cero. */
   function puedePausar(it) {
     return it.tipo === 'compra' && K.esFabrica(it.contexto) && esActivo(it.estado);
@@ -5143,7 +5133,7 @@
       if (it.nivel === 'urgente') { urgentes.push(it.texto); continue; }
       if (it.tipo === 'compra') {
         compras.push(it.texto + (!K.esFabrica(it.contexto) ? '' : ' (' + estadoInfo(it.estado).nom + ')') +
-          (alertaEntrega(it) > 0 ? ' [+48hs]' : ''));
+          (alertaEntrega(it) > 0 ? ' [' + MARCA_ENTREGA + ']' : ''));
         continue;
       }
       if (it.estado === 'esperando') { esp.push(it.texto + (it.espera ? ' (' + it.espera + ')' : '')); }
@@ -5192,7 +5182,7 @@
         det = it.texto;
         if (K.esFabrica(it.contexto)) { det = det + ' \u2014 ' + estadoInfo(it.estado).nom; }
         if (it.pausado === true) { det = det + ' \u23F8 en espera'; }
-        if (alertaEntrega(it) > 0) { det = det + ' \u26A0 +48hs'; }
+        if (alertaEntrega(it) > 0) { det = det + ' \u26A0 ' + MARCA_ENTREGA; }
         compras.push(det);
       }
     }
@@ -5521,7 +5511,7 @@
   var PISTA_COMPRAS = {
     no: 'Este apartado no usa compras.',
     lista: 'Lista simple: por comprar, comprado o cancelado.',
-    fabrica: 'Con seguimiento: cotizaci\u00F3n, OC y entrega (con alerta de +48 hs).'
+    fabrica: 'Con seguimiento: cotizaci\u00F3n, OC y entrega (con alerta de +' + K.DIAS_ALERTA_ENTREGA + ' d\u00EDas).'
   };
   /* Borrador del editor: copia del apartado que se edita (id '' = nuevo). */
   var borradorAp = null;

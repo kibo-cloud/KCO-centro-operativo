@@ -126,7 +126,7 @@ Cada apartado elige como anota compras:
 |---|---|---|
 | No | sin compras: no aparece el segmento Compras ni "Mover a Compras" | una compra que llega ahi (al cambiar el modo, mover un item o restaurar) pasa a ser tarea |
 | Lista simple | Por comprar, Comprado, Cancelado | nada mas |
-| Con seguimiento | Cotizando, Esperando OC, Esperando aprobacion, OC enviada, Esperando entrega, Material recibido, Cancelado | alerta de +48 hs en Esperando entrega, pausa, solicitante y destino con catalogo, reporte de turno. Los catalogos aparecen en Ajustes solo si algun apartado usa este modo |
+| Con seguimiento | Cotizando, Esperando OC, Esperando aprobacion, OC enviada, Esperando entrega, Material recibido, Cancelado | alerta de +2 dias en Esperando entrega, pausa, solicitante y destino con catalogo, reporte de turno. Los catalogos aparecen en Ajustes solo si algun apartado usa este modo |
 
 La regla de siempre sigue valiendo: el flujo con seguimiento es para la fabrica; lo demas
 conviene llevarlo en lista simple.
@@ -211,7 +211,7 @@ Se evalua en este orden y gana la primera que aplica:
 | 🟢 Hecho | estado completado, recibido o comprado |
 | (Cancelado) | estado cancelado; no se muestra como situacion activa |
 | 🔵 Esperando (aprobacion) | compra en Esperando aprobacion: nunca pide atencion, aunque sea Urgente, su dia haya pasado o el recordatorio haya vencido. Tampoco es el siguiente movimiento ni figura en Vencidas |
-| 🔴 Requiere atencion | su dia ya paso, o el recordatorio vencio, o lleva +48 hs esperando entrega (fabrica, sin pausa), o es Urgente |
+| 🔴 Requiere atencion | su dia ya paso, o el recordatorio vencio, o lleva mas de 2 dias esperando entrega (fabrica, sin pausa), o es Urgente |
 | 🔵 Esperando | estado Esperando, compra pausada, o compra de fabrica en Esperando OC / aprob. / OC enviada / entrega |
 | 🟣 Programado | tiene dia y es despues de hoy |
 | 🟡 Proximo | todo lo demas: se puede hacer ahora |
@@ -271,7 +271,7 @@ que se muestra:
 |---|---|---|
 | Vencida (tenia dia y paso) | 300 + 5 por dia de atraso (tope 30 dias) | Vencida ayer / Vencida hace N d |
 | Recordatorio vencido | 250 | Recordatorio vencido |
-| +48 hs esperando entrega | 200 | N hs esperando entrega |
+| Mas de 2 dias esperando entrega | 200 | N d esperando entrega |
 | Urgente | 400 | Urgente |
 | Cae hoy | 200 | Rutina de hoy / Para hoy |
 | Anclada | 120 | Anclada |
@@ -692,7 +692,7 @@ igual, y el catalogo se vuelve a llenar con el uso.
   `esperando_entrega`, `recibido` (se muestra como **Material Recibido**), `cancelado`.
 - Compra de lista simple: `por_comprar`, `comprado`, `cancelado`. Un apartado sin compras solo tiene tareas.
 
-`estadoDesde` marca cuando entro al estado actual; dispara la alerta de +48 hs (solo
+`estadoDesde` marca cuando entro al estado actual; dispara la alerta de +2 dias (solo
 compras con seguimiento) y fecha los cierres para el XP, la racha y el Diario.
 
 ### Campos por item fuera del esquema

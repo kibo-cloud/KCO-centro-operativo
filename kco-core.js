@@ -73,7 +73,7 @@
      El modo de compras reemplaza al viejo "solo Trabajo es fabrica":
        no      -> el apartado no usa compras
        lista   -> lista simple: por comprar, comprado, cancelado
-       fabrica -> flujo de fabrica con OC, OT y alerta de +48 hs */
+       fabrica -> flujo de fabrica con OC, OT y alerta de +2 dias */
 
   /* Paleta curada: el nucleo solo valida la clave; los tonos claro y oscuro
      (con contraste 4.5:1) viven en kco.css. */
@@ -567,17 +567,22 @@
   var HECHOS = { completado: 1, recibido: 1, comprado: 1 };
   /* Casilleros de fabrica donde la pelota la tiene otro. */
   var ESPERAS_FABRICA = { esperando_oc: 1, esperando_aprob: 1, oc_enviada: 1, esperando_entrega: 1 };
-  var HORAS_ALERTA_ENTREGA = 48;
+  /* Dias en Esperando entrega a partir de los que hay que reclamar. */
+  var DIAS_ALERTA_ENTREGA = 2;
+  var MS_DIA = 86400000;
 
   function esActivo(estado) { return !CERRADOS[estado]; }
   function esHecho(estado) { return HECHOS[estado] === 1; }
 
+  /* Dias (con fraccion) que una compra lleva esperando entrega, o 0 si todavia
+     no paso el limite. En pausa el reloj no corre: no tiene sentido reclamar
+     una entrega que uno mismo freno. */
   function alertaEntrega(it, ahoraMs) {
     if (it.tipo !== 'compra' || it.estado !== 'esperando_entrega' || it.pausado === true) { return 0; }
     var d = new Date(it.estadoDesde);
     if (isNaN(d.getTime())) { return 0; }
-    var h = (ahoraMs - d.getTime()) / 3600000;
-    return h > HORAS_ALERTA_ENTREGA ? h : 0;
+    var dias = (ahoraMs - d.getTime()) / MS_DIA;
+    return dias > DIAS_ALERTA_ENTREGA ? dias : 0;
   }
 
   /* El dia en que algo "cae": fecha explicita, el dia de la ocurrencia de una
@@ -591,7 +596,7 @@
   /* ---------- situacion: los cinco estados visibles del centro de control ----------
      No reemplaza al estado del flujo (entrada, pendiente, proceso...): lo lee y
      lo traduce a la pregunta que importa al abrir la app.
-       atencion   -> hay que mirarlo ya (vencido, recordatorio pasado, urgente, +48 hs)
+       atencion   -> hay que mirarlo ya (vencido, recordatorio pasado, urgente, +2 dias esperando entrega)
        proximo    -> se puede hacer ahora
        esperando  -> la pelota la tiene otro
        programado -> tiene dia, y es despues de hoy
@@ -668,8 +673,8 @@
     var atraso = dia !== '' && dia < hoy ? difDias(dia, hoy) : 0;
     regla(atraso > 0, 300 + Math.min(atraso, 30) * 5, atraso === 1 ? 'Vencida ayer' : 'Vencida hace ' + atraso + ' d');
     regla(recordatorioVencido(it, ahoraMs), 250, 'Recordatorio vencido');
-    var hs = alertaEntrega(it, ahoraMs);
-    regla(hs > 0, 200, Math.floor(hs) + ' hs esperando entrega');
+    var espera = alertaEntrega(it, ahoraMs);
+    regla(espera > 0, 200, Math.floor(espera) + ' d esperando entrega');
     regla(nivel === 'urgente', 400, 'Urgente');
     regla(dia === hoy, 200, esClave(it.ocurrencia) ? 'Rutina de hoy' : 'Para hoy');
     regla(it.anclado === true, 120, 'Anclada');
@@ -1743,6 +1748,7 @@
     esActivo: esActivo,
     esHecho: esHecho,
     alertaEntrega: alertaEntrega,
+    DIAS_ALERTA_ENTREGA: DIAS_ALERTA_ENTREGA,
     diaDe: diaDe,
     SITUACIONES: SITUACIONES,
     infoSituacion: infoSituacion,

@@ -4485,6 +4485,37 @@ export const tests = [
     }
   },
   {
+    name: 'delivery alert: the waiting time reads in days on the card, the hero, the reports and the Ajustes hint (no hours)',
+    storage: DELIVERY_SEED(),
+    async fn(page) {
+      assert.equal(await page.text('.hero .hero-txt'), 'compra tarde');
+      assert.equal(await page.text('.hero .hero-motivo'), '3 d esperando entrega');
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      await sleep(80);
+      assert.equal(await page.text('#listaCompras li.item[data-id="E3"] .alerta48'), '3 d esperando entrega. Reclamar o cerrar.');
+      assert.equal(await page.count('#listaCompras li.item[data-id="E1"] .alerta48'), 0, 'one day waiting is not late');
+      await page.click('#tabRegistro');
+      await page.click('#btnResumen');
+      const resumen = await page.eval("document.getElementById('txtSalida').value");
+      assert.ok(resumen.includes('- compra tarde (Esperando entrega) [+2d]\n'), resumen);
+      assert.ok(resumen.includes('- compra reciente (Esperando entrega)\n'), 'no marker before 2 days: ' + resumen);
+      await page.key('Escape');
+      await page.click('#btnRelevo');
+      const relevo = await page.eval("document.getElementById('txtSalida').value");
+      const lineasRelevo = relevo.split('\n');
+      assert.ok(lineasRelevo.includes('• compra tarde — Esperando entrega ⚠ +2d'), relevo);
+      assert.ok(lineasRelevo.includes('• compra reciente — Esperando entrega'), relevo);
+      assert.doesNotMatch(resumen + relevo, /\d ?hs\b/, 'no hour-based waiting text');
+      await page.key('Escape');
+      await openAjustes(page);
+      await page.click('#listaApartados [data-ap="taller"] .apfila-abrir');
+      const pista = await page.text('#apComprasPista');
+      assert.match(pista, /alerta de \+2 días/);
+      assert.doesNotMatch(pista, /\d ?hs\b/);
+    }
+  },
+  {
     name: 'approval: a purchase waiting for approval is never the hero, attention or overdue, and sits last in Compras (Automatico)',
     storage: APPROVAL_SEED(),
     async fn(page) {
@@ -6388,6 +6419,17 @@ function PAGED_ORDER_SEED() {
     list.push(Object.assign({}, base, { id, texto: 'extra ' + id }));
   }
   s['kibco.items'] = JSON.stringify(list);
+  return s;
+}
+// Taller (fabrica) with two purchases waiting for delivery: one for 3 days and 2 hours, one for 1 day.
+function DELIVERY_SEED() {
+  const s = ORDER_SEED('auto');
+  const base = JSON.parse(s['kibco.items'])[2];
+  const hace = (h) => new Date(Date.now() - h * 3600000).toISOString();
+  s['kibco.items'] = JSON.stringify([
+    Object.assign({}, base, { id: 'E3', texto: 'compra tarde', tipo: 'compra', estado: 'esperando_entrega', estadoDesde: hace(74) }),
+    Object.assign({}, base, { id: 'E1', texto: 'compra reciente', tipo: 'compra', estado: 'esperando_entrega', estadoDesde: hace(24) })
+  ]);
   return s;
 }
 // COMPRA_ORDER_SEED (Automatico) plus an overdue task and one purchase waiting for approval

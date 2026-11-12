@@ -41,11 +41,30 @@ test('situation: each of the five states has real triggers', () => {
   assert.equal(C.situacion(item({}), HOY, AHORA), 'proximo');
 });
 
-test('situation: +48h factory delivery needs attention, unless paused', () => {
+test('situation: a factory delivery waiting more than 2 days needs attention, unless paused', () => {
   const desde = new Date(AHORA - 50 * 3600000).toISOString();
   const c = item({ tipo: 'compra', estado: 'esperando_entrega', estadoDesde: desde });
   assert.equal(C.situacion(c, HOY, AHORA), 'atencion');
   assert.equal(C.situacion(Object.assign({}, c, { pausado: true }), HOY, AHORA), 'esperando');
+});
+
+test('delivery alert: the threshold and the waiting time are days (2 days = the same 48 h moment)', () => {
+  const H = 3600000;
+  const c = (horas, o) => item(Object.assign({ tipo: 'compra', estado: 'esperando_entrega',
+    estadoDesde: new Date(AHORA - horas * H).toISOString() }, o));
+  assert.equal(C.DIAS_ALERTA_ENTREGA, 2);
+  assert.equal(C.alertaEntrega(c(47), AHORA), 0);
+  assert.equal(C.alertaEntrega(c(48), AHORA), 0, 'exactly 2 days is not yet late');
+  assert.equal(Math.floor(C.alertaEntrega(c(49), AHORA)), 2, 'days, not hours');
+  assert.equal(Math.floor(C.alertaEntrega(c(5 * 24 + 3), AHORA)), 5);
+  assert.equal(C.alertaEntrega(c(100, { pausado: true }), AHORA), 0);
+  assert.equal(C.alertaEntrega(c(100, { estado: 'oc_enviada' }), AHORA), 0);
+  assert.equal(C.alertaEntrega(c(100, { estadoDesde: 'nope' }), AHORA), 0);
+  assert.equal(C.situacion(c(48), HOY, AHORA), 'esperando');
+  assert.equal(C.situacion(c(49), HOY, AHORA), 'atencion');
+  // The reason reads in days, like "Vencida hace N d".
+  assert.equal(C.puntaje(c(50), HOY, AHORA).motivo, '2 d esperando entrega');
+  assert.equal(C.puntaje(c(5 * 24 + 3), HOY, AHORA).motivo, '5 d esperando entrega');
 });
 
 test('approval: a purchase waiting for approval is never attention, whatever its level, date or reminder', () => {
