@@ -89,3 +89,33 @@ test('ordenConSub + rangosTrasMover: a move in a sublist gives unique ranks 1..n
   assert.deepEqual(r, { a: 1, c: 2, w: 3, b: 4, d: 5 });
   assert.deepEqual(Object.values(r).sort(), [1, 2, 3, 4, 5], 'no tie left');
 });
+
+test('rangosConNuevo: a new item takes rank 1 and the rest of the section is renumbered 2..n, unique', () => {
+  assert.deepEqual(C.rangosConNuevo(['a', 'b', 'c'], 'n'), { n: 1, a: 2, b: 3, c: 4 });
+  assert.deepEqual(C.rangosConNuevo([], 'n'), { n: 1 }, 'first item of the section');
+  assert.deepEqual(C.rangosConNuevo(null, 'n'), { n: 1 });
+  // Already listed (the caller passed the whole section): it still goes first, once.
+  assert.deepEqual(C.rangosConNuevo(['a', 'n', 'b'], 'n'), { n: 1, a: 2, b: 3 });
+  const src = ['a', 'b'];
+  C.rangosConNuevo(src, 'n');
+  assert.deepEqual(src, ['a', 'b'], 'the input is not touched');
+  // Read back through ordenarManual the new item leads, whatever the score order says.
+  const items = ['a', 'b', 'n'].map((id) => ({ id }));
+  assert.deepEqual(ids(C.ordenarManual(rk(...items), C.rangosConNuevo(['b', 'a'], 'n'))), ['n', 'b', 'a']);
+});
+
+test('ordenarLista (Automatic): a new item is first within its priority level, below higher levels and pinned ones', () => {
+  const t = (min) => new Date(2026, 9, 7, 9, min).toISOString();
+  const it = (id, o) => Object.assign({ id, tipo: 'tarea', estado: 'pendiente', nivel: 'normal', creado: t(0) }, o);
+  const lista = [
+    it('pin', { anclado: true, nivel: 'baja' }), it('urg', { nivel: 'urgente' }), it('imp', { nivel: 'importante' }),
+    it('n1', { creado: t(1) }), it('n2', { creado: t(2) }), it('low', { nivel: 'baja' })
+  ];
+  const con = (nuevo) => C.ordenarLista(lista.concat([nuevo])).map((x) => x.id);
+  assert.deepEqual(con(it('NEW', { creado: t(30) })), ['pin', 'urg', 'imp', 'NEW', 'n2', 'n1', 'low']);
+  assert.deepEqual(con(it('NEW', { creado: t(30), nivel: 'importante' })), ['pin', 'urg', 'NEW', 'imp', 'n2', 'n1', 'low']);
+  assert.deepEqual(con(it('NEW', { creado: t(30), nivel: 'urgente' })), ['pin', 'NEW', 'urg', 'imp', 'n2', 'n1', 'low']);
+  assert.deepEqual(con(it('NEW', { creado: t(30), nivel: 'baja' })), ['pin', 'urg', 'imp', 'n2', 'n1', 'NEW', 'low']);
+  // A captured item starts in the inbox state: same place.
+  assert.deepEqual(con(it('NEW', { creado: t(30), estado: 'entrada' })), ['pin', 'urg', 'imp', 'NEW', 'n2', 'n1', 'low']);
+});

@@ -4485,6 +4485,79 @@ export const tests = [
     }
   },
   {
+    name: 'new on top: in Manual a captured task, a captured purchase and a mission task take the first place of the section, with unique ranks',
+    storage: NEW_TOP_SEED(),
+    async fn(page) {
+      const unique = async () => {
+        const r = Object.values(await ranks(page)).sort((a, b) => a - b);
+        assert.deepEqual(r, r.map((_, i) => i + 1), 'ranks 1..n, no tie: ' + r);
+      };
+      await toTasks(page);
+      assert.deepEqual(await listRows(page, 'lista'), ['A', 'B', 'C', 'D']);
+      await capture(page, 'tarea nueva');
+      let list = await items(page);
+      const t = list.find((i) => i.texto === 'tarea nueva');
+      assert.equal(t.ordenManual, 1, 'the new task takes rank 1');
+      assert.deepEqual(await listRows(page, 'lista'), [t.id, 'A', 'B', 'C', 'D']);
+      await unique();
+      assert.deepEqual(list.filter((i) => i.contexto === 'mercado').map((i) => i.ordenManual), [0, 0], 'other sections unaffected');
+      // A purchase captured on the Compras tab leads the purchases (same shared order).
+      await page.click('#segBtnCompras');
+      await sleep(80);
+      await capture(page, 'compra nueva');
+      list = await items(page);
+      const c = list.find((i) => i.texto === 'compra nueva');
+      assert.deepEqual([c.tipo, c.ordenManual], ['compra', 1]);
+      assert.deepEqual(await listRows(page, 'listaCompras'), [c.id, 'K1', 'K2', 'K3']);
+      assert.equal(list.find((i) => i.id === t.id).ordenManual, 2, 'the earlier new task moves to the second place');
+      await unique();
+      // A save that fails leaves the list, the ranks and the typed text as they were.
+      const antes = await ranks(page);
+      await failItemWrites(page);
+      await capture(page, 'no entra');
+      assert.deepEqual(await listRows(page, 'listaCompras'), [c.id, 'K1', 'K2', 'K3']);
+      await restoreWrites(page);
+      assert.deepEqual(await ranks(page), antes, 'stored ranks untouched');
+      assert.equal(await page.eval("document.getElementById('txtCaptura').value"), 'no entra', 'the text stays in the bar');
+      await page.eval("document.getElementById('txtCaptura').value=''");
+      // The next save works from the ranks that were restored in memory.
+      await capture(page, 'compra dos');
+      list = await items(page);
+      const c2 = list.find((i) => i.texto === 'compra dos');
+      assert.deepEqual(await listRows(page, 'listaCompras'), [c2.id, c.id, 'K1', 'K2', 'K3']);
+      await unique();
+      // A task added from a mission of the section goes first too.
+      await page.click('#tabMisiones');
+      await page.click('[data-mision="pm"]');
+      await page.type('#txtMisTarea', 'tarea de mision', true);
+      await page.key('Escape');
+      const m = (await items(page)).find((i) => i.texto === 'tarea de mision');
+      assert.deepEqual([m.proyectoId, m.ordenManual], ['pm', 1]);
+      await unique();
+      await page.reload();
+      await toTasks(page);
+      assert.deepEqual(await listRows(page, 'lista'), [m.id, t.id, 'A', 'B', 'C', 'D'], 'kept after reload');
+    }
+  },
+  {
+    name: 'new on top: in Automatico a captured task leads its priority level and stores no rank; a moved item still arrives unranked',
+    storage: NEW_TOP_SEED('auto'),
+    async fn(page) {
+      await toTasks(page);
+      await capture(page, 'tarea nueva');
+      let list = await items(page);
+      const t = list.find((i) => i.texto === 'tarea nueva');
+      assert.deepEqual(await listRows(page, 'lista'), ['A', t.id, 'B', 'C', 'D'], 'first of the normal level, below Importante');
+      assert.deepEqual(list.map((i) => i.ordenManual).filter((n) => n !== 0), [], 'Automatico with no manual order stores no rank');
+      // Moving an item to another section keeps the old rule: it arrives unranked.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"mercado\"]').click()");
+      await toTasks(page);
+      await page.click('#lista li.item[data-id="M1"]');
+      await page.click('#gridCtx [data-ctx="taller"]');
+      assert.equal((await items(page)).find((i) => i.id === 'M1').ordenManual, 0);
+    }
+  },
+  {
     name: 'delivery alert: the waiting time reads in days on the card, the hero, the reports and the Ajustes hint (no hours)',
     storage: DELIVERY_SEED(),
     async fn(page) {
@@ -6419,6 +6492,14 @@ function PAGED_ORDER_SEED() {
     list.push(Object.assign({}, base, { id, texto: 'extra ' + id }));
   }
   s['kibco.items'] = JSON.stringify(list);
+  return s;
+}
+// COMPRA_ORDER_SEED (nothing ranked yet) plus an active mission of Taller.
+function NEW_TOP_SEED(mode = 'manual') {
+  const s = COMPRA_ORDER_SEED(mode);
+  const iso = new Date().toISOString();
+  s['kibco.proyectos'] = JSON.stringify([{ id: 'pm', nombre: 'Mision Taller', objetivo: '', contexto: 'taller', estado: 'activo',
+    hitos: [], creado: iso, actualizado: iso }]);
   return s;
 }
 // Taller (fabrica) with two purchases waiting for delivery: one for 3 days and 2 hours, one for 1 day.

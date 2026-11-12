@@ -811,6 +811,7 @@
     if (tg !== '') { extra.tag = tg; }
     var it = itemNuevo(p.texto, ctx, extra);
     items.push(it);
+    var rangosPrevios = subirNuevo(it);
     if (guardarItems()) {
       registrar('captura', it, '', it.estado);
       if (it.recordatorio !== '') { registrar('recordatorio', it, '', horaCorta(it.recordatorio)); }
@@ -823,6 +824,7 @@
       if (est !== '' && est !== it.estado) { cambiarEstado(it.id, est); }
       $('txtCaptura').focus();
     } else {
+      reponerRangos(rangosPrevios);
       items.pop();
     }
   }
@@ -2010,12 +2012,40 @@
   /* Todos los items del apartado (tareas y compras, cualquier estado) en su
      orden manual, como ids: es el orden completo que se renumera al mover una
      fila de Tareas o Compras, asi lo que no se ve conserva su lugar. */
-  function ordenDelApartado() {
-    var l = [], r = [], i;
-    for (i = 0; i < items.length; i++) { if (items[i].contexto === contexto) { l.push(items[i]); } }
+  function ordenDelApartado(ctx) {
+    var l = [], r = [], i, c = ctx || contexto;
+    for (i = 0; i < items.length; i++) { if (items[i].contexto === c) { l.push(items[i]); } }
     l = ordenarManualItems(l);
     for (i = 0; i < l.length; i++) { r.push(l[i].id); }
     return r;
+  }
+
+  /* Lo recien creado va arriba de todo en el orden manual de su apartado:
+     toma el rango 1 y el resto se renumera (rangos unicos, KCOCore.rangosConNuevo).
+     Solo si el apartado tiene orden manual: esta en Manual o ya guarda rangos
+     (asi al volver de Automatico lo nuevo no aparece al fondo). El item ya
+     tiene que estar en items. No guarda: quien llama hace un solo
+     guardarItems y, si falla, deshace con reponerRangos lo que esto devuelve. */
+  function subirNuevo(it) {
+    var usa = K.ordenAhora(it.contexto) === 'manual', previos = [], i, o, rangos, orden;
+    for (i = 0; i < items.length && !usa; i++) {
+      if (items[i] !== it && items[i].contexto === it.contexto && K.rangoManual(items[i]) > 0) { usa = true; }
+    }
+    if (!usa) { return previos; }
+    orden = ordenDelApartado(it.contexto);
+    rangos = K.rangosConNuevo(orden, it.id);
+    for (i = 0; i < orden.length; i++) {
+      o = buscarItem(orden[i]);
+      if (!o || o.ordenManual === rangos[orden[i]]) { continue; }
+      previos.push({ it: o, r: o.ordenManual });
+      o.ordenManual = rangos[orden[i]];
+    }
+    return previos;
+  }
+
+  function reponerRangos(previos) {
+    var i;
+    for (i = 0; i < previos.length; i++) { previos[i].it.ordenManual = previos[i].r; }
   }
 
   /* Guarda los rangos tras llevar id al lugar indice de visibles. Si no se
@@ -8107,7 +8137,8 @@
     if (!p || soloLectura || t === '') { return; }
     var it = itemNuevo(t, p.contexto, { estado: 'pendiente', proyectoId: p.id });
     items.push(it);
-    if (!guardarItems()) { items.pop(); return; }
+    var rangosPrevios = subirNuevo(it);
+    if (!guardarItems()) { reponerRangos(rangosPrevios); items.pop(); return; }
     registrar('captura', it, '', 'pendiente');
     tocarMision(p);
     guardarProyectos();

@@ -764,6 +764,16 @@
     return r;
   }
 
+  /* Rangos (1..n) con un item nuevo arriba de todo: id toma el 1 y orden (los
+     ids del apartado en su orden manual, con o sin id) sigue detras. No toca
+     la lista de entrada. */
+  function rangosConNuevo(orden, id) {
+    var o = [], i;
+    for (i = 0; i < (orden || []).length; i++) { if (orden[i] !== id) { o.push(orden[i]); } }
+    o.push(id);
+    return rangosTrasMover(o, id, 0);
+  }
+
   /* orden (ids) con los ids de sub en el orden de sub, en los mismos lugares
      que ya ocupaban; lo demas no se mueve. Ahora lo usa para renumerar todo
      el apartado (asi los rangos nunca chocan con lo que Ahora no muestra) sin
@@ -1764,6 +1774,7 @@
     ordenarManual: ordenarManual,
     rangosTrasMover: rangosTrasMover,
     ordenConSub: ordenConSub,
+    rangosConNuevo: rangosConNuevo,
     parsearCaptura: parsearCaptura,
     resumenCaptura: resumenCaptura,
     parsearNota: parsearNota,

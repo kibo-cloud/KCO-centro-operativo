@@ -255,6 +255,10 @@ movimiento y se ordena a mano:
 - La primera fila es el siguiente movimiento. Lo que nunca se ordeno va al final por puntaje.
   Lo que requiere atencion (vencido, urgente) entra en esta misma lista con su aviso en rojo y
   se arrastra igual; la lista muestra hasta 40 tareas. El inbox y Esperando no entran.
+- **Lo nuevo va arriba.** Una tarea o compra recien capturada (tambien una tarea agregada desde
+  una mision) toma el primer lugar del orden de su apartado y el resto se renumera. Vale con el
+  apartado en Manual o si ya tiene un orden guardado. Las ocurrencias de rutinas no: se crean
+  solas y entran sin ordenar. En Automatico lo nuevo queda primero dentro de su nivel de prioridad.
 - El orden se guarda en cada item (`ordenManual`) y vuelve al pasar de Automatico a Manual.
   Mover un item a otro apartado le borra el lugar. Si no se puede guardar, queda como estaba.
 - **Tareas y Compras** (desde 2.4.0) muestran el mismo selector y siguen el mismo orden: es uno
