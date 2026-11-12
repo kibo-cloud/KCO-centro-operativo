@@ -622,9 +622,25 @@
     return it.tipo === 'compra' && esFabrica(it.contexto) && ESPERAS_FABRICA[it.estado] === 1;
   }
 
+  /* Una compra esperando aprobacion: la pelota la tiene otro y no hay nada que
+     hacer hasta que conteste. Por eso nunca pide atencion (ni urgente, ni con
+     el dia pasado, ni con el recordatorio vencido) y en las listas va debajo
+     de todo lo demas. */
+  function esperaAprobacion(it) {
+    return !!it && it.tipo === 'compra' && it.estado === 'esperando_aprob';
+  }
+
+  /* Abierto, con su dia ya pasado y accionable: lo que Hoy lista como vencido. */
+  function vencido(it, hoy) {
+    if (!it || !esActivo(it.estado) || esperaAprobacion(it)) { return false; }
+    var dia = diaDe(it);
+    return dia !== '' && dia < hoy;
+  }
+
   function situacion(it, hoy, ahoraMs) {
     if (esHecho(it.estado)) { return 'hecho'; }
     if (it.estado === 'cancelado') { return 'cancelado'; }
+    if (esperaAprobacion(it)) { return 'esperando'; }
     var dia = diaDe(it);
     if (dia !== '' && dia < hoy) { return 'atencion'; }
     if (recordatorioVencido(it, ahoraMs)) { return 'atencion'; }
@@ -666,6 +682,26 @@
     if (edad > 0) { p += Math.min(edad, 30); }
     if (motivo === '') { motivo = edad > 0 ? 'Pendiente hace ' + edad + ' d' : 'Pendiente'; }
     return { puntos: p, motivo: motivo, situacion: sit };
+  }
+
+  /* ---------- orden automatico de las listas ----------
+     Tareas y Compras en Automatico: lo anclado primero (por encima incluso de
+     la prioridad alta), despues por nivel y, a igual nivel, lo mas nuevo
+     arriba. Lo que espera aprobacion va siempre al fondo, con ese mismo orden
+     entre si. Devuelve una lista nueva. */
+  function ordenarLista(lista) {
+    var r = (lista || []).slice();
+    r.sort(function (a, b) {
+      var ea = esperaAprobacion(a), eb = esperaAprobacion(b);
+      if (ea !== eb) { return ea ? 1 : -1; }
+      var aa = a.anclado === true, ab = b.anclado === true;
+      if (aa !== ab) { return aa ? -1 : 1; }
+      var pa = infoNivel(a.nivel).peso, pb = infoNivel(b.nivel).peso;
+      if (pa !== pb) { return pb - pa; }
+      if (a.creado === b.creado) { return 0; }
+      return a.creado > b.creado ? -1 : 1;
+    });
+    return r;
   }
 
   /* ---------- orden manual de Ahora ----------
@@ -1711,6 +1747,9 @@
     SITUACIONES: SITUACIONES,
     infoSituacion: infoSituacion,
     situacion: situacion,
+    esperaAprobacion: esperaAprobacion,
+    vencido: vencido,
+    ordenarLista: ordenarLista,
     puntaje: puntaje,
     priorizar: priorizar,
     tipoCaptura: tipoCaptura,

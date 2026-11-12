@@ -1339,18 +1339,15 @@
     it.pausadoDesde = '';
   }
 
-  /* Lo anclado va primero, por encima incluso de la prioridad alta. El filtro
-     de estado y el de clasificacion se siguen aplicando: anclar cambia el orden
-     de la lista, no la convierte en otra lista. */
+  /* Lo anclado va primero, por encima incluso de la prioridad alta, y lo que
+     espera aprobacion al fondo (la regla vive en KCOCore.ordenarLista). El
+     filtro de estado y el de clasificacion se siguen aplicando: anclar cambia
+     el orden de la lista, no la convierte en otra lista. Ordena arr en su
+     lugar y lo devuelve. */
   function ordenar(arr) {
-    return arr.sort(function (a, b) {
-      var aa = a.anclado === true, ab = b.anclado === true;
-      if (aa !== ab) { return aa ? -1 : 1; }
-      var pa = K.infoNivel(a.nivel).peso, pb = K.infoNivel(b.nivel).peso;
-      if (pa !== pb) { return pb - pa; }
-      if (a.creado === b.creado) { return 0; }
-      return a.creado > b.creado ? -1 : 1;
-    });
+    var r = K.ordenarLista(arr), i;
+    for (i = 0; i < r.length; i++) { arr[i] = r[i]; }
+    return arr;
   }
 
   function pintarChipsGen(contId, defs, actual, cuenta, alElegir) {
@@ -3390,8 +3387,8 @@
     for (i = 0; i < items.length; i++) {
       it = items[i];
       if (!enContexto(it)) { continue; }
-      var dia = K.diaDe(it);
-      if (esActivo(it.estado) && dia !== '' && dia < hoy) { vencidas.push(it); }
+      /* Lo que espera aprobacion no cuenta como vencido: no hay nada que hacer. */
+      if (K.vencido(it, hoy)) { vencidas.push(it); }
       if (K.esHecho(it.estado) && K.claveDeIso(it.estadoDesde) === hoy) { hechas.push(it); }
     }
     var deHoy = itemsDelDia(hoy);

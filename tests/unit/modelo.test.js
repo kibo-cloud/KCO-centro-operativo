@@ -48,6 +48,57 @@ test('situation: +48h factory delivery needs attention, unless paused', () => {
   assert.equal(C.situacion(Object.assign({}, c, { pausado: true }), HOY, AHORA), 'esperando');
 });
 
+test('approval: a purchase waiting for approval is never attention, whatever its level, date or reminder', () => {
+  const aprob = (o) => item(Object.assign({ tipo: 'compra', estado: 'esperando_aprob' }, o));
+  const vencido = new Date(2026, 9, 7, 8).toISOString();
+  assert.equal(C.esperaAprobacion(aprob()), true);
+  assert.equal(C.esperaAprobacion(item({ tipo: 'compra', estado: 'esperando_oc' })), false);
+  assert.equal(C.esperaAprobacion(item({ estado: 'esperando' })), false, 'a waiting task is not an approval');
+  assert.equal(C.esperaAprobacion(null), false);
+  assert.equal(C.situacion(aprob(), HOY, AHORA), 'esperando');
+  assert.equal(C.situacion(aprob({ nivel: 'urgente' }), HOY, AHORA), 'esperando');
+  assert.equal(C.situacion(aprob({ fecha: '2026-10-01' }), HOY, AHORA), 'esperando');
+  assert.equal(C.situacion(aprob({ recordatorio: vencido }), HOY, AHORA), 'esperando');
+  assert.equal(C.situacion(aprob({ fecha: '2026-10-20' }), HOY, AHORA), 'esperando', 'a future day does not move it out of waiting');
+  assert.equal(C.situacion(aprob({ nivel: 'urgente', fecha: '2026-10-01', recordatorio: vencido, anclado: true }), HOY, AHORA), 'esperando');
+  // Never proposed as the next move.
+  assert.equal(C.puntaje(aprob({ nivel: 'urgente', fecha: '2026-10-01' }), HOY, AHORA), null);
+  const r = C.priorizar([aprob({ id: 'ap', nivel: 'urgente', fecha: '2026-10-01' }), item({ id: 'plain' })], HOY, AHORA);
+  assert.deepEqual(r.map((x) => x.item.id), ['plain']);
+  // The other waiting stages and waiting tasks keep their rules.
+  assert.equal(C.situacion(item({ tipo: 'compra', estado: 'esperando_oc', nivel: 'urgente' }), HOY, AHORA), 'atencion');
+  assert.equal(C.situacion(item({ tipo: 'compra', estado: 'oc_enviada', fecha: '2026-10-01' }), HOY, AHORA), 'atencion');
+  assert.equal(C.situacion(item({ estado: 'esperando', nivel: 'urgente' }), HOY, AHORA), 'atencion');
+  // A day that already passed is only "overdue" when the owner can act on it.
+  assert.equal(C.vencido(item({ fecha: '2026-10-06' }), HOY), true);
+  assert.equal(C.vencido(aprob({ fecha: '2026-10-06' }), HOY), false);
+  assert.equal(C.vencido(item({ fecha: HOY }), HOY), false);
+  assert.equal(C.vencido(item({ fecha: '2026-10-06', estado: 'completado' }), HOY), false);
+});
+
+test('list order (Automatic): approval purchases sink below every other open item, even pinned or urgent', () => {
+  const t = (h) => new Date(2026, 9, 7, h, 0).toISOString();
+  const lista = [
+    item({ id: 'apUrg', tipo: 'compra', estado: 'esperando_aprob', nivel: 'urgente', anclado: true, creado: t(9) }),
+    item({ id: 'low', tipo: 'compra', estado: 'cotizando', nivel: 'baja', creado: t(1) }),
+    item({ id: 'apNorm', tipo: 'compra', estado: 'esperando_aprob', creado: t(8) }),
+    item({ id: 'oc', tipo: 'compra', estado: 'esperando_oc', creado: t(2) }),
+    item({ id: 'pin', tipo: 'compra', estado: 'cotizando', anclado: true, creado: t(3) }),
+    item({ id: 'urg', tipo: 'compra', estado: 'oc_enviada', nivel: 'urgente', creado: t(4) })
+  ];
+  const copia = lista.slice();
+  assert.deepEqual(C.ordenarLista(lista).map((x) => x.id), ['pin', 'urg', 'oc', 'low', 'apUrg', 'apNorm']);
+  assert.deepEqual(lista, copia, 'the input is not reordered');
+  // Among themselves approvals keep the usual order: pinned, level, newest first.
+  const dos = [
+    item({ id: 'a1', tipo: 'compra', estado: 'esperando_aprob', creado: t(1) }),
+    item({ id: 'a2', tipo: 'compra', estado: 'esperando_aprob', creado: t(2) }),
+    item({ id: 'a3', tipo: 'compra', estado: 'esperando_aprob', nivel: 'importante', creado: t(0) })
+  ];
+  assert.deepEqual(C.ordenarLista(dos).map((x) => x.id), ['a3', 'a2', 'a1']);
+  assert.deepEqual(C.ordenarLista([]), []);
+});
+
 test('next move: overdue and urgent beat plain pending; waiting is never proposed', () => {
   const lista = [
     item({ id: 'plain' }),

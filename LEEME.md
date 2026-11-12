@@ -195,7 +195,10 @@ Urgente. Asi una version anterior de KCO ve lo urgente como prioridad alta. Al l
 sin `nivel` toma Urgente si `prioridad` es `true` y Normal si no. Si los dos estan, manda
 `nivel`.
 
-En las listas lo anclado va primero, despues el nivel.
+En las listas lo anclado va primero, despues el nivel y, a igual nivel, lo mas nuevo arriba.
+Una compra en **Esperando aprobacion** va siempre debajo de todo lo demas (aunque este anclada o
+sea Urgente): no hay nada que hacer con ella hasta que contesten. En orden Manual queda donde
+se la puso.
 
 ## Situaciones: los cinco estados visibles
 
@@ -207,6 +210,7 @@ Se evalua en este orden y gana la primera que aplica:
 |---|---|
 | 🟢 Hecho | estado completado, recibido o comprado |
 | (Cancelado) | estado cancelado; no se muestra como situacion activa |
+| 🔵 Esperando (aprobacion) | compra en Esperando aprobacion: nunca pide atencion, aunque sea Urgente, su dia haya pasado o el recordatorio haya vencido. Tampoco es el siguiente movimiento ni figura en Vencidas |
 | 🔴 Requiere atencion | su dia ya paso, o el recordatorio vencio, o lleva +48 hs esperando entrega (fabrica, sin pausa), o es Urgente |
 | 🔵 Esperando | estado Esperando, compra pausada, o compra de fabrica en Esperando OC / aprob. / OC enviada / entrega |
 | 🟣 Programado | tiene dia y es despues de hoy |
@@ -292,7 +296,7 @@ HOY muestra, del apartado elegido (o de todos en Todo):
 
 - cabecera con la fecha y `hechas/total · %` del dia (total = hechas hoy + abiertas de hoy + vencidas);
 - **Rutinas de hoy** con su racha, y el boton para gestionar rutinas;
-- **Vencidas**: tenian dia y paso;
+- **Vencidas**: tenian dia y paso (sin las compras en Esperando aprobacion);
 - **Para hoy** (sin las rutinas) y **Hecho hoy**.
 
 Desde 2.6 la cabecera dice "N de M hechas" con un anillo de 52 px, y una **tira de 7 dias** (hoy

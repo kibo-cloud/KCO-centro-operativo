@@ -4485,6 +4485,33 @@ export const tests = [
     }
   },
   {
+    name: 'approval: a purchase waiting for approval is never the hero, attention or overdue, and sits last in Compras (Automatico)',
+    storage: APPROVAL_SEED(),
+    async fn(page) {
+      // Ahora: urgent + pinned + overdue + passed reminder, and still only in Esperando.
+      assert.notEqual(await page.text('.hero .hero-txt'), 'compra AP', 'never the proposed item');
+      assert.equal(await page.count('#ahoraCuerpo .hero[data-id="AP"], #secAtencion li.item[data-id="AP"], #secSigue li.item[data-id="AP"]'), 0);
+      assert.equal(await page.count('#secEsperando li.item[data-id="AP"]'), 1, 'it waits in Esperando');
+      assert.equal(await page.eval("document.querySelector('.pulso .tile.rojo b').textContent"), '1', 'the Atencion tile counts only the overdue task');
+      await page.click('.pulso .tile.rojo');
+      assert.deepEqual(await page.eval("Array.prototype.map.call(document.querySelectorAll('#secFiltro li.item'),function(l){return l.getAttribute('data-id');})"), ['V1']);
+      // Hoy: not in the overdue list.
+      await page.click('#tabHoy');
+      assert.deepEqual(await listRows(page, 'secVencidas'), ['V1']);
+      // Compras in Automatico: below every other open purchase, even the low one.
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      await sleep(80);
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['K1', 'K2', 'K3', 'AP']);
+      // Manual keeps what the owner arranged: the approval can be ranked first.
+      await page.click('#ordenCompras [data-orden="manual"]');
+      await altKey(page, 'listaCompras', 'AP', 'ArrowUp', 38);
+      await altKey(page, 'listaCompras', 'AP', 'ArrowUp', 38);
+      await altKey(page, 'listaCompras', 'AP', 'ArrowUp', 38);
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['AP', 'K1', 'K2', 'K3'], 'Manual order stays as arranged');
+    }
+  },
+  {
     name: 'list order: Alt+Arrow keys move the focused Tareas row in Manual and focus stays on it',
     storage: ORDER_SEED('manual'),
     async fn(page) {
@@ -6360,6 +6387,18 @@ function PAGED_ORDER_SEED() {
     const id = 'X' + String(i).padStart(2, '0');
     list.push(Object.assign({}, base, { id, texto: 'extra ' + id }));
   }
+  s['kibco.items'] = JSON.stringify(list);
+  return s;
+}
+// COMPRA_ORDER_SEED (Automatico) plus an overdue task and one purchase waiting for approval
+// that would otherwise lead everything: urgent, pinned, overdue and with a passed reminder.
+function APPROVAL_SEED() {
+  const s = COMPRA_ORDER_SEED('auto');
+  const list = JSON.parse(s['kibco.items']);
+  const base = list[0];
+  list.push(Object.assign({}, base, { id: 'V1', texto: 'vencida', nivel: 'normal', fecha: ymd(-3) }));
+  list.push(Object.assign({}, base, { id: 'AP', texto: 'compra AP', tipo: 'compra', estado: 'esperando_aprob', nivel: 'urgente',
+    prioridad: true, anclado: true, fecha: ymd(-2), recordatorio: new Date(Date.now() - 3600000).toISOString() }));
   s['kibco.items'] = JSON.stringify(list);
   return s;
 }
