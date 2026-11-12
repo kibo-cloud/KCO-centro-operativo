@@ -126,7 +126,7 @@ Cada apartado elige como anota compras:
 |---|---|---|
 | No | sin compras: no aparece el segmento Compras ni "Mover a Compras" | una compra que llega ahi (al cambiar el modo, mover un item o restaurar) pasa a ser tarea |
 | Lista simple | Por comprar, Comprado, Cancelado | nada mas |
-| Con seguimiento | Cotizando, Esperando OC, Esperando aprobacion, OC enviada, Esperando entrega, Material recibido, Cancelado | alerta de +2 dias en Esperando entrega, pausa, solicitante y destino con catalogo, reporte de turno. Los catalogos aparecen en Ajustes solo si algun apartado usa este modo |
+| Con seguimiento | Cotizando, Esperando OC, Esperando aprobacion, OC enviada, Esperando entrega, Material recibido, Cancelado | alerta de +2 dias en Esperando entrega, pausa administrativa, solicitante y destino con catalogo, reporte de turno. Los catalogos aparecen en Ajustes solo si algun apartado usa este modo |
 
 La regla de siempre sigue valiendo: el flujo con seguimiento es para la fabrica; lo demas
 conviene llevarlo en lista simple.
@@ -212,7 +212,7 @@ Se evalua en este orden y gana la primera que aplica:
 | (Cancelado) | estado cancelado; no se muestra como situacion activa |
 | 🔵 Esperando (aprobacion) | compra en Esperando aprobacion: nunca pide atencion, aunque sea Urgente, su dia haya pasado o el recordatorio haya vencido. Tampoco es el siguiente movimiento ni figura en Vencidas |
 | 🔴 Requiere atencion | su dia ya paso, o el recordatorio vencio, o lleva mas de 2 dias esperando entrega (fabrica, sin pausa), o es Urgente |
-| 🔵 Esperando | estado Esperando, compra pausada, o compra de fabrica en Esperando OC / aprob. / OC enviada / entrega |
+| 🔵 Esperando | estado Esperando, compra en pausa administrativa, o compra de fabrica en Esperando OC / aprob. / OC enviada / entrega |
 | 🟣 Programado | tiene dia y es despues de hoy |
 | 🟡 Proximo | todo lo demas: se puede hacer ahora |
 
@@ -375,8 +375,13 @@ sin abrir la ficha:
   esta en el menu rapido y en la ficha, y no se ofrece en ocurrencias de rutina.
 - Compra de fabrica: **el boton dice cual es el proximo casillero** (Esperando OC,
   Esperando aprob., OC enviada, Esperando entrega, Material Recibido) y avanza uno por toque.
-  Nunca ofrece Cancelado como paso siguiente: eso se elige a mano desde la ficha. Pausada,
-  ofrece `▶ Seguir`.
+  Nunca ofrece Cancelado como paso siguiente: eso se elige a mano desde la ficha. En **pausa
+  administrativa** ofrece `▶ Quitar pausa`.
+- **Pausa administrativa** (compras con seguimiento): desde la ficha ("Poner en pausa
+  administrativa") la compra queda congelada en su casillero. Toda la tarjeta se enmarca en ambar
+  (borde doble y fondo tenido, en claro y oscuro) con el badge "Pausa administrativa", para
+  revisarla; el contador de dias de entrega no corre. El campo guardado sigue siendo `pausado`.
+  El estado Esperando de las tareas es otra cosa y no cambia.
 - Compra de lista simple: marcar y desmarcar comprado.
 - En el inbox de AHORA: **Para hoy** (ver triaje).
 - Deslizar la tarjeta: a la derecha completa, a la izquierda abre el menu rapido.

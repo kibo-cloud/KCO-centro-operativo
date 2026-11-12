@@ -1512,7 +1512,7 @@
     /* Pendiente es el estado por defecto de algo clasificado: no hace falta
        gritarlo en cada tarjeta. Los demas estados si dicen algo. */
     if (it.estado !== 'pendiente') { l2.appendChild(badge('est', inf.nom)); }
-    if (it.pausado === true) { l2.appendChild(badge('pausa', 'En espera', 'pause')); }
+    if (it.pausado === true) { l2.appendChild(badge('pausa', 'Pausa administrativa', 'pause')); }
     if (it.tag !== '') {
       var t = tagInfo(it.tag, it.contexto);
       if (t) { l2.appendChild(badge('tag', t.nom)); }
@@ -1568,8 +1568,8 @@
       accion2('iconobtn mini', 'parahoy', 'Para hoy', 'calendar', '', function () { sacarDeInbox(it.id, true); });
     } else if (it.tipo === 'compra' && K.esFabrica(it.contexto) && esActivo(it.estado)) {
       if (it.pausado === true) {
-        /* En pausa la tarjeta ofrece reanudar, no avanzar: primero se descongela. */
-        accion2('acc2 on', 'reanudar', 'Seguir', 'play', 'Seguir', function () { alternarPausa(it.id); });
+        /* En pausa administrativa la tarjeta ofrece quitarla, no avanzar: primero se descongela. */
+        accion2('acc2 on', 'reanudar', 'Quitar pausa administrativa', 'play', 'Quitar pausa', function () { alternarPausa(it.id); });
       } else {
         var sig = estadoSiguiente(it);
         if (sig) {
@@ -2773,7 +2773,7 @@
     if (ev.tipo === 'compra') { return 'Moviste a Compras'; }
     if (ev.tipo === 'vuelta') { return 'Volviste a tarea'; }
     if (ev.tipo === 'conversion') { return 'Pas\u00F3 de compra a tarea'; }
-    if (ev.tipo === 'pausa') { return ev.hasta === 'reanudada' ? 'Reanudaste la compra' : 'Pusiste la compra en espera'; }
+    if (ev.tipo === 'pausa') { return ev.hasta === 'reanudada' ? 'Quitaste la pausa administrativa' : 'Pusiste la compra en pausa administrativa'; }
     if (ev.tipo === 'comentario') { return 'Comentaste'; }
     if (ev.tipo === 'anclado') { return ev.hasta === 'anclado' ? 'Anclaste arriba' : 'Sacaste el ancla'; }
     if (ev.tipo === 'migracion') { return 'Migracion de datos'; }
@@ -3017,7 +3017,7 @@
   function accionPrincipal(it) {
     if (it.tipo === 'tarea') { return { txt: 'Hecho', ico: 'check', fn: function () { cambiarEstado(it.id, 'completado'); } }; }
     if (!K.esFabrica(it.contexto)) { return { txt: 'Comprado', ico: 'check', fn: function () { cambiarEstado(it.id, 'comprado'); } }; }
-    if (it.pausado === true) { return { txt: 'Seguir', ico: 'play', fn: function () { alternarPausa(it.id); } }; }
+    if (it.pausado === true) { return { txt: 'Quitar pausa', ico: 'play', fn: function () { alternarPausa(it.id); } }; }
     var sig = estadoSiguiente(it);
     return sig ? { txt: sig.nom, ico: 'arrow-right', fn: function () { cambiarEstado(it.id, sig.id); } } : null;
   }
@@ -4303,12 +4303,12 @@
     var bp = $('btnPausa');
     if (puedePausar(it)) {
       bp.style.display = '';
-      rotular(bp, it.pausado === true ? 'Reanudar la compra' : 'Pausar / En espera', it.pausado === true ? 'play' : 'pause');
+      rotular(bp, it.pausado === true ? 'Quitar pausa administrativa' : 'Poner en pausa administrativa', it.pausado === true ? 'play' : 'pause');
       bp.className = it.pausado === true ? 'gbtn ancho on' : 'gbtn ancho';
     } else {
       bp.style.display = 'none';
     }
-    if (it.pausado === true) { subTxt = subTxt + ' \u00B7 en espera'; }
+    if (it.pausado === true) { subTxt = subTxt + ' \u00B7 pausa administrativa'; }
 
     var ln = $('listaComentarios');
     while (ln.firstChild) { ln.removeChild(ln.firstChild); }
@@ -4393,7 +4393,7 @@
      Solo se ven las propiedades con valor (Prioridad y Apartado siempre); cada
      fila abre su editor debajo (uno a la vez). Lo vacio queda como chip en
      "Agregar": tocarlo muestra su fila o seccion (en memoria, por ficha
-     abierta). Anclar, En espera y Rutina son acciones directas: al usarlas su
+     abierta). Anclar, Pausa administrativa y Rutina son acciones directas: al usarlas su
      fila aparece porque ya tiene valor. */
   var fichaAbiertos = {}, fichaPanel = '';
 
@@ -4444,7 +4444,7 @@
     filaProp('pedido', ver.pedido, sol !== '' || des !== '' ? [sol, des].join(' \u00B7 ').replace(/^ \u00B7 | \u00B7 $/g, '') : 'Sin cargar');
     filaProp('tag', ver.tag, tg ? tg.nom : 'Sin etiqueta');
     filaProp('anclado', it.anclado === true, 'Arriba de todo');
-    filaProp('pausa', puedePausar(it) && it.pausado === true, 'En espera');
+    filaProp('pausa', puedePausar(it) && it.pausado === true, 'A revisar');
 
     var pasos = pasosDe(it), notas = notasDe(it);
     document.querySelector('#tapaItem [data-sec="pasos"]').hidden = !(pasos.length > 0 || fichaAbiertos.pasos === true);
@@ -4460,7 +4460,7 @@
       if (!ver.rec) { chips.push(['rec', 'Recordatorio']); }
       if (!ver.estado) { chips.push(['estado', 'Estado']); }
       if (it.anclado !== true) { chips.push(['anclar', 'Anclar']); }
-      if (puedePausar(it) && it.pausado !== true) { chips.push(['espera', 'En espera']); }
+      if (puedePausar(it) && it.pausado !== true) { chips.push(['espera', 'Pausa administrativa']); }
       if (it.rutinaId === '' && it.tipo === 'tarea') { chips.push(['rutina', 'Rutina']); }
       if (esPedido(it) && !ver.pedido) { chips.push(['pedido', 'Solicitante']); }
     }
@@ -4583,7 +4583,8 @@
     }
   }
 
-  /* Pausa: no cambia el casillero ni el estado guardado, solo lo congela.
+  /* Pausa administrativa (campo guardado: pausado): no cambia el casillero ni
+     el estado guardado, solo lo congela y enmarca la tarjeta para revisarla.
      Al reanudar se corre estadoDesde hacia adelante el tiempo que estuvo en
      pausa, asi el contador de dias de entrega sigue desde donde quedo en vez de
      arrancar de cero. */
@@ -5211,7 +5212,7 @@
       if (it.tipo === 'compra') {
         det = it.texto;
         if (K.esFabrica(it.contexto)) { det = det + ' \u2014 ' + estadoInfo(it.estado).nom; }
-        if (it.pausado === true) { det = det + ' \u23F8 en espera'; }
+        if (it.pausado === true) { det = det + ' \u23F8 pausa administrativa'; }
         if (alertaEntrega(it) > 0) { det = det + ' \u26A0 ' + MARCA_ENTREGA; }
         compras.push(det);
       }

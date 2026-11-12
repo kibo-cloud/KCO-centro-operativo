@@ -4558,6 +4558,63 @@ export const tests = [
     }
   },
   {
+    name: 'pausa administrativa: the paused purchase says so on its badge, sheet and reports, and its whole card is framed in the warning tone (dark and light)',
+    storage: PAUSE_SEED(),
+    async fn(page) {
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      await sleep(80);
+      const card = '#listaCompras li.item[data-id="P1"]';
+      const frame = (sel) => page.eval(`(function(){var l=document.querySelector(${JSON.stringify(sel)}),s=getComputedStyle(l),d=getComputedStyle(l.querySelector('.desliza')),
+        w=getComputedStyle(document.documentElement).getPropertyValue('--warning').trim(),p=document.createElement('i');p.style.color=w;document.body.appendChild(p);
+        var rgb=getComputedStyle(p).color;p.remove();
+        return {cls:l.className.indexOf('pausado')>-1,border:s.borderTopColor===rgb&&s.borderBottomColor===rgb&&s.borderLeftColor===rgb&&s.borderRightColor===rgb,
+          ring:s.boxShadow!=='none'&&s.boxShadow.indexOf(rgb)>-1,tint:d.backgroundImage!=='none'};})()`);
+      for (const tema of ['dark', 'light']) {
+        await scheme(page, tema);
+        // The border color eases in after a theme switch: wait for it to settle.
+        await esperarHasta(async () => (await frame(card)).border, 2000, tema + ' frame color');
+        assert.deepEqual(await frame(card), { cls: true, border: true, ring: true, tint: true }, tema + ': the whole card is framed and tinted');
+        assert.deepEqual(await frame('#listaCompras li.item[data-id="P2"]'), { cls: false, border: false, ring: false, tint: false }, tema + ': a purchase that is not paused has no frame');
+        await page.screenshot(path.join(OUT, 'pausa-administrativa-' + tema + '.png'));
+      }
+      // Not by color alone: the badge says it with words, and the card offers to lift the pause.
+      assert.equal(await page.text(card + ' .badge.pausa'), 'Pausa administrativa');
+      assert.equal(await page.text(card + ' [data-acc="reanudar"]'), 'Quitar pausa');
+      assert.doesNotMatch(await page.text('#listaCompras'), /En espera/);
+      // Reports.
+      await page.click('#tabRegistro');
+      await page.click('#btnRelevo');
+      const relevo = (await page.eval("document.getElementById('txtSalida').value")).split('\n');
+      assert.ok(relevo.includes('• compra pausada — OC enviada ⏸ pausa administrativa'), relevo.join('|'));
+      await page.key('Escape');
+      // Sheet: the property row and its action use the same name.
+      await page.click('#tabTareas');
+      await page.click(card);
+      await abierta(page, 'tapaItem');
+      assert.match(await page.text('#itemSub'), /pausa administrativa/);
+      assert.equal(await page.text('#fichaProps [data-prop="pausa"] .prop-rot'), 'Pausa administrativa');
+      await page.click('#fichaProps [data-prop="pausa"]');
+      assert.equal(await page.text('#btnPausa'), 'Quitar pausa administrativa');
+      await page.click('#btnPausa');
+      let it = (await items(page)).find((i) => i.id === 'P1');
+      assert.equal(it.pausado, false, 'the stored field keeps its name');
+      assert.equal(await page.eval("document.querySelector('#fichaProps [data-prop=\"pausa\"]').hidden"), true);
+      assert.equal(await page.text('#tapaItem .ficha-agregar [data-agregar="espera"]'), 'Pausa administrativa');
+      await page.click('#tapaItem .ficha-agregar [data-agregar="espera"]');
+      it = (await items(page)).find((i) => i.id === 'P1');
+      assert.equal(it.pausado, true);
+      await page.key('Escape');
+      await cerrada(page, 'tapaItem');
+      assert.deepEqual(await frame(card), { cls: true, border: true, ring: true, tint: true });
+      // A task waiting on someone keeps its own wording.
+      await page.click('#segBtnTareas');
+      await sleep(80);
+      assert.match(await page.text('#lista li.item[data-id="W"]'), /Esperando/);
+      assert.doesNotMatch(await page.text('#lista li.item[data-id="W"]'), /Pausa administrativa/);
+    }
+  },
+  {
     name: 'delivery alert: the waiting time reads in days on the card, the hero, the reports and the Ajustes hint (no hours)',
     storage: DELIVERY_SEED(),
     async fn(page) {
@@ -6492,6 +6549,17 @@ function PAGED_ORDER_SEED() {
     list.push(Object.assign({}, base, { id, texto: 'extra ' + id }));
   }
   s['kibco.items'] = JSON.stringify(list);
+  return s;
+}
+// Taller (fabrica): a paused purchase (P1), a plain one (P2) and a task waiting on someone (W).
+function PAUSE_SEED() {
+  const s = ORDER_SEED('auto');
+  const base = JSON.parse(s['kibco.items'])[2];
+  s['kibco.items'] = JSON.stringify([
+    Object.assign({}, base, { id: 'P1', texto: 'compra pausada', tipo: 'compra', estado: 'oc_enviada', pausado: true, pausadoDesde: base.creado }),
+    Object.assign({}, base, { id: 'P2', texto: 'compra normal', tipo: 'compra', estado: 'cotizando' }),
+    Object.assign({}, base, { id: 'W', texto: 'tarea que espera', estado: 'esperando', espera: 'RRHH' })
+  ]);
   return s;
 }
 // COMPRA_ORDER_SEED (nothing ranked yet) plus an active mission of Taller.

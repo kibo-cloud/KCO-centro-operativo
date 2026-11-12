@@ -538,7 +538,11 @@ li.item.fila.arrastra{transform:none}
 .fila .txt{font-weight:500}
 /* Bordes de estado: en claro las tarjetas van sin borde, salvo estos. */
 li.item.fila.prio,:root[data-tema="claro"] li.item.fila.prio{border-color:var(--danger-card)}
-li.item.fila.pausado,:root[data-tema="claro"] li.item.fila.pausado{border-color:var(--warning)}
+/* Pausa administrativa: toda la tarjeta enmarcada para revisar. Borde mas un
+   anillo por fuera (2px en total) y el fondo tenido, los dos en warning; el
+   badge lo dice con palabras, asi no depende solo del color. */
+li.item.fila.pausado,:root[data-tema="claro"] li.item.fila.pausado{border-color:var(--warning);box-shadow:0 0 0 1px var(--warning)}
+li.item.fila.pausado .desliza{background:linear-gradient(var(--warning-soft),var(--warning-soft)),var(--surface)}
 li.item.fila.prevista,:root[data-tema="claro"] li.item.fila.prevista{border-color:var(--border-strong)}
 li.item.arrastra .desliza{transition:none}
 li.item.prevista .desliza{background:var(--bg)}
