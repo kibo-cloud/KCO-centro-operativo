@@ -36,9 +36,9 @@ Vive en `kibo-cloud.github.io/KCO-centro-operativo`.
 |---|---|
 | Nombre | KCO |
 | Prefijo de datos en localStorage | `kibco.` |
-| Nombre de cache | `kibco-2.6.2` (`'kibco-' + VERSION` en `sw.js`) |
+| Nombre de cache | `kibco-2.6.3` (`'kibco-' + VERSION` en `sw.js`) |
 | Esquema de datos | `5` (desde 2.2: apartados y notas) |
-| Version de la app | `2.6.2` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
+| Version de la app | `2.6.3` (`VERSION_APP` en `kco-app.js` = `VERSION` en `sw.js` = `version` en `package.json`) |
 | Tema | Sistema (sigue `prefers-color-scheme`), Claro u Oscuro; colores como tokens en `kco.css`. Oscuro: fondo `#0D0F12`, tarjetas `#161920`, bordes `rgba(255,255,255,.07)` |
 | Acentos por apartado | el color elegido para cada apartado, de una paleta de diez (`azul`, `verde`, `ambar`, `rosa`, `violeta`, `cian`, `naranja`, `rojo`, `lima`, `gris`) con variante clara y oscura; Todo es neutro. Los cinco apartados de siempre conservan sus colores (Trabajo naranja, Casa cian, Apps violeta, Contenido rosa, Personal verde) |
 | Tipografia | sans del sistema para todo el texto, minimo 12 px; `ui-monospace` solo para numeros |
@@ -803,7 +803,7 @@ preferencias (apartado elegido, filtros, luz, catalogos) o copias de cuarentena 
 Desde Ajustes se descarga o comparte un `.json` (`kco-backup-AAAAMMDD-HHMM.json`):
 
     {
-      "app": "kco", "schema": 5, "version": "2.6.2",
+      "app": "kco", "schema": 5, "version": "2.6.3",
       "exportado": "<fecha ISO>", "contexto": "<apartado actual o todo>",
       "apartados": [...],
       "items": [...], "eventos": [...], "rutinas": [...], "proyectos": [...],
@@ -870,6 +870,12 @@ cambio no aparece nunca. Con la version nueva, la app muestra el aviso "Actualiz
 # CHANGELOG
 
 Desde 2.1.0 el detalle de cada version esta en `CHANGELOG.md`.
+
+## 2.6.3 — filtro por etiqueta desplegable
+
+Cache `kibco-2.6.3`. Esquema 5 sin cambios, sin claves nuevas. La fila de chips de etiquetas de
+Tareas y Compras pasa a ser un menu desplegable "Etiqueta" en la misma linea que los filtros de
+estado.
 
 ## 2.6.2 — filtro por etiqueta en Compras
 

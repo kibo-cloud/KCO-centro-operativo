@@ -3,6 +3,19 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.6.3 — 2026-11-13 — filtro por etiqueta desplegable
+
+Cache `kibco-2.6.3`. Esquema 5 sin cambios, sin claves nuevas (`kibco.filtroTag` y
+`kibco.filtroTagCompra` siguen igual).
+
+- La fila de chips de etiquetas ocupaba mucho lugar: en Tareas y en Compras pasa a ser un solo
+  menu desplegable "Etiqueta", con "Todas" y las etiquetas en uso con su cuenta (las mismas que
+  mostraba la fila).
+- En Tareas va en la linea del menu de estado; en Compras, a la derecha de los chips de estado.
+  Ninguna de las dos listas suma una fila.
+- Con una etiqueta elegida el boton muestra su nombre resaltado; "Todas" la saca. Sin etiquetas
+  en uso el menu no aparece. El vacio con "Quitar etiqueta" sigue igual.
+
 ## 2.6.2 — 2026-11-13 — filtro por etiqueta en Compras
 
 Cache `kibco-2.6.2`. Esquema 5 sin cambios; una clave nueva, `kibco.filtroTagCompra` (la etiqueta
