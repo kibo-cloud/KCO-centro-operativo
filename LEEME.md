@@ -615,10 +615,14 @@ aceptado, no se mete backend ni Capacitor.
 
 ## Filtro por clasificacion
 
-Debajo de los filtros de estado hay una fila de chips con las clasificaciones que
-**realmente tenes cargadas** en ese apartado, con su cuenta. Sirve para encontrar sin abrir
-el teclado. Tocar el chip activo lo saca. Cada apartado tiene sus propias etiquetas (se
-editan en Ajustes > Apartados) y no aparecen en otro.
+En Tareas y en Compras, debajo de los filtros de estado hay una fila de chips con las
+clasificaciones que **realmente tenes cargadas** en ese apartado (las que usa algo visible con
+el filtro de estado o la etapa elegida), con su cuenta. Sirve para encontrar sin abrir el
+teclado. Tocar el chip activo lo saca. Cada lista guarda su propia etiqueta elegida
+(`kibco.filtroTag` para Tareas, `kibco.filtroTagCompra` para Compras), asi filtrar una no
+cambia la otra; lo capturado en esa lista nace con la etiqueta elegida. En Todo se juntan las
+etiquetas de todos los apartados. Cada apartado tiene sus propias etiquetas (se editan en
+Ajustes > Apartados) y no aparecen en otro.
 
 ## Modo luz de planta
 
@@ -642,6 +646,7 @@ para un dedo apurado o con guantes.
 | `kibco.filtro` | ultimo filtro del tablero de tareas | 0.2 |
 | `kibco.filtroCompra` | ultimo filtro del tablero de compras | 0.6 |
 | `kibco.filtroTag` | ultima clasificacion filtrada en el tablero | 0.9 |
+| `kibco.filtroTagCompra` | ultima clasificacion filtrada en el tablero de compras | 2.6.2 |
 | `kibco.luz` | modo luz de planta: `1` o `0` | 0.9 |
 | `kibco.ultimoBackup` | fecha ISO del ultimo backup descargado o compartido | 1.0 |
 | `kibco.solicitantes` | catalogo auto-aprendiz de solicitantes (array de textos) | 1.1 |

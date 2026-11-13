@@ -1012,6 +1012,7 @@ li.item.orden-fantasma .desliza{background:var(--surface-3)}
 /* Compras de fabrica: seis contadores de etapa y la barra de etapas. */
 .filtros-compra{margin:0 0 var(--s-2)}
 .filtros-compra .chips{padding-bottom:0}
+.filtros-compra .chipsTag{margin-top:var(--s-2)}
 .etapas{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--s-1);margin:0 0 var(--s-2)}
 .etapa{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;padding:var(--s-1) 0;border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);color:var(--muted);font-size:var(--fs-13);cursor:pointer;min-width:0}
 .etapa b{font-size:var(--fs-17);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}

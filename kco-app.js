@@ -25,6 +25,7 @@
   var K_FILTRO = 'kibco.filtro';
   var K_FILTROC = 'kibco.filtroCompra';
   var K_FILTROTAG = 'kibco.filtroTag';
+  var K_FILTROTAGC = 'kibco.filtroTagCompra';
   var K_LUZ = 'kibco.luz';
   /* Preferencia de tema: la lee y aplica tema.js en <head>; aca solo se elige y guarda. */
   var K_TEMA = 'kibco.tema';
@@ -103,6 +104,7 @@
   var filtro = 'activos';
   var filtroCompra = 'activos';
   var filtroTag = '';
+  var filtroTagCompra = '';
   var modoLuz = false;
   var vista = 'ahora';
   var rango = 'd7';
@@ -778,14 +780,14 @@
     return estadoValido(tipo, ctx, f) ? f : '';
   }
 
-  /* Con la etiqueta elegida en Tareas, la tarea nueva la lleva si es una
-     etiqueta de su apartado. */
+  /* Con la etiqueta elegida en Tareas (o en Compras), lo nuevo de esa lista
+     la lleva si es una etiqueta de su apartado. */
   function tagCaptura(tipo, ctx) {
-    var l, i;
-    if (vista !== 'tablero' || tipo !== 'tarea' || filtroTag === '') { return ''; }
+    var l, i, f = vista === 'tablero' && tipo === 'tarea' ? filtroTag : (vista === 'compras' && tipo === 'compra' ? filtroTagCompra : '');
+    if (f === '') { return ''; }
     if (contexto !== 'todo' && ctx !== contexto) { return ''; }
     l = K.tagsDe(ctx);
-    for (i = 0; i < l.length; i++) { if (l[i].id === filtroTag) { return filtroTag; } }
+    for (i = 0; i < l.length; i++) { if (l[i].id === f) { return f; } }
     return '';
   }
 
@@ -2481,28 +2483,37 @@
     soltarRelevo();
   }
 
-  /* Filtro por clasificacion: encontrar sin abrir el teclado.
+  /* Filtro por clasificacion: encontrar sin abrir el teclado. Tareas y
+     Compras tienen cada una su etiqueta elegida (y su clave guardada).
      Solo se muestran los tags que tienen algo cargado en este contexto. */
-  function contarTag(tagId) {
-    var arr = delContexto('tarea'), i, n = 0;
+  function tagFiltro(tipo) {
+    return tipo === 'compra' ? filtroTagCompra : (tipo === 'tarea' ? filtroTag : '');
+  }
+
+  function ponerTagFiltro(tipo, id) {
+    if (tipo === 'compra') { filtroTagCompra = id; escribir(K_FILTROTAGC, id); } else { filtroTag = id; escribir(K_FILTROTAG, id); }
+  }
+
+  /* Cuenta lo del tipo que pasa el filtro de estado de su lista. */
+  function contarTag(tipo, tagId) {
+    var arr = delContexto(tipo), f = tipo === 'compra' ? filtroCompra : filtro, i, n = 0;
     for (i = 0; i < arr.length; i++) {
-      if (!esActivo(arr[i].estado) && filtro === 'activos') { continue; }
-      if (filtro !== 'activos' && arr[i].estado !== filtro) { continue; }
+      if (!esActivo(arr[i].estado) && f === 'activos') { continue; }
+      if (f !== 'activos' && arr[i].estado !== f) { continue; }
       if (tagId === '' ? true : arr[i].tag === tagId) { n++; }
     }
     return n;
   }
 
-  function pintarChipsTag() {
-    var cont = $('chipsTag');
+  function pintarChipsTag(tipo, cont) {
     while (cont.firstChild) { cont.removeChild(cont.firstChild); }
     var posibles = listaTags(contexto);
-    var conUso = [], i;
+    var conUso = [], i, actual = tagFiltro(tipo);
     for (i = 0; i < posibles.length; i++) {
-      if (contarTag(posibles[i].id) > 0) { conUso.push(posibles[i]); }
+      if (contarTag(tipo, posibles[i].id) > 0) { conUso.push(posibles[i]); }
     }
     if (conUso.length === 0) {
-      if (filtroTag !== '') { filtroTag = ''; escribir(K_FILTROTAG, ''); }
+      if (actual !== '') { ponerTagFiltro(tipo, ''); }
       return;
     }
     var defs = [{ id: '', ico: '', nom: 'Todo' }].concat(conUso);
@@ -2510,13 +2521,12 @@
       (function (def) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.className = filtroTag === def.id ? 'chip on' : 'chip';
+        b.className = actual === def.id ? 'chip on' : 'chip';
         b.setAttribute('data-tag-filtro', def.id === '' ? 'todo' : def.id);
         b.textContent = def.nom +
-          (def.id === '' ? '' : ' ' + contarTag(def.id));
+          (def.id === '' ? '' : ' ' + contarTag(tipo, def.id));
         b.onclick = function () {
-          filtroTag = filtroTag === def.id ? '' : def.id;
-          escribir(K_FILTROTAG, filtroTag);
+          ponerTagFiltro(tipo, tagFiltro(tipo) === def.id ? '' : def.id);
           pintar();
         };
         cont.appendChild(b);
@@ -2585,14 +2595,14 @@
     while (lista.firstChild) { lista.removeChild(lista.firstChild); }
     lista.className = lista.className.replace(/ ordenable/g, '');
     var arr = manual ? ordenarManualItems(delContexto(tipo)) : ordenar(delContexto(tipo));
-    var lim = limiteTrozo(listaId, tipo + '|' + contexto + '|' + filtroActual + '|' + (tipo === 'tarea' ? filtroTag : ''));
+    var ft = tagFiltro(tipo), lim = limiteTrozo(listaId, tipo + '|' + contexto + '|' + filtroActual + '|' + ft);
     var i, visibles = 0, ids = [];
     for (i = 0; i < arr.length; i++) {
       var it = arr[i];
       if (filtroActual === 'activos') {
         if (!esActivo(it.estado)) { continue; }
       } else if (it.estado !== filtroActual) { continue; }
-      if (tipo === 'tarea' && filtroTag !== '' && it.tag !== filtroTag) { continue; }
+      if (ft !== '' && it.tag !== ft) { continue; }
       visibles++;
       if (visibles <= lim) { lista.appendChild(nodoItem(it)); ids.push(it.id); }
     }
@@ -2615,7 +2625,7 @@
     }
     menuChip(cont, { id: 'menuEstado', rot: rot, etiqueta: 'Estado', ops: ops, actual: filtro, attr: 'data-filtro',
       activo: filtro !== 'activos', alElegir: function (id) { filtro = id; escribir(K_FILTRO, filtro); pintar(); } });
-    pintarChipsTag();
+    pintarChipsTag('tarea', $('chipsTag'));
     var manual = pintarOrdenLista('cajaOrdenTablero', 'ordenTareas', 'pistaTareas', 'una tarea', 'lista');
     if (pintarLista('tarea', filtro, 'lista', 'vacioTablero', manual, 'pistaTareas') === 0) { vacioTareas(); }
   }
@@ -2700,8 +2710,20 @@
     pintarChipsEn(fila, defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
       filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
     });
+    /* Etiquetas, como en Tareas: la fila solo aparece si alguna compra a la vista tiene una. */
+    var filaTag = nodo('div', 'chips chipsTag scroll-x');
+    filaTag.id = 'chipsTagCompra';
+    pintarChipsTag('compra', filaTag);
+    if (filaTag.firstChild) { cont.appendChild(filaTag); }
     var manual = pintarOrdenLista('cajaOrdenCompras', 'ordenCompras', 'pistaCompras', 'una compra', 'listaCompras');
     if (pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras', manual, 'pistaCompras') > 0) { return; }
+    if (filtroTagCompra !== '') {
+      var t = tagInfo(filtroTagCompra, contexto);
+      estadoVacio($('vacioCompras'), { id: 'etiqueta', ico: 'list', tit: 'Nada en ' + (t ? t.nom : 'esa clasificaci\u00F3n'),
+        txt: 'Ninguna compra de este filtro tiene esa etiqueta.', acc: 'Quitar etiqueta',
+        alTocar: function () { ponerTagFiltro('compra', ''); pintar(); } });
+      return;
+    }
     if (filtroCompra !== 'activos') {
       estadoVacio($('vacioCompras'), { id: 'compras-filtro', ico: 'cart', tit: 'Nada en ' + estadoInfo(filtroCompra).nom,
         txt: 'Ninguna compra est\u00E1 en ese paso ahora.', acc: esHogar ? 'Ver por comprar' : 'Ver abiertas',
@@ -8692,6 +8714,7 @@
   filtro = leer(K_FILTRO) || 'activos';
   filtroCompra = leer(K_FILTROC) || 'activos';
   filtroTag = leer(K_FILTROTAG) || '';
+  filtroTagCompra = leer(K_FILTROTAGC) || '';
   modoLuz = leer(K_LUZ) === '1';
   /* KCO siempre abre en AHORA: la pregunta al abrir es "que hago ahora",
      no "en que pestaña me quede". */

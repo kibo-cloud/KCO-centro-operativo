@@ -114,6 +114,29 @@ function NOTE_LIST() {
     { id: 'n5', tit: 'Vieja', txt: 'archivada', ctx: 'taller', archivada: true, creada: at(1), editada: at(8) }
   ]);
 }
+// Tags on purchases (2.6.2): taller is a factory with tags, casa a simple list
+// with tags, planta a factory in Manual order.
+const TAG_SECTIONS = JSON.stringify([
+  { id: 'taller', nom: 'Taller', ico: 'settings', color: 'naranja', orden: 0, compras: 'fabrica',
+    tags: [{ id: 'tornos', nom: 'Tornos' }, { id: 'pedidos', nom: 'Pedidos' }] },
+  { id: 'casa', nom: 'Casa', ico: 'users', color: 'cian', orden: 1, tags: [{ id: 'limpieza', nom: 'Limpieza' }] },
+  { id: 'planta', nom: 'Planta', ico: 'layers', color: 'violeta', orden: 2, compras: 'fabrica', ordenAhora: 'manual' }
+]);
+function TAG_ITEMS() {
+  const at = '2026-11-01T12:00:00.000Z';
+  const it = (id, texto, contexto, tipo, estado, tag) => ({ id, texto, contexto, tipo, estado, tag, nivel: 'normal',
+    creado: at, actualizado: at, estadoDesde: at });
+  return JSON.stringify([
+    it('C1', 'chuck de torno', 'taller', 'compra', 'cotizando', 'tornos'),
+    it('C2', 'cuchillas', 'taller', 'compra', 'cotizando', 'tornos'),
+    it('C3', 'formularios', 'taller', 'compra', 'esperando_oc', 'pedidos'),
+    it('C4', 'guantes', 'taller', 'compra', 'cotizando', ''),
+    it('T1', 'llamar proveedor', 'taller', 'tarea', 'proceso', 'pedidos'),
+    it('T2', 'ordenar banco', 'taller', 'tarea', 'proceso', ''),
+    it('H1', 'lavandina', 'casa', 'compra', 'por_comprar', 'limpieza'),
+    it('P1', 'motor', 'planta', 'compra', 'cotizando', '')
+  ]);
+}
 const noteRows = (page) => page.eval("Array.prototype.map.call(document.querySelectorAll('#listaNotas [data-nota]'),function(r){return r.getAttribute('data-nota');})");
 
 const CORRUPT_PROGRESO_SEED = (() => {
@@ -2285,7 +2308,7 @@ export const tests = [
   {
     name: 'multi-tab: a preference-only change keeps this window writable',
     async fn(page) {
-      for (const k of ['kibco.contexto', 'kibco.contextoCaptura', 'kibco.filtro', 'kibco.filtroCompra', 'kibco.filtroTag',
+      for (const k of ['kibco.contexto', 'kibco.contextoCaptura', 'kibco.filtro', 'kibco.filtroCompra', 'kibco.filtroTag', 'kibco.filtroTagCompra',
         'kibco.luz', 'kibco.tema', 'kibco.vista', 'kibco.ultimoBackup', 'kibco.solicitantes', 'kibco.destinos']) {
         await page.eval(`window.dispatchEvent(new StorageEvent('storage',{key:${JSON.stringify(k)},newValue:'x'}))`);
       }
@@ -4912,6 +4935,58 @@ export const tests = [
       await page.type('#txtCaptura', 'desde ahora', true);
       list = await items(page);
       assert.equal(list[6].estado, 'entrada', 'Ahora keeps the inbox default');
+    }
+  },
+  {
+    name: 'compras tag filter: chips with counts filter purchases, follow the stage counters, tag new captures, persist apart from Tareas',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': TAG_SECTIONS, 'kibco.contexto': 'taller', 'kibco.items': TAG_ITEMS() },
+    async fn(page) {
+      const chips = () => page.eval("Array.prototype.map.call(document.querySelectorAll('#chipsTagCompra [data-tag-filtro]'),function(b){return b.getAttribute('data-tag-filtro')+'|'+b.textContent+'|'+(/ on/.test(b.className)?1:0);})");
+      const rows = async () => (await listRows(page, 'listaCompras')).sort();
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      assert.deepEqual(await chips(), ['todo|Todo|1', 'tornos|Tornos 2|0', 'pedidos|Pedidos 1|0'], 'only the tags used by open purchases, with counts');
+      await page.click('#chipsTagCompra [data-tag-filtro="tornos"]');
+      assert.deepEqual(await rows(), ['C1', 'C2']);
+      assert.equal(await page.storage('kibco.filtroTagCompra'), 'tornos');
+      // A stage counter narrows the chips too; the chosen tag has nothing there.
+      await page.click('#chipsCompra [data-filtro="esperando_oc"]');
+      assert.deepEqual(await chips(), ['todo|Todo|0', 'pedidos|Pedidos 1|0']);
+      assert.deepEqual(await rows(), []);
+      assert.equal(await page.eval("document.getElementById('vacioCompras').getAttribute('data-vacio')"), 'etiqueta');
+      assert.match(await page.text('#vacioCompras'), /Ninguna compra de este filtro tiene esa etiqueta\./);
+      await page.click('#vacioCompras .vacio-acc');
+      assert.deepEqual(await rows(), ['C3'], 'Quitar etiqueta clears it');
+      assert.equal(await page.storage('kibco.filtroTagCompra'), '');
+      await page.click('#chipsCompra [data-filtro="esperando_oc"]');
+      // Capture with a tag chosen: the purchase is born with it.
+      await page.click('#chipsTagCompra [data-tag-filtro="tornos"]');
+      await page.type('#txtCaptura', 'rodamientos', true);
+      const nuevo = (await items(page)).find((i) => i.texto === 'rodamientos');
+      assert.deepEqual([nuevo.tipo, nuevo.tag], ['compra', 'tornos']);
+      assert.deepEqual(await rows(), ['C1', 'C2', nuevo.id].sort());
+      // Tareas keeps its own tag filter.
+      await toTasks(page);
+      assert.equal(await page.eval("document.querySelector('#chipsTag .chip.on').getAttribute('data-tag-filtro')"), 'todo');
+      assert.deepEqual((await listRows(page, 'lista')).sort(), ['T1', 'T2']);
+      await page.click('#chipsTag [data-tag-filtro="pedidos"]');
+      assert.deepEqual(await listRows(page, 'lista'), ['T1']);
+      // Both survive a reload, independently.
+      await page.reload();
+      await toTasks(page);
+      assert.deepEqual(await listRows(page, 'lista'), ['T1']);
+      await page.click('#segBtnCompras');
+      assert.deepEqual(await rows(), ['C1', 'C2', nuevo.id].sort(), 'Compras filter persisted');
+      assert.equal(await page.eval("document.querySelector('#chipsTagCompra .chip.on').getAttribute('data-tag-filtro')"), 'tornos');
+      // Tapping the chosen chip clears it.
+      await page.click('#chipsTagCompra [data-tag-filtro="tornos"]');
+      assert.deepEqual(await rows(), ['C1', 'C2', 'C3', 'C4', nuevo.id].sort());
+      assert.equal(await page.storage('kibco.filtroTag'), 'pedidos', 'Tareas untouched');
+      // Todo gathers the tags of every section.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
+      await esperarHasta(async () => (await chips()).length > 0, 2000, 'Todo tag chips');
+      await page.click('#chipsTagCompra [data-tag-filtro="limpieza"]');
+      assert.deepEqual(await rows(), ['H1']);
     }
   },
   {
