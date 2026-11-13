@@ -6060,9 +6060,11 @@ export const tests = [
       assert.ok(r.accTop < r.txtBottom, 'in the same row');
       await page.eval('document.activeElement&&document.activeElement.blur()');
       await page.press('j');
-      await sleep(60);
-      const f = await page.eval(`(function(){var l=document.querySelector('li.item.kbsel'),s=getComputedStyle(l),y=document.createElement('i');y.style.color='var(--accent)';document.body.appendChild(y);var a=getComputedStyle(y).color;y.remove();
+      const leerFoco = () => page.eval(`(function(){var l=document.querySelector('li.item.kbsel');if(!l)return null;var s=getComputedStyle(l),y=document.createElement('i');y.style.color='var(--accent)';document.body.appendChild(y);var a=getComputedStyle(y).color;y.remove();
         return {focus:document.activeElement===l,bc:s.borderTopColor,ac:a,sh:s.boxShadow};})()`);
+      // li.item animates border-color over --dur-1: wait for the transition to settle instead of a fixed sleep.
+      await esperarHasta(async () => { const v = await leerFoco(); return v && v.bc === v.ac; }, 2000, 'accent border after j');
+      const f = await leerFoco();
       assert.ok(f.focus, 'j focuses a card');
       assert.equal(f.bc, f.ac, 'accent border');
       assert.match(f.sh, /0px 0px 0px 3px/, '3px halo: ' + f.sh);
