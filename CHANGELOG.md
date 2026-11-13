@@ -3,6 +3,20 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.6.2 — 2026-11-13 — filtro por etiqueta en Compras
+
+Cache `kibco-2.6.2`. Esquema 5 sin cambios; una clave nueva, `kibco.filtroTagCompra` (la etiqueta
+elegida en Compras, aparte de `kibco.filtroTag` de Tareas).
+
+- Compras muestra la fila de etiquetas como Tareas: solo las que usan las compras a la vista con
+  el filtro de estado o la etapa elegida, con su cuenta, mas "Todo". Tocar la elegida la saca; en
+  Todo se juntan las de todos los apartados.
+- Lo capturado en Compras con una etiqueta elegida nace con esa etiqueta.
+- Si el filtro deja la lista vacia: "Ninguna compra de este filtro tiene esa etiqueta." con
+  "Quitar etiqueta".
+- Las tarjetas de compra sin circulo (fabrica en orden Automatico) tienen margen a la izquierda:
+  titulo, datos, estado y barra de etapas ya no tocan el borde.
+
 ## 2.6.1 — 2026-11-13 — ajustes de Compras
 
 Cache `kibco-2.6.1`. Esquema 5 sin cambios; ninguna clave nueva.
