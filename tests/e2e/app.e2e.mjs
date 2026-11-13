@@ -4906,12 +4906,14 @@ export const tests = [
       assert.deepEqual([list[1].tipo, list[1].estado, list[1].tag], ['tarea', 'proceso', '']);
       assert.ok((await listRows(page, 'lista')).includes(list[1].id), 'shown in the filtered list');
       // A tag filter: the task also gets the tag.
-      await page.click('#chipsTag [data-tag-filtro="tornos"]');
+      await page.click('#menuTag .menu-chip-btn');
+      await page.click('#menuTag [data-tag-filtro="tornos"]');
       await page.type('#txtCaptura', 'cambiar correa', true);
       list = await items(page);
       assert.deepEqual([list[2].estado, list[2].tag], ['proceso', 'tornos']);
       assert.ok((await listRows(page, 'lista')).includes(list[2].id), 'shown with state and tag filters on');
-      await page.click('#chipsTag [data-tag-filtro="tornos"]');
+      await page.click('#menuTag .menu-chip-btn');
+      await page.click('#menuTag [data-tag-filtro="todo"]');
       // A closed state works the same as a manual completion (same events).
       await page.click('#chips [data-filtro="completado"]');
       await page.type('#txtCaptura', 'lubricar', true);
@@ -4938,55 +4940,100 @@ export const tests = [
     }
   },
   {
-    name: 'compras tag filter: chips with counts filter purchases, follow the stage counters, tag new captures, persist apart from Tareas',
+    name: 'compras tag filter: a dropdown with counts filters purchases, follows the stage counters, tags new captures, persists apart from Tareas',
     storage: { 'kibco.esquema': '5', 'kibco.apartados': TAG_SECTIONS, 'kibco.contexto': 'taller', 'kibco.items': TAG_ITEMS() },
     async fn(page) {
-      const chips = () => page.eval("Array.prototype.map.call(document.querySelectorAll('#chipsTagCompra [data-tag-filtro]'),function(b){return b.getAttribute('data-tag-filtro')+'|'+b.textContent+'|'+(/ on/.test(b.className)?1:0);})");
+      const ops = (menu) => page.eval(`Array.prototype.map.call(document.querySelectorAll('#${menu} [data-tag-filtro]'),function(b){var n=b.querySelector('b');return b.getAttribute('data-tag-filtro')+'|'+b.querySelector('span').textContent+(n?' '+n.textContent:'')+'|'+(/ on/.test(b.className)?1:0);})`);
+      const rot = (menu) => page.eval(`(function(){var b=document.querySelector('#${menu} .menu-chip-btn');return b.querySelector('.menu-chip-rot').textContent+'|'+(/ on/.test(b.className)?1:0);})()`);
+      const elegir = async (menu, v) => {
+        await page.click(`#${menu} .menu-chip-btn`);
+        await esperarHasta(() => page.eval(`!document.getElementById('${menu}Ops').hidden`), 2000, menu + ' open');
+        await page.click(`#${menu} [data-tag-filtro="${v}"]`);
+      };
       const rows = async () => (await listRows(page, 'listaCompras')).sort();
       await page.click('#tabTareas');
       await page.click('#segBtnCompras');
-      assert.deepEqual(await chips(), ['todo|Todo|1', 'tornos|Tornos 2|0', 'pedidos|Pedidos 1|0'], 'only the tags used by open purchases, with counts');
-      await page.click('#chipsTagCompra [data-tag-filtro="tornos"]');
+      assert.equal(await page.eval("document.querySelectorAll('#chipsCompra .chipsTag, #chipsTagCompra').length"), 0, 'no chip row any more');
+      assert.equal(await rot('menuTagCompra'), 'Etiqueta|0');
+      assert.deepEqual(await ops('menuTagCompra'), ['todo|Todas|1', 'tornos|Tornos 2|0', 'pedidos|Pedidos 1|0'], 'only the tags used by open purchases, with counts');
+      await elegir('menuTagCompra', 'tornos');
       assert.deepEqual(await rows(), ['C1', 'C2']);
+      assert.equal(await rot('menuTagCompra'), 'Tornos|1', 'the button names the tag and looks active');
       assert.equal(await page.storage('kibco.filtroTagCompra'), 'tornos');
-      // A stage counter narrows the chips too; the chosen tag has nothing there.
+      // A stage counter narrows the options too; the chosen tag has nothing there.
       await page.click('#chipsCompra [data-filtro="esperando_oc"]');
-      assert.deepEqual(await chips(), ['todo|Todo|0', 'pedidos|Pedidos 1|0']);
+      assert.deepEqual(await ops('menuTagCompra'), ['todo|Todas|0', 'pedidos|Pedidos 1|0']);
       assert.deepEqual(await rows(), []);
       assert.equal(await page.eval("document.getElementById('vacioCompras').getAttribute('data-vacio')"), 'etiqueta');
       assert.match(await page.text('#vacioCompras'), /Ninguna compra de este filtro tiene esa etiqueta\./);
       await page.click('#vacioCompras .vacio-acc');
       assert.deepEqual(await rows(), ['C3'], 'Quitar etiqueta clears it');
+      assert.equal(await rot('menuTagCompra'), 'Etiqueta|0');
       assert.equal(await page.storage('kibco.filtroTagCompra'), '');
       await page.click('#chipsCompra [data-filtro="esperando_oc"]');
       // Capture with a tag chosen: the purchase is born with it.
-      await page.click('#chipsTagCompra [data-tag-filtro="tornos"]');
+      await elegir('menuTagCompra', 'tornos');
       await page.type('#txtCaptura', 'rodamientos', true);
       const nuevo = (await items(page)).find((i) => i.texto === 'rodamientos');
       assert.deepEqual([nuevo.tipo, nuevo.tag], ['compra', 'tornos']);
       assert.deepEqual(await rows(), ['C1', 'C2', nuevo.id].sort());
       // Tareas keeps its own tag filter.
       await toTasks(page);
-      assert.equal(await page.eval("document.querySelector('#chipsTag .chip.on').getAttribute('data-tag-filtro')"), 'todo');
+      assert.equal(await rot('menuTag'), 'Etiqueta|0');
+      assert.deepEqual(await ops('menuTag'), ['todo|Todas|1', 'pedidos|Pedidos 1|0']);
       assert.deepEqual((await listRows(page, 'lista')).sort(), ['T1', 'T2']);
-      await page.click('#chipsTag [data-tag-filtro="pedidos"]');
+      await elegir('menuTag', 'pedidos');
       assert.deepEqual(await listRows(page, 'lista'), ['T1']);
+      assert.equal(await rot('menuTag'), 'Pedidos|1');
       // Both survive a reload, independently.
       await page.reload();
       await toTasks(page);
       assert.deepEqual(await listRows(page, 'lista'), ['T1']);
       await page.click('#segBtnCompras');
       assert.deepEqual(await rows(), ['C1', 'C2', nuevo.id].sort(), 'Compras filter persisted');
-      assert.equal(await page.eval("document.querySelector('#chipsTagCompra .chip.on').getAttribute('data-tag-filtro')"), 'tornos');
-      // Tapping the chosen chip clears it.
-      await page.click('#chipsTagCompra [data-tag-filtro="tornos"]');
+      assert.equal(await rot('menuTagCompra'), 'Tornos|1');
+      // Todas clears it.
+      await elegir('menuTagCompra', 'todo');
       assert.deepEqual(await rows(), ['C1', 'C2', 'C3', 'C4', nuevo.id].sort());
+      assert.equal(await rot('menuTagCompra'), 'Etiqueta|0');
+      assert.equal(await page.storage('kibco.filtroTagCompra'), '');
       assert.equal(await page.storage('kibco.filtroTag'), 'pedidos', 'Tareas untouched');
       // Todo gathers the tags of every section.
       await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
-      await esperarHasta(async () => (await chips()).length > 0, 2000, 'Todo tag chips');
-      await page.click('#chipsTagCompra [data-tag-filtro="limpieza"]');
+      await esperarHasta(async () => (await ops('menuTagCompra')).length > 0, 2000, 'Todo tag menu');
+      await elegir('menuTagCompra', 'limpieza');
       assert.deepEqual(await rows(), ['H1']);
+      // No tag in use (planta): no menu at all, in either list.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"planta\"]').click()");
+      await esperarHasta(() => page.eval("!document.getElementById('menuTagCompra')"), 2000, 'no Compras tag menu');
+      await toTasks(page);
+      assert.equal(await page.eval("!!document.getElementById('menuTag')"), false, 'no Tareas tag menu');
+    }
+  },
+  {
+    name: 'tag filter layout: the dropdown shares the filter row in Tareas and Compras, adds no row, keeps 44px and Escape',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': TAG_SECTIONS, 'kibco.contexto': 'taller', 'kibco.items': TAG_ITEMS() },
+    async fn(page) {
+      // Vertical center and height of the first match.
+      const centro = (sel) => page.eval(`(function(){var r=document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect();return r.top+r.height/2;})()`);
+      const alto = (sel) => page.eval(`document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect().height`);
+      await toTasks(page);
+      assert.ok(Math.abs((await centro('#menuTag .menu-chip-btn')) - (await centro('#menuEstado .menu-chip-btn'))) <= 4, 'Tareas: same line as the state menu');
+      assert.ok((await alto('#menuTag .menu-chip-btn')) >= 44, 'Tareas: 44px target');
+      assert.ok((await alto('.filtros-lista')) <= (await alto('#menuEstado .menu-chip-btn')) + 4, 'Tareas: one line of filters');
+      // Keyboard: Escape closes and returns focus to the button.
+      await page.click('#menuTag .menu-chip-btn');
+      assert.equal(await page.eval("document.querySelector('#menuTag .menu-chip-btn').getAttribute('aria-expanded')"), 'true');
+      await page.eval("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+      await esperarHasta(() => page.eval("document.getElementById('menuTagOps').hidden"), 2000, 'Escape closes');
+      assert.equal(await page.eval("document.activeElement===document.querySelector('#menuTag .menu-chip-btn')"), true, 'focus back on the button');
+      // Compras: next to the state chips, on their line.
+      await page.click('#segBtnCompras');
+      await esperarHasta(() => page.eval("!!document.getElementById('menuTagCompra')"), 2000, 'Compras tag menu');
+      const chip = '#chipsCompra .chips [data-filtro="activos"]';
+      assert.ok(Math.abs((await centro('#menuTagCompra .menu-chip-btn')) - (await centro(chip))) <= 4, 'Compras: same line as the state chips');
+      assert.ok((await alto('#menuTagCompra .menu-chip-btn')) >= 44, 'Compras: 44px target');
+      assert.ok((await alto('#menuTagCompra .menu-chip-btn')) <= (await alto(chip)) + 4, 'Compras: no taller than a chip');
     }
   },
   {

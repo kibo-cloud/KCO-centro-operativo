@@ -615,10 +615,11 @@ aceptado, no se mete backend ni Capacitor.
 
 ## Filtro por clasificacion
 
-En Tareas y en Compras, debajo de los filtros de estado hay una fila de chips con las
-clasificaciones que **realmente tenes cargadas** en ese apartado (las que usa algo visible con
-el filtro de estado o la etapa elegida), con su cuenta. Sirve para encontrar sin abrir el
-teclado. Tocar el chip activo lo saca. Cada lista guarda su propia etiqueta elegida
+En Tareas y en Compras, en la misma linea que los filtros de estado, hay un menu desplegable
+"Etiqueta" con las clasificaciones que **realmente tenes cargadas** en ese apartado (las que usa
+algo visible con el filtro de estado o la etapa elegida), con su cuenta, mas "Todas". Sirve para
+encontrar sin abrir el teclado y no ocupa una fila propia. Con una elegida el boton muestra su
+nombre resaltado; "Todas" la saca. Sin etiquetas en uso el menu no aparece. Cada lista guarda su propia etiqueta elegida
 (`kibco.filtroTag` para Tareas, `kibco.filtroTagCompra` para Compras), asi filtrar una no
 cambia la otra; lo capturado en esa lista nace con la etiqueta elegida. En Todo se juntan las
 etiquetas de todos los apartados. Cada apartado tiene sus propias etiquetas (se editan en

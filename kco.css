@@ -734,7 +734,6 @@ body.luz li.item{border-width:1px}
   border-radius:var(--r-ctl);padding:var(--s-2) var(--s-4);font-size:var(--fs-13);font-weight:600;cursor:pointer;
   min-height:var(--tap);
 }
-.chipsTag{margin-top:-4px}
 /* Movimiento reducido: todo pasa a un fundido de 120 ms, sin desplazamiento ni
    escala. Las hojas aparecen con la opacidad de la tapa (no suben), las
    entradas de filas, vistas y avisos son un fundido, y ninguna transicion dura
@@ -1009,14 +1008,16 @@ li.item.orden-fantasma .desliza{background:var(--surface-3)}
 .prog.compacta .cab{flex:0 0 auto;margin:0;gap:var(--s-2)}
 .prog.compacta .barra{flex:1;height:4px}
 .filtros-lista{display:flex;align-items:center;gap:var(--s-2);margin:0 0 var(--s-2)}
-.filtros-lista .chipsTag{flex:1 1 auto;min-width:0;margin:0;padding-bottom:0}
+.caja-tag{flex:0 1 auto;min-width:0;display:flex}
 .filtros-lista .orden-caja{flex:0 0 auto;margin-left:auto}
 .filtros-lista .orden-ahora{margin:0}
 .chips-estado{flex:0 0 auto}
 /* Compras de fabrica: seis contadores de etapa y la barra de etapas. */
 .filtros-compra{margin:0 0 var(--s-2)}
 .filtros-compra .chips{padding-bottom:0}
-.filtros-compra .chipsTag{margin-top:var(--s-2)}
+/* Compras: chips de estado y el menu de etiquetas en una sola linea. */
+.filtros-linea{display:flex;align-items:center;gap:var(--s-2)}
+.filtros-linea .chips{flex:1 1 auto;min-width:0}
 .etapas{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--s-1);margin:0 0 var(--s-2)}
 .etapa{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;padding:var(--s-1) 0;border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);color:var(--muted);font-size:var(--fs-13);cursor:pointer;min-width:0}
 .etapa b{font-size:var(--fs-17);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
@@ -1036,6 +1037,10 @@ li.item.orden-fantasma .desliza{background:var(--surface-3)}
 .menu-chip-lista{position:absolute;top:100%;left:0;z-index:20;min-width:200px;margin-top:var(--s-1);padding:var(--s-1);border:1px solid var(--border-strong);border-radius:var(--r-card);background:var(--surface-3);box-shadow:var(--sh-2);display:flex;flex-direction:column;gap:2px}
 .menu-chip-lista[hidden]{display:none}
 .menu-chip.derecha .menu-chip-lista{left:auto;right:0}
+/* El menu de etiquetas: un nombre largo se corta, el boton no crece. */
+.menu-tag{min-width:0}
+.menu-tag .menu-chip-btn{max-width:100%}
+.menu-tag .menu-chip-rot{max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .menu-op{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);min-height:var(--tap);padding:0 var(--s-3);border:0;border-radius:var(--r-ctl);background:none;color:var(--text);font-size:var(--fs-15);text-align:left;cursor:pointer;white-space:nowrap}
 .menu-op.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .menu-op b{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}

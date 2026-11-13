@@ -2509,33 +2509,28 @@
     return n;
   }
 
-  function pintarChipsTag(tipo, cont) {
-    while (cont.firstChild) { cont.removeChild(cont.firstChild); }
+  /* Un chip-menu compacto "Etiqueta" (o el nombre de la elegida) con
+     "Todas" y cada tag en uso bajo el filtro de estado, con su cuenta. Sin
+     tags en uso no se pinta y una etiqueta vieja se suelta. */
+  function pintarMenuTag(tipo, cont, id, clase) {
     var posibles = listaTags(contexto);
-    var conUso = [], i, actual = tagFiltro(tipo);
+    var conUso = [], i, actual = tagFiltro(tipo), t;
     for (i = 0; i < posibles.length; i++) {
       if (contarTag(tipo, posibles[i].id) > 0) { conUso.push(posibles[i]); }
     }
     if (conUso.length === 0) {
       if (actual !== '') { ponerTagFiltro(tipo, ''); }
-      return;
+      return null;
     }
-    var defs = [{ id: '', ico: '', nom: 'Todo' }].concat(conUso);
-    for (i = 0; i < defs.length; i++) {
-      (function (def) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = actual === def.id ? 'chip on' : 'chip';
-        b.setAttribute('data-tag-filtro', def.id === '' ? 'todo' : def.id);
-        b.textContent = def.nom +
-          (def.id === '' ? '' : ' ' + contarTag(tipo, def.id));
-        b.onclick = function () {
-          ponerTagFiltro(tipo, tagFiltro(tipo) === def.id ? '' : def.id);
-          pintar();
-        };
-        cont.appendChild(b);
-      })(defs[i]);
+    var ops = [{ id: 'todo', nom: 'Todas' }];
+    for (i = 0; i < conUso.length; i++) {
+      ops.push({ id: conUso[i].id, nom: conUso[i].nom, n: contarTag(tipo, conUso[i].id) });
     }
+    t = actual !== '' ? tagInfo(actual, contexto) : null;
+    return menuChip(cont, { id: id, clase: 'menu-tag' + (clase ? ' ' + clase : ''),
+      rot: actual === '' ? 'Etiqueta' : (t ? t.nom : 'Etiqueta'), etiqueta: 'Etiqueta', ops: ops,
+      actual: actual === '' ? 'todo' : actual, attr: 'data-tag-filtro', activo: actual !== '',
+      alElegir: function (x) { ponerTagFiltro(tipo, x === 'todo' ? '' : x); pintar(); } });
   }
 
   /* ---------- listas largas ----------
@@ -2618,7 +2613,7 @@
   }
 
   /* Tareas: barra de avance compacta y una fila de filtros: el chip-menu de
-     estado ("Activos", con los siete), las etiquetas y el orden a la derecha. */
+     estado ("Activos", con los siete), el de etiquetas y el orden a la derecha. */
   function pintarTablero() {
     progreso('tarea', '', 'progTxt', 'progBarra');
     var defs = [{ id: 'activos', ico: '', nom: 'Activos' }].concat(ESTADOS_TAREA), cont = $('chips'), ops = [], rot = 'Activos', i;
@@ -2629,7 +2624,8 @@
     }
     menuChip(cont, { id: 'menuEstado', rot: rot, etiqueta: 'Estado', ops: ops, actual: filtro, attr: 'data-filtro',
       activo: filtro !== 'activos', alElegir: function (id) { filtro = id; escribir(K_FILTRO, filtro); pintar(); } });
-    pintarChipsTag('tarea', $('chipsTag'));
+    vaciar($('cajaTag'));
+    pintarMenuTag('tarea', $('cajaTag'), 'menuTag');
     var manual = pintarOrdenLista('cajaOrdenTablero', 'ordenTareas', 'pistaTareas', 'una tarea', 'lista');
     if (pintarLista('tarea', filtro, 'lista', 'vacioTablero', manual, 'pistaTareas') === 0) { vacioTareas(); }
   }
@@ -2710,15 +2706,15 @@
     var defs = [{ id: 'activos', ico: '', nom: esHogar ? 'Por comprar' : 'Abiertas' }].concat(base);
     vaciar(cont);
     if (fabrica) { pintarEtapas(cont); }
-    cont.appendChild(fila);
+    /* Los chips de estado y, a su derecha en la misma linea, el menu de
+       etiquetas (solo si alguna compra a la vista tiene una). */
+    var linea = nodo('div', 'filtros-linea');
+    linea.appendChild(fila);
+    cont.appendChild(linea);
     pintarChipsEn(fila, defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
       filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
     });
-    /* Etiquetas, como en Tareas: la fila solo aparece si alguna compra a la vista tiene una. */
-    var filaTag = nodo('div', 'chips chipsTag scroll-x');
-    filaTag.id = 'chipsTagCompra';
-    pintarChipsTag('compra', filaTag);
-    if (filaTag.firstChild) { cont.appendChild(filaTag); }
+    pintarMenuTag('compra', linea, 'menuTagCompra', 'derecha');
     var manual = pintarOrdenLista('cajaOrdenCompras', 'ordenCompras', 'pistaCompras', 'una compra', 'listaCompras');
     if (pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras', manual, 'pistaCompras') > 0) { return; }
     if (filtroTagCompra !== '') {
