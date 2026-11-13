@@ -1476,6 +1476,10 @@
         ah.fn();
       };
       fila.appendChild(chk);
+    } else {
+      /* Sin circulo (compra de fabrica, tarea cerrada): el texto no toca el
+         borde (kco.css .desliza.sin-chk; con el asa del orden manual no). */
+      fila.className += ' sin-chk';
     }
 
     var cu = document.createElement('div');

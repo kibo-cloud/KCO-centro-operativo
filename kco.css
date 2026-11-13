@@ -536,6 +536,10 @@ li.item.fila.arrastra{transform:none}
   background:var(--surface);transition:transform var(--dur-2) var(--ease);
 }
 .fila .txt{font-weight:500}
+/* Sin circulo ni asa (compra de fabrica en Automatico, tarea cerrada): el
+   texto no toca el borde. El asa del orden manual vuelve al borde de siempre. */
+.desliza.sin-chk{padding-left:var(--s-3)}
+.ordenable .desliza.sin-chk{padding-left:0}
 /* Bordes de estado: en claro las tarjetas van sin borde, salvo estos. */
 li.item.fila.prio,:root[data-tema="claro"] li.item.fila.prio{border-color:var(--danger-card)}
 /* Pausa administrativa: toda la tarjeta enmarcada para revisar. Borde mas un

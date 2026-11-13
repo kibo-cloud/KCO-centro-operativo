@@ -4990,6 +4990,41 @@ export const tests = [
     }
   },
   {
+    name: 'compras card padding: a purchase card without a leading circle keeps its text off the left border; tasks and Manual unchanged',
+    storage: { 'kibco.esquema': '5', 'kibco.apartados': TAG_SECTIONS, 'kibco.contexto': 'taller', 'kibco.items': TAG_ITEMS() },
+    async fn(page) {
+      const quieto = () => esperarHasta(() => page.eval("document.getAnimations().filter(function(a){return a.playState==='running';}).length===0"), 3000, 'animations to settle');
+      // Offsets from the card's left border to its text, circle and drag handle.
+      const medir = (lista, id) => page.eval(`(function(){var li=document.querySelector('#${lista} li.item[data-id="${id}"]'),l=li.getBoundingClientRect().left;
+        function x(s){var e=li.querySelector(s);return e?Math.round(e.getBoundingClientRect().left-l):null;}
+        return {txt:x('.txt'),chk:x('.chk'),asa:x('.asa-orden')};})()`);
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
+      await quieto();
+      let m = await medir('listaCompras', 'C1');
+      assert.equal(m.chk, null, 'a factory purchase has no circle');
+      assert.ok(m.txt >= 8, 'factory purchase text off the border: ' + m.txt);
+      // Hogar (simple list): text after its circle.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"casa\"]').click()");
+      await esperarHasta(async () => (await listRows(page, 'listaCompras')).includes('H1'), 2000, 'hogar list');
+      await quieto();
+      m = await medir('listaCompras', 'H1');
+      assert.ok(m.txt >= 8, 'hogar purchase text off the border: ' + m.txt);
+      // Manual order: the handle still sits at the edge.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"planta\"]').click()");
+      await esperarHasta(async () => (await listRows(page, 'listaCompras')).includes('P1'), 2000, 'manual list');
+      await quieto();
+      m = await medir('listaCompras', 'P1');
+      assert.ok(m.asa !== null && m.asa <= 6, 'manual handle at the edge: ' + m.asa);
+      // A task keeps its 44px circle reaching the left edge.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"taller\"]').click()");
+      await toTasks(page);
+      await quieto();
+      m = await medir('lista', 'T1');
+      assert.ok(m.chk !== null && m.chk <= 2, 'task circle at the edge: ' + m.chk);
+    }
+  },
+  {
     name: 'card tray: swipe left slides the card 224px over a .bandeja-swipe (Hoy, Mañana, Prioridad, Más); one at a time; outside tap and swipe back close it',
     storage: seed(),
     async fn(page) {
