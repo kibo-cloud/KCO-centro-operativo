@@ -3,6 +3,15 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.6.1 — 2026-11-13 — ajustes de Compras
+
+Cache `kibco-2.6.1`. Esquema 5 sin cambios; ninguna clave nueva.
+
+- Las compras que esperan aprobacion ya no entran en "atencion" y van al final de las listas.
+- La espera de entrega se muestra en dias en lugar de horas.
+- Una tarea o compra nueva aparece primera en su apartado (orden Manual).
+- La pausa de compras pasa a llamarse "Pausa administrativa" y su tarjeta se enmarca.
+
 ## 2.6.0 — 2026-11-07 — rediseño "Cabina"
 
 Cache `kibco-2.6.0`. Esquema 5 sin cambios. Una sola clave nueva, `kibco.pistas` (banderas de
