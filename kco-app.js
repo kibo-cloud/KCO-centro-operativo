@@ -1383,6 +1383,7 @@
     var pct = total === 0 ? 0 : Math.round((hechos * 100) / total);
     $(elTxt).textContent = pct + '% \u00B7 ' + hechos + '/' + total;
     $(elBarra).style.width = pct + '%';
+    return { pct: pct, hechos: hechos, total: total };
   }
 
   /* Siguiente casillero del flujo de compras de fabrica, salteando Cancelado. */
@@ -1919,7 +1920,7 @@
 
   function menuChip(cont, o) {
     var caja = nodo('div', 'menu-chip' + (o.clase ? ' ' + o.clase : ''));
-    var b = nodo('button', 'chip menu-chip-btn' + (o.activo ? ' on' : ''));
+    var b = nodo('button', 'chip menu-chip-btn' + (o.soloIco ? ' solo-ico' : '') + (o.activo ? ' on' : ''));
     var l = nodo('div', 'menu-chip-lista'), i;
     if (o.id) { caja.id = o.id; }
     l.id = (o.id || 'menu') + 'Ops';
@@ -1929,10 +1930,13 @@
     b.type = 'button';
     b.setAttribute('aria-expanded', 'false');
     b.setAttribute('aria-controls', l.id);
-    if (o.etiqueta) { b.setAttribute('aria-label', o.etiqueta + ': ' + o.rot); }
+    /* aria: el nombre completo de un boton solo icono (el orden de Compras). */
+    if (o.aria) { b.setAttribute('aria-label', o.aria); } else if (o.etiqueta) { b.setAttribute('aria-label', o.etiqueta + ': ' + o.rot); }
     if (o.ico) { b.appendChild(svgIco(o.ico)); }
-    b.appendChild(nodo('span', 'menu-chip-rot', o.rot));
-    b.appendChild(svgIco('chevron-down', 'menu-chip-chev'));
+    if (!o.soloIco) {
+      b.appendChild(nodo('span', 'menu-chip-rot', o.rot));
+      b.appendChild(svgIco('chevron-down', 'menu-chip-chev'));
+    }
     for (i = 0; i < o.ops.length; i++) {
       (function (op) {
         var on = op.id === o.actual, x = nodo('button', 'menu-op' + (on ? ' on' : ''));
@@ -1978,12 +1982,16 @@
   /* El orden del apartado: un boton compacto "Manual" / "Autom\u00E1tico" con sus
      dos opciones. Es el mismo en Ahora, Tareas y Compras; cada vista lo pinta
      con su propio id. */
-  function pintarOrdenAhora(cont, id) {
+  /* soloIco: un boton cuadrado de 44 con las flechas y el modo en su
+     aria-label (Compras de fabrica, en su barra de herramientas). */
+  function pintarOrdenAhora(cont, id, soloIco) {
     if (contexto === 'todo') { return; }
     var modo = K.ordenAhora(contexto), caja = nodo('div', 'orden-ahora');
     var defs = [{ id: 'auto', nom: 'Autom\u00E1tico' }, { id: 'manual', nom: 'Manual' }];
-    menuChip(caja, { id: id, clase: 'derecha', rot: modo === 'manual' ? 'Manual' : 'Autom\u00E1tico', ico: 'list',
+    var rot = modo === 'manual' ? 'Manual' : 'Autom\u00E1tico';
+    menuChip(caja, { id: id, clase: 'derecha', rot: rot, ico: soloIco ? 'arrows-up-down' : 'list',
       etiqueta: 'Orden en ' + nomCtx(contexto), ops: defs, actual: modo, attr: 'data-orden', deshabilitado: soloLectura,
+      soloIco: !!soloIco, aria: soloIco ? 'Orden: ' + rot + '. Cambiar' : '',
       alElegir: function (m) { fijarOrdenAhora(m); } });
     cont.appendChild(caja);
     return caja;
@@ -1992,11 +2000,11 @@
   /* Orden de una lista (Tareas, Compras): el boton compacto en su caja de
      index.html y, cuando la lista se puede ordenar, la pista de arrastre
      justo arriba de la lista. Devuelve si la lista va en orden manual. */
-  function pintarOrdenLista(cajaId, id, pistaId, que, listaId) {
+  function pintarOrdenLista(cajaId, id, pistaId, que, listaId, soloIco) {
     var caja = $(cajaId), manual = contexto !== 'todo' && K.ordenAhora(contexto) === 'manual', vieja = $(pistaId), lista = $(listaId);
     vaciar(caja);
     if (vieja && vieja.parentNode) { vieja.parentNode.removeChild(vieja); }
-    pintarOrdenAhora(caja, id);
+    pintarOrdenAhora(caja, id, soloIco);
     if (manual && !soloLectura) {
       var pista = nodo('div', 'sec-nota pista-orden', 'Manten\u00E9 presionada ' + que + ' y arrastrala. Es el mismo orden que en Ahora.');
       pista.id = pistaId;
@@ -2653,32 +2661,81 @@
     }
   }
 
-  /* Compras de fabrica: seis contadores de etapa arriba (56px, filtran; los
-     de 0 no se pueden tocar salvo el que esta elegido). Tocar el elegido
-     vuelve a Abiertas. */
+  /* Compras de fabrica (v2): un selector de etapa de seleccion unica, Todas
+     (la suma de las abiertas) y las cinco etapas abiertas. Recibido no es una
+     etapa de trabajo: es la barra de progreso y el modo Cerradas. Una etapa en
+     0 no se puede tocar (salvo la elegida) y muestra una raya. Tocar la
+     elegida vuelve a Todas. El filtro guardado (kibco.filtroCompra) sigue
+     siendo el de siempre: 'activos' es Todas, el id de una etapa la filtra y
+     'recibido' / 'cancelado' son el modo Cerradas. */
   var ETAPA_CORTA = { cotizando: 'Cotiz.', esperando_oc: 'OC', esperando_aprob: 'Aprob.', oc_enviada: 'Enviada', esperando_entrega: 'Entrega', recibido: 'Recib.' };
   var N_ETAPAS = 6;
+  /* Las cinco etapas abiertas: las seis del flujo menos Material Recibido. */
+  var N_ABIERTAS = 5;
+
+  function elegirFiltroCompra(id) { filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar(); }
+
+  function esCerradaCompra(f) { return f === 'recibido' || f === 'cancelado'; }
+
+  function botonSelector(clase, id, on, aria) {
+    var b = nodo('button', clase + (on ? ' on' : ''));
+    b.type = 'button';
+    b.setAttribute('data-filtro', id);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (aria) { b.setAttribute('aria-label', aria); }
+    return b;
+  }
 
   function pintarEtapas(cont) {
-    var g = nodo('div', 'etapas'), i;
+    var g = nodo('div', 'etapas'), i, defs = [{ id: 'activos', nom: 'Todas', corta: 'Todas' }];
     g.setAttribute('role', 'group');
-    g.setAttribute('aria-label', 'Etapas de compra');
-    for (i = 0; i < N_ETAPAS; i++) {
+    g.setAttribute('aria-label', 'Etapa');
+    for (i = 0; i < N_ABIERTAS; i++) { defs.push({ id: ESTADOS_COMPRA[i].id, nom: ESTADOS_COMPRA[i].nom, corta: ETAPA_CORTA[ESTADOS_COMPRA[i].id] }); }
+    for (i = 0; i < defs.length; i++) {
       (function (est) {
         var n = contar('compra', est.id), on = filtroCompra === est.id;
-        var b = nodo('button', 'etapa' + (on ? ' on' : ''));
-        b.type = 'button';
-        b.setAttribute('data-filtro', est.id);
-        b.setAttribute('aria-pressed', on ? 'true' : 'false');
-        b.setAttribute('aria-label', est.nom + ': ' + n);
-        b.disabled = n === 0 && !on;
-        b.appendChild(nodo('b', 'mono', '' + n));
-        b.appendChild(nodo('span', '', ETAPA_CORTA[est.id] || est.nom));
-        b.onclick = function () { filtroCompra = on ? 'activos' : est.id; escribir(K_FILTROC, filtroCompra); pintar(); };
+        var b = botonSelector('etapa', est.id, on, est.nom + ': ' + (n === 0 ? 'ninguna' : n));
+        b.disabled = n === 0 && !on && est.id !== 'activos';
+        b.appendChild(nodo('b', 'mono', n === 0 && est.id !== 'activos' ? '\u2013' : '' + n));
+        b.appendChild(nodo('span', '', est.corta));
+        b.onclick = function () { elegirFiltroCompra(on && est.id !== 'activos' ? 'activos' : est.id); };
         g.appendChild(b);
-      })(ESTADOS_COMPRA[i]);
+      })(defs[i]);
     }
     cont.appendChild(g);
+  }
+
+  /* Modo Cerradas: un segmentado de dos opciones en lugar de las etapas. */
+  function pintarCerradas(cont) {
+    var g = nodo('div', 'etapas cerradas-seg'), i;
+    var defs = [{ id: 'recibido', nom: 'Recibidas', ico: 'check-circle' }, { id: 'cancelado', nom: 'Canceladas', ico: 'circle-slash' }];
+    g.setAttribute('role', 'group');
+    g.setAttribute('aria-label', 'Cerradas');
+    for (i = 0; i < defs.length; i++) {
+      (function (d) {
+        var n = contar('compra', d.id), b = botonSelector('cerrada-op ' + d.id, d.id, filtroCompra === d.id, '');
+        b.appendChild(svgIco(d.ico));
+        b.appendChild(nodo('span', '', d.nom));
+        b.appendChild(document.createTextNode(' '));
+        b.appendChild(nodo('b', 'mono', '' + n));
+        b.onclick = function () { elegirFiltroCompra(d.id); };
+        g.appendChild(b);
+      })(defs[i]);
+    }
+    cont.appendChild(g);
+  }
+
+  /* El chip "Abiertas" de la barra: Abiertas, Recibidas (n), Canceladas (n).
+     Con una cerrada elegida dice "Cerradas" y se ve activo. */
+  function pintarMenuVistaCompra(cont) {
+    var cerr = esCerradaCompra(filtroCompra);
+    menuChip(cont, { id: 'menuVistaCompra', rot: cerr ? 'Cerradas' : 'Abiertas', etiqueta: 'Compras', attr: 'data-vista',
+      ops: [{ id: 'abiertas', nom: 'Abiertas' }, { id: 'recibido', nom: 'Recibidas', n: contar('compra', 'recibido') },
+        { id: 'cancelado', nom: 'Canceladas', n: contar('compra', 'cancelado') }],
+      actual: cerr ? filtroCompra : 'abiertas', activo: cerr,
+      alElegir: function (id) {
+        if (id !== 'abiertas') { elegirFiltroCompra(id); } else if (cerr) { elegirFiltroCompra('activos'); }
+      } });
   }
 
   /* La barra de seis segmentos de una compra de fabrica: hasta su etapa. */
@@ -2695,27 +2752,46 @@
   function pintarCompras() {
     /* Los rotulos siguen el modo del apartado; Todo junta los dos flujos. */
     var esHogar = contexto !== 'todo' && !K.esFabrica(contexto), fabrica = contexto !== 'todo' && !esHogar;
-    var cont = $('chipsCompra'), fila = nodo('div', 'chips scroll-x');
-    progreso('compra', '', 'progCompraTxt', 'progCompraBarra');
-    $('rotCompras').textContent = esHogar ? 'Lista de compras' : (contexto === 'todo' ? 'Compras cerradas' : 'Material recibido');
+    var cont = $('chipsCompra'), fila = nodo('div', 'chips scroll-x'), cajaOrden = $('cajaOrdenCompras');
+    var pr = progreso('compra', '', 'progCompraTxt', 'progCompraBarra');
+    $('rotCompras').textContent = esHogar ? 'Lista de compras' : (contexto === 'todo' ? 'Compras cerradas' : 'Recibido');
+    /* Fabrica: "Recibido 56/80" + barra en verde + "70 %". */
+    $('progCompras').className = 'prog compacta' + (fabrica ? ' recibido' : '');
+    $('progCompraPct').hidden = !fabrica;
+    if (fabrica) {
+      $('progCompraTxt').textContent = pr.hechos + '/' + pr.total;
+      $('progCompraPct').textContent = pr.pct + ' %';
+    }
+    /* Un filtro guardado que no es de este flujo (p. ej. 'comprado' de una
+       lista simple) se ve como Todas, sin pisar lo guardado. */
+    if (fabrica && filtroCompra !== 'activos' && !estadoValido('compra', contexto, filtroCompra)) { filtroCompra = 'activos'; }
     var base = esHogar ? ESTADOS_COMPRA_HOGAR : ESTADOS_COMPRA;
     /* En Todo conviven los dos flujos: se suman los casilleros de la lista simple. */
     if (contexto === 'todo') { base = ESTADOS_COMPRA.slice(0, 6).concat(ESTADOS_COMPRA_HOGAR); }
-    /* En fabrica las etapas van en los contadores; abajo quedan Abiertas y Cancelado. */
-    if (fabrica) { base = ESTADOS_COMPRA.slice(N_ETAPAS); }
     var defs = [{ id: 'activos', ico: '', nom: esHogar ? 'Por comprar' : 'Abiertas' }].concat(base);
+    /* La caja del orden vuelve a su lugar (despues de los filtros) antes de
+       vaciarlos; en fabrica pasa a la barra de herramientas. */
+    cont.parentNode.insertBefore(cajaOrden, cont.nextSibling);
     vaciar(cont);
-    if (fabrica) { pintarEtapas(cont); }
-    /* Los chips de estado y, a su derecha en la misma linea, el menu de
-       etiquetas (solo si alguna compra a la vista tiene una). */
     var linea = nodo('div', 'filtros-linea');
-    linea.appendChild(fila);
-    cont.appendChild(linea);
-    pintarChipsEn(fila, defs, filtroCompra, function (id) { return contar('compra', id); }, function (id) {
-      filtroCompra = id; escribir(K_FILTROC, filtroCompra); pintar();
-    });
-    pintarMenuTag('compra', linea, 'menuTagCompra', 'derecha');
-    var manual = pintarOrdenLista('cajaOrdenCompras', 'ordenCompras', 'pistaCompras', 'una compra', 'listaCompras');
+    if (fabrica) {
+      /* Selector (etapas o Cerradas) y una sola barra: Abiertas, Etiqueta y
+         el orden solo icono a la derecha. */
+      if (esCerradaCompra(filtroCompra)) { pintarCerradas(cont); } else { pintarEtapas(cont); }
+      linea.className += ' barra-compra';
+      cont.appendChild(linea);
+      pintarMenuVistaCompra(linea);
+      pintarMenuTag('compra', linea, 'menuTagCompra');
+      linea.appendChild(cajaOrden);
+    } else {
+      /* Los chips de estado y, a su derecha en la misma linea, el menu de
+         etiquetas (solo si alguna compra a la vista tiene una). */
+      linea.appendChild(fila);
+      cont.appendChild(linea);
+      pintarChipsEn(fila, defs, filtroCompra, function (id) { return contar('compra', id); }, elegirFiltroCompra);
+      pintarMenuTag('compra', linea, 'menuTagCompra', 'derecha');
+    }
+    var manual = pintarOrdenLista('cajaOrdenCompras', 'ordenCompras', 'pistaCompras', 'una compra', 'listaCompras', fabrica);
     if (pintarLista('compra', filtroCompra, 'listaCompras', 'vacioCompras', manual, 'pistaCompras') > 0) { return; }
     if (filtroTagCompra !== '') {
       var t = tagInfo(filtroTagCompra, contexto);

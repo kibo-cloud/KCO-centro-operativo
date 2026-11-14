@@ -1018,13 +1018,41 @@ li.item.orden-fantasma .desliza{background:var(--surface-3)}
 /* Compras: chips de estado y el menu de etiquetas en una sola linea. */
 .filtros-linea{display:flex;align-items:center;gap:var(--s-2)}
 .filtros-linea .chips{flex:1 1 auto;min-width:0}
-.etapas{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--s-1);margin:0 0 var(--s-2)}
-.etapa{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;padding:var(--s-1) 0;border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);color:var(--muted);font-size:var(--fs-13);cursor:pointer;min-width:0}
-.etapa b{font-size:var(--fs-17);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+/* Compras v2: progreso "Recibido 56/80 ---- 70 %" con la barra en verde. */
+.prog.compacta .prog-pct{flex:0 0 auto;font-size:var(--fs-13);color:var(--muted);font-variant-numeric:tabular-nums}
+.prog.recibido .cab{font-weight:400}
+.prog.recibido .barra i{background:var(--success)}
+/* Selector de etapa (seleccion unica, como un segmentado): contenedor
+   --surface radio 12 padding 4, seis opciones de 52 px radio 8, cifra 17/700
+   arriba y rotulo 13 abajo. Activa en el tinte del acento; en 0, una raya. */
+.etapas{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--s-1);padding:var(--s-1);margin:0 0 var(--s-2);border-radius:var(--r-card);background:var(--surface)}
+.etapa{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:52px;padding:0;border:0;border-radius:var(--r-ctl);background:none;color:var(--muted);font-size:var(--fs-13);cursor:pointer;min-width:0}
+.etapa b{font-size:var(--fs-17);font-weight:700;line-height:var(--lh-tight);color:var(--text);font-variant-numeric:tabular-nums}
 .etapa span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.etapa.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.etapa.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .etapa.on b{color:var(--accent)}
-.etapa:disabled{opacity:.4;cursor:default}
+.etapa:disabled{opacity:.55;color:var(--faint);cursor:default}
+.etapa:disabled b{color:var(--faint)}
+@media (hover:hover){.etapa:not(:disabled):not(.on):hover,.cerrada-op:not(.on):hover{background:var(--surface-2)}}
+/* Modo Cerradas: segmentado Recibidas / Canceladas de 44 px; la activa en
+   --surface-3 con sombra de nivel 1. */
+.etapas.cerradas-seg{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cerrada-op{display:flex;align-items:center;justify-content:center;gap:var(--s-2);height:var(--tap);padding:0 var(--s-2);border:0;border-radius:var(--r-ctl);background:none;color:var(--muted);font-size:var(--fs-15);cursor:pointer;min-width:0;white-space:nowrap}
+.cerrada-op .ico{width:18px;height:18px;margin:0;flex:0 0 auto}
+.cerrada-op.recibido .ico{color:var(--success)}
+.cerrada-op b{color:var(--text);font-variant-numeric:tabular-nums}
+.cerrada-op.on{background:var(--surface-3);color:var(--text);font-weight:600;box-shadow:var(--sh-1)}
+/* Barra de herramientas de Compras: Abiertas, Etiqueta y el orden (solo
+   icono, 44x44) a la derecha, en una sola fila. */
+.barra-compra{margin:0 0 var(--s-2)}
+.barra-compra .menu-chip-btn{padding:0 var(--s-2) 0 var(--s-3);font-size:var(--fs-15);color:var(--text)}
+.barra-compra .menu-chip-btn.on{color:var(--accent)}
+.barra-compra .menu-chip-btn .menu-chip-chev{width:18px;height:18px;color:var(--muted)}
+.barra-compra .menu-chip-btn.on .menu-chip-chev{color:var(--accent)}
+.barra-compra .orden-caja{flex:0 0 auto;margin-left:auto}
+.barra-compra .orden-ahora{margin:0}
+.menu-chip-btn.solo-ico{width:var(--tap);height:var(--tap);padding:0;justify-content:center;color:var(--text)}
+.menu-chip-btn.solo-ico .ico{width:20px;height:20px}
 .etapas-barra{display:flex;gap:2px;margin-top:var(--s-2);max-width:240px}
 .etapas-barra i{flex:1;height:4px;border-radius:var(--r-pill);background:var(--surface-3)}
 .etapas-barra i.hecha{background:var(--accent)}

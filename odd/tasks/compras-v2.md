@@ -25,7 +25,7 @@ the 2.5.0 "capture into the selected state" rule for factory Compras); the activ
 inherited.
 
 ## Tasks
-- [ ] T1 Header: progress line "Recibido N/M · P %" (success bar); stage selector with Todas +
+- [x] T1 Header: progress line "Recibido N/M · P %" (success bar); stage selector with Todas +
   5 open stages (single select, aria-pressed, 0 = disabled "–", default Todas); one toolbar row:
   `Abiertas ⌄` menu (Abiertas / Recibidas (n) / Canceladas (n); shows "Cerradas" active when a
   closed state is chosen), `Etiqueta ⌄` (2.6.3 menu), icon-only order button 44x44 with
@@ -57,6 +57,16 @@ if the owner wants PRs; default is local work-unit commits, push only on explici
 ## Progress
 - 2026-11-13: feature document created; route: delegated writer (T1-T5 touch kco-app.js,
   kco.css, index.html and E2E specs: 2+ non-trivial files).
+- T1 done (route: delegated writer). Files: kco-app.js (pintarCompras, pintarEtapas,
+  pintarCerradas, pintarMenuVistaCompra, menuChip soloIco/aria, pintarOrdenAhora soloIco),
+  kco.css, index.html (#progCompraPct), iconos.js (arrows-up-down), LEEME.md, E2E specs.
+  RED: the 3 new "compras v2" specs failed on 2.6.3 (no Etapa group, no #menuVistaCompra, header
+  gap 206.8 px). GREEN: 3/3; related groups "compra", "Compra", "tag", "sections", "order" green.
+  Decisions: the closed-mode segmented control (Recibidas / Canceladas) landed with the header
+  because it replaces the stage selector; `kibco.filtroCompra` keeps its values (`activos` =
+  Todas, stage id, `recibido` / `cancelado` = Cerradas); a stored simple-list value shows as
+  Todas in a factory section without being overwritten; Todo and simple-list Compras keep the
+  2.6.3 chip row. Spacing uses the scale tokens (unit gate), so 6 px gaps became 8 px.
 
 ## Next step
-T1 header.
+T2 open card.

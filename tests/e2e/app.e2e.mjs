@@ -753,7 +753,7 @@ export const tests = [
       await page.click('#tapaRapido [data-rap="compras"]');
       assert.equal((await items(page))[0].estado, 'cotizando', 'factory flow');
       await page.click('#segBtnCompras');
-      assert.equal(await page.text('#rotCompras'), 'Material recibido');
+      assert.equal(await page.text('#rotCompras'), 'Recibido');
       assert.match(await page.text('#chipsCompra'), /Abiertas/);
       await page.click('#tabRegistro');
       await page.click('#btnResumen');
@@ -5027,11 +5027,11 @@ export const tests = [
       await page.eval("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
       await esperarHasta(() => page.eval("document.getElementById('menuTagOps').hidden"), 2000, 'Escape closes');
       assert.equal(await page.eval("document.activeElement===document.querySelector('#menuTag .menu-chip-btn')"), true, 'focus back on the button');
-      // Compras: next to the state chips, on their line.
+      // Compras (factory): next to the Abiertas menu, on the toolbar row.
       await page.click('#segBtnCompras');
       await esperarHasta(() => page.eval("!!document.getElementById('menuTagCompra')"), 2000, 'Compras tag menu');
-      const chip = '#chipsCompra .chips [data-filtro="activos"]';
-      assert.ok(Math.abs((await centro('#menuTagCompra .menu-chip-btn')) - (await centro(chip))) <= 4, 'Compras: same line as the state chips');
+      const chip = '#menuVistaCompra .menu-chip-btn';
+      assert.ok(Math.abs((await centro('#menuTagCompra .menu-chip-btn')) - (await centro(chip))) <= 4, 'Compras: same line as the Abiertas menu');
       assert.ok((await alto('#menuTagCompra .menu-chip-btn')) >= 44, 'Compras: 44px target');
       assert.ok((await alto('#menuTagCompra .menu-chip-btn')) <= (await alto(chip)) + 4, 'Compras: no taller than a chip');
     }
@@ -5554,29 +5554,99 @@ export const tests = [
     }
   },
   {
-    name: 'compras (Cabina): six 56px stage counters filter (zero ones disabled); each card has a 6-segment stage bar and a 44px "Siguiente etapa" pill naming the destination that advances it',
-    storage: (() => {
-      const s = ORDER_SEED();
-      const l = JSON.parse(s['kibco.items']);
-      const iso = new Date(Date.now() - 86400000).toISOString();
-      const c = (id, estado) => ({ id, texto: 'compra ' + id, contexto: 'taller', tipo: 'compra', estado, nivel: 'normal', creado: iso, actualizado: iso, estadoDesde: iso });
-      l.push(c('P1', 'cotizando'), c('P2', 'cotizando'), c('P3', 'oc_enviada'));
-      s['kibco.items'] = JSON.stringify(l);
-      return s;
-    })(),
+    name: 'compras v2 header: "Recibido N/M · P %" line, a single-select stage selector Todas + 5 open stages (Todas is their sum, zero ones disabled with a dash)',
+    storage: COMPRAS_SEED([['P1', 'cotizando'], ['P2', 'cotizando'], ['P3', 'oc_enviada'], ['P4', 'recibido'], ['P5', 'cancelado'], ['P6', 'esperando_aprob']]),
     async fn(page) {
-      await toTasks(page);
-      await page.click('#segBtnCompras');
-      const e = await page.eval(`Array.prototype.map.call(document.querySelectorAll('#chipsCompra .etapas .etapa'),function(b){return [b.getAttribute('data-filtro'),b.querySelector('b').textContent,b.disabled,Math.round(b.getBoundingClientRect().height)];})`);
-      assert.deepEqual(e.map((x) => x[0]), ['cotizando', 'esperando_oc', 'esperando_aprob', 'oc_enviada', 'esperando_entrega', 'recibido']);
-      assert.deepEqual(e.map((x) => x[1]), ['2', '0', '0', '1', '0', '0']);
-      assert.deepEqual(e.map((x) => x[2]), [false, true, true, false, true, true], 'zero counters disabled');
-      assert.ok(e.every((x) => x[3] >= 56), '56px counters');
-      assert.match(await page.text('#chipsCompra'), /Abiertas/);
+      await toCompras(page);
+      const p = await page.eval(`(function(){var x=document.createElement('i');x.style.color='var(--success)';document.body.appendChild(x);var ok=getComputedStyle(x).color;x.remove();
+        return {rot:document.getElementById('rotCompras').textContent,n:document.getElementById('progCompraTxt').textContent,pct:document.getElementById('progCompraPct').textContent,
+          bar:getComputedStyle(document.getElementById('progCompraBarra')).backgroundColor,ok:ok};})()`);
+      assert.deepEqual([p.rot, p.n, p.pct], ['Recibido', '1/5', '20 %'], 'cancelled ones do not count');
+      assert.equal(p.bar, p.ok, 'the bar fills in --success');
+      const opts = () => page.eval(`Array.prototype.map.call(document.querySelectorAll('#chipsCompra [role="group"][aria-label="Etapa"] button'),function(b){
+        return {f:b.getAttribute('data-filtro'),n:b.querySelector('b').textContent,rot:b.querySelector('span').textContent,dis:b.disabled,on:b.getAttribute('aria-pressed'),h:Math.round(b.getBoundingClientRect().height)};})`);
+      let o = await opts();
+      assert.deepEqual(o.map((x) => x.f), ['activos', 'cotizando', 'esperando_oc', 'esperando_aprob', 'oc_enviada', 'esperando_entrega']);
+      assert.deepEqual(o.map((x) => x.rot), ['Todas', 'Cotiz.', 'OC', 'Aprob.', 'Enviada', 'Entrega']);
+      assert.deepEqual(o.map((x) => x.n), ['4', '2', '–', '1', '1', '–'], 'zero stages show a dash');
+      assert.equal(Number(o[0].n), o.slice(1).reduce((s, x) => s + (Number(x.n) || 0), 0), 'Todas is the sum of the five open stages');
+      assert.deepEqual(o.map((x) => x.dis), [false, false, true, false, false, true], 'zero stages disabled');
+      assert.deepEqual(o.map((x) => x.on), ['true', 'false', 'false', 'false', 'false', 'false'], 'Todas by default');
+      assert.ok(o.every((x) => x.h === 52), '52px options');
+      assert.equal(await page.count('#chipsCompra [data-filtro="recibido"]'), 0, 'Recibido is not a stage');
+      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), ['P1', 'P2', 'P3', 'P6']);
       await page.click('#chipsCompra [data-filtro="cotizando"]');
-      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), ['P1', 'P2'], 'the counter filters');
-      await page.click('#chipsCompra [data-filtro="cotizando"]');
-      assert.equal((await listRows(page, 'listaCompras')).length, 3, 'tapping it again: Abiertas');
+      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), ['P1', 'P2'], 'a stage filters');
+      o = await opts();
+      assert.deepEqual(o.map((x) => x.on), ['false', 'true', 'false', 'false', 'false', 'false'], 'single select');
+      assert.equal(await page.storage('kibco.filtroCompra'), 'cotizando', 'same stored value as before');
+      await page.click('#chipsCompra [data-filtro="oc_enviada"]');
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['P3']);
+      await page.click('#chipsCompra [data-filtro="activos"]');
+      assert.equal((await listRows(page, 'listaCompras')).length, 4, 'Todas');
+      assert.equal(await page.storage('kibco.filtroCompra'), 'activos');
+    }
+  },
+  {
+    name: 'compras v2 toolbar: Abiertas, Etiqueta and an icon-only 44px order button share one row; the menu offers Abiertas / Recibidas (n) / Canceladas (n) and shows Cerradas when closed',
+    storage: COMPRAS_SEED([['C1', 'cotizando', { tag: 'tornos' }], ['C2', 'esperando_oc'], ['R1', 'recibido'], ['R2', 'recibido'], ['X1', 'cancelado']]),
+    async fn(page) {
+      await toCompras(page);
+      const fila = await page.eval(`(function(){function c(s){var r=document.querySelector(s).getBoundingClientRect();return {y:r.top+r.height/2,w:Math.round(r.width),h:Math.round(r.height),r:r.right};}
+        var o=document.querySelector('#ordenCompras .menu-chip-btn');
+        return {v:c('#menuVistaCompra .menu-chip-btn'),t:c('#menuTagCompra .menu-chip-btn'),o:c('#ordenCompras .menu-chip-btn'),aria:o.getAttribute('aria-label'),txt:o.textContent,
+          svg:o.querySelectorAll('svg').length,right:document.getElementById('chipsCompra').getBoundingClientRect().right};})()`);
+      assert.ok(Math.abs(fila.v.y - fila.t.y) <= 4 && Math.abs(fila.v.y - fila.o.y) <= 4, 'one row: ' + JSON.stringify(fila));
+      assert.deepEqual([fila.o.w, fila.o.h], [44, 44], '44x44 order button');
+      assert.ok(fila.v.h >= 44 && fila.t.h >= 44, '44px chips');
+      assert.ok(Math.abs(fila.o.r - fila.right) <= 1, 'order button at the right');
+      assert.equal(fila.aria, 'Orden: Automático. Cambiar');
+      assert.equal(fila.txt.trim(), '', 'icon only');
+      assert.equal(fila.svg, 1);
+      assert.equal(await page.text('#menuVistaCompra .menu-chip-rot'), 'Abiertas');
+      const vistaOps = () => page.eval(`Array.prototype.map.call(document.querySelectorAll('#menuVistaCompra [data-vista]'),function(b){var n=b.querySelector('b');return b.getAttribute('data-vista')+'|'+b.querySelector('span').textContent+(n?' '+n.textContent:'');})`);
+      assert.deepEqual(await vistaOps(), ['abiertas|Abiertas', 'recibido|Recibidas 2', 'cancelado|Canceladas 1']);
+      await page.click('#menuVistaCompra .menu-chip-btn');
+      await esperarHasta(() => page.eval("!document.getElementById('menuVistaCompraOps').hidden"), 2000, 'menu open');
+      await page.click('#menuVistaCompra [data-vista="cancelado"]');
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['X1']);
+      assert.equal(await page.storage('kibco.filtroCompra'), 'cancelado');
+      assert.equal(await page.text('#menuVistaCompra .menu-chip-rot'), 'Cerradas');
+      assert.ok(await page.eval("/ on/.test(document.querySelector('#menuVistaCompra .menu-chip-btn').className)"), 'Cerradas looks active');
+      assert.equal(await page.count('#chipsCompra [aria-label="Etapa"]'), 0, 'no stage selector while closed');
+      // The closed segmented control: Recibidas / Canceladas, 44px.
+      const seg = await page.eval(`Array.prototype.map.call(document.querySelectorAll('#chipsCompra [role="group"][aria-label="Cerradas"] button'),function(b){return [b.getAttribute('data-filtro'),b.textContent,b.getAttribute('aria-pressed'),Math.round(b.getBoundingClientRect().height)];})`);
+      assert.deepEqual(seg, [['recibido', 'Recibidas 2', 'false', 44], ['cancelado', 'Canceladas 1', 'true', 44]]);
+      await page.click('#chipsCompra [data-filtro="recibido"]');
+      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), ['R1', 'R2']);
+      await page.click('#menuVistaCompra .menu-chip-btn');
+      await esperarHasta(() => page.eval("!document.getElementById('menuVistaCompraOps').hidden"), 2000, 'menu open');
+      await page.click('#menuVistaCompra [data-vista="abiertas"]');
+      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), ['C1', 'C2'], 'back to the open ones');
+      assert.equal(await page.storage('kibco.filtroCompra'), 'activos');
+      assert.equal(await page.count('#chipsCompra [aria-label="Etapa"]'), 1);
+      // The same Automatico / Manual menu.
+      await page.click('#ordenCompras .menu-chip-btn');
+      await page.click('#ordenCompras [data-orden="manual"]');
+      assert.equal(await page.eval("document.querySelector('#ordenCompras .menu-chip-btn').getAttribute('aria-label')"), 'Orden: Manual. Cambiar');
+      assert.equal(await listOrderOn(page, 'ordenCompras'), 'manual');
+    }
+  },
+  {
+    name: 'compras v2 layout: at 390px the first card starts at most 170px below the list tabs (was ~207px)',
+    storage: COMPRAS_SEED([['C1', 'cotizando', { tag: 'tornos' }], ['C2', 'esperando_oc'], ['R1', 'recibido'], ['X1', 'cancelado']]),
+    async fn(page) {
+      await toCompras(page);
+      await esperarHasta(() => page.eval("document.getAnimations().filter(function(a){return a.playState==='running';}).length===0"), 3000, 'animations to settle');
+      const gap = await page.eval("document.querySelector('#listaCompras li.item').getBoundingClientRect().top-document.getElementById('segTareas').getBoundingClientRect().bottom");
+      assert.ok(gap <= 170, 'header block: ' + gap);
+    }
+  },
+  {
+    name: 'compras card: each factory card has a 6-segment stage bar and a 44px advance button naming the destination that advances it',
+    storage: COMPRAS_SEED([['P1', 'cotizando'], ['P2', 'cotizando'], ['P3', 'oc_enviada']]),
+    async fn(page) {
+      await toCompras(page);
       const card = '#listaCompras li.item[data-id="P3"]';
       const b = await page.eval(`(function(){var li=document.querySelector('${card}'),bar=li.querySelector('.etapas-barra'),p=li.querySelector('[data-acc="siguiente"]');
         return {seg:bar.querySelectorAll('i').length,done:bar.querySelectorAll('i.hecha').length,lab:bar.getAttribute('aria-label'),pill:p.textContent,aria:p.getAttribute('aria-label'),h:Math.round(p.getBoundingClientRect().height)};})()`);
@@ -6767,6 +6837,28 @@ function ATTENTION_SEED(mode) {
 }
 
 // Ahora manual order: Taller with four tasks in a clear score order (A > B > C > D), Mercado with two.
+// Compras v2: a factory section (Taller, with tags) and purchases given as
+// [id, estado, extra] triples; texts are 'compra <id>'.
+function COMPRAS_SEED(list, extra) {
+  const iso = new Date(Date.now() - 86400000).toISOString();
+  return Object.assign({
+    'kibco.esquema': '5',
+    'kibco.contexto': 'taller',
+    'kibco.apartados': JSON.stringify([
+      { id: 'taller', nom: 'Taller', ico: 'settings', color: 'naranja', orden: 0, compras: 'fabrica',
+        tags: [{ id: 'tornos', nom: 'Tornos' }, { id: 'pedidos', nom: 'Pedidos' }] },
+      { id: 'casa', nom: 'Casa', ico: 'users', color: 'cian', orden: 1 }
+    ]),
+    'kibco.items': JSON.stringify(list.map(([id, estado, o]) => Object.assign({ id, texto: 'compra ' + id, contexto: 'taller', tipo: 'compra', estado,
+      nivel: 'normal', creado: iso, actualizado: iso, estadoDesde: iso }, o || {}))),
+    'kibco.eventos': '[]'
+  }, extra || {});
+}
+async function toCompras(page) {
+  await page.click('#tabTareas');
+  await page.click('#segBtnCompras');
+  await esperarHasta(() => page.eval("!!document.querySelector('#chipsCompra .menu-chip')"), 2000, 'Compras filters');
+}
 function ORDER_SEED(mode) {
   const iso = new Date(Date.now() - 86400000).toISOString();
   const it = (id, ctx, o) => Object.assign({ id, texto: 'tarea ' + id, contexto: ctx, tipo: 'tarea', estado: 'pendiente',

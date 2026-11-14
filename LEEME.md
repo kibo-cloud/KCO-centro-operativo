@@ -131,6 +131,28 @@ Cada apartado elige como anota compras:
 La regla de siempre sigue valiendo: el flujo con seguimiento es para la fabrica; lo demas
 conviene llevarlo en lista simple.
 
+### La pantalla de Compras con seguimiento (2.7, "Compras v2")
+
+De arriba hacia abajo, debajo de las pestañas Tareas · Compras · Notas:
+
+- **Progreso:** una linea `Recibido 56/80 ---- 70 %` con la barra en verde. Recibido es el
+  cierre del flujo, no una etapa de trabajo; las canceladas no cuentan.
+- **Selector de etapa** (seleccion unica, como un segmentado): **Todas** (la suma de las cinco
+  abiertas, por defecto) · Cotiz. · OC · Aprob. · Enviada · Entrega, de 52 px. Una etapa en 0
+  muestra una raya y no se puede tocar. Tocar la elegida vuelve a Todas.
+- **Una sola barra de herramientas:** `Abiertas ⌄` (menu: Abiertas · Recibidas (n) ·
+  Canceladas (n); con una cerrada elegida el chip dice **Cerradas** y se ve activo),
+  `Etiqueta ⌄` (igual que siempre) y el **orden** como boton cuadrado de 44 px solo con las
+  flechas (`aria-label` "Orden: Automatico. Cambiar"), con el mismo menu Automatico / Manual.
+- **Modo Cerradas:** el selector de etapas pasa a ser un segmentado de dos opciones,
+  Recibidas n · Canceladas n.
+
+El filtro se guarda en la misma clave y con los mismos valores de siempre
+(`kibco.filtroCompra`): `activos` es Todas, el id de una etapa la filtra y `recibido` /
+`cancelado` abren el modo Cerradas, asi un valor guardado por una version anterior se lee igual.
+Un valor de una lista simple (`por_comprar`, `comprado`) se ve como Todas sin pisar lo guardado.
+Mirando Todo o un apartado de lista simple, Compras sigue con su fila de chips de siempre.
+
 ### Donde cae lo que capturas
 
 - Mirando un apartado, lo capturado va a ese apartado.
