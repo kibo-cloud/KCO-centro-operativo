@@ -1435,10 +1435,81 @@
 
   var itemsVistos = {};
 
+  /* ---------- tarjeta de compra de fabrica (Compras v2) ----------
+     Circulo de recibir, titulo a todo el ancho, "Solicitante . Destino" en
+     una linea, datos, y abajo la etapa ("Cotizando . 1 de 6" sobre la barra
+     de seis segmentos) con el boton Avanzar a la derecha. El boton hace lo
+     mismo que la pastilla de antes: un estado adelante, con Deshacer. */
+  var ETAPA_LARGA = { esperando_aprob: 'Esperando aprobaci\u00F3n' };
+  var AVANZAR_CORTO = { esperando_oc: 'OC', esperando_aprob: 'Aprobaci\u00F3n', oc_enviada: 'Enviada', esperando_entrega: 'Entrega' };
+
+  function nomEtapa(id) { return ETAPA_LARGA[id] || estadoInfo(id).nom; }
+
+  function pararYHacer(fn) {
+    return function (ev) {
+      if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+      fn();
+    };
+  }
+
+  function botonRecibir(it) {
+    var chk = nodo('button', 'chk'), circ = nodo('span', 'chk-c');
+    chk.type = 'button';
+    chk.setAttribute('data-acc', 'recibir');
+    chk.setAttribute('aria-label', 'Marcar recibido: ' + it.texto);
+    circ.appendChild(svgIco('check'));
+    if (it.nivel === 'urgente') { circ.appendChild(nodo('span', 'chk-punto')); }
+    chk.appendChild(circ);
+    chk.onclick = pararYHacer(function () { cambiarEstado(it.id, 'recibido'); });
+    return chk;
+  }
+
+  /* "Avanzar a OC" (corto) con el nombre completo en el aria-label; la
+     ultima etapa dice "Marcar recibido". En pausa, el mismo lugar ofrece
+     Quitar pausa: primero se descongela. */
+  function botonEtapa(it) {
+    var b, sig, corto;
+    if (it.pausado === true) {
+      b = nodo('button', 'avanzar reanudar', 'Quitar pausa', 'play');
+      b.setAttribute('data-acc', 'reanudar');
+      b.setAttribute('aria-label', 'Quitar pausa administrativa');
+      b.onclick = pararYHacer(function () { alternarPausa(it.id); });
+    } else {
+      sig = estadoSiguiente(it);
+      if (!sig) { return null; }
+      corto = AVANZAR_CORTO[sig.id];
+      b = nodo('button', 'avanzar');
+      b.setAttribute('data-acc', 'siguiente');
+      b.setAttribute('aria-label', corto ? 'Avanzar a ' + nomEtapa(sig.id) : 'Marcar recibido: ' + sig.nom);
+      b.appendChild(nodo('span', '', corto ? 'Avanzar a ' + corto : 'Marcar recibido'));
+      b.appendChild(svgIco('arrow-right'));
+      b.onclick = pararYHacer(function () { cambiarEstado(it.id, sig.id); });
+    }
+    b.type = 'button';
+    b.setAttribute('title', b.getAttribute('aria-label'));
+    return b;
+  }
+
+  function filaEtapa(it) {
+    var f = nodo('div', 'etapa-fila'), info = nodo('div', 'etapa-info'), i, k = 0, be = barraEtapas(it), acc = botonEtapa(it);
+    for (i = 0; i < N_ETAPAS; i++) { if (ESTADOS_COMPRA[i].id === it.estado) { k = i; } }
+    var rot = nodo('span', 'etapa-rot', nomEtapa(it.estado) + ' \u00B7 ' + (k + 1) + ' de ' + N_ETAPAS);
+    /* Con una etapa concreta filtrada el filtro ya la nombra: queda la barra. */
+    rot.hidden = vista === 'compras' && filtroCompra === it.estado;
+    info.appendChild(rot);
+    if (be) { info.appendChild(be); }
+    f.appendChild(info);
+    if (acc) { f.appendChild(acc); }
+    return f;
+  }
+
   function nodoItem(it, motivo, modo) {
     var li = document.createElement('li');
+    /* Compra de fabrica: tarjeta v2 (abierta) o compacta (cerrada). */
+    var v2 = esPedido(it), abiertaV2 = v2 && esActivo(it.estado);
     li.className = 'item fila st-' + it.estado + claseNivel(it) +
       (it.pausado === true ? ' pausado' : '') +
+      (v2 ? ' compra-v2' : '') +
       (itemsVistos[it.id] ? '' : ' nuevo');
     itemsVistos[it.id] = 1;
     li.setAttribute('data-id', it.id);
@@ -1477,6 +1548,9 @@
         ah.fn();
       };
       fila.appendChild(chk);
+    } else if (abiertaV2) {
+      /* Compra de fabrica abierta: el circulo la marca recibida (Deshacer). */
+      fila.appendChild(botonRecibir(it));
     } else {
       /* Sin circulo (compra de fabrica, tarea cerrada): el texto no toca el
          borde (kco.css .desliza.sin-chk; con el asa del orden manual no). */
@@ -1518,7 +1592,8 @@
     var inf = estadoInfo(it.estado);
     /* Pendiente es el estado por defecto de algo clasificado: no hace falta
        gritarlo en cada tarjeta. Los demas estados si dicen algo. */
-    if (it.estado !== 'pendiente') { l2.appendChild(badge('est', inf.nom)); }
+    /* En la compra de fabrica el estado ya es el rotulo de su barra de etapas. */
+    if (it.estado !== 'pendiente' && !v2) { l2.appendChild(badge('est', inf.nom)); }
     if (it.pausado === true) { l2.appendChild(badge('pausa', 'Pausa administrativa', 'pause')); }
     if (it.tag !== '') {
       var t = tagInfo(it.tag, it.contexto);
@@ -1538,12 +1613,10 @@
     var notas = notasDe(it);
     if (notas.length > 0) { l2.appendChild(badge('nota', '' + notas.length, 'message')); }
     l2.appendChild(badge('', horaCorta(it.creado)));
+    /* La fila de datos de la compra v2 va solo si hay algo (la hora de
+       creacion, el ultimo badge, nunca se ve). */
+    if (v2 && l2.childNodes.length === 1) { l2.className += ' vacia'; }
     cu.appendChild(l2);
-
-    if (it.tipo === 'compra' && K.esFabrica(it.contexto) && esActivo(it.estado)) {
-      var be = barraEtapas(it);
-      if (be) { cu.appendChild(be); }
-    }
 
     var diasEntrega = alertaEntrega(it);
     if (diasEntrega > 0) {
@@ -1571,18 +1644,10 @@
       };
       fila.appendChild(b);
     }
+    /* Avanzar / Quitar pausa de la compra de fabrica van en su fila de etapa,
+       debajo (filaEtapa), para que el titulo use todo el ancho. */
     if (modo === 'triage' && it.estado === 'entrada') {
       accion2('iconobtn mini', 'parahoy', 'Para hoy', 'calendar', '', function () { sacarDeInbox(it.id, true); });
-    } else if (it.tipo === 'compra' && K.esFabrica(it.contexto) && esActivo(it.estado)) {
-      if (it.pausado === true) {
-        /* En pausa administrativa la tarjeta ofrece quitarla, no avanzar: primero se descongela. */
-        accion2('acc2 on', 'reanudar', 'Quitar pausa administrativa', 'play', 'Quitar pausa', function () { alternarPausa(it.id); });
-      } else {
-        var sig = estadoSiguiente(it);
-        if (sig) {
-          accion2('acc2 pildora', 'siguiente', 'Siguiente etapa: ' + sig.nom, 'arrow-right', sig.nom, function () { cambiarEstado(it.id, sig.id); });
-        }
-      }
     }
 
     /* Tres puntos: la misma bandeja que deslizar a la izquierda, a la vista y
@@ -1604,6 +1669,8 @@
       };
       fila.appendChild(mas);
     }
+    /* La fila de etapa ocupa una linea propia a todo el ancho (kco.css). */
+    if (abiertaV2) { fila.appendChild(filaEtapa(it)); }
 
     li.onclick = function () {
       /* Con la bandeja abierta, tocar la tarjeta solo la cierra. */
@@ -1793,7 +1860,8 @@
     if (pistaLista && pistaLista.id !== listaId) { return; }
     var li = lista.querySelector('li.item.fila');
     if (!pistaLista) {
-      if (soloLectura || !li || !li.querySelector('.chk:not(.on)') || !esTactil()) { return; }
+      /* El circulo de una compra de fabrica (recibir) no se desliza: sin pista. */
+      if (soloLectura || !li || !li.querySelector('.chk:not(.on):not([data-acc="recibir"])') || !esTactil()) { return; }
       var p = leerPistas();
       if (p.completar === true) { return; }
       p.completar = true;
@@ -4751,11 +4819,13 @@
     return p.join('  |  ');
   }
 
-  /* Solicitante y destino en la tarjeta: icono de trazo + texto. */
+  /* Solicitante y destino en la tarjeta (Compras v2): "Solicitante . Destino"
+     en una sola linea con elipsis (kco.css), tal cual se cargaron. */
   function pintarPedido(el, it) {
-    var sol = campoPedido(it, 'solicitante'), des = campoPedido(it, 'destino');
-    if (sol !== '') { el.appendChild(nodo('span', 'pedido-dato', sol, 'user')); }
-    if (des !== '') { el.appendChild(nodo('span', 'pedido-dato', des, 'map-pin')); }
+    var sol = campoPedido(it, 'solicitante'), des = campoPedido(it, 'destino'), p = [];
+    if (sol !== '') { p.push(sol); }
+    if (des !== '') { p.push(des); }
+    el.textContent = p.join(' \u00B7 ');
   }
 
   /* Se dispara al salir del campo. No repinta la ficha para no pisar lo que

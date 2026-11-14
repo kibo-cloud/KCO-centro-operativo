@@ -30,7 +30,7 @@ inherited.
   `Abiertas ⌄` menu (Abiertas / Recibidas (n) / Canceladas (n); shows "Cerradas" active when a
   closed state is chosen), `Etiqueta ⌄` (2.6.3 menu), icon-only order button 44x44 with
   aria-label opening the same Automático/Manual menu.
-- [ ] T2 Open card: title full width (circle + title + ⋮), "Solicitante · Destino" one line with
+- [x] T2 Open card: title full width (circle + title + ⋮), "Solicitante · Destino" one line with
   ellipsis (no forced uppercase), meta row (priority word, date, comments icon+n, tag pill),
   stage row "<Etapa> · N de 6" over the 6-segment bar + "Avanzar a <next short>" button
   (aria-label full name; same action as today's pill, with Deshacer); urgent border/ring.
@@ -68,5 +68,20 @@ if the owner wants PRs; default is local work-unit commits, push only on explici
   Todas in a factory section without being overwritten; Todo and simple-list Compras keep the
   2.6.3 chip row. Spacing uses the scale tokens (unit gate), so 6 px gaps became 8 px.
 
+- T2 done (route: delegated writer). Files: kco-app.js (nodoItem v2 branch, botonRecibir,
+  botonEtapa, filaEtapa, pintarPedido one line, gesture hint skips the receive circle),
+  kco.css (compra-v2 card, etapa-fila, .avanzar), LEEME.md, E2E specs. RED: the new
+  "compras v2 card" spec failed on T1 (no .etapa-rot / .chk). GREEN: it passes; groups
+  "compras v2", "compra", "Compra", "pausa", "approval", "cards", "kebab", "list order",
+  "new on top", "purchase" green. Decisions: the brief's completion circle on factory cards
+  marks the purchase received (mockup aria "Marcar recibido") via the same cambiarEstado path,
+  with Deshacer; swipe-right stays off for factory purchases (gestures unchanged), so the
+  swipe hint ignores that circle. The advance button keeps `data-acc="siguiente"`; paused
+  cards show Quitar pausa in the same slot. The optional label hiding is implemented (label
+  hidden when the card's own stage is the active filter). Bar gap stays 2 px (unit gate allows
+  only scale values or 1-2 px hairlines, so the brief's 3 px is not allowed). The new layout
+  applies to factory purchases wherever a card is drawn (Ahora, Hoy, search); tasks and
+  simple-list purchases are untouched.
+
 ## Next step
-T2 open card.
+T3 closed mode.

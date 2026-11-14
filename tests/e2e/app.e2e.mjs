@@ -5049,7 +5049,8 @@ export const tests = [
       await page.click('#segBtnCompras');
       await quieto();
       let m = await medir('listaCompras', 'C1');
-      assert.equal(m.chk, null, 'a factory purchase has no circle');
+      // Compras v2: a factory purchase has the receive circle at the edge, like a task.
+      assert.ok(m.chk !== null && m.chk <= 2, 'factory purchase circle at the edge: ' + m.chk);
       assert.ok(m.txt >= 8, 'factory purchase text off the border: ' + m.txt);
       // Hogar (simple list): text after its circle.
       await page.eval("document.querySelector('#ctxsel [data-ctx=\"casa\"]').click()");
@@ -5643,21 +5644,68 @@ export const tests = [
     }
   },
   {
-    name: 'compras card: each factory card has a 6-segment stage bar and a 44px advance button naming the destination that advances it',
-    storage: COMPRAS_SEED([['P1', 'cotizando'], ['P2', 'cotizando'], ['P3', 'oc_enviada']]),
+    name: 'compras v2 card: circle + full-width title + kebab, "Solicitante · Destino" on one line, a meta row, "<Etapa> · N de 6" over the 6-segment bar and an "Avanzar a <short>" button (full aria-label) that advances with Deshacer',
+    storage: COMPRAS_SEED([
+      ['P1', 'cotizando', { texto: 'Rascador de teflon a medida para el tornero de la planta', nivel: 'urgente', solicitante: 'Rodrigues Marcelo', destino: 'Calderas',
+        fecha: '2020-01-02', tag: 'tornos', comentarios: [{ cuando: '2026-11-01T12:00:00.000Z', texto: 'llamar' }] }],
+      ['P2', 'esperando_oc'], ['P3', 'oc_enviada'], ['P4', 'esperando_entrega'], ['P5', 'esperando_aprob'],
+      ['P6', 'cotizando', { pausado: true, pausadoDesde: '2026-11-01T12:00:00.000Z' }]
+    ]),
     async fn(page) {
       await toCompras(page);
-      const card = '#listaCompras li.item[data-id="P3"]';
-      const b = await page.eval(`(function(){var li=document.querySelector('${card}'),bar=li.querySelector('.etapas-barra'),p=li.querySelector('[data-acc="siguiente"]');
-        return {seg:bar.querySelectorAll('i').length,done:bar.querySelectorAll('i.hecha').length,lab:bar.getAttribute('aria-label'),pill:p.textContent,aria:p.getAttribute('aria-label'),h:Math.round(p.getBoundingClientRect().height)};})()`);
-      assert.equal(b.seg, 6);
-      assert.equal(b.done, 4, 'OC enviada is stage 4');
-      assert.match(b.lab, /Etapa 4 de 6/);
-      assert.equal(b.pill, 'Esperando entrega');
-      assert.equal(b.aria, 'Siguiente etapa: Esperando entrega');
-      assert.ok(b.h >= 44, '44px pill');
-      await page.click(card + ' [data-acc="siguiente"]');
-      assert.equal((await items(page)).find((i) => i.id === 'P3').estado, 'esperando_entrega', 'the pill advances it');
+      const card = (id) => `#listaCompras li.item[data-id="${id}"]`;
+      const c = await page.eval(`(function(){var li=document.querySelector('${card('P1')}'),t=li.querySelector('.txt'),k=li.querySelector('.chk'),m=li.querySelector('[data-acc="mas"]'),
+        pe=li.querySelector('.pedido'),l2=li.querySelector('.linea2'),rot=li.querySelector('.etapa-rot'),bar=li.querySelector('.etapas-barra'),a=li.querySelector('[data-acc="siguiente"]'),
+        st=getComputedStyle(t),sp=getComputedStyle(pe),tr=t.getBoundingClientRect(),ar=a.getBoundingClientRect(),mr=m.getBoundingClientRect();
+        return {chk:k?k.getAttribute('aria-label'):null,punto:!!(k&&k.querySelector('.chk-punto')),prio:/ prio/.test(li.className),fs:st.fontSize,fw:st.fontWeight,
+          pedido:pe.textContent,nowrap:sp.whiteSpace,ell:sp.textOverflow,tt:sp.textTransform,peLines:Math.round(pe.getBoundingClientRect().height),
+          meta:l2.textContent,est:l2.querySelectorAll('.badge.est').length,tag:l2.querySelector('.badge.tag').textContent,tagH:Math.round(l2.querySelector('.badge.tag').getBoundingClientRect().height),
+          urg:!!l2.querySelector('.niv-urgente'),com:l2.querySelector('.badge.nota').textContent,
+          rot:rot.textContent,seg:bar.querySelectorAll('i').length,done:bar.querySelectorAll('i.hecha').length,btn:a.textContent,aria:a.getAttribute('aria-label'),h:Math.round(ar.height),
+          below:ar.top>=tr.bottom,titleToMas:mr.left>=tr.right-1,svg:a.lastChild&&a.lastChild.nodeName.toLowerCase()==='svg'};})()`);
+      assert.equal(c.chk, 'Marcar recibido: Rascador de teflon a medida para el tornero de la planta', 'the completion circle');
+      assert.ok(c.prio && c.punto, 'urgent: danger ring with a dot');
+      assert.deepEqual([c.fs, c.fw], ['15px', '600'], 'title 15/600');
+      assert.ok(c.titleToMas, 'the title runs up to the kebab (no button beside it)');
+      assert.ok(c.below, 'the advance button sits below the title');
+      assert.equal(c.pedido, 'Rodrigues Marcelo · Calderas');
+      assert.deepEqual([c.nowrap, c.ell, c.tt], ['nowrap', 'ellipsis', 'none'], 'one line with ellipsis, as typed');
+      assert.ok(c.urg, 'Urgente as a word');
+      assert.match(c.meta, /Urgente/);
+      assert.equal(c.est, 0, 'no loose state text in the meta row');
+      assert.equal(c.tag, 'Tornos');
+      assert.equal(c.tagH, 24, 'tag pill 24px');
+      assert.equal(c.com, '1', 'comment icon + count');
+      assert.equal(c.rot, 'Cotizando · 1 de 6');
+      assert.deepEqual([c.seg, c.done], [6, 1]);
+      assert.equal(c.btn, 'Avanzar a OC');
+      assert.equal(c.aria, 'Avanzar a Esperando OC');
+      assert.ok(c.h >= 44, '44px button');
+      assert.ok(c.svg, 'arrow at the right');
+      const fila = (id) => page.eval(`(function(){var li=document.querySelector('${card(id)}'),a=li.querySelector('[data-acc="siguiente"]');return [li.querySelector('.etapa-rot').textContent,a?a.textContent:'',a?a.getAttribute('aria-label'):''];})()`);
+      assert.deepEqual(await fila('P2'), ['Esperando OC · 2 de 6', 'Avanzar a Aprobación', 'Avanzar a Esperando aprobación']);
+      assert.deepEqual(await fila('P5'), ['Esperando aprobación · 3 de 6', 'Avanzar a Enviada', 'Avanzar a OC enviada']);
+      assert.deepEqual(await fila('P3'), ['OC enviada · 4 de 6', 'Avanzar a Entrega', 'Avanzar a Esperando entrega']);
+      assert.deepEqual(await fila('P4'), ['Esperando entrega · 5 de 6', 'Marcar recibido', 'Marcar recibido: Material Recibido']);
+      // Paused: the same slot offers Quitar pausa instead of advancing.
+      assert.deepEqual(await fila('P6'), ['Cotizando · 1 de 6', '', '']);
+      assert.equal(await page.text(card('P6') + ' .etapa-fila [data-acc="reanudar"]'), 'Quitar pausa');
+      // The button does what the old pill did: one state forward, with Deshacer.
+      await page.click(card('P1') + ' [data-acc="siguiente"]');
+      assert.equal((await items(page)).find((i) => i.id === 'P1').estado, 'esperando_oc');
+      await esperarHasta(() => page.visible('#btnDeshacer'), 2000, 'Deshacer offered');
+      await page.click('#btnDeshacer');
+      await esperarHasta(async () => (await items(page)).find((i) => i.id === 'P1').estado === 'cotizando', 2000, 'undone');
+      // The circle marks it received, with Deshacer too.
+      await page.click(card('P3') + ' .chk');
+      assert.equal((await items(page)).find((i) => i.id === 'P3').estado, 'recibido');
+      await esperarHasta(() => page.visible('#btnDeshacer'), 2000, 'Deshacer offered');
+      // A concrete stage filter hides the stage label (the filter already says it); Todas shows it.
+      await page.click('#chipsCompra [data-filtro="cotizando"]');
+      assert.equal(await page.eval(`getComputedStyle(document.querySelector('${card('P1')} .etapa-rot')).display`), 'none');
+      assert.equal(await page.count(card('P1') + ' .etapas-barra'), 1, 'the bar stays');
+      await page.click('#chipsCompra [data-filtro="activos"]');
+      assert.notEqual(await page.eval(`getComputedStyle(document.querySelector('${card('P1')} .etapa-rot')).display`), 'none');
     }
   },
   {

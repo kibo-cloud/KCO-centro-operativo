@@ -146,6 +146,12 @@ De arriba hacia abajo, debajo de las pestañas Tareas · Compras · Notas:
   flechas (`aria-label` "Orden: Automatico. Cambiar"), con el mismo menu Automatico / Manual.
 - **Modo Cerradas:** el selector de etapas pasa a ser un segmentado de dos opciones,
   Recibidas n · Canceladas n.
+- **Tarjeta abierta:** circulo (marca recibida) · titulo 15/600 a todo el ancho (sin boton al
+  lado) · tres puntos. Debajo, `Solicitante · Destino` en una sola linea con elipsis (tal cual
+  se cargaron); una fila de datos solo si hay algo (prioridad en palabra, fecha, comentarios,
+  etiqueta como pastilla); y abajo `Cotizando · 1 de 6` sobre la barra de seis segmentos con el
+  boton Avanzar a la derecha. Con una etapa concreta elegida el rotulo se oculta (el filtro ya
+  la nombra) y queda la barra. Urgente: borde y anillo en rojo con punto.
 
 El filtro se guarda en la misma clave y con los mismos valores de siempre
 (`kibco.filtroCompra`): `activos` es Todas, el id de una etapa la filtra y `recibido` /
@@ -395,10 +401,13 @@ sin abrir la ficha:
 
 - Tarea activa: el **circulo** de la izquierda la completa (o la reabre). Mover a Compras
   esta en el menu rapido y en la ficha, y no se ofrece en ocurrencias de rutina.
-- Compra de fabrica: **el boton dice cual es el proximo casillero** (Esperando OC,
-  Esperando aprob., OC enviada, Esperando entrega, Material Recibido) y avanza uno por toque.
-  Nunca ofrece Cancelado como paso siguiente: eso se elige a mano desde la ficha. En **pausa
-  administrativa** ofrece `▶ Quitar pausa`.
+- Compra de fabrica (2.7): debajo del titulo, a la derecha de su barra de etapas, el boton
+  **Avanzar** dice a donde va: "Avanzar a OC", "Avanzar a Aprobación", "Avanzar a Enviada",
+  "Avanzar a Entrega" y, en Esperando entrega, "Marcar recibido" (el `aria-label` lleva el
+  nombre completo: "Avanzar a Esperando OC"). Avanza uno por toque, con Deshacer. Nunca ofrece
+  Cancelado como paso siguiente: eso se elige a mano desde la ficha. En **pausa
+  administrativa** ofrece `▶ Quitar pausa` en el mismo lugar. El **circulo** de la izquierda la
+  marca recibida (con Deshacer).
 - **Pausa administrativa** (compras con seguimiento): desde la ficha ("Poner en pausa
   administrativa") la compra queda congelada en su casillero. Toda la tarjeta se enmarca en ambar
   (borde doble y fondo tenido, en claro y oscuro) con el badge "Pausa administrativa", para

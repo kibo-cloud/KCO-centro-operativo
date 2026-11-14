@@ -1056,6 +1056,26 @@ li.item.orden-fantasma .desliza{background:var(--surface-3)}
 .etapas-barra{display:flex;gap:2px;margin-top:var(--s-2);max-width:240px}
 .etapas-barra i{flex:1;height:4px;border-radius:var(--r-pill);background:var(--surface-3)}
 .etapas-barra i.hecha{background:var(--accent)}
+/* Tarjeta de compra de fabrica (Compras v2): fila 1 circulo + titulo 15/600
+   a todo el ancho + tres puntos; "Solicitante . Destino" en una linea; datos;
+   y una fila propia a todo el ancho (flex-wrap) con "<Etapa> . N de 6" sobre
+   la barra de seis segmentos y el boton Avanzar de 44 px a la derecha. */
+li.item.compra-v2 .desliza{flex-wrap:wrap;row-gap:var(--s-2);padding-bottom:var(--s-3)}
+.compra-v2 .cuerpo{flex:1 1 0}
+.compra-v2 .txt{font-weight:600}
+.compra-v2 .pedido{display:block;margin-top:var(--s-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal;text-transform:none}
+.compra-v2 .linea2.vacia{display:none}
+.compra-v2 .linea2 .badge.tag{display:inline-flex;align-items:center;height:24px;padding:0 var(--s-2);border-radius:var(--r-pill);background:var(--surface-3);color:var(--text)}
+.compra-v2 .linea2 .badge.niv-urgente{font-weight:600}
+.etapa-fila{flex:1 0 100%;display:flex;align-items:center;gap:var(--s-3);padding:0 var(--s-2) 0 var(--tap);min-width:0}
+.ordenable .etapa-fila{padding-left:60px}
+.etapa-info{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:var(--s-1)}
+.etapa-rot{font-size:var(--fs-13);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.etapa-fila .etapas-barra{margin:0;max-width:none}
+.avanzar{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--s-1);min-height:var(--tap);padding:0 var(--s-3);border:0;border-radius:var(--r-ctl);background:var(--accent-soft);color:var(--accent);font-size:var(--fs-15);font-weight:650;white-space:nowrap;cursor:pointer}
+.avanzar .ico{width:18px;height:18px;margin:0}
+.avanzar.reanudar{background:none;border:1px solid var(--border-strong);color:var(--success)}
+@media (hover:hover){.avanzar:hover{filter:brightness(1.08)}}
 .acc2.pildora{min-height:var(--tap);padding:0 var(--s-3);border-radius:var(--r-pill);border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
 .pista-orden{margin:0 0 var(--s-2) 0}
 /* Boton compacto de orden (Manual / Automatico) y chip-menu de estado. */
