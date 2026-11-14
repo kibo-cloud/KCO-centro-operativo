@@ -3,6 +3,22 @@
 Cambios de KCO por version, del mas nuevo al mas viejo. Hasta 2.0.0 el historial esta en la
 seccion CHANGELOG de `LEEME.md`.
 
+## 2.7.0 — 2026-11-14 — Compras v2
+
+Cache `kibco-2.7.0`. Esquema 5 sin cambios; ninguna clave nueva (`kibco.filtroCompra` conserva
+sus valores: `activos` = Todas, una etapa, `recibido`/`cancelado` = Cerradas). Rediseño de
+Listas > Compras en modo fabrica; no se quita ninguna funcion.
+
+- Cabecera de una fila: progreso "Recibido N/M", selector de etapa de seleccion unica (Todas +
+  las 5 etapas abiertas; las etapas en 0 quedan deshabilitadas) y una barra con el menu
+  Abiertas/Recibidas/Canceladas, el menu Etiqueta y el orden como boton de icono.
+- Tarjeta: titulo a lo ancho, "Solicitante · Destino" en una linea, fila de prioridad, fecha,
+  comentarios y etiqueta, rotulo "Etapa · N de 6" sobre la barra y el boton "Avanzar a ..."
+  (mismo efecto que la pastilla anterior, con Deshacer). El circulo marca la compra recibida.
+- Cerradas: segmentado Recibidas / Canceladas, tarjetas compactas sin tachado y boton Reabrir,
+  que devuelve la compra a la etapa en la que estaba (o a Cotizando) con Deshacer.
+- Una compra nueva de fabrica siempre entra en Cotizando; la etiqueta activa se hereda.
+
 ## 2.6.3 — 2026-11-13 — filtro por etiqueta desplegable
 
 Cache `kibco-2.6.3`. Esquema 5 sin cambios, sin claves nuevas (`kibco.filtroTag` y

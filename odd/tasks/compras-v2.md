@@ -14,7 +14,7 @@ Why: more purchases visible per screen, one filter system, actions that read as 
 
 Scope: factory-mode Compras (stage boxes, toolbar, card, closed mode, capture). Simple-list mode
 only takes the new card without the stage bar if the component is shared. Base: public main 2.6.3
-(`920037e`), branch `feat/compras-v2`. No sync/server/VPS content (public repo).
+(`920037e`), branch `feat/compras-v2`.
 
 Constraints: strict ES5, DOM via createElement, user text via textContent, no innerHTML, no
 non-ASCII in JS strings (`\uXXXX`), no dependencies, `kibco.*` keys and formats intact, touch
@@ -43,7 +43,7 @@ inherited.
 - [x] T5 E2E: adjust specs per brief §6, add: Reabrir a cancelled purchase; capture with
   Canceladas active creates in Cotizando; Todas = sum of the 5 open stages; zero stages disabled;
   full `npm run verify` green.
-- [ ] T6 Release 2.7.0: VERSION_APP / sw.js / package.json, LEEME + CHANGELOG, `versiones/KCO v2.7.0`.
+- [x] T6 Release 2.7.0: VERSION_APP / sw.js / package.json, LEEME + CHANGELOG, `versiones/KCO v2.7.0`.
 
 Acceptance: brief §3-§5 met on a 390 px phone and desktop, light and dark; nothing in §5 changes;
 all checks green.
@@ -108,5 +108,8 @@ if the owner wants PRs; default is local work-unit commits, push only on explici
   `node tests/check-es5.mjs` ok; `node --test tests/unit/*.test.js` 153/153; full
   `node tests/e2e/run.mjs` 288 passed, 0 failed (no flakes observed).
 
+- T6 done (route: inline, mechanical). Versions 2.7.0 aligned, CHANGELOG + LEEME entries.
+  Parent checks before delivery recorded in the delivery note below.
+
 ## Next step
-T6 release 2.7.0 (parent): version bump, CHANGELOG, versiones/.
+Feature complete. Owner authorized the push to main once verified (2026-11-13).
