@@ -1467,6 +1467,7 @@
     circ.appendChild(svgIco('check'));
     if (it.nivel === 'urgente') { circ.appendChild(nodo('span', 'chk-punto')); }
     chk.appendChild(circ);
+    chk.disabled = soloLectura;
     chk.onclick = pararYHacer(function () { cambiarEstado(it.id, 'recibido'); });
     return chk;
   }
@@ -1493,6 +1494,7 @@
       b.onclick = pararYHacer(function () { cambiarEstado(it.id, sig.id); });
     }
     b.type = 'button';
+    b.disabled = soloLectura;
     b.setAttribute('title', b.getAttribute('aria-label'));
     return b;
   }
