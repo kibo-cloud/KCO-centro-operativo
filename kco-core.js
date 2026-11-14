@@ -585,6 +585,23 @@
     return dias > DIAS_ALERTA_ENTREGA ? dias : 0;
   }
 
+  /* Reabrir una compra cerrada (Compras v2): el estado en el que estaba antes
+     de cerrarse, leido del registro de eventos. Es el 'desde' del ultimo cambio
+     de estado de ese item que termino en su estado cerrado actual. Devuelve ''
+     si no hay ese dato (registro compactado, cerrada por otro camino) o si no
+     es uno de 'validos' (las etapas abiertas): quien llama usa Cotizando. No
+     guarda nada nuevo: el registro ya tenia el dato. */
+  function estadoAntesDeCerrar(eventos, itemId, cerrado, validos) {
+    var i, e;
+    if (!eventos || typeof eventos.length !== 'number') { return ''; }
+    for (i = eventos.length - 1; i >= 0; i--) {
+      e = eventos[i];
+      if (!e || e.tipo !== 'estado' || e.itemId !== itemId || e.hasta !== cerrado) { continue; }
+      return validos.indexOf(e.desde) > -1 ? e.desde : '';
+    }
+    return '';
+  }
+
   /* El dia en que algo "cae": fecha explicita, el dia de la ocurrencia de una
      rutina, o el dia del recordatorio. Vacio si no tiene dia. */
   function diaDe(it) {
@@ -1758,6 +1775,7 @@
     esActivo: esActivo,
     esHecho: esHecho,
     alertaEntrega: alertaEntrega,
+    estadoAntesDeCerrar: estadoAntesDeCerrar,
     DIAS_ALERTA_ENTREGA: DIAS_ALERTA_ENTREGA,
     diaDe: diaDe,
     SITUACIONES: SITUACIONES,

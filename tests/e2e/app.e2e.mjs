@@ -5709,6 +5709,85 @@ export const tests = [
     }
   },
   {
+    name: 'compras v2 closed: compact cards without strike-through (outline Cancelada/Recibida pill + Solicitante · Destino, 44px Reabrir); a tap opens the sheet',
+    storage: COMPRAS_SEED([['X1', 'cancelado', { solicitante: 'Nicolas Villalba', destino: 'Raviolera' }], ['R1', 'recibido', { solicitante: 'Arbe Digno' }]],
+      { 'kibco.filtroCompra': 'cancelado' }),
+    async fn(page) {
+      await toCompras(page);
+      assert.equal(await page.text('#menuVistaCompra .menu-chip-rot'), 'Cerradas', 'an old stored "cancelado" opens Cerradas');
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['X1']);
+      const card = (id) => `#listaCompras li.item[data-id="${id}"]`;
+      const leer = (id) => page.eval(`(function(){var li=document.querySelector('${card(id)}'),t=li.querySelector('.txt'),st=getComputedStyle(t),p=li.querySelector('.estado-pill'),ps=getComputedStyle(p),
+        r=li.querySelector('[data-acc="reabrir-compra"]');
+        return {deco:st.textDecorationLine,ws:st.whiteSpace,fw:st.fontWeight,op:getComputedStyle(li).opacity,chk:li.querySelectorAll('.chk').length,bar:li.querySelectorAll('.etapas-barra').length,
+          pill:p.textContent,pb:ps.borderTopStyle,pbg:ps.backgroundColor,ped:li.querySelector('.cerrada-pedido').textContent,btn:r.textContent,aria:r.getAttribute('aria-label'),h:Math.round(r.getBoundingClientRect().height)};})()`);
+      await esperarHasta(() => page.eval("document.getAnimations().filter(function(a){return a.playState==='running';}).length===0"), 3000, 'animations to settle');
+      const x = await leer('X1');
+      assert.equal(x.deco, 'none', 'no strike-through');
+      assert.equal(x.op, '1', 'not faded out');
+      assert.deepEqual([x.ws, x.fw], ['nowrap', '500'], 'one line, 15/500');
+      assert.deepEqual([x.chk, x.bar], [0, 0], 'no circle, no stage bar');
+      assert.deepEqual([x.pill, x.pb, x.pbg], ['Cancelada', 'solid', 'rgba(0, 0, 0, 0)'], 'outline pill');
+      assert.equal(x.ped, 'Nicolas Villalba · Raviolera');
+      assert.deepEqual([x.btn, x.aria], ['Reabrir', 'Reabrir: compra X1']);
+      assert.ok(x.h >= 44, '44px Reabrir');
+      await page.click('#chipsCompra [data-filtro="recibido"]');
+      const r = await leer('R1');
+      assert.deepEqual([r.pill, r.ped, r.deco], ['Recibida', 'Arbe Digno', 'none']);
+      await page.click(card('R1') + ' .txt');
+      await abierta(page, 'tapaItem');
+      assert.equal(await page.text('#itemTitulo'), 'compra R1', 'a tap opens the sheet as always');
+    }
+  },
+  {
+    name: 'compras v2 Reabrir: a cancelled purchase goes back to its stage before closing (Cotizando without that data), with Deshacer',
+    storage: COMPRAS_SEED([['X1', 'cancelado'], ['X2', 'cancelado'], ['R1', 'recibido']], {
+      'kibco.filtroCompra': 'cancelado',
+      'kibco.eventos': JSON.stringify([
+        { id: 'e1', ts: '2026-11-01T12:00:00.000Z', tipo: 'estado', itemId: 'X1', texto: 'compra X1', contexto: 'taller', desde: 'cotizando', hasta: 'esperando_aprob' },
+        { id: 'e2', ts: '2026-11-02T12:00:00.000Z', tipo: 'estado', itemId: 'X1', texto: 'compra X1', contexto: 'taller', desde: 'esperando_aprob', hasta: 'cancelado' },
+        { id: 'e3', ts: '2026-11-02T13:00:00.000Z', tipo: 'estado', itemId: 'R1', texto: 'compra R1', contexto: 'taller', desde: 'esperando_entrega', hasta: 'recibido' }
+      ])
+    }),
+    async fn(page) {
+      await toCompras(page);
+      const estado = async (id) => (await items(page)).find((i) => i.id === id).estado;
+      await page.click('#listaCompras li.item[data-id="X1"] [data-acc="reabrir-compra"]');
+      assert.equal(await estado('X1'), 'esperando_aprob', 'back to the stage it had');
+      assert.deepEqual(await listRows(page, 'listaCompras'), ['X2'], 'it leaves the closed list');
+      await esperarHasta(() => page.visible('#btnDeshacer'), 2000, 'Deshacer offered');
+      const ev = (await events(page)).filter((e) => e.itemId === 'X1').pop();
+      assert.deepEqual([ev.tipo, ev.desde, ev.hasta], ['estado', 'cancelado', 'esperando_aprob'], 'a plain state change in the log');
+      await page.click('#btnDeshacer');
+      await esperarHasta(async () => (await estado('X1')) === 'cancelado', 2000, 'undone');
+      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), ['X1', 'X2']);
+      // No closing event recorded: Cotizando.
+      await page.click('#listaCompras li.item[data-id="X2"] [data-acc="reabrir-compra"]');
+      assert.equal(await estado('X2'), 'cotizando');
+      // A received one reopens too.
+      await page.click('#chipsCompra [data-filtro="recibido"]');
+      await page.click('#listaCompras li.item[data-id="R1"] [data-acc="reabrir-compra"]');
+      assert.equal(await estado('R1'), 'esperando_entrega');
+    }
+  },
+  {
+    name: 'compras v2 stored filter: old kibco.filtroCompra values map to the new header (activos = Todas, a stage, recibido = Cerradas, a simple-list value = Todas untouched)',
+    storage: COMPRAS_SEED([['C1', 'cotizando'], ['C2', 'esperando_oc'], ['R1', 'recibido']], { 'kibco.filtroCompra': 'recibido' }),
+    async fn(page) {
+      const ver = () => page.eval(`(function(){var on=document.querySelector('#chipsCompra [aria-pressed="true"]');return [document.querySelector('#menuVistaCompra .menu-chip-rot').textContent,
+        on?on.getAttribute('data-filtro'):'',Array.prototype.map.call(document.querySelectorAll('#listaCompras li.item'),function(l){return l.getAttribute('data-id');}).sort().join(',')];})()`);
+      await toCompras(page);
+      assert.deepEqual(await ver(), ['Cerradas', 'recibido', 'R1']);
+      for (const [v, want] of [['esperando_oc', ['Abiertas', 'esperando_oc', 'C2']], ['activos', ['Abiertas', 'activos', 'C1,C2']], ['comprado', ['Abiertas', 'activos', 'C1,C2']]]) {
+        await page.eval(`localStorage.setItem('kibco.filtroCompra', ${JSON.stringify(v)})`);
+        await page.reload();
+        await toCompras(page);
+        assert.deepEqual(await ver(), want, v);
+      }
+      assert.equal(await page.storage('kibco.filtroCompra'), 'comprado', 'the stored value is not overwritten');
+    }
+  },
+  {
     name: 'notas (Cabina): a 2-column grid; pinned notes carry the pin and an accent border; search, Archivadas and Nueva nota share the top bar',
     storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'taller', 'kibco.notas': NOTE_LIST() },
     async fn(page) {

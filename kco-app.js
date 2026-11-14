@@ -1503,6 +1503,51 @@
     return f;
   }
 
+  /* Reabrir una compra de fabrica cerrada: vuelve a la etapa en la que estaba
+     antes de cerrarse, leida del registro (KCOCore.estadoAntesDeCerrar); sin
+     ese dato, a Cotizando. Es un cambio de estado comun: queda en el registro
+     y ofrece Deshacer. No se guarda ningun campo nuevo. */
+  function reabrirCompra(id) {
+    var it = buscarItem(id), abiertas = [], i;
+    if (!it || esActivo(it.estado)) { return; }
+    for (i = 0; i < N_ABIERTAS; i++) { abiertas.push(ESTADOS_COMPRA[i].id); }
+    cambiarEstado(id, K.estadoAntesDeCerrar(eventos, id, it.estado, abiertas) || 'cotizando');
+  }
+
+  /* Tarjeta compacta de una compra de fabrica cerrada: titulo en una linea,
+     sin tachado; debajo la pastilla Cancelada / Recibida y "Solicitante .
+     Destino"; a la derecha Reabrir. Tocarla abre la ficha como siempre. */
+  function nodoCompraCerrada(li, fila, it, motivo) {
+    var cu = nodo('div', 'cuerpo'), lin = nodo('div', 'cerrada-linea'), pe = nodo('span', 'cerrada-pedido'), b;
+    li.className += ' compra-cerrada';
+    fila.className += ' sin-chk';
+    cu.appendChild(nodo('div', 'txt', it.texto));
+    if (motivo) { cu.appendChild(nodo('div', 'motivo mono', motivo)); }
+    if (contexto === 'todo') { lin.appendChild(badgeCtx(it.contexto)); }
+    lin.appendChild(nodo('span', 'estado-pill', it.estado === 'recibido' ? 'Recibida' : 'Cancelada'));
+    pintarPedido(pe, it);
+    if (pe.textContent !== '') { lin.appendChild(pe); }
+    cu.appendChild(lin);
+    fila.appendChild(cu);
+    b = nodo('button', 'reabrir', 'Reabrir');
+    b.type = 'button';
+    b.setAttribute('data-acc', 'reabrir-compra');
+    b.setAttribute('aria-label', 'Reabrir: ' + it.texto);
+    b.disabled = soloLectura;
+    b.onclick = pararYHacer(function () { reabrirCompra(it.id); });
+    fila.appendChild(b);
+    li.onclick = function () {
+      if (gestoReciente(li)) { return; }
+      abrirItem(it.id);
+    };
+    li.onkeydown = function (ev) {
+      if (ev.target !== li) { return; }
+      var k = ev.key || '';
+      if (k === 'Enter' || k === ' ' || ev.keyCode === 13 || ev.keyCode === 32) { ev.preventDefault(); abrirItem(it.id); }
+    };
+    return li;
+  }
+
   function nodoItem(it, motivo, modo) {
     var li = document.createElement('li');
     /* Compra de fabrica: tarjeta v2 (abierta) o compacta (cerrada). */
@@ -1525,6 +1570,7 @@
     li.appendChild(rev);
     var fila = nodo('div', 'desliza');
     li.appendChild(fila);
+    if (v2 && !abiertaV2) { return nodoCompraCerrada(li, fila, it, motivo); }
 
     /* Circulo a la izquierda (Things/Todoist): completar o reabrir una tarea,
        marcar una compra de lista simple. Su nombre lleva el texto del item. */

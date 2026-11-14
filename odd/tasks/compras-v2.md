@@ -34,7 +34,7 @@ inherited.
   ellipsis (no forced uppercase), meta row (priority word, date, comments icon+n, tag pill),
   stage row "<Etapa> · N de 6" over the 6-segment bar + "Avanzar a <next short>" button
   (aria-label full name; same action as today's pill, with Deshacer); urgent border/ring.
-- [ ] T3 Closed mode: 2-option segmented Recibidas / Canceladas replacing the stage selector;
+- [x] T3 Closed mode: 2-option segmented Recibidas / Canceladas replacing the stage selector;
   compact closed card (muted, no strike-through, outline pill Cancelada/Recibida +
   "Solicitante · Destino", outline "Reabrir" button restoring the previous stage or Cotizando,
   with Deshacer); tap opens the sheet as always.
@@ -83,5 +83,16 @@ if the owner wants PRs; default is local work-unit commits, push only on explici
   applies to factory purchases wherever a card is drawn (Ahora, Hoy, search); tasks and
   simple-list purchases are untouched.
 
+- T3 done (route: delegated writer). Files: kco-core.js (estadoAntesDeCerrar),
+  tests/unit/compras.test.js, kco-app.js (reabrirCompra, nodoCompraCerrada), kco.css
+  (compra-cerrada, estado-pill, reabrir), LEEME.md, E2E specs. RED: compras.test.js 0/4 against
+  the T2 kco-core ("estadoAntesDeCerrar is not a function"); the Reabrir E2E spec failed (no
+  reabrir button). GREEN: unit 153/153; "compras v2" 7/7 twice; "compra", "Compra",
+  "purchase", "empty", "lists:" green. Decisions: Reabrir reads the previous stage from the
+  existing event log (`desde` of the latest `estado` event of that item ending in its current
+  closed state, restricted to the five open stages), falling back to Cotizando; no new stored
+  field. Received purchases also show Reabrir (brief: pill "Recibida"). The segmented control
+  itself shipped with T1.
+
 ## Next step
-T3 closed mode.
+T4 capture.

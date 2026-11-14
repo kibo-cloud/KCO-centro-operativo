@@ -152,6 +152,13 @@ De arriba hacia abajo, debajo de las pestañas Tareas · Compras · Notas:
   etiqueta como pastilla); y abajo `Cotizando · 1 de 6` sobre la barra de seis segmentos con el
   boton Avanzar a la derecha. Con una etapa concreta elegida el rotulo se oculta (el filtro ya
   la nombra) y queda la barra. Urgente: borde y anillo en rojo con punto.
+- **Tarjeta cerrada** (modo Cerradas): mas compacta y un tono mas apagada, titulo en una
+  linea **sin tachado**, debajo la pastilla de contorno "Cancelada" o "Recibida" con
+  `Solicitante · Destino`, y a la derecha **Reabrir** (44 px). Reabrir devuelve la compra a la
+  etapa en la que estaba antes de cerrarse, leida del registro de eventos (el ultimo cambio de
+  estado que la cerro); si ese dato no esta (registro compactado), a Cotizando. Es un cambio de
+  estado comun: queda en el registro y ofrece Deshacer. No se guarda ningun campo nuevo.
+  Tocar la tarjeta abre la ficha como siempre (motivo, comentarios, historial).
 
 El filtro se guarda en la misma clave y con los mismos valores de siempre
 (`kibco.filtroCompra`): `activos` es Todas, el id de una etapa la filtra y `recibido` /

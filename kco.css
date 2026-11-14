@@ -1076,6 +1076,18 @@ li.item.compra-v2 .desliza{flex-wrap:wrap;row-gap:var(--s-2);padding-bottom:var(
 .avanzar .ico{width:18px;height:18px;margin:0}
 .avanzar.reanudar{background:none;border:1px solid var(--border-strong);color:var(--success)}
 @media (hover:hover){.avanzar:hover{filter:brightness(1.08)}}
+/* Compra de fabrica cerrada (modo Cerradas): un tono mas apagado, sin
+   tachado ni transparencia; titulo 15/500 en una linea; pastilla de contorno
+   y Reabrir de contorno de 44 px. */
+li.item.compra-cerrada,:root[data-tema="claro"] li.item.compra-cerrada{opacity:1;border-color:var(--border);background:var(--bg);box-shadow:none}
+li.item.compra-cerrada .desliza{align-items:center;gap:var(--s-2);min-height:0;padding:var(--s-3) var(--s-2) var(--s-3) var(--s-4);background:var(--bg)}
+li.item.compra-cerrada .cuerpo{flex:1 1 0;padding-top:0}
+li.item.compra-cerrada .txt{text-decoration:none;font-weight:500;color:var(--text);opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;word-break:normal}
+.cerrada-linea{display:flex;align-items:center;gap:var(--s-2);margin-top:var(--s-1);font-size:var(--fs-13);color:var(--muted);white-space:nowrap;overflow:hidden;min-width:0}
+.estado-pill{flex:0 0 auto;display:inline-flex;align-items:center;height:24px;padding:0 var(--s-2);border:1px solid var(--border-strong);border-radius:var(--r-pill);background:transparent;color:var(--muted)}
+.cerrada-pedido{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.reabrir{flex:0 0 auto;min-height:var(--tap);padding:0 var(--s-3);border:1px solid var(--border-strong);border-radius:var(--r-ctl);background:none;color:var(--text);font-size:var(--fs-15);font-weight:600;cursor:pointer}
+@media (hover:hover){.reabrir:hover{background:var(--surface-2)}}
 .acc2.pildora{min-height:var(--tap);padding:0 var(--s-3);border-radius:var(--r-pill);border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
 .pista-orden{margin:0 0 var(--s-2) 0}
 /* Boton compacto de orden (Manual / Automatico) y chip-menu de estado. */
