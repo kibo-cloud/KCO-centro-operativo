@@ -40,7 +40,7 @@ inherited.
   with Deshacer); tap opens the sheet as always.
 - [x] T4 Capture: placeholder "Nueva compra · entra en Cotizando"; new factory purchases always
   start in Cotizando regardless of stage/closed filter; tag inherited.
-- [ ] T5 E2E: adjust specs per brief §6, add: Reabrir a cancelled purchase; capture with
+- [x] T5 E2E: adjust specs per brief §6, add: Reabrir a cancelled purchase; capture with
   Canceladas active creates in Cotizando; Todas = sum of the 5 open stages; zero stages disabled;
   full `npm run verify` green.
 - [ ] T6 Release 2.7.0: VERSION_APP / sw.js / package.json, LEEME + CHANGELOG, `versiones/KCO v2.7.0`.
@@ -102,5 +102,11 @@ if the owner wants PRs; default is local work-unit commits, push only on explici
   target is a factory section; simple lists keep the 2.5.0 rule; the tag is still inherited
   (a tag with nothing in view is dropped by the existing tag-menu rule, unchanged).
 
+- T5 done (route: delegated writer). The specs listed in brief §6 were written test-first with
+  their tasks (T1 header/toolbar/layout, T2 card, T3 closed/Reabrir/stored values, T4 capture);
+  T5 adds docs/TESTING.md rows (compras.test.js, `compras v2`, `capture state`). Checks:
+  `node tests/check-es5.mjs` ok; `node --test tests/unit/*.test.js` 153/153; full
+  `node tests/e2e/run.mjs` 288 passed, 0 failed (no flakes observed).
+
 ## Next step
-T5 E2E closure.
+T6 release 2.7.0 (parent): version bump, CHANGELOG, versiones/.
