@@ -159,6 +159,11 @@ De arriba hacia abajo, debajo de las pestañas Tareas · Compras · Notas:
   estado que la cerro); si ese dato no esta (registro compactado), a Cotizando. Es un cambio de
   estado comun: queda en el registro y ofrece Deshacer. No se guarda ningun campo nuevo.
   Tocar la tarjeta abre la ficha como siempre (motivo, comentarios, historial).
+- **Captura:** la barra dice "Nueva compra · entra en Cotizando". Una compra nueva de un
+  apartado con seguimiento **siempre entra en Cotizando**, sin importar la etapa elegida ni el
+  modo Cerradas (nunca nace cancelada ni recibida, tampoco mirando Todo). La etiqueta elegida si
+  se hereda, como siempre. En una lista simple sigue valiendo la regla de 2.5.0: lo capturado
+  nace en el estado del chip elegido.
 
 El filtro se guarda en la misma clave y con los mismos valores de siempre
 (`kibco.filtroCompra`): `activos` es Todas, el id de una etapa la filtra y `recibido` /

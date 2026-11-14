@@ -4842,7 +4842,7 @@ export const tests = [
     }
   },
   {
-    name: 'capture state: on Compras with a state chip selected the new purchase is created in that state (hogar and fabrica); Activos keeps the default',
+    name: 'capture state: on Compras a simple list captures into the chosen state chip; a factory purchase always enters Cotizando (stage, Canceladas or Todo), keeping the tag',
     storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'mercado' },
     async fn(page) {
       await page.click('#tabTareas');
@@ -4857,39 +4857,47 @@ export const tests = [
       assert.deepEqual(await listRows(page, 'listaCompras'), [list[0].id], 'shown in the list being looked at');
       const ev = (await events(page)).filter((e) => e.itemId === list[0].id).map((e) => [e.tipo, e.desde, e.hasta]);
       assert.deepEqual(ev, [['captura', '', 'por_comprar'], ['estado', 'por_comprar', 'comprado']], 'same history as capture + manual move');
-      // Factory flow: its stage counters. A stage at 0 cannot be tapped, so a purchase is moved there first.
+      // Factory flow (Compras v2): a new purchase always enters Cotizando, whatever stage or closed filter is chosen; the tag is inherited.
       await page.eval("document.querySelector('#ctxsel [data-ctx=\"taller\"]').click()");
-      await sleep(80);
-      await page.click('#chipsCompra [data-filtro="activos"]');
+      await esperarHasta(() => page.eval("!!document.getElementById('menuVistaCompra')"), 2000, 'factory header');
+      const hint = () => page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')");
+      assert.equal(await hint(), 'Nueva compra · entra en Cotizando');
       await page.type('#txtCaptura', 'rodamientos', true);
       list = await items(page);
-      assert.equal(await page.eval("document.querySelector('#chipsCompra [data-filtro=\"oc_enviada\"]').disabled"), true, 'empty stage disabled');
+      assert.deepEqual([list[1].estado, list[1].contexto], ['cotizando', 'taller']);
       for (let k = 0; k < 3; k++) await page.click('#listaCompras li.item[data-id="' + list[1].id + '"] [data-acc="siguiente"]');
       assert.equal((await items(page))[1].estado, 'oc_enviada');
       await page.click('#chipsCompra [data-filtro="oc_enviada"]');
+      assert.equal(await hint(), 'Nueva compra · entra en Cotizando', 'a stage filter does not change the hint');
+      await page.type('#txtCaptura', 'rodamientos 2');
+      assert.doesNotMatch(await page.text('#capDia'), /OC enviada/, 'the chip does not name the filter stage');
       await page.type('#txtCaptura', 'rodamientos 2', true);
       list = await items(page);
-      assert.deepEqual([list[2].estado, list[2].contexto], ['oc_enviada', 'taller']);
-      assert.deepEqual((await listRows(page, 'listaCompras')).sort(), [list[1].id, list[2].id].sort());
-      // Todo mixes both flows: a state the target flow lacks keeps the default.
-      await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
-      await sleep(80);
-      await page.click('#chipsCompra [data-filtro="comprado"]');
-      assert.doesNotMatch(await page.eval("document.getElementById('txtCaptura').getAttribute('placeholder')"), /Comprado/, 'no state in the hint when it does not apply');
-      await page.type('#txtCaptura', 'correas', true);
-      list = await items(page);
-      assert.deepEqual([list[3].estado, list[3].contexto], ['cotizando', 'taller'], 'never a hogar state in a factory section');
-      await page.click('#chipsCompra [data-filtro="recibido"]');
+      assert.deepEqual([list[2].estado, list[2].contexto], ['cotizando', 'taller'], 'a stage filter does not apply');
+      // Canceladas active: still Cotizando (never born cancelled), with the active tag.
+      await page.click('#menuVistaCompra .menu-chip-btn');
+      await page.click('#menuVistaCompra [data-vista="cancelado"]');
+      assert.equal(await hint(), 'Nueva compra · entra en Cotizando');
+      // A cancelled purchase tagged Tornos keeps the tag menu (a tag with nothing in view is dropped).
+      await page.eval("(function(){var l=JSON.parse(localStorage.getItem('kibco.items'));l[2].estado='cancelado';l[2].tag='tornos';localStorage.setItem('kibco.items',JSON.stringify(l));localStorage.setItem('kibco.filtroTagCompra','tornos');})()");
+      await page.reload();
+      await page.click('#tabTareas');
+      await page.click('#segBtnCompras');
       await page.type('#txtCaptura', 'bulones', true);
       list = await items(page);
-      assert.deepEqual([list[4].estado, list[4].contexto], ['recibido', 'taller'], 'a valid state applies in Todo');
-      // Activos: the default as always.
-      await page.click('#chipsCompra [data-filtro="activos"]');
-      await page.type('#txtCaptura', 'grasa', true);
+      assert.deepEqual([list[3].estado, list[3].contexto, list[3].tag], ['cotizando', 'taller', 'tornos'], 'Canceladas active: Cotizando, tag inherited');
+      const ev2 = (await events(page)).filter((e) => e.itemId === list[3].id).map((e) => e.tipo);
+      assert.deepEqual(ev2, ['captura'], 'no extra state move');
+      // Todo mixes both flows: a factory purchase still enters Cotizando.
+      await page.eval("document.querySelector('#ctxsel [data-ctx=\"todo\"]').click()");
+      await sleep(80);
+      await page.click('#chipsCompra [data-filtro="recibido"]');
+      await page.type('#txtCaptura', 'correas', true);
       list = await items(page);
-      assert.equal(list[5].estado, 'cotizando');
+      assert.deepEqual([list[4].estado, list[4].contexto], ['cotizando', 'taller'], 'never a closed state in a factory section');
     }
   },
+
   {
     name: 'capture state: on Tareas with a state chip and a tag selected the new task lands in that list; Activos and Ahora keep the default',
     storage: { 'kibco.esquema': '5', 'kibco.apartados': NOTE_SECTIONS, 'kibco.contexto': 'taller',

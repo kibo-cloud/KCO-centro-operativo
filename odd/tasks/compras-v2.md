@@ -38,7 +38,7 @@ inherited.
   compact closed card (muted, no strike-through, outline pill Cancelada/Recibida +
   "Solicitante · Destino", outline "Reabrir" button restoring the previous stage or Cotizando,
   with Deshacer); tap opens the sheet as always.
-- [ ] T4 Capture: placeholder "Nueva compra · entra en Cotizando"; new factory purchases always
+- [x] T4 Capture: placeholder "Nueva compra · entra en Cotizando"; new factory purchases always
   start in Cotizando regardless of stage/closed filter; tag inherited.
 - [ ] T5 E2E: adjust specs per brief §6, add: Reabrir a cancelled purchase; capture with
   Canceladas active creates in Cotizando; Todas = sum of the 5 open stages; zero stages disabled;
@@ -94,5 +94,13 @@ if the owner wants PRs; default is local work-unit commits, push only on explici
   field. Received purchases also show Reabrir (brief: pill "Recibida"). The segmented control
   itself shipped with T1.
 
+- T4 done (route: delegated writer). Files: kco-app.js (estadoCaptura returns '' for a factory
+  purchase; pintarPistaCaptura shows "Nueva compra · entra en Cotizando" when the capture
+  target is a factory section), LEEME.md, E2E spec "capture state: on Compras ..." rewritten
+  for the factory part. RED: the hint read "Nueva compra en Taller". GREEN: 2/2 runs; groups
+  "capture" (29), "tag", "compra", "Compra" green. Decisions: applies in Todo too when the
+  target is a factory section; simple lists keep the 2.5.0 rule; the tag is still inherited
+  (a tag with nothing in view is dropped by the existing tag-menu rule, unchanged).
+
 ## Next step
-T4 capture.
+T5 E2E closure.

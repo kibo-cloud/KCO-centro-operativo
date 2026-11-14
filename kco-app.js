@@ -776,6 +776,9 @@
   function estadoCaptura(tipo, ctx) {
     var f = vista === 'tablero' && tipo === 'tarea' ? filtro : (vista === 'compras' && tipo === 'compra' ? filtroCompra : '');
     if (f === '' || f === 'activos') { return ''; }
+    /* Compras v2: una compra de fabrica nueva siempre entra en Cotizando, sea
+       cual sea la etapa o el filtro Cerradas elegido (nunca nace cancelada). */
+    if (tipo === 'compra' && K.esFabrica(ctx)) { return ''; }
     if (contexto !== 'todo' && ctx !== contexto) { return ''; }
     return estadoValido(tipo, ctx, f) ? f : '';
   }
@@ -1123,7 +1126,11 @@
     if (est !== '') { nomEst = estadoInfo(est).nom; }
     else if (vista === 'tablero' && filtro === 'activos') { nomEst = 'Activos'; }
     pista = vista === 'tablero' && tipo === 'tarea' ? 'lista' : tipo;
-    if (inp) {
+    if (inp && tipo === 'compra' && K.esFabrica(ctxCaptura)) {
+      /* Compras v2: dice donde entra lo nuevo, no el filtro que se mira. */
+      inp.setAttribute('placeholder', 'Nueva compra \u00B7 entra en Cotizando');
+      inp.setAttribute('data-tipo', tipo);
+    } else if (inp) {
       inp.setAttribute('placeholder', PISTA_CAPTURA[pista] + nomCtx(ctxCaptura) + (nomEst !== '' ? ' \u00B7 ' + nomEst : ''));
       inp.setAttribute('data-tipo', tipo);
     }
